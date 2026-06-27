@@ -1,0 +1,45 @@
+import type { EpisodeStatus, EpisodeState } from '../types/episode.js';
+
+// Agents in a state run as ordered STAGES: agents within a stage run concurrently,
+// stages run sequentially so later agents see earlier agents' writes. This encodes
+// intra-state dependencies (Build-Spec §5.3): Visual Director needs the script;
+// Music needs the voiceover duration.
+export interface StateDef {
+  stages: string[][];      // e.g. [['scriptwriter'], ['visual_director']]
+  next: EpisodeStatus;
+  gate?: 'A' | 'B' | 'C';
+}
+
+export const MACHINE: Record<EpisodeStatus, StateDef | null> = {
+  draft:          { stages: [],                                          next: 'researching' },
+  researching:    { stages: [['research']],                             next: 'concept_review' },
+  concept_review: { stages: [], next: 'scripting',     gate: 'A' },
+  scripting:      { stages: [['scriptwriter'], ['visual_director']],     next: 'script_review' },
+  script_review:  { stages: [], next: 'generating',    gate: 'B' },
+  // VO + video + stock in parallel; music after (needs voiceover.total_duration_s).
+  generating:     { stages: [['voiceover', 'video_generation', 'avatar', 'asset_sourcing'], ['music']], next: 'assembling' },
+  assembling:     { stages: [['editor']],                                next: 'qa' },
+  qa:             { stages: [['qa']],                                    next: 'cut_review' },
+  cut_review:     { stages: [], next: 'distributing',  gate: 'C' },
+  // packaging then publishing (publishing blockedBy packaging); shorts in parallel.
+  distributing:   { stages: [['shorts', 'packaging'], ['publishing']],   next: 'published' },
+  published:      null,
+  failed:         null,
+  on_hold:        null,
+};
+
+// Hard guards before entering a state (Build-Spec §5.2).
+export const GUARDS: Partial<Record<EpisodeStatus, (s: EpisodeState) => string | null>> = {
+  generating: (s) => {
+    if (!s.script.approved) return 'script not approved';
+    if (s.shot_list.length === 0) return 'shot_list empty';
+    const missing = s.shot_list.filter((sh) => sh.source === 'generated' && !sh.prompt.runway && !sh.prompt.kling && !sh.prompt.veo);
+    if (missing.length) return `${missing.length} generated shots missing prompts`;
+    return null;
+  },
+  distributing: (s) => {
+    if (!s.edit.approved) return 'final cut not approved';
+    if (!s.qa.passed) return 'QA not passed';
+    return null;
+  },
+};

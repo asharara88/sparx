@@ -1,0 +1,30 @@
+{
+  "name": "ai-youtube-studio",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Semi-autonomous multi-agent pipeline that produces a weekly YouTube episode + Shorts.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/index.ts",
+    "demo": "tsx src/index.ts --demo",
+    "inspect": "tsx scripts/inspect.ts",
+    "browser:test": "tsx scripts/browser-test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "playwright": "^1.47.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
