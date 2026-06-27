@@ -18,7 +18,7 @@ describe('RealYouTube (resumable upload)', () => {
       return { ok: true, status: 200, json: async () => ({ id: 'yt_video_42' }), text: async () => '' } as any;
     }) as any;
 
-    const yt = new RealYouTube('token');
+    const yt = new RealYouTube(async () => 'token');
     const res = await yt.upload({ filePath: f, title: 'Hello', description: 'desc', tags: ['a', 'b'] });
     expect(res.uploaded).toBe(true);
     expect(res.videoId).toBe('yt_video_42');
@@ -30,7 +30,7 @@ describe('RealYouTube (resumable upload)', () => {
 
   it('skips upload (no real file) but still returns an id', async () => {
     globalThis.fetch = vi.fn() as any;
-    const yt = new RealYouTube('token');
+    const yt = new RealYouTube(async () => 'token');
     const res = await yt.upload({ filePath: '/nope/missing.mp4', title: 'T', description: 'd', tags: [] });
     expect(res.uploaded).toBe(false);
     expect((globalThis.fetch as any).mock.calls.length).toBe(0);

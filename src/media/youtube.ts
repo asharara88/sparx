@@ -22,9 +22,40 @@ export interface UploadRequest {
 export interface UploadResult { videoId: string; uploaded: boolean }
 export interface YouTubeProvider extends ProviderInfo { upload(req: UploadRequest): Promise<UploadResult> }
 
+// A token source: either a fixed access token, or a refresher that exchanges a
+// long-lived refresh token for short-lived access tokens (cached until expiry).
+type TokenSource = () => Promise<string>;
+
+function staticToken(token: string): TokenSource {
+  return async () => token;
+}
+
+function refreshingToken(clientId: string, clientSecret: string, refreshToken: string): TokenSource {
+  let cached: { token: string; expiresAt: number } | null = null;
+  return async () => {
+    // Reuse while >60s of life remains; otherwise mint a fresh one.
+    if (cached && Date.now() < cached.expiresAt - 60_000) return cached.token;
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+    if (!res.ok) throw new Error(`YouTube OAuth refresh ${res.status}: ${(await res.text()).slice(0, 240)}`);
+    const data = (await res.json()) as { access_token: string; expires_in: number };
+    cached = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
+    log.info('refreshed youtube access token', { expiresInS: data.expires_in });
+    return cached.token;
+  };
+}
+
 class RealYouTube implements YouTubeProvider {
   readonly name = 'youtube'; readonly live = true;
-  constructor(private token: string) {}
+  constructor(private getToken: TokenSource) {}
 
   async upload(req: UploadRequest): Promise<UploadResult> {
     const c = config();
@@ -33,6 +64,7 @@ class RealYouTube implements YouTubeProvider {
       log.warn('youtube token present but no real video file; recording metadata, skipping upload', { filePath: req.filePath });
       return { videoId: `pending_${Date.now()}`, uploaded: false };
     }
+    const token = await this.getToken();
     const bytes = readFileSync(req.filePath);
     const size = statSync(req.filePath).size;
     const meta = {
@@ -43,7 +75,7 @@ class RealYouTube implements YouTubeProvider {
     const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json; charset=UTF-8',
         'X-Upload-Content-Type': 'video/*',
         'X-Upload-Content-Length': String(size),
@@ -74,7 +106,15 @@ let provider: YouTubeProvider | null = null;
 export function getYouTube(): YouTubeProvider {
   if (provider) return provider;
   const c = config();
-  provider = c.YOUTUBE_ACCESS_TOKEN ? new RealYouTube(c.YOUTUBE_ACCESS_TOKEN) : new MockYouTube();
+  if (c.YOUTUBE_CLIENT_ID && c.YOUTUBE_CLIENT_SECRET && c.YOUTUBE_REFRESH_TOKEN) {
+    // Durable: refresh tokens auto-mint fresh access tokens — survives unattended runs.
+    provider = new RealYouTube(refreshingToken(c.YOUTUBE_CLIENT_ID, c.YOUTUBE_CLIENT_SECRET, c.YOUTUBE_REFRESH_TOKEN));
+  } else if (c.YOUTUBE_ACCESS_TOKEN) {
+    // One-off: a static ~1h token, fine for manual tests.
+    provider = new RealYouTube(staticToken(c.YOUTUBE_ACCESS_TOKEN));
+  } else {
+    provider = new MockYouTube();
+  }
   return provider;
 }
 export function __setYouTube(p: YouTubeProvider | null) { provider = p; }

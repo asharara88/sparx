@@ -37,7 +37,10 @@ const Schema = z.object({
   HEYGEN_VOICE_ID: z.string().default(''),
   HEYGEN_API_BASE: z.string().url().default('https://api.heygen.com'),
   HEYGEN_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  YOUTUBE_ACCESS_TOKEN: z.string().optional(),
+  YOUTUBE_ACCESS_TOKEN: z.string().optional(),           // static OAuth token (~1h); for one-off tests
+  YOUTUBE_CLIENT_ID: z.string().optional(),              // OAuth client for durable refresh-token flow
+  YOUTUBE_CLIENT_SECRET: z.string().optional(),
+  YOUTUBE_REFRESH_TOKEN: z.string().optional(),
   YOUTUBE_CATEGORY_ID: z.string().default('27'),         // 27 = Education
   YOUTUBE_PRIVACY: z.enum(['private', 'unlisted', 'public']).default('private'),
 
