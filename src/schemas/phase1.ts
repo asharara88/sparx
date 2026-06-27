@@ -65,7 +65,7 @@ export type Outline = z.infer<typeof OutlineSchema>;
 
 // --- Scriptwriter: step 2 (full draft) ---
 export const ScriptSectionSchema = z.object({
-  id: z.string(),
+  id: z.coerce.string(),   // models sometimes return numeric ids; coerce to string
   beat: z.string(),
   vo_text: z.string().min(1),
   shot_note: z.string(),
