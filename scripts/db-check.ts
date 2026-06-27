@@ -1,4 +1,5 @@
 // Connectivity probe: insert a row into episodes and read it back.
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 const url = process.env.SUPABASE_URL!;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY!;
