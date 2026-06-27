@@ -23,9 +23,9 @@ export const scriptwriter: Agent = {
 
     // 1) outline
     const outline = await llm.complete({
-      tier: 'main', temperature: 0.8, schema: OutlineSchema,
+      tier: 'main', temperature: 0.8, maxTokens: 2000, schema: OutlineSchema,
       system: 'You are an elite YouTube scriptwriter who obsesses over retention. First plan: write multiple hook options and a beat sheet that engineers open loops and payoffs.',
-      prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nAudience: ${c.audience}\nTarget: ~${c.target_length_min} min.\n\nReturn JSON {hook_variants:[2-4], beat_sheet:[4-9 beats]}.`,
+      prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nAudience: ${c.audience}\nTarget: ~${c.target_length_min} min.\n\nReturn ONLY compact JSON: {"hook_variants":[2-4 short plain-text strings],"beat_sheet":[4-9 short plain-text strings]}. Each string is one line of plain text — NOT an object. No prose outside the JSON.`,
       mock: JSON.stringify({
         hook_variants: [
           `Everyone does ${c.topic} the same way. It's quietly costing them — and here's the proof.`,
@@ -38,7 +38,7 @@ export const scriptwriter: Agent = {
 
     // 2) draft
     const draft = await llm.complete({
-      tier: 'main', temperature: 0.7, maxTokens: 3500, schema: ScriptDraftSchema,
+      tier: 'main', temperature: 0.7, maxTokens: 8000, schema: ScriptDraftSchema,
       system: 'You write natural, spoken-voice narration. Each section names its beat and the retention device keeping the viewer watching. Include a visual note and short on-screen text.',
       prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nHost mode: ${host}\nChosen hook: ${o.hook_variants[0]}\nBeat sheet: ${o.beat_sheet.join(' | ')}\nTarget ~${targetWords} words.\n\nReturn JSON {hook, sections:[{id,beat,vo_text,shot_note,on_screen,retention_device}] (5-9), cta}.`,
       mock: JSON.stringify({

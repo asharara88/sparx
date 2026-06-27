@@ -34,11 +34,33 @@ export const ConceptOutputSchema = z.object({
 });
 export type ConceptOutput = z.infer<typeof ConceptOutputSchema>;
 
+// Coerce a list element to a string: models sometimes return rich objects
+// (e.g. {hook, rationale}) where a plain string was requested. Pull the most
+// likely text field, else stringify — keeps the contract robust to model drift.
+const elementToString = (v: unknown): string => {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    const pick = o.hook ?? o.text ?? o.beat ?? o.variant ?? o.value ?? o.description ?? o.title ?? o.label;
+    return typeof pick === 'string' ? pick : JSON.stringify(v);
+  }
+  return String(v ?? '');
+};
 // --- Scriptwriter: step 1 (beat sheet + hooks) ---
-export const OutlineSchema = z.object({
-  hook_variants: z.array(z.string().min(8)).min(2).max(5),
-  beat_sheet: z.array(z.string().min(4)).min(4).max(12),
-});
+// Accept loose arrays (strings or rich objects), normalize to clean string lists,
+// then enforce counts. The transform output types as string[], so callers stay typed.
+export const OutlineSchema = z
+  .object({
+    hook_variants: z.array(z.unknown()),
+    beat_sheet: z.array(z.unknown()),
+  })
+  .transform((o) => ({
+    hook_variants: o.hook_variants.map(elementToString).filter((s) => s.length >= 8),
+    beat_sheet: o.beat_sheet.map(elementToString).filter((s) => s.length >= 4),
+  }))
+  .refine((o) => o.hook_variants.length >= 2 && o.beat_sheet.length >= 4, {
+    message: 'need >=2 hook_variants and >=4 beat_sheet items after normalization',
+  });
 export type Outline = z.infer<typeof OutlineSchema>;
 
 // --- Scriptwriter: step 2 (full draft) ---

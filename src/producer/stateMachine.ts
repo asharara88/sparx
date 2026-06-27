@@ -18,7 +18,7 @@ export const MACHINE: Record<EpisodeStatus, StateDef | null> = {
   script_review:  { stages: [], next: 'generating',    gate: 'B' },
   // VO + video + stock in parallel; music after (needs voiceover.total_duration_s).
   generating:     { stages: [['voiceover', 'video_generation', 'avatar', 'asset_sourcing'], ['music']], next: 'assembling' },
-  assembling:     { stages: [['editor']],                                next: 'qa' },
+  assembling:     { stages: [['editor'], ['render']],                    next: 'qa' },
   qa:             { stages: [['qa']],                                    next: 'cut_review' },
   cut_review:     { stages: [], next: 'distributing',  gate: 'C' },
   // packaging then publishing (publishing blockedBy packaging); shorts in parallel.

@@ -10,7 +10,7 @@ export interface CompleteArgs<T = unknown> {
   system: string;
   prompt: string;
   mock: string;                 // deterministic fallback when no API key
-  schema?: ZodType<T>;          // when set, output is parsed + validated (with one repair pass)
+  schema?: ZodType<T, any, any>; // when set, output is parsed + validated (with one repair pass); input type floats so transform/refine schemas work
   tier?: 'main' | 'fast';
   maxTokens?: number;
   temperature?: number;
@@ -45,7 +45,7 @@ class AnthropicLLM implements LLM {
     return tier === 'fast' ? c.LLM_FAST_MODEL : c.LLM_MODEL;
   }
 
-  private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage }> {
+  private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage; truncated: boolean }> {
     const c = config();
     let lastErr: unknown;
     for (let attempt = 0; attempt <= c.LLM_MAX_RETRIES; attempt++) {
@@ -68,12 +68,14 @@ class AnthropicLLM implements LLM {
           }
           throw new LLMError(`Anthropic ${res.status}: ${body.slice(0, 300)}`, TRANSIENT.has(res.status));
         }
-        const data = (await res.json()) as { content: { text?: string }[]; usage?: { input_tokens: number; output_tokens: number } };
+        const data = (await res.json()) as { content: { text?: string }[]; stop_reason?: string; usage?: { input_tokens: number; output_tokens: number } };
         const text = data.content.map((p) => p.text ?? '').join('').trim();
+        const truncated = data.stop_reason === 'max_tokens';
+        if (truncated) this.log.warn('llm response hit max_tokens (truncated)', { model, maxTokens });
         const inTok = data.usage?.input_tokens ?? 0, outTok = data.usage?.output_tokens ?? 0;
         const usage: Usage = { inputTokens: inTok, outputTokens: outTok, costUsd: costFor(model, inTok, outTok) };
         this.total.inputTokens += inTok; this.total.outputTokens += outTok; this.total.costUsd += usage.costUsd;
-        return { text, usage };
+        return { text, usage, truncated };
       } catch (err) {
         lastErr = err;
         const aborted = err instanceof Error && err.name === 'AbortError';
@@ -93,7 +95,8 @@ class AnthropicLLM implements LLM {
   async complete<T>(args: CompleteArgs<T>): Promise<CompleteResult<T>> {
     const model = this.model(args.tier ?? 'main');
     const sys = args.schema ? `${args.system}\n\nRespond with ONLY valid JSON matching the requested shape. No prose, no code fences.` : args.system;
-    const { text, usage } = await this.call(model, sys, args.prompt, args.maxTokens ?? 2000, args.temperature ?? 0.7);
+    const budget = args.maxTokens ?? 2000;
+    const { text, usage, truncated } = await this.call(model, sys, args.prompt, budget, args.temperature ?? 0.7);
 
     if (!args.schema) return { text, data: undefined, usage, live: true };
 
@@ -101,9 +104,14 @@ class AnthropicLLM implements LLM {
     const first = tryValidate(text, args.schema);
     if (first.ok) return { text, data: first.data, usage, live: true };
 
-    this.log.warn('llm json failed validation, repairing', { error: first.error });
-    const repairPrompt = `${args.prompt}\n\nYour previous reply was invalid: ${first.error}\nReturn corrected JSON only.`;
-    const repaired = await this.call(model, sys, repairPrompt, args.maxTokens ?? 2000, 0);
+    // If the first reply was cut off by the token cap, repairing at the same budget
+    // would truncate again — give the repair more room.
+    const repairBudget = truncated ? Math.min(budget * 2, 16000) : budget;
+    this.log.warn('llm json failed validation, repairing', { error: first.error, truncated, repairBudget });
+    const repairPrompt = truncated
+      ? `${args.prompt}\n\nYour previous reply was cut off before the JSON closed. Return the COMPLETE, valid JSON only — be more concise so it fits.`
+      : `${args.prompt}\n\nYour previous reply was invalid: ${first.error}\nReturn corrected JSON only.`;
+    const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0);
     const second = tryValidate(repaired.text, args.schema);
     const usage2: Usage = { inputTokens: usage.inputTokens + repaired.usage.inputTokens, outputTokens: usage.outputTokens + repaired.usage.outputTokens, costUsd: usage.costUsd + repaired.usage.costUsd };
     if (second.ok) return { text: repaired.text, data: second.data, usage: usage2, live: true };
@@ -123,7 +131,7 @@ class MockLLM implements LLM {
   }
 }
 
-function tryValidate<T>(raw: string, schema: ZodType<T>): { ok: true; data: T } | { ok: false; error: string } {
+function tryValidate<T>(raw: string, schema: ZodType<T, any, any>): { ok: true; data: T } | { ok: false; error: string } {
   let parsed: unknown;
   try { parsed = JSON.parse(extractJson(raw)); }
   catch (e) { return { ok: false, error: `not JSON: ${String(e)}` }; }
