@@ -1,5 +1,6 @@
 import type { Agent } from './types.js';
 import { ok } from './types.js';
+import { config, isTruthy } from '../config.js';
 import { createLogger } from '../logger.js';
 import { ffmpegAvailable, renderEpisode, type RenderShot } from '../media/render.js';
 
@@ -13,6 +14,14 @@ export const render: Agent = {
   name: 'render',
   async run(ctx) {
     const log = createLogger({ agent: 'render', episode: ctx.episode_id });
+
+    // Test/dev escape hatch: skip the (slow) real ffmpeg render. Leaves the editor's
+    // EDL render ref untouched, so the publisher treats it as "no real file" and never
+    // uploads. The real render path is covered directly by tests/render.test.ts.
+    if (isTruthy(config().RENDER_FAKE)) {
+      log.warn('RENDER_FAKE set; skipping real render (keeping placeholder ref)');
+      return ok(ctx, {}, 0, 'skipped: RENDER_FAKE');
+    }
 
     if (!ffmpegAvailable()) {
       log.warn('ffmpeg not available; skipping real render (keeping placeholder ref)');

@@ -1,0 +1,97 @@
+:root {
+  --bg: #0d0d16;
+  --panel: #16161f;
+  --panel-2: #1d1d2a;
+  --border: #2a2a3a;
+  --text: #e7e7f0;
+  --muted: #9a9ab0;
+  --accent: #7c5cff;
+  --accent-2: #5cc8ff;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --bad: #f87171;
+}
+
+* { box-sizing: border-box; }
+html, body { padding: 0; margin: 0; }
+body {
+  background: radial-gradient(1200px 600px at 70% -10%, #1a1430 0%, var(--bg) 55%);
+  color: var(--text);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+}
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; }
+
+header.top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+header.top h1 { font-size: 24px; margin: 0; font-weight: 700; letter-spacing: -0.02em; }
+header.top .tag {
+  font-size: 12px; color: var(--muted); border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 999px;
+}
+.sub { color: var(--muted); margin: 0 0 28px; }
+
+.grid { display: grid; gap: 20px; }
+@media (min-width: 820px) { .grid.cols { grid-template-columns: 1.3fr 1fr; } }
+
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+}
+.card h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 16px; }
+
+label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+input[type=text], select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 9px; padding: 10px 12px; font-size: 14px;
+}
+.row { display: flex; gap: 12px; }
+.row > * { flex: 1; }
+
+button {
+  background: linear-gradient(180deg, var(--accent), #6a49f0);
+  color: white; border: none; border-radius: 10px; padding: 11px 16px;
+  font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 16px; width: 100%;
+}
+button:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.ghost { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+
+.seg { display: flex; gap: 8px; margin-top: 6px; }
+.seg button { margin: 0; }
+.seg button.off { background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+
+.providers { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 13px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  padding: 6px 11px; border-radius: 999px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.dot.off { background: #555; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--muted); }
+
+.status {
+  font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--border);
+}
+.status.published, .status.distributing { color: var(--ok); border-color: #1d5e46; }
+.status.on_hold, .status.failed { color: var(--bad); border-color: #5e1d1d; }
+.status.researching, .status.scripting, .status.generating, .status.assembling, .status.qa { color: var(--accent-2); }
+
+a.play { color: var(--accent-2); text-decoration: none; font-weight: 600; font-size: 13px; }
+a.play:hover { text-decoration: underline; }
+
+.empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+.banner { background: #2a1f0a; border: 1px solid #6b521a; color: var(--warn); padding: 12px 14px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
+.note { font-size: 12px; color: var(--muted); margin-top: 12px; }
+.toast { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 14px; font-size: 13px; }
+
+video { width: 100%; border-radius: 12px; border: 1px solid var(--border); margin-top: 14px; background: #000; }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }

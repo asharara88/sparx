@@ -13,6 +13,7 @@
     "demo:video": "tsx scripts/demo.ts",
     "inspect": "tsx scripts/inspect.ts",
     "browser:test": "tsx scripts/browser-test.ts",
+    "youtube:smoke": "tsx scripts/youtube-smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

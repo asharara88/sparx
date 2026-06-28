@@ -8,6 +8,7 @@ const Schema = z.object({
   CHANNEL_NICHE: z.string().default('AI tools for creators'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   LOG_FORMAT: z.enum(['pretty', 'json']).default('pretty'),
+  RENDER_FAKE: z.enum(['true', 'false']).default('false'), // skip ffmpeg in the render agent (tests/dev only)
 
   // llm
   ANTHROPIC_API_KEY: z.string().optional(),

@@ -53,6 +53,22 @@ Everything is optional — blanks fall back to mocks. See [.env.example](.env.ex
 
 > **Secrets never get committed** — `.env` is gitignored. Only `.env.example` (no values) is tracked.
 
+## Web dashboard
+
+A Next.js dashboard lives in [web/](web/): trigger runs (full pipeline or `demo:video`),
+watch episode state live (from Supabase), see which providers are configured, and preview
+the rendered `cut.mp4` in-browser.
+
+```bash
+cd web
+npm install
+npm run dev          # http://localhost:3000
+```
+
+The dashboard reads the pipeline's secrets from the repo-root `.env` automatically and
+triggers runs as detached child processes against the repo root. It needs Supabase
+configured to list episodes; demo renders work regardless and appear in the preview pane.
+
 ## Scripts
 
 | Command | Purpose |

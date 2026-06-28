@@ -3,6 +3,9 @@ import { Producer } from '../src/producer/producer.js';
 import { newEpisodeState } from '../src/types/episode.js';
 import { __setLLM } from '../src/llm/client.js';
 
+// Stub the slow ffmpeg render here — the real render path is covered by render.test.ts.
+// Set before any agent calls config() (config caches on first read).
+process.env.RENDER_FAKE = 'true';
 beforeEach(() => __setLLM(null)); // ensure MockLLM
 
 describe('producer', () => {
