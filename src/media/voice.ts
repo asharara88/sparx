@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { config } from '../config.js';
 import { createLogger } from '../logger.js';
 import type { MediaArtifact, ProviderInfo } from './types.js';
@@ -6,6 +8,8 @@ import type { MediaArtifact, ProviderInfo } from './types.js';
 // Cost approximated per character (ElevenLabs bills by characters/credits).
 const log = createLogger({ mod: 'voice' });
 const COST_PER_1K_CHARS = 0.0003 * 1000 / 1000; // ~ creator-tier; tune as needed
+
+const hash = (s: string) => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h).toString(36); };
 
 export interface VoiceProvider extends ProviderInfo {
   synthesize(text: string, voiceId: string): Promise<MediaArtifact>;
@@ -23,9 +27,14 @@ class ElevenLabsVoice implements VoiceProvider {
     });
     if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await res.text()}`);
     const bytes = Buffer.from(await res.arrayBuffer());
-    // In a full build we'd persist to object storage; here we report size + est cost.
+    // Persist to a real local file so the render step can composite it. (Swap for
+    // object storage in a hosted deployment.) The file path is the artifact uri.
+    const dir = join('generated', 'voice');
+    mkdirSync(dir, { recursive: true });
+    const file = resolve(join(dir, `${id}_${hash(text)}.mp3`));
+    writeFileSync(file, bytes);
     const costUsd = Math.round((text.length / 1000) * COST_PER_1K_CHARS * 1e4) / 1e4;
-    return { uri: `mem://voice/${id}/${bytes.length}.mp3`, durationS: Math.round(text.split(/\s+/).length / 2.3), costUsd, meta: { bytes: bytes.length } };
+    return { uri: file, durationS: Math.round(text.split(/\s+/).length / 2.3), costUsd, meta: { bytes: bytes.length } };
   }
 }
 

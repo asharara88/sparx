@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/index.ts",
     "demo": "tsx src/index.ts --demo",
+    "demo:video": "tsx scripts/demo.ts",
     "inspect": "tsx scripts/inspect.ts",
     "browser:test": "tsx scripts/browser-test.ts",
     "test": "vitest run",
