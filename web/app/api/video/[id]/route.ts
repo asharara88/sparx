@@ -1,10 +1,28 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
 import { GENERATED_DIR } from '@/lib/paths';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Wrap a Node read stream as a web ReadableStream with safe teardown: browsers
+// cancel video requests constantly (seeking, closing), which otherwise throws
+// "Controller is already closed" as an uncaughtException. cancel() destroys the
+// underlying stream and every controller op is guarded.
+function fileToWebStream(file: string, start: number, end: number): ReadableStream<Uint8Array> {
+  const node = createReadStream(file, { start, end });
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      node.on('data', (chunk) => {
+        try { controller.enqueue(chunk as Uint8Array); }
+        catch { node.destroy(); }
+      });
+      node.on('end', () => { try { controller.close(); } catch { /* already closed */ } });
+      node.on('error', (err) => { try { controller.error(err); } catch { /* already torn down */ } });
+    },
+    cancel() { node.destroy(); },
+  });
+}
 
 // Stream generated/<id>/cut.mp4 with HTTP range support (so the browser can seek).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,8 +40,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const m = /bytes=(\d*)-(\d*)/.exec(range);
     const start = m && m[1] ? parseInt(m[1], 10) : 0;
     const end = m && m[2] ? parseInt(m[2], 10) : size - 1;
-    const stream = createReadStream(file, { start, end });
-    return new Response(Readable.toWeb(stream) as ReadableStream, {
+    return new Response(fileToWebStream(file, start, end), {
       status: 206,
       headers: {
         'Content-Type': 'video/mp4',
@@ -34,8 +51,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
   }
 
-  const stream = createReadStream(file);
-  return new Response(Readable.toWeb(stream) as ReadableStream, {
+  return new Response(fileToWebStream(file, 0, size - 1), {
     headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(size), 'Accept-Ranges': 'bytes' },
   });
 }
