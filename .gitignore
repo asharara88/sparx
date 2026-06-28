@@ -10,3 +10,7 @@ test-results/
 .cache/
 generated/
 vp-test.ts
+# build/temp artifacts that should never be committed
+*.bundle
+*.zip
+vitest.config.ts.timestamp-*.mjs

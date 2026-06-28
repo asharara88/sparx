@@ -1,0 +1,15 @@
+{
+  "$comment": "MCP servers for this project. Supabase points at the 'sparx studio' project (asharara88 org). Claude-in-Chrome drives a real browser for supervised steps. The pipeline uses Playwright for automated browser runs.",
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=nmazktgrwachwjfewxdn",
+      "$note": "Authenticate after adding: run `claude /mcp`, select supabase, Authenticate. Equivalent CLI: claude mcp add --scope project --transport http supabase \"https://mcp.supabase.com/mcp?project_ref=nmazktgrwachwjfewxdn\""
+    },
+    "claude-in-chrome": {
+      "type": "extension",
+      "provider": "anthropic",
+      "$note": "Interactive/supervised browser control via the Claude in Chrome extension."
+    }
+  }
+}
