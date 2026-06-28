@@ -9,7 +9,8 @@ import { join } from 'node:path';
 // Agent 7 — Editor / Assembly. Builds a REAL edit decision list (EDL): every shot
 // in order, paired with its visual (generated clip or sourced asset), its section
 // voiceover, and a caption from the narration. Writes timeline.json as an artifact.
-// (A real render via Descript/ffmpeg is a later step; render_uri references the EDL.)
+// render_uri is a forward EDL reference here; the render agent (Agent 8) replaces it
+// with the real ffmpeg-rendered cut.mp4 path before the publisher uploads.
 export const editor: Agent = {
   name: 'editor',
   async run(ctx) {

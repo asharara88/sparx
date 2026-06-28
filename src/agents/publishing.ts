@@ -27,7 +27,8 @@ export const publishing: Agent = {
     const aiNote = ctx.state.qa.ai_disclosure_required ? '\n\nThis video contains AI-generated content.' : '';
     const description = `${baseDesc}\n\nChapters:\n${chapters.join('\n')}${aiNote}`;
 
-    // render_uri is a placeholder until a real render step exists; pass a real path only if it is one.
+    // The render agent sets render_uri to an absolute cut.mp4 path; if render was
+    // skipped it's still an EDL ref (render://…), so upload only a real local file.
     const filePath = ctx.state.edit.render_uri.startsWith('/') ? ctx.state.edit.render_uri : undefined;
     const yt = getYouTube();
     const res = await yt.upload({
