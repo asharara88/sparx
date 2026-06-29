@@ -1,8 +1,19 @@
+import { z } from 'zod';
+
 // Shared "house style" and prompt builders for script generation, used by BOTH the
 // production scriptwriter agent and the demo renderer so quality, format, and pacing
 // stay consistent on every run. Centralizing this is what lets one edit improve every
 // path at once, and the rotating "lens" keeps successive runs from converging on the
 // same structure and phrasing.
+
+// Lightweight demo/AB script shape (the production ScriptDraftSchema is richer). Shared
+// so the demo renderer and the A/B harness validate against one definition.
+export const DemoScriptSchema = z.object({
+  hook: z.string().min(8),
+  sections: z.array(z.object({ vo_text: z.string().min(1), on_screen: z.string().min(1) })).min(1).max(6),
+  cta: z.string().min(1),
+});
+export type DemoScript = z.infer<typeof DemoScriptSchema>;
 
 // Spoken delivery target. Narration is for the ear, not the page — keep it close to
 // natural speech tempo so on-screen pacing and runtime estimates line up.

@@ -1,11 +1,10 @@
 import 'dotenv/config';
-import { z } from 'zod';
 import { getLLM } from '../src/llm/client.js';
 import { getVoice } from '../src/media/voice.js';
 import { getAvatar } from '../src/media/avatar.js';
 import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
-import { SCRIPT_SYSTEM, buildDemoPrompt } from '../src/skills/scriptPrompt.js';
+import { SCRIPT_SYSTEM, buildDemoPrompt, DemoScriptSchema } from '../src/skills/scriptPrompt.js';
 import { config } from '../src/config.js';
 
 // Quick demo renderer: write a short script with the LLM, then either
@@ -24,16 +23,6 @@ const want = Math.max(1, Math.min(6, parseInt(process.env.DEMO_SECTIONS || '3', 
 const basePollMs = Number(process.env.HEYGEN_POLL_TIMEOUT_MS) || 300_000;
 process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || String(Math.min(120_000, basePollMs));
 
-// Small, demo-only schema (the production ScriptDraftSchema requires >=4 sections).
-const DemoScript = z.object({
-  hook: z.string().min(8),
-  sections: z.array(z.object({
-    vo_text: z.string().min(1),
-    on_screen: z.string().min(1),
-  })).min(1).max(6),
-  cta: z.string().min(1),
-});
-
 (async () => {
   const llm = getLLM();
   const voice = getVoice();
@@ -41,7 +30,7 @@ const DemoScript = z.object({
 
   console.log(`Topic: ${topic}\nGenerating ${want}-section script (llm=${llm.live ? config().LLM_PRO_MODEL : 'mock'})...`);
   const draft = await llm.complete({
-    tier: 'pro', temperature: 0.7, maxTokens: 3000, schema: DemoScript,
+    tier: 'pro', temperature: 0.7, maxTokens: 3000, schema: DemoScriptSchema,
     system: SCRIPT_SYSTEM,
     prompt: buildDemoPrompt({ topic, sections: want }),
     mock: JSON.stringify({
