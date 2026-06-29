@@ -58,9 +58,17 @@ const DemoScript = z.object({
     console.log(`Generating ${d.sections.length} avatar clips (provider=${avatar.name}, avatar=${c.HEYGEN_AVATAR_ID || '(default)'})...`);
     for (const [i, s] of d.sections.entries()) {
       console.log(`  · section ${i + 1}/${d.sections.length} (HeyGen render can take a minute)...`);
-      const clip = await avatar.generate({ text: s.vo_text, avatarId: c.HEYGEN_AVATAR_ID, voiceId: c.HEYGEN_VOICE_ID, durationS: Math.round(s.vo_text.split(/\s+/).length / 2.3) });
-      // Avatar video carries its own voice; the render keeps that audio.
-      shots.push({ visual_uri: clip.uri, audio_uri: null, duration_s: clip.durationS ?? 6, caption: s.on_screen });
+      const fallbackDur = Math.max(3, Math.round(s.vo_text.split(/\s+/).length / 2.3));
+      try {
+        const clip = await avatar.generate({ text: s.vo_text, avatarId: c.HEYGEN_AVATAR_ID, voiceId: c.HEYGEN_VOICE_ID, durationS: fallbackDur });
+        // Avatar video carries its own voice; the render keeps that audio.
+        shots.push({ visual_uri: clip.uri, audio_uri: null, duration_s: clip.durationS ?? 6, caption: s.on_screen });
+      } catch (err) {
+        // Mirror the avatar agent: one HeyGen failure/timeout shouldn't sink the whole
+        // demo — fall back to a captioned slate for this section so the render completes.
+        console.warn(`  ⚠ section ${i + 1} HeyGen failed (${String(err).slice(0, 160)}); using caption slate`);
+        shots.push({ visual_uri: null, audio_uri: null, duration_s: fallbackDur, caption: s.on_screen });
+      }
     }
   } else {
     console.log(`Voicing ${d.sections.length} sections (voice=${voice.name})...`);
@@ -76,5 +84,8 @@ const DemoScript = z.object({
   const r = await renderEpisode({ episodeId: 'demo', shots, musicUri: null });
   const spoken = mode === 'avatar' ? getAvatar().live : voice.live;
   console.log(`\n✅ Demo rendered: ${r.path}`);
-  console.log(`   ${r.durationS}s · ${r.shots} shots · mode=${mode} · ${spoken ? 'spoken' : 'silent (provider in mock mode)'}`);
+  console.log(`   ${r.durationS}s · ${r.shots} shots · ${r.real} real footage · ${r.placeholders} placeholder · mode=${mode} · ${spoken ? 'spoken' : 'silent (provider in mock mode)'}`);
+  if (mode === 'avatar' && r.real === 0) {
+    console.log('   ⚠ avatar mode produced no real footage — check HEYGEN_API_KEY / HEYGEN_AVATAR_ID / HEYGEN_VOICE_ID.');
+  }
 })().catch((e) => { console.error('demo failed:', e); process.exit(1); });

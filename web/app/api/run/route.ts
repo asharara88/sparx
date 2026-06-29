@@ -38,5 +38,6 @@ export async function POST(req: Request) {
   const child = spawn('npx', args, { cwd: REPO_ROOT, env, detached: true, stdio: ['ignore', fd, fd] });
   child.unref();
 
-  return NextResponse.json({ started: true, mode, pid: child.pid, log: logFile });
+  // Return the log basename so the dashboard can poll /api/run-status for live progress.
+  return NextResponse.json({ started: true, mode, pid: child.pid, log: `${mode}-${stamp}.log` });
 }

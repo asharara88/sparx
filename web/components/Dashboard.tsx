@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Provider { key: string; env: string; configured: boolean }
 interface Episode {
@@ -13,8 +13,14 @@ export default function Dashboard() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [configured, setConfigured] = useState(true);
   const [preview, setPreview] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [videoBust, setVideoBust] = useState<number>(0);
   const [busy, setBusy] = useState(false);
+
+  // live run progress
+  const [runLog, setRunLog] = useState<string | null>(null);
+  const [runTail, setRunTail] = useState('');
+  const [runState, setRunState] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
+  const tailRef = useRef<HTMLPreElement>(null);
 
   // run form state
   const [mode, setMode] = useState<'demo' | 'pipeline'>('demo');
@@ -39,29 +45,57 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [loadEpisodes]);
 
+  // Poll the active run's log for live progress + completion.
+  useEffect(() => {
+    if (!runLog || runState === 'done' || runState === 'failed') return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const r = await fetch(`/api/run-status?log=${encodeURIComponent(runLog)}`, { cache: 'no-store' });
+        const j = await r.json();
+        if (stop) return;
+        setRunTail(j.tail || '');
+        if (j.done) {
+          setRunState(j.ok ? 'done' : 'failed');
+          if (j.ok && mode === 'demo' && j.videoMtime) { setPreview('demo'); setVideoBust(j.videoMtime); }
+          loadEpisodes();
+        }
+      } catch { /* keep polling */ }
+    };
+    tick();
+    const t = setInterval(tick, 2000);
+    return () => { stop = true; clearInterval(t); };
+  }, [runLog, runState, mode, loadEpisodes]);
+
+  useEffect(() => { if (tailRef.current) tailRef.current.scrollTop = tailRef.current.scrollHeight; }, [runTail]);
+
   async function startRun() {
     setBusy(true);
-    setToast(null);
+    setRunTail('');
+    setRunState('idle');
+    setRunLog(null);
     try {
       const body = mode === 'demo'
         ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode }
         : { mode, autoApprove };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
-      if (j.started) {
-        setToast(mode === 'demo'
-          ? `Demo render started (pid ${j.pid}). It appears below as “demo” when cut.mp4 is ready — usually under a minute for voiceover, longer for avatar.`
-          : `Pipeline started (pid ${j.pid}). Watch the episode status update below.`);
-        setTimeout(loadEpisodes, 1500);
+      if (j.started && j.log) {
+        setRunLog(j.log);
+        setRunState('running');
       } else {
-        setToast('Failed to start run.');
+        setRunState('failed');
+        setRunTail('Failed to start run.');
       }
     } catch (e) {
-      setToast('Failed to start run: ' + String(e));
+      setRunState('failed');
+      setRunTail('Failed to start run: ' + String(e));
     } finally {
       setBusy(false);
     }
   }
+
+  const videoSrc = (id: string) => `/api/video/${encodeURIComponent(id)}${id === 'demo' && videoBust ? `?t=${videoBust}` : ''}`;
 
   return (
     <>
@@ -101,6 +135,7 @@ export default function Dashboard() {
                   </select>
                 </div>
               </div>
+              <p className="note">Avatar mode calls HeyGen per section and can take a few minutes — watch progress below.</p>
             </>
           ) : (
             <>
@@ -113,10 +148,20 @@ export default function Dashboard() {
             </>
           )}
 
-          <button onClick={startRun} disabled={busy} type="button">
-            {busy ? <><span className="spin" />Starting…</> : mode === 'demo' ? 'Render demo' : 'Start pipeline'}
+          <button onClick={startRun} disabled={busy || runState === 'running'} type="button">
+            {busy || runState === 'running' ? <><span className="spin" />Running…</> : mode === 'demo' ? 'Render demo' : 'Start pipeline'}
           </button>
-          {toast && <div className="toast">{toast}</div>}
+
+          {runLog && (
+            <div className="toast">
+              <div style={{ marginBottom: 8, fontWeight: 600 }}>
+                {runState === 'running' && <><span className="spin" />Working…</>}
+                {runState === 'done' && '✅ Done — video loaded below.'}
+                {runState === 'failed' && '⚠ Run failed — see log.'}
+              </div>
+              <pre ref={tailRef} className="logbox">{runTail || 'starting…'}</pre>
+            </div>
+          )}
         </div>
 
         {/* Provider status */}
@@ -154,7 +199,7 @@ export default function Dashboard() {
                   <td>${Number(e.spent_usd).toFixed(2)}</td>
                   <td className="mono">{new Date(e.updated_at).toLocaleString()}</td>
                   <td>{e.hasVideo
-                    ? <a className="play" onClick={() => setPreview(e.episode_id)} style={{ cursor: 'pointer' }}>▶ preview</a>
+                    ? <a className="play" onClick={() => { setPreview(e.episode_id); setVideoBust(0); }} style={{ cursor: 'pointer' }}>▶ preview</a>
                     : <span className="empty">—</span>}
                   </td>
                 </tr>
@@ -168,11 +213,11 @@ export default function Dashboard() {
       <div className="card" style={{ marginTop: 20 }}>
         <h2>Preview</h2>
         <div className="row" style={{ marginBottom: 4 }}>
-          <button className="ghost" type="button" onClick={() => setPreview('demo')} style={{ marginTop: 0 }}>Latest demo (generated/demo)</button>
+          <button className="ghost" type="button" onClick={() => { setPreview('demo'); setVideoBust(Date.now()); }} style={{ marginTop: 0 }}>Latest demo</button>
           {preview && <button className="ghost" type="button" onClick={() => setPreview(null)} style={{ marginTop: 0 }}>Clear</button>}
         </div>
         {preview
-          ? <video key={preview} controls src={`/api/video/${encodeURIComponent(preview)}`} />
+          ? <video key={`${preview}-${videoBust}`} controls autoPlay src={videoSrc(preview)} />
           : <p className="empty">Pick an episode’s “preview”, or load the latest demo.</p>}
       </div>
     </>
