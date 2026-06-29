@@ -11,7 +11,7 @@ export interface CompleteArgs<T = unknown> {
   prompt: string;
   mock: string;                 // deterministic fallback when no API key
   schema?: ZodType<T, any, any>; // when set, output is parsed + validated (with one repair pass); input type floats so transform/refine schemas work
-  tier?: 'main' | 'fast';
+  tier?: 'main' | 'fast' | 'pro';
   maxTokens?: number;
   temperature?: number;
   logger?: Logger;
@@ -40,9 +40,11 @@ class AnthropicLLM implements LLM {
 
   totalUsage() { return { ...this.total }; }
 
-  private model(tier: 'main' | 'fast') {
+  private model(tier: 'main' | 'fast' | 'pro') {
     const c = config();
-    return tier === 'fast' ? c.LLM_FAST_MODEL : c.LLM_MODEL;
+    if (tier === 'fast') return c.LLM_FAST_MODEL;
+    if (tier === 'pro') return c.LLM_PRO_MODEL;
+    return c.LLM_MODEL;
   }
 
   private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage; truncated: boolean }> {

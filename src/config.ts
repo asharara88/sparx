@@ -14,8 +14,9 @@ const Schema = z.object({
   // llm
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  LLM_MODEL: z.string().default('claude-sonnet-4-6'),
+  LLM_MODEL: z.string().default('claude-opus-4-8'),        // default to the most capable model (was sonnet)
   LLM_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),
+  LLM_PRO_MODEL: z.string().default('claude-opus-4-8'),    // most capable; pinned for script generation
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 

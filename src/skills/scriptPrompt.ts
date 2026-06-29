@@ -1,0 +1,101 @@
+// Shared "house style" and prompt builders for script generation, used by BOTH the
+// production scriptwriter agent and the demo renderer so quality, format, and pacing
+// stay consistent on every run. Centralizing this is what lets one edit improve every
+// path at once, and the rotating "lens" keeps successive runs from converging on the
+// same structure and phrasing.
+
+// Spoken delivery target. Narration is for the ear, not the page — keep it close to
+// natural speech tempo so on-screen pacing and runtime estimates line up.
+export const SPOKEN_WPM = 140;
+
+// Phrases that signal generic, low-effort YouTube narration. Banned outright so the
+// model spends its tokens on substance instead of filler.
+export const BANNED_PHRASES = [
+  "in today's video",
+  "let's dive in",
+  'game-changer',
+  'supercharge',
+  'unlock the power',
+  'in this fast-paced world',
+  'buckle up',
+  'without further ado',
+  'the truth is',
+  'at the end of the day',
+];
+
+// Rotating creative lenses. One is chosen per run so the same topic doesn't always
+// produce the same shape. Variety WITHOUT abandoning the house rules below.
+export const LENSES = [
+  'Open on a concrete, surprising specific — a number, a named moment, a real failure — never a generic statement.',
+  'Build the whole piece around ONE counterintuitive claim and keep circling back to it as proof accumulates.',
+  'Use a before/after spine: vividly show the viewer\'s world before this insight, then how it changes after.',
+  'Lead with a belief almost everyone repeats, then dismantle it piece by piece with evidence.',
+  'Tell it as a short story with one protagonist and a clear turning point.',
+  'Frame it as a teardown: take the "obvious" approach apart and show the better mechanism underneath.',
+];
+
+// Pick a lens for this run. Deterministic when given a seed (tests/repro), varied otherwise.
+export function pickLens(seed?: number): string {
+  const i = seed === undefined ? Math.floor(Math.random() * LENSES.length) : Math.abs(seed) % LENSES.length;
+  return LENSES[i % LENSES.length]!;
+}
+
+export const HOUSE_STYLE = `House style — apply on every run:
+- Write for the ear: short, natural sentences a person would actually say out loud. Use contractions.
+- Earn attention continuously: every section either opens a curiosity loop or pays one off. No throat-clearing, no recap filler.
+- Specifics over abstractions: concrete examples, real numbers, named things — never "many people", "a lot of value", "studies show".
+- One idea per section, advancing the story; don't restate the previous section.
+- Pacing: ~${SPOKEN_WPM} words per spoken minute; 2-4 sentences per section.
+- Never use these phrases: ${BANNED_PHRASES.map((p) => `"${p}"`).join(', ')}.`;
+
+// Shared system prompt (persona + house style). Both generators use this so the voice
+// is identical regardless of entry point.
+export const SCRIPT_SYSTEM =
+  `You are an elite YouTube scriptwriter who obsesses over retention and writes for the ear, not the page. ` +
+  `You plan tight, hook hard, and cut every word that doesn't move the viewer forward.\n${HOUSE_STYLE}`;
+
+// Production draft prompt — rich sections with beats + retention devices.
+export function buildDraftPrompt(p: {
+  topic: string;
+  angle: string;
+  hostMode: string;
+  hook: string;
+  beats: string[];
+  targetWords: number;
+  minSections?: number;
+  maxSections?: number;
+  lens?: string;
+}): string {
+  const lens = p.lens ?? pickLens();
+  const lo = p.minSections ?? 5;
+  const hi = p.maxSections ?? 9;
+  return [
+    `Topic: ${p.topic}`,
+    `Angle: ${p.angle}`,
+    `Host mode: ${p.hostMode}`,
+    `Chosen hook: ${p.hook}`,
+    `Beat sheet: ${p.beats.join(' | ')}`,
+    `Creative lens for THIS script: ${lens}`,
+    `Total spoken target: ~${p.targetWords} words.`,
+    ``,
+    `Write the full narration. Return ONLY JSON:`,
+    `{"hook": string, "sections": [${lo}-${hi} objects ` +
+      `{"id": "s1".., "beat": short beat label, "vo_text": 2-4 spoken sentences, ` +
+      `"shot_note": what's on screen, "on_screen": <=6-word caption, "retention_device": e.g. open loop / payoff / pattern interrupt}], "cta": string}`,
+    `Make vo_text genuinely speakable and specific. The hook must create an immediate, concrete reason to keep watching.`,
+  ].join('\n');
+}
+
+// Demo prompt — lightweight (caption-slate sections), same voice and rules.
+export function buildDemoPrompt(p: { topic: string; sections: number; lens?: string }): string {
+  const lens = p.lens ?? pickLens();
+  return [
+    `Topic: ${p.topic}`,
+    `Creative lens for THIS script: ${lens}`,
+    ``,
+    `Return ONLY JSON: {"hook": string, ` +
+      `"sections": [exactly ${p.sections} objects {"vo_text": 2-4 spoken sentences, "on_screen": a <=6-word caption}], ` +
+      `"cta": string}.`,
+    `Every vo_text must be concrete and speakable; the hook must give an immediate reason to keep watching.`,
+  ].join('\n');
+}

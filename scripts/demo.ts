@@ -4,6 +4,7 @@ import { getLLM } from '../src/llm/client.js';
 import { getVoice } from '../src/media/voice.js';
 import { getAvatar } from '../src/media/avatar.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
+import { SCRIPT_SYSTEM, buildDemoPrompt } from '../src/skills/scriptPrompt.js';
 import { config } from '../src/config.js';
 
 // Quick demo renderer: write a short script with the LLM, then either
@@ -37,11 +38,11 @@ const DemoScript = z.object({
   const voice = getVoice();
   const voiceId = config().ELEVENLABS_VOICE_ID;
 
-  console.log(`Topic: ${topic}\nGenerating ${want}-section script (llm=${llm.live ? config().LLM_MODEL : 'mock'})...`);
+  console.log(`Topic: ${topic}\nGenerating ${want}-section script (llm=${llm.live ? config().LLM_PRO_MODEL : 'mock'})...`);
   const draft = await llm.complete({
-    tier: 'main', temperature: 0.7, maxTokens: 3000, schema: DemoScript,
-    system: 'You write punchy, spoken-voice YouTube narration. Each section is 2-3 sentences.',
-    prompt: `Topic: ${topic}\n\nReturn ONLY JSON {"hook": string, "sections": [exactly ${want} objects {"vo_text": 2-3 spoken sentences, "on_screen": a short caption}], "cta": string}.`,
+    tier: 'pro', temperature: 0.7, maxTokens: 3000, schema: DemoScript,
+    system: SCRIPT_SYSTEM,
+    prompt: buildDemoPrompt({ topic, sections: want }),
     mock: JSON.stringify({
       hook: `Here are the tools changing how we make ${topic}.`,
       sections: Array.from({ length: want }, (_, i) => ({

@@ -3,6 +3,7 @@ import { ok } from './types.js';
 import type { Script } from '../types/episode.js';
 import { getLLM } from '../llm/client.js';
 import { OutlineSchema, ScriptDraftSchema, CritiqueSchema } from '../schemas/phase1.js';
+import { SCRIPT_SYSTEM, buildDraftPrompt, pickLens, SPOKEN_WPM } from '../skills/scriptPrompt.js';
 import { createLogger } from '../logger.js';
 import { AgentError } from '../errors.js';
 
@@ -19,13 +20,16 @@ export const scriptwriter: Agent = {
     if (!c.topic) throw new AgentError('scriptwriter', 'no approved concept to write from');
     const host = ctx.state.channel.host_mode;
     const llm = getLLM();
-    const targetWords = Math.round((c.target_length_min || 10) * 140);
+    const targetWords = Math.round((c.target_length_min || 10) * SPOKEN_WPM);
+    // One creative lens for the whole run, shared by outline + draft, so the plan and
+    // the prose pull in the same direction (and differ from the previous run).
+    const lens = pickLens();
 
-    // 1) outline
+    // 1) outline — most capable model; the house style + lens come from the shared system prompt.
     const outline = await llm.complete({
-      tier: 'main', temperature: 0.8, maxTokens: 2000, schema: OutlineSchema,
-      system: 'You are an elite YouTube scriptwriter who obsesses over retention. First plan: write multiple hook options and a beat sheet that engineers open loops and payoffs.',
-      prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nAudience: ${c.audience}\nTarget: ~${c.target_length_min} min.\n\nReturn ONLY compact JSON: {"hook_variants":[2-4 short plain-text strings],"beat_sheet":[4-9 short plain-text strings]}. Each string is one line of plain text — NOT an object. No prose outside the JSON.`,
+      tier: 'pro', temperature: 0.9, maxTokens: 2000, schema: OutlineSchema,
+      system: `${SCRIPT_SYSTEM}\n\nStep 1 of 3 — PLAN ONLY: write multiple distinct hook options and a beat sheet that engineers open loops and payoffs.`,
+      prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nAudience: ${c.audience}\nCreative lens for THIS script: ${lens}\nTarget: ~${c.target_length_min} min.\n\nReturn ONLY compact JSON: {"hook_variants":[2-4 short plain-text strings],"beat_sheet":[4-9 short plain-text strings]}. Each string is one line of plain text — NOT an object. No prose outside the JSON.`,
       mock: JSON.stringify({
         hook_variants: [
           `Everyone does ${c.topic} the same way. It's quietly costing them — and here's the proof.`,
@@ -36,11 +40,15 @@ export const scriptwriter: Agent = {
     });
     const o = outline.data!;
 
-    // 2) draft
+    // 2) draft — most capable model; shared, optimized prompt format.
     const draft = await llm.complete({
-      tier: 'main', temperature: 0.7, maxTokens: 8000, schema: ScriptDraftSchema,
-      system: 'You write natural, spoken-voice narration. Each section names its beat and the retention device keeping the viewer watching. Include a visual note and short on-screen text.',
-      prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nHost mode: ${host}\nChosen hook: ${o.hook_variants[0]}\nBeat sheet: ${o.beat_sheet.join(' | ')}\nTarget ~${targetWords} words.\n\nReturn JSON {hook, sections:[{id,beat,vo_text,shot_note,on_screen,retention_device}] (5-9), cta}.`,
+      tier: 'pro', temperature: 0.7, maxTokens: 8000, schema: ScriptDraftSchema,
+      system: `${SCRIPT_SYSTEM}\n\nStep 2 of 3 — WRITE the full narration. Each section names its beat and the retention device keeping the viewer watching, with a visual note and short on-screen text.`,
+      prompt: buildDraftPrompt({
+        topic: c.topic, angle: c.angle, hostMode: host,
+        hook: o.hook_variants[0]!, beats: o.beat_sheet, targetWords,
+        minSections: 5, maxSections: 9, lens,
+      }),
       mock: JSON.stringify({
         hook: o.hook_variants[0],
         sections: o.beat_sheet.slice(0, 6).map((beat, i) => ({
