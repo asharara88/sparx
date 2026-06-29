@@ -95,7 +95,16 @@ export class RunwayVideo implements VideoProvider {
     const perTakeCost = estimateShotCost(req.durationS, 'runway');
     const out: MediaArtifact[] = [];
     for (let i = 0; i < takes; i++) {
-      const id = await this.createTask(req);
+      // gen4.5 needs a start image: synthesize one from the prompt unless caller gave one.
+      let promptImage = req.promptImage;
+      if (!promptImage) {
+        const imgId = await this.createImageTask(req.prompt, req.ratio);
+        log.info('runway image task submitted', { id: imgId, take: i });
+        const imgs = await this.poll(imgId);
+        if (imgs.length === 0) { log.warn('runway image gen returned no output', { id: imgId }); continue; }
+        promptImage = imgs[0]!;
+      }
+      const id = await this.createTask({ ...req, promptImage });
       log.info('runway task submitted', { id, take: i, duration: req.durationS });
       const urls = await this.poll(id);
       if (urls.length === 0) { log.warn('runway task returned no output', { id }); continue; }

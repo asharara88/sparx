@@ -20,7 +20,7 @@ export const packaging: Agent = {
     const c = ctx.state.concept;
 
     const out = await llm.complete({
-      tier: 'main', temperature: 0.8, schema: PackagingSchema,
+      tier: 'pro', temperature: 0.8, schema: PackagingSchema,   // Opus: titles drive CTR — the click
       system: 'You are a YouTube packaging expert. Write high-CTR titles (curiosity + clarity, <70 chars), compelling descriptions with keywords, and distinct thumbnail concepts described as vivid image prompts.',
       prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nHook: ${ctx.state.script.hook}\nAudience: ${c.audience}\nKeywords: ${c.keywords.join(', ')}\n\nReturn JSON {titles[3-5], descriptions[1-2], thumbnail_concepts[2-3]}.`,
       mock: JSON.stringify({

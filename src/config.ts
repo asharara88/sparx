@@ -14,9 +14,9 @@ const Schema = z.object({
   // llm
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  LLM_MODEL: z.string().default('claude-opus-4-8'),        // default to the most capable model (was sonnet)
-  LLM_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),
-  LLM_PRO_MODEL: z.string().default('claude-opus-4-8'),    // most capable; pinned for script generation
+  LLM_MODEL: z.string().default('claude-sonnet-4-6'),      // 'main' tier — economical default for non-creative agents
+  LLM_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),  // 'fast' tier — grading/critique
+  LLM_PRO_MODEL: z.string().default('claude-opus-4-8'),    // 'pro' tier — Opus, for the creative spine (angle, script, packaging)
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
@@ -29,6 +29,7 @@ const Schema = z.object({
   ELEVENLABS_VOICE_ID: z.string().default('elevenlabs:cloned_v1'),
   RUNWAY_API_KEY: z.string().optional(),
   RUNWAY_MODEL: z.string().default('gen4.5'),
+  RUNWAY_IMAGE_MODEL: z.string().default('gen4_image'),  // text→image step that seeds image-to-video
   RUNWAY_API_BASE: z.string().url().default('https://api.dev.runwayml.com'),
   RUNWAY_VERSION: z.string().default('2024-11-06'),
   RUNWAY_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),

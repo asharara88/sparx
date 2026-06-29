@@ -31,7 +31,7 @@ export const research: Agent = {
 
     // 2) ideation
     const ideation = await llm.complete({
-      tier: 'main',
+      tier: 'pro',          // Opus: the angle is the highest-leverage creative call after the script
       temperature: 0.9,
       schema: IdeationSchema,
       system: 'You are a sharp YouTube strategist. Generate distinctive, specific angles with real retention potential. Avoid generic listicles and anything already saturated.',
@@ -48,7 +48,7 @@ export const research: Agent = {
 
     // 3) score + select + package
     const concept = await llm.complete({
-      tier: 'main',
+      tier: 'pro',          // Opus: scoring/selecting the strongest angle + sharp working title
       temperature: 0.4,
       schema: ConceptOutputSchema,
       system: 'You are a YouTube packaging expert. Score angles 0-10 on curiosity, payoff, differentiation, and search demand; pick the best; then package a full concept. Be concrete.',

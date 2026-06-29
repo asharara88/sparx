@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getLLM } from '../src/llm/client.js';
 import { getVoice } from '../src/media/voice.js';
 import { getAvatar } from '../src/media/avatar.js';
+import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
 import { SCRIPT_SYSTEM, buildDemoPrompt } from '../src/skills/scriptPrompt.js';
 import { config } from '../src/config.js';
@@ -75,6 +76,24 @@ const DemoScript = z.object({
         // demo — fall back to a captioned slate for this section so the render completes.
         console.warn(`  ⚠ section ${i + 1} HeyGen failed (${String(err).slice(0, 160)}); using caption slate`);
         shots.push({ visual_uri: null, audio_uri: null, duration_s: fallbackDur, caption: s.on_screen });
+      }
+    }
+  } else if (mode === 'broll') {
+    // Cinematic b-roll: Runway generates the footage (text→image→video), the voice
+    // provider narrates over it. Runway clips have no audio, so the narration is the
+    // sole audio track (silent if no ELEVENLABS_API_KEY).
+    const video = getVideo();
+    console.log(`Generating ${d.sections.length} b-roll clips (provider=${video.name}) + voiceover (voice=${voice.name})...`);
+    for (const [i, s] of d.sections.entries()) {
+      const fallbackDur = Math.max(3, Math.round(s.vo_text.split(/\s+/).length / 2.3));
+      const art = await voice.synthesize(s.vo_text, voiceId);
+      try {
+        console.log(`  · section ${i + 1}/${d.sections.length} (Runway render can take a minute)...`);
+        const takes = await video.generate({ prompt: `Cinematic b-roll, no on-screen text: ${s.on_screen || s.vo_text.slice(0, 90)}`, model: 'runway', durationS: 5 });
+        shots.push({ visual_uri: takes[0]?.uri ?? null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen });
+      } catch (err) {
+        console.warn(`  ⚠ section ${i + 1} Runway failed (${String(err).slice(0, 160)}); using caption slate`);
+        shots.push({ visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen });
       }
     }
   } else {

@@ -24,7 +24,7 @@ export const visualDirector: Agent = {
     const llm = getLLM();
 
     const plan = await llm.complete({
-      tier: 'main', temperature: 0.5, maxTokens: 2800, schema: ShotPlanSchema,
+      tier: 'pro', temperature: 0.5, maxTokens: 2800, schema: ShotPlanSchema,   // Opus: richer, more precise gen prompts → better footage
       system: 'You are a Visual Director. For each section choose the best SOURCE (host/generated/stock/graphic/avatar) with a one-line reason, and write a concrete shot spec. Use "generated" only where it clearly adds value; prefer stock/graphic otherwise to control cost.',
       prompt: `Host mode: ${host}. Budget remaining: $${ctx.budget_remaining_usd.toFixed(2)}.\nSections:\n${sections.map((s) => `- ${s.id} [${s.beat}] vo="${s.vo_text.slice(0, 80)}" note="${s.shot_note}" onscreen="${s.on_screen}"`).join('\n')}\n\nReturn JSON {shots:[{section_id, source, reason, description, style, camera, motion(low|medium|high), mood, duration_s, negative[]}]}.`,
       mock: JSON.stringify({
@@ -57,6 +57,17 @@ export const visualDirector: Agent = {
     if (host === 'avatar') {
       shots = shots.map((s) => ({ ...s, source: 'avatar', prompt: {}, cost_estimate_usd: 0 }));
       log.info('avatar host mode: all shots set to avatar narration', { shots: shots.length });
+    }
+
+    // Voice-only host mode = cinematic b-roll engine: every section is AI-generated
+    // footage (Runway), narrated by the voiceover track. No on-screen presenter.
+    if (host === 'voice_only') {
+      shots = shots.map((s, i): Shot => {
+        const sp = plan.data!.shots[i];
+        const spec: ShotSpec = { description: sp?.description || sections[i]?.on_screen || sections[i]?.vo_text.slice(0, 60) || 'cinematic b-roll', style: sp?.style, camera: sp?.camera, motion: sp?.motion, mood: sp?.mood, duration_s: s.duration_s, negative: sp?.negative };
+        return { ...s, source: 'generated', prompt: videoPrompts(spec), cost_estimate_usd: estimateShotCost(s.duration_s, 'runway') };
+      });
+      log.info('voice_only host mode: all shots set to generated b-roll', { shots: shots.length });
     }
 
     // cost-aware optimization: downgrade generated→stock until within budget
