@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Provider { key: string; env: string; configured: boolean }
+interface AvatarOption { id: string; label: string }
 interface Episode {
   episode_id: string; status: string; niche: string | null; host_mode: string;
   spent_usd: number; updated_at: string; hasVideo: boolean;
@@ -28,6 +29,8 @@ export default function Dashboard() {
   const [sections, setSections] = useState(3);
   const [demoMode, setDemoMode] = useState<'auto' | 'avatar' | 'voiceover'>('auto');
   const [autoApprove, setAutoApprove] = useState(true);
+  const [avatars, setAvatars] = useState<AvatarOption[]>([]);
+  const [avatarId, setAvatarId] = useState('');
 
   const loadEpisodes = useCallback(async () => {
     try {
@@ -40,6 +43,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch('/api/providers').then((r) => r.json()).then((j) => setProviders(j.providers ?? [])).catch(() => {});
+    fetch('/api/avatars').then((r) => r.json()).then((j) => { setAvatars(j.avatars ?? []); setAvatarId(j.defaultId ?? (j.avatars?.[0]?.id ?? '')); }).catch(() => {});
     loadEpisodes();
     const t = setInterval(loadEpisodes, 5000);
     return () => clearInterval(t);
@@ -76,8 +80,8 @@ export default function Dashboard() {
     setRunLog(null);
     try {
       const body = mode === 'demo'
-        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode }
-        : { mode, autoApprove };
+        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId }
+        : { mode, autoApprove, avatarId };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
       if (j.started && j.log) {
@@ -135,6 +139,14 @@ export default function Dashboard() {
                   </select>
                 </div>
               </div>
+              {demoMode !== 'voiceover' && (
+                <>
+                  <label>Avatar</label>
+                  <select value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
+                    {avatars.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                  </select>
+                </>
+              )}
               <p className="note">Avatar mode calls HeyGen per section and can take a few minutes — watch progress below.</p>
             </>
           ) : (

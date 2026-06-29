@@ -10,7 +10,7 @@ async function main() {
   const c = config();
   const episodeId = `ep_${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}_demo`;
   const state = newEpisodeState(episodeId, {
-    niche: c.CHANNEL_NICHE, languages: ['en'], host_mode: 'mixed', cap_usd_month: c.BUDGET_CAP_USD,
+    niche: c.CHANNEL_NICHE, languages: ['en'], host_mode: c.HOST_MODE, cap_usd_month: c.BUDGET_CAP_USD,
   });
 
   const llm = getLLM();

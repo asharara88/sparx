@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 // which the dashboard polls. Output is appended to generated/web-runs/<ts>.log.
 export async function POST(req: Request) {
   ensureEnv();
-  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean } = {};
+  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string } = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
 
   const mode = body.mode === 'demo' ? 'demo' : 'pipeline';
@@ -25,6 +25,9 @@ export async function POST(req: Request) {
 
   let args: string[];
   const env: NodeJS.ProcessEnv = { ...process.env };
+  // Per-run avatar override: wins over .env because the child's dotenv won't override
+  // an already-set process env var. Validate to a simple id to avoid shell/inject surprises.
+  if (body.avatarId && /^[A-Za-z0-9._-]+$/.test(body.avatarId)) env.HEYGEN_AVATAR_ID = body.avatarId;
   if (mode === 'demo') {
     const topic = (body.topic ?? '').toString().slice(0, 300) || 'Three AI tools every creator should try';
     env.DEMO_SECTIONS = String(Math.max(1, Math.min(6, Number(body.sections) || 3)));

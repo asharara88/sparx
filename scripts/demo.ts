@@ -16,6 +16,12 @@ import { config } from '../src/config.js';
 const topic = process.argv.slice(2).join(' ') || 'Three AI tools that save video creators hours every week';
 const want = Math.max(1, Math.min(6, parseInt(process.env.DEMO_SECTIONS || '3', 10)));
 
+// Demos fail fast to a caption slate rather than block on the full production HeyGen
+// poll (.env typically sets 5 min). Cap at 2 min — or DEMO_HEYGEN_POLL_TIMEOUT_MS if set
+// — but never longer than the configured value. Must run before any config() read.
+const basePollMs = Number(process.env.HEYGEN_POLL_TIMEOUT_MS) || 300_000;
+process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || String(Math.min(120_000, basePollMs));
+
 // Small, demo-only schema (the production ScriptDraftSchema requires >=4 sections).
 const DemoScript = z.object({
   hook: z.string().min(8),

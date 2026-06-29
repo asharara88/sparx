@@ -51,6 +51,14 @@ export const visualDirector: Agent = {
       };
     });
 
+    // Avatar host mode = a real talking-head video engine: every section is the host
+    // (HeyGen avatar) narrating on camera. Forced deterministically so the full pipeline
+    // produces a fully-narrated video even without a separate voiceover provider.
+    if (host === 'avatar') {
+      shots = shots.map((s) => ({ ...s, source: 'avatar', prompt: {}, cost_estimate_usd: 0 }));
+      log.info('avatar host mode: all shots set to avatar narration', { shots: shots.length });
+    }
+
     // cost-aware optimization: downgrade generated→stock until within budget
     const total = (s: Shot[]) => s.reduce((n, x) => n + x.cost_estimate_usd, 0);
     let downgraded = 0;

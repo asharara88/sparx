@@ -6,6 +6,7 @@ const Schema = z.object({
   AUTO_APPROVE_GATES: z.enum(['true', 'false']).default('false'),
   BUDGET_CAP_USD: z.coerce.number().positive().default(500),
   CHANNEL_NICHE: z.string().default('AI tools for creators'),
+  HOST_MODE: z.enum(['real_face', 'voice_only', 'avatar', 'mixed']).default('avatar'), // 'avatar' = full talking-head narration (HeyGen carries voice)
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   LOG_FORMAT: z.enum(['pretty', 'json']).default('pretty'),
   RENDER_FAKE: z.enum(['true', 'false']).default('false'), // skip ffmpeg in the render agent (tests/dev only)
