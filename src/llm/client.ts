@@ -12,6 +12,7 @@ export interface CompleteArgs<T = unknown> {
   mock: string;                 // deterministic fallback when no API key
   schema?: ZodType<T, any, any>; // when set, output is parsed + validated (with one repair pass); input type floats so transform/refine schemas work
   tier?: 'main' | 'fast' | 'pro';
+  model?: string;               // explicit model override; takes precedence over tier (e.g. A/B tests)
   maxTokens?: number;
   temperature?: number;
   logger?: Logger;
@@ -95,7 +96,7 @@ class AnthropicLLM implements LLM {
   }
 
   async complete<T>(args: CompleteArgs<T>): Promise<CompleteResult<T>> {
-    const model = this.model(args.tier ?? 'main');
+    const model = args.model ?? this.model(args.tier ?? 'main');
     const sys = args.schema ? `${args.system}\n\nRespond with ONLY valid JSON matching the requested shape. No prose, no code fences.` : args.system;
     const budget = args.maxTokens ?? 2000;
     const { text, usage, truncated } = await this.call(model, sys, args.prompt, budget, args.temperature ?? 0.7);

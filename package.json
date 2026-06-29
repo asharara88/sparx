@@ -11,6 +11,7 @@
     "dev": "tsx src/index.ts",
     "demo": "tsx src/index.ts --demo",
     "demo:video": "tsx scripts/demo.ts",
+    "script:ab": "tsx scripts/script-ab.ts",
     "inspect": "tsx scripts/inspect.ts",
     "browser:test": "tsx scripts/browser-test.ts",
     "youtube:smoke": "tsx scripts/youtube-smoke.ts",
