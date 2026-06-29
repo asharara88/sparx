@@ -44,6 +44,27 @@ export class RunwayVideo implements VideoProvider {
     throw new Error(`Runway request failed: ${String(last)}`);
   }
 
+  // gen4.5 is image-to-video — it needs a start image. gen4_image ratios differ from
+  // the video ratios, so map to the nearest supported image ratio.
+  private imageRatio(videoRatio?: RunwayRatio): string {
+    switch (videoRatio) {
+      case '720:1280': return '1080:1920';
+      case '960:960': return '1024:1024';
+      case '1104:832': return '1440:1080';
+      default: return '1920:1080';
+    }
+  }
+
+  // Text → start image (gen4_image), so we can drive image-to-video from a pure prompt.
+  private async createImageTask(promptText: string, ratio?: RunwayRatio): Promise<string> {
+    const c = config();
+    const out = await this.req<{ id: string }>('/v1/text_to_image', {
+      method: 'POST',
+      body: JSON.stringify({ model: c.RUNWAY_IMAGE_MODEL, promptText, ratio: this.imageRatio(ratio) }),
+    });
+    return out.id;
+  }
+
   private async createTask(req: VideoRequest): Promise<string> {
     const c = config();
     const duration = Math.max(2, Math.min(10, Math.round(req.durationS)));

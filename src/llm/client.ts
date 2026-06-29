@@ -28,6 +28,12 @@ export interface CompleteResult<T = unknown> {
 const TRANSIENT = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Models that reject the `temperature` parameter (deprecated / fixed for them).
+// Sending it returns HTTP 400, so we omit it for these and let the model default.
+function modelSupportsTemperature(model: string): boolean {
+  return !/opus-4-8/i.test(model);
+}
+
 export interface LLM {
   readonly live: boolean;
   complete<T = unknown>(args: CompleteArgs<T>): Promise<CompleteResult<T>>;
@@ -55,11 +61,14 @@ class AnthropicLLM implements LLM {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), c.LLM_TIMEOUT_MS);
       try {
+        const reqBody: Record<string, unknown> = { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+        // Some newer models (e.g. Opus 4.8) deprecate `temperature` and 400 if it's sent.
+        if (modelSupportsTemperature(model)) reqBody.temperature = temperature;
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           signal: ctrl.signal,
           headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-          body: JSON.stringify({ model, max_tokens: maxTokens, temperature, system, messages: [{ role: 'user', content: prompt }] }),
+          body: JSON.stringify(reqBody),
         });
         if (!res.ok) {
           const body = await res.text();
