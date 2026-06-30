@@ -16,8 +16,8 @@ export type Ideation = z.infer<typeof IdeationSchema>;
 
 // --- Research: step 2 (score + select + package) ---
 export const ScoredAngleSchema = z.object({
-  angle: z.string(),
-  score: z.number().min(0).max(10),
+  angle: z.coerce.string(),   // models sometimes return the angle index as a number; coerce to avoid a repair round-trip
+  score: z.coerce.number().min(0).max(10),
   why: z.string(),
 });
 export const ConceptOutputSchema = z.object({

@@ -199,7 +199,7 @@ export function newEpisodeState(
     concept: { topic: '', working_title: '', angle: '', rationale: '', audience: '', thumbnail_concept: '', angle_candidates: [], keywords: [], competitor_refs: [], target_length_min: 10, approved: false },
     script: { hook: '', hook_variants: [], beat_sheet: [], sections: [], cta: '', brand_voice_pass: false, critique: '', word_count: 0, approved: false },
     shot_list: [],
-    voiceover: { voice_id: 'elevenlabs:cloned_v1', clips: [], total_duration_s: 0 },
+    voiceover: { voice_id: '', clips: [], total_duration_s: 0 },   // empty → voiceover agent falls back to config().ELEVENLABS_VOICE_ID
     generated_video: [],
     avatar_clips: [],
     sourced_assets: [],

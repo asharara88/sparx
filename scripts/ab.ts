@@ -54,7 +54,7 @@ const TASKS: Record<string, Task> = {
   // Titles + thumbnails — mirrors the packaging agent.
   title: {
     label: 'TITLES + THUMBNAILS',
-    system: 'You are a YouTube packaging expert. Write high-CTR titles (curiosity + clarity, <70 chars), compelling descriptions with keywords, and distinct thumbnail concepts described as vivid image prompts.',
+    system: 'You are a YouTube packaging expert writing for a broad, general audience. Write high-CTR titles (curiosity + clarity, <70 chars), compelling descriptions with keywords, and distinct thumbnail concepts described as vivid image prompts. Use plain, everyday words — no jargon, acronyms, or technical/insider terms a casual viewer wouldn\'t instantly understand. Titles and descriptions should read at a ~6th-8th-grade level.',
     prompt: () => `Topic: ${topic}\nCreative lens: ${lens}\n\nReturn JSON {titles[3-5], descriptions[1-2], thumbnail_concepts[2-3]}.`,
     schema: PackagingSchema,
     render: (d) => [
