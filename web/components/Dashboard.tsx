@@ -27,7 +27,8 @@ export default function Dashboard() {
   const [mode, setMode] = useState<'demo' | 'pipeline'>('demo');
   const [topic, setTopic] = useState('Three AI tools every creator should try');
   const [sections, setSections] = useState(3);
-  const [demoMode, setDemoMode] = useState<'auto' | 'avatar' | 'voiceover'>('auto');
+  const [demoMode, setDemoMode] = useState<'auto' | 'avatar' | 'voiceover' | 'broll'>('auto');
+  const [hostMode, setHostMode] = useState<'avatar' | 'voice_only'>('avatar');
   const [autoApprove, setAutoApprove] = useState(true);
   const [avatars, setAvatars] = useState<AvatarOption[]>([]);
   const [avatarId, setAvatarId] = useState('');
@@ -81,7 +82,7 @@ export default function Dashboard() {
     try {
       const body = mode === 'demo'
         ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId }
-        : { mode, autoApprove, avatarId };
+        : { mode, autoApprove, avatarId, hostMode };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
       if (j.started && j.log) {
@@ -131,15 +132,16 @@ export default function Dashboard() {
                   </select>
                 </div>
                 <div>
-                  <label>Voice</label>
+                  <label>Engine</label>
                   <select value={demoMode} onChange={(e) => setDemoMode(e.target.value as typeof demoMode)}>
                     <option value="auto">Auto (HeyGen if keyed)</option>
-                    <option value="avatar">HeyGen avatar</option>
-                    <option value="voiceover">ElevenLabs / silent</option>
+                    <option value="avatar">HeyGen avatar (talking head)</option>
+                    <option value="broll">Runway b-roll (cinematic)</option>
+                    <option value="voiceover">Voiceover slates (ElevenLabs)</option>
                   </select>
                 </div>
               </div>
-              {demoMode !== 'voiceover' && (
+              {(demoMode === 'auto' || demoMode === 'avatar') && (
                 <>
                   <label>Avatar</label>
                   <select value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
@@ -147,15 +149,38 @@ export default function Dashboard() {
                   </select>
                 </>
               )}
-              <p className="note">Avatar mode calls HeyGen per section and can take a few minutes — watch progress below.</p>
+              <p className="note">
+                {demoMode === 'broll'
+                  ? 'Runway generates cinematic footage per section (text→image→video) with ElevenLabs narration — a few minutes per clip.'
+                  : 'Avatar mode calls HeyGen per section and can take a few minutes — watch progress below.'}
+              </p>
             </>
           ) : (
             <>
-              <label>Gates</label>
-              <select value={autoApprove ? 'auto' : 'manual'} onChange={(e) => setAutoApprove(e.target.value === 'auto')}>
-                <option value="auto">Auto-approve (run to the end)</option>
-                <option value="manual">Hold at review gates</option>
-              </select>
+              <div className="row">
+                <div>
+                  <label>Engine</label>
+                  <select value={hostMode} onChange={(e) => setHostMode(e.target.value as typeof hostMode)}>
+                    <option value="avatar">HeyGen avatar (talking head)</option>
+                    <option value="voice_only">Runway b-roll (cinematic)</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Gates</label>
+                  <select value={autoApprove ? 'auto' : 'manual'} onChange={(e) => setAutoApprove(e.target.value === 'auto')}>
+                    <option value="auto">Auto-approve (run to the end)</option>
+                    <option value="manual">Hold at review gates</option>
+                  </select>
+                </div>
+              </div>
+              {hostMode === 'avatar' && (
+                <>
+                  <label>Avatar</label>
+                  <select value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
+                    {avatars.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                  </select>
+                </>
+              )}
               <p className="note">Runs the full research → script → media → render → QA → publish pipeline.</p>
             </>
           )}

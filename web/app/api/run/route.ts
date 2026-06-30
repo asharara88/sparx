@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 // which the dashboard polls. Output is appended to generated/web-runs/<ts>.log.
 export async function POST(req: Request) {
   ensureEnv();
-  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string } = {};
+  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string; hostMode?: string } = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
 
   const mode = body.mode === 'demo' ? 'demo' : 'pipeline';
@@ -31,10 +31,11 @@ export async function POST(req: Request) {
   if (mode === 'demo') {
     const topic = (body.topic ?? '').toString().slice(0, 300) || 'Three AI tools every creator should try';
     env.DEMO_SECTIONS = String(Math.max(1, Math.min(6, Number(body.sections) || 3)));
-    if (body.demoMode === 'avatar' || body.demoMode === 'voiceover') env.DEMO_MODE = body.demoMode;
+    if (['avatar', 'voiceover', 'broll'].includes(body.demoMode ?? '')) env.DEMO_MODE = body.demoMode;
     args = ['tsx', 'scripts/demo.ts', topic];
   } else {
     env.AUTO_APPROVE_GATES = body.autoApprove ? 'true' : 'false';
+    if (body.hostMode === 'avatar' || body.hostMode === 'voice_only') env.HOST_MODE = body.hostMode;
     args = ['tsx', 'src/index.ts'];
   }
 
