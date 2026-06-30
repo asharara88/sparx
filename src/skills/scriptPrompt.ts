@@ -53,6 +53,9 @@ export function pickLens(seed?: number): string {
 
 export const HOUSE_STYLE = `House style — apply on every run:
 - Write for the ear: short, natural sentences a person would actually say out loud. Use contractions.
+- Plain language for a broad, general audience: aim for a ~6th–8th-grade reading level. Use everyday words over technical or formal ones (say "use" not "utilize", "doctors" not "clinicians", "rule of thumb" not "heuristic"). Prefer the simplest word that's still accurate.
+- No unexplained jargon, acronyms, or insider terms. If a technical term is genuinely unavoidable, define it in one short, plain clause the first time ("sleep regression — when a baby who slept well suddenly stops").
+- Explain it like you're talking to a smart friend who's new to the topic, not an expert. Use concrete, familiar comparisons over abstract or clinical phrasing.
 - Earn attention continuously: every section either opens a curiosity loop or pays one off. No throat-clearing, no recap filler.
 - Specifics over abstractions: concrete examples, real numbers, named things — never "many people", "a lot of value", "studies show".
 - One idea per section, advancing the story; don't restate the previous section.
