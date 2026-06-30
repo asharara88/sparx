@@ -13,8 +13,8 @@ import { config } from '../src/config.js';
 // and render one captioned mp4.
 //   npm run demo:video -- "Your topic here"
 //   DEMO_SECTIONS=3 DEMO_MODE=avatar|voiceover npm run demo:video
-const topic = process.argv.slice(2).join(' ') || 'Three AI tools that save video creators hours every week';
-const want = Math.max(1, Math.min(6, parseInt(process.env.DEMO_SECTIONS || '3', 10)));
+const topic = process.argv.slice(2).join(' ') || '5 newborn-care mistakes new parents make — and the old advice doctors now warn against';
+const want = Math.max(1, Math.min(6, parseInt(process.env.DEMO_SECTIONS || '5', 10)));
 
 // Small, demo-only schema (the production ScriptDraftSchema requires >=4 sections).
 const DemoScript = z.object({
