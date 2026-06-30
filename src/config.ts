@@ -26,7 +26,7 @@ const Schema = z.object({
 
   // media providers (optional; mock used when absent)
   ELEVENLABS_API_KEY: z.string().optional(),
-  ELEVENLABS_VOICE_ID: z.string().default('elevenlabs:cloned_v1'),
+  ELEVENLABS_VOICE_ID: z.string().default('21m00Tcm4TlvDq8ikWAM'),   // Rachel (premade); swap for a cloned voice id
   RUNWAY_API_KEY: z.string().optional(),
   RUNWAY_MODEL: z.string().default('gen4.5'),
   RUNWAY_IMAGE_MODEL: z.string().default('gen4_image'),  // text→image step that seeds image-to-video
