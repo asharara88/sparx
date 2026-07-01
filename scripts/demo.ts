@@ -4,7 +4,7 @@ import { getVoice } from '../src/media/voice.js';
 import { getAvatar } from '../src/media/avatar.js';
 import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
-import { SCRIPT_SYSTEM, buildDemoPrompt, DemoScriptSchema } from '../src/skills/scriptPrompt.js';
+import { SCRIPT_SYSTEM, buildDemoPrompt, DemoScriptSchema, refineTopic } from '../src/skills/scriptPrompt.js';
 import { config } from '../src/config.js';
 
 // Quick demo renderer: write a short script with the LLM, then either
@@ -28,15 +28,24 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
   const voice = getVoice();
   const voiceId = config().ELEVENLABS_VOICE_ID;
 
-  console.log(`Topic: ${topic}\nGenerating ${want}-section script (llm=${llm.live ? config().LLM_PRO_MODEL : 'mock'})...`);
+  // Refine the raw topic on the cheap/fast tier first, so the pro model writes from a
+  // sharpened topic + angle instead of whatever bare phrase the user typed.
+  console.log(`Refining topic (llm=${llm.live ? config().LLM_FAST_MODEL : 'mock'})...`);
+  const brief = await refineTopic(llm, topic);
+  if (brief.topic !== topic || brief.angle) {
+    console.log(`  → refined topic: ${brief.topic}${brief.angle ? `\n  → angle: ${brief.angle}` : ''}`);
+  }
+  const refinedTopic = brief.topic;
+
+  console.log(`Topic: ${refinedTopic}\nGenerating ${want}-section script (llm=${llm.live ? config().LLM_PRO_MODEL : 'mock'})...`);
   const draft = await llm.complete({
     tier: 'pro', temperature: 0.7, maxTokens: 3000, schema: DemoScriptSchema,
     system: SCRIPT_SYSTEM,
-    prompt: buildDemoPrompt({ topic, sections: want }),
+    prompt: buildDemoPrompt({ topic: refinedTopic, sections: want, angle: brief.angle }),
     mock: JSON.stringify({
-      hook: `Here are the tools changing how we make ${topic}.`,
+      hook: `Here are the tools changing how we make ${refinedTopic}.`,
       sections: Array.from({ length: want }, (_, i) => ({
-        vo_text: `Point ${i + 1}: this is sample narration about ${topic}. It moves the story forward with a concrete, specific detail.`,
+        vo_text: `Point ${i + 1}: this is sample narration about ${refinedTopic}. It moves the story forward with a concrete, specific detail.`,
         on_screen: `Point ${i + 1}`,
       })),
       cta: 'Subscribe for a new deep dive every week.',

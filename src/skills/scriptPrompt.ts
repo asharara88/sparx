@@ -15,6 +15,16 @@ export const DemoScriptSchema = z.object({
 });
 export type DemoScript = z.infer<typeof DemoScriptSchema>;
 
+// Refined topic brief. A raw user topic (often a bare phrase like "AI tools" or a vague
+// one-liner) is first optimized into a sharper, more specific topic + a concrete angle
+// BEFORE it reaches the expensive creative model. This front-loads the "what should this
+// actually be about?" thinking on a cheap model so the pro model spends its tokens writing.
+export const RefinedTopicSchema = z.object({
+  topic: z.string().min(8),   // sharpened, specific, self-contained topic line
+  angle: z.string().min(8),   // the single most compelling angle to take on it
+});
+export type RefinedTopic = z.infer<typeof RefinedTopicSchema>;
+
 // Spoken delivery target. Narration is for the ear, not the page — keep it close to
 // natural speech tempo so on-screen pacing and runtime estimates line up.
 export const SPOKEN_WPM = 140;
@@ -101,10 +111,11 @@ export function buildDraftPrompt(p: {
 }
 
 // Demo prompt — lightweight (caption-slate sections), same voice and rules.
-export function buildDemoPrompt(p: { topic: string; sections: number; lens?: string }): string {
+export function buildDemoPrompt(p: { topic: string; sections: number; lens?: string; angle?: string }): string {
   const lens = p.lens ?? pickLens();
   return [
     `Topic: ${p.topic}`,
+    ...(p.angle ? [`Angle: ${p.angle}`] : []),
     `Creative lens for THIS script: ${lens}`,
     ``,
     `Return ONLY JSON: {"hook": string, ` +
@@ -112,4 +123,59 @@ export function buildDemoPrompt(p: { topic: string; sections: number; lens?: str
       `"cta": string}.`,
     `Every vo_text must be concrete and speakable; the hook must give an immediate reason to keep watching.`,
   ].join('\n');
+}
+
+// ── Topic refinement (runs BEFORE script generation, on a cheap tier) ────────────────
+// System persona for the refinement pass. Its job is NOT to write the script — only to
+// turn whatever the user typed into the best possible brief for the scriptwriter.
+export const TOPIC_REFINE_SYSTEM =
+  `You are a YouTube content strategist. Given a raw, often vague or overly broad topic a ` +
+  `creator typed in, you reshape it into ONE sharp, specific, and genuinely compelling video ` +
+  `topic, plus the single best angle to take on it. You DO NOT write the script — you set it up ` +
+  `to succeed.\n` +
+  `Rules:\n` +
+  `- Narrow broad topics to something concrete and searchable (a specific claim, list, story, or question), not a category.\n` +
+  `- Keep the creator's actual intent and subject; sharpen it, don't replace it with a different subject.\n` +
+  `- Prefer specifics: real numbers, named things, a clear promise of what the viewer learns.\n` +
+  `- The angle is the hook-worthy tension: what's surprising, counterintuitive, or high-stakes about this.\n` +
+  `- Keep both fields to a single sentence. No preamble, no hashtags, no emoji.`;
+
+export function buildTopicRefinePrompt(rawTopic: string): string {
+  return [
+    `Raw topic from the creator: "${rawTopic}"`,
+    ``,
+    `Return ONLY JSON: {"topic": string, "angle": string}.`,
+    `"topic" = the sharpened, specific, self-contained video topic.`,
+    `"angle" = the single most compelling angle/tension to build the video around.`,
+  ].join('\n');
+}
+
+// Minimal shape of the LLM needed here — avoids importing the client type and the cycle
+// that would create (client → skills → client).
+interface RefineLLM {
+  complete<T>(args: {
+    tier: 'fast'; temperature: number; maxTokens: number; schema: typeof RefinedTopicSchema;
+    system: string; prompt: string; mock: string;
+  }): Promise<{ data?: RefinedTopic }>;
+}
+
+// Refine a raw user topic into an optimized {topic, angle} brief using the FAST (cheap)
+// tier, so the pro/creative model receives a sharpened prompt. Never throws: on any
+// failure it falls back to the raw topic with no angle, so a refinement hiccup can't
+// block a render.
+export async function refineTopic(llm: RefineLLM, rawTopic: string): Promise<RefinedTopic> {
+  const raw = rawTopic.trim();
+  const fallback: RefinedTopic = { topic: raw, angle: '' };
+  if (!raw) return fallback;
+  try {
+    const res = await llm.complete({
+      tier: 'fast', temperature: 0.5, maxTokens: 400, schema: RefinedTopicSchema,
+      system: TOPIC_REFINE_SYSTEM,
+      prompt: buildTopicRefinePrompt(raw),
+      mock: JSON.stringify({ topic: raw, angle: `A specific, surprising take on ${raw}.` }),
+    });
+    return res.data ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
