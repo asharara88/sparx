@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { getLLM } from '../src/llm/client.js';
 import { getVoice } from '../src/media/voice.js';
-import { getAvatar } from '../src/media/avatar.js';
+import { getAvatar, resolveAvatarVoice } from '../src/media/avatar.js';
 import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
 import { getMusic } from '../src/media/music.js';
@@ -62,12 +62,24 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
 
   if (mode === 'avatar') {
     const avatar = getAvatar();
-    console.log(`Generating ${d.sections.length} avatar clips (provider=${avatar.name}, avatar=${c.HEYGEN_AVATAR_ID || '(default)'})...`);
+    // Lip-sync source (AVATAR_VOICE): 'elevenlabs' narrates each section with your
+    // ElevenLabs voice and HeyGen syncs the avatar's mouth to that uploaded audio;
+    // 'heygen' uses HeyGen's built-in TTS. Only spend voice credits on a real avatar.
+    const avatarVoice = avatar.live ? resolveAvatarVoice(c.AVATAR_VOICE, voice.live) : 'heygen';
+    console.log(`Generating ${d.sections.length} avatar clips (provider=${avatar.name}, avatar=${c.HEYGEN_AVATAR_ID || '(default)'}, voice=${avatarVoice})...`);
     for (const [i, s] of d.sections.entries()) {
       console.log(`  · section ${i + 1}/${d.sections.length} (HeyGen render can take a minute)...`);
       const fallbackDur = Math.max(3, Math.round(s.vo_text.split(/\s+/).length / 2.3));
       try {
-        const clip = await avatar.generate({ text: s.vo_text, avatarId: c.HEYGEN_AVATAR_ID, voiceId: c.HEYGEN_VOICE_ID, durationS: fallbackDur });
+        let audioUri: string | undefined;
+        if (avatarVoice === 'elevenlabs') {
+          try {
+            audioUri = (await voice.synthesize(s.vo_text, voiceId)).uri;
+          } catch (err) {
+            console.warn(`  ⚠ section ${i + 1} ElevenLabs narration failed (${String(err).slice(0, 160)}); using HeyGen TTS`);
+          }
+        }
+        const clip = await avatar.generate({ text: s.vo_text, avatarId: c.HEYGEN_AVATAR_ID, voiceId: c.HEYGEN_VOICE_ID, durationS: fallbackDur, audioUri });
         // Avatar video carries its own voice; the render keeps that audio.
         shots.push({ visual_uri: clip.uri, audio_uri: null, duration_s: clip.durationS ?? 6, caption: s.on_screen });
       } catch (err) {

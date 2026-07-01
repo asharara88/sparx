@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [avatarId, setAvatarId] = useState('');
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [voiceId, setVoiceId] = useState('');
+  const [avatarVoice, setAvatarVoice] = useState<'auto' | 'elevenlabs' | 'heygen'>('auto');
   const [runwayTakes, setRunwayTakes] = useState(1);
 
   const loadEpisodes = useCallback(async () => {
@@ -106,13 +107,17 @@ export default function Dashboard() {
     setRunLog(null);
     try {
       // Which engines actually consume each control:
-      //  · ElevenLabs voice → voiceover + b-roll (demo) and voice_only (pipeline)
+      //  · ElevenLabs voice → voiceover + b-roll (demo), voice_only (pipeline), and
+      //    avatar lip-sync when the avatar voice is set to ElevenLabs
       //  · Runway takes      → b-roll (demo) and voice_only (pipeline)
-      const usesVoice = mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only';
+      const usesAvatar = mode === 'demo' ? (demoMode === 'auto' || demoMode === 'avatar') : hostMode === 'avatar';
+      const usesVoice = (mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only')
+        || (usesAvatar && avatarVoice === 'elevenlabs');
       const usesRunway = mode === 'demo' ? demoMode === 'broll' : hostMode === 'voice_only';
+      const avatarOpts = usesAvatar && avatarVoice !== 'auto' ? { avatarVoice } : {};
       const body = mode === 'demo'
-        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
-        : { mode, autoApprove, avatarId, hostMode, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) };
+        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
+        : { mode, autoApprove, avatarId, hostMode, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
       if (j.started && j.log) {
@@ -186,7 +191,7 @@ export default function Dashboard() {
       <main className="main">
         {view === 'runs' && (
           <RunsView
-            {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, runwayTakes, setRunwayTakes, busy, runState, runLog, runTail, tailRef, startRun }}
+            {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes, busy, runState, runLog, runTail, tailRef, startRun }}
             onViewResult={() => setView('preview')}
           />
         )}
@@ -225,13 +230,28 @@ function RunsView(p: any) {
   const {
     mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode,
     hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId,
-    voices, voiceId, setVoiceId, runwayTakes, setRunwayTakes,
+    voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes,
     busy, runState, runLog, runTail, tailRef, startRun, onViewResult,
   } = p;
 
   // Which controls are relevant to the currently-selected engine.
-  const usesVoice = mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only';
+  const usesAvatar = mode === 'demo' ? (demoMode === 'auto' || demoMode === 'avatar') : hostMode === 'avatar';
+  const usesVoice = (mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only')
+    || (usesAvatar && avatarVoice === 'elevenlabs');
   const usesRunway = mode === 'demo' ? demoMode === 'broll' : hostMode === 'voice_only';
+
+  // Lip-sync source for avatar clips: your ElevenLabs voice (uploaded to HeyGen,
+  // mouth synced to that audio) vs HeyGen's built-in TTS.
+  const avatarVoiceControl = (
+    <>
+      <label>Avatar voice <span className="hint">(lip-sync source)</span></label>
+      <select value={avatarVoice} onChange={(e) => setAvatarVoice(e.target.value)}>
+        <option value="auto">Auto (ElevenLabs if keyed)</option>
+        <option value="elevenlabs">My ElevenLabs voice (lip-synced)</option>
+        <option value="heygen">HeyGen voice (built-in TTS)</option>
+      </select>
+    </>
+  );
 
   const audioVideoControls = (usesVoice || usesRunway) && (
     <>
@@ -294,6 +314,7 @@ function RunsView(p: any) {
                   <select value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
                     {avatars.map((a: AvatarOption) => <option key={a.id} value={a.id}>{a.label}</option>)}
                   </select>
+                  {avatarVoiceControl}
                 </>
               )}
               <p className="note">
@@ -326,6 +347,7 @@ function RunsView(p: any) {
                   <select value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
                     {avatars.map((a: AvatarOption) => <option key={a.id} value={a.id}>{a.label}</option>)}
                   </select>
+                  {avatarVoiceControl}
                 </>
               )}
               <p className="note">Runs the full research → script → media → render → QA → publish pipeline.</p>

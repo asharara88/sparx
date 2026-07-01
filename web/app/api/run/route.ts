@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 // which the dashboard polls. Output is appended to generated/web-runs/<ts>.log.
 export async function POST(req: Request) {
   ensureEnv();
-  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string; hostMode?: string; voiceId?: string; runwayTakes?: number; music?: boolean } = {};
+  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string; hostMode?: string; voiceId?: string; avatarVoice?: string; runwayTakes?: number; music?: boolean } = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
 
   const mode = body.mode === 'demo' ? 'demo' : 'pipeline';
@@ -28,8 +28,10 @@ export async function POST(req: Request) {
   // Per-run avatar override: wins over .env because the child's dotenv won't override
   // an already-set process env var. Validate to a simple id to avoid shell/inject surprises.
   if (body.avatarId && /^[A-Za-z0-9._-]+$/.test(body.avatarId)) env.HEYGEN_AVATAR_ID = body.avatarId;
-  // Per-run ElevenLabs voice override (applies to voiceover + b-roll narration).
+  // Per-run ElevenLabs voice override (applies to voiceover + b-roll + avatar lip-sync narration).
   if (body.voiceId && /^[A-Za-z0-9._-]+$/.test(body.voiceId)) env.ELEVENLABS_VOICE_ID = body.voiceId;
+  // Per-run avatar lip-sync source: ElevenLabs narration (uploaded to HeyGen) vs HeyGen TTS.
+  if (body.avatarVoice === 'elevenlabs' || body.avatarVoice === 'heygen') env.AVATAR_VOICE = body.avatarVoice;
   // Per-run Runway take count (b-roll quality vs. spend); clamp to the provider's 1–4 range.
   if (body.runwayTakes != null && Number.isFinite(Number(body.runwayTakes))) {
     env.RUNWAY_MAX_TAKES = String(Math.max(1, Math.min(4, Math.round(Number(body.runwayTakes)))));
