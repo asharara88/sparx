@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 // which the dashboard polls. Output is appended to generated/web-runs/<ts>.log.
 export async function POST(req: Request) {
   ensureEnv();
-  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string; hostMode?: string; voiceId?: string; runwayTakes?: number } = {};
+  let body: { mode?: string; topic?: string; sections?: number; demoMode?: string; autoApprove?: boolean; avatarId?: string; hostMode?: string; voiceId?: string; runwayTakes?: number; music?: boolean } = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
 
   const mode = body.mode === 'demo' ? 'demo' : 'pipeline';
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     const topic = (body.topic ?? '').toString().slice(0, 300) || 'Three AI tools every creator should try';
     env.DEMO_SECTIONS = String(Math.max(1, Math.min(6, Number(body.sections) || 3)));
     if (['avatar', 'voiceover', 'broll'].includes(body.demoMode ?? '')) env.DEMO_MODE = body.demoMode;
+    if (body.music) env.DEMO_MUSIC = 'true';
     args = ['tsx', 'scripts/demo.ts', topic];
   } else {
     env.AUTO_APPROVE_GATES = body.autoApprove ? 'true' : 'false';

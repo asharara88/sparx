@@ -4,6 +4,7 @@ import { getVoice } from '../src/media/voice.js';
 import { getAvatar } from '../src/media/avatar.js';
 import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
+import { getMusic } from '../src/media/music.js';
 import { SCRIPT_SYSTEM, buildDemoPrompt, DemoScriptSchema, refineTopic } from '../src/skills/scriptPrompt.js';
 import { config } from '../src/config.js';
 
@@ -107,8 +108,29 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
   // Outro card with the CTA.
   shots.push({ visual_uri: null, audio_uri: null, duration_s: 3, caption: d.cta });
 
+  // Optional background music bed. Off unless DEMO_MUSIC is truthy — keeps demo runs
+  // cheap/fast by default. Render loops a short bed to fill the whole runtime.
+  let musicUri: string | null = null;
+  if (/^(1|true|on|yes)$/i.test(process.env.DEMO_MUSIC || '')) {
+    const music = getMusic();
+    const totalDur = shots.reduce((n, s) => n + (s.duration_s || 0), 0);
+    const mood = brief.angle ? 'driving, hopeful, modern' : 'calm, cinematic, understated';
+    console.log(`Generating background music (provider=${music.name}, mood=${mood})...`);
+    if (!music.live) {
+      console.log('  → music provider is in mock mode (no ELEVENLABS_API_KEY) — skipping real music.');
+    } else {
+      try {
+        const track = await music.selectTrack(mood, totalDur);
+        musicUri = track.uri;
+        console.log(`  → music bed: ${track.uri}`);
+      } catch (err) {
+        console.warn(`  ⚠ music generation failed (${String(err).slice(0, 160)}); rendering without music`);
+      }
+    }
+  }
+
   console.log('Rendering...');
-  const r = await renderEpisode({ episodeId: 'demo', shots, musicUri: null });
+  const r = await renderEpisode({ episodeId: 'demo', shots, musicUri });
   const spoken = mode === 'avatar' ? getAvatar().live : voice.live;
   console.log(`\n✅ Demo rendered: ${r.path}`);
   console.log(`   ${r.durationS}s · ${r.shots} shots · ${r.real} real footage · ${r.placeholders} placeholder · mode=${mode} · ${spoken ? 'spoken' : 'silent (provider in mock mode)'}`);

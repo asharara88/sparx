@@ -11,6 +11,7 @@
     "dev": "tsx src/index.ts",
     "demo": "tsx src/index.ts --demo",
     "demo:video": "tsx scripts/demo.ts",
+    "music:gen": "node scripts/sparx_music_gen.mjs",
     "ab": "tsx scripts/ab.ts",
     "inspect": "tsx scripts/inspect.ts",
     "browser:test": "tsx scripts/browser-test.ts",
