@@ -62,12 +62,19 @@ export const visualDirector: Agent = {
     // Voice-only host mode = cinematic b-roll engine: every section is AI-generated
     // footage (Runway), narrated by the voiceover track. No on-screen presenter.
     if (host === 'voice_only') {
+      // Favor AI-video's strengths: wide/establishing, environmental, objects over people.
+      // Push tight close-ups of faces/hands into the negative prompt (that's where artifacts show).
+      const FRAMING_NEGATIVE = ['tight close-up', 'close-up face', 'close-up hands', 'distorted faces', 'distorted hands', 'deformed fingers'];
       shots = shots.map((s, i): Shot => {
         const sp = plan.data!.shots[i];
-        const spec: ShotSpec = { description: sp?.description || sections[i]?.on_screen || sections[i]?.vo_text.slice(0, 60) || 'cinematic b-roll', style: sp?.style, camera: sp?.camera, motion: sp?.motion, mood: sp?.mood, duration_s: s.duration_s, negative: sp?.negative };
+        const spec: ShotSpec = {
+          description: `wide establishing shot, environmental: ${sp?.description || sections[i]?.on_screen || sections[i]?.vo_text.slice(0, 60) || 'cinematic b-roll'}`,
+          style: sp?.style, camera: sp?.camera ?? 'gentle slow move', motion: sp?.motion ?? 'low', mood: sp?.mood,
+          duration_s: s.duration_s, negative: [...(sp?.negative ?? []), ...FRAMING_NEGATIVE],
+        };
         return { ...s, source: 'generated', prompt: videoPrompts(spec), cost_estimate_usd: estimateShotCost(s.duration_s, 'runway') };
       });
-      log.info('voice_only host mode: all shots set to generated b-roll', { shots: shots.length });
+      log.info('voice_only host mode: all shots set to generated b-roll (wide framing)', { shots: shots.length });
     }
 
     // cost-aware optimization: downgrade generated→stock until within budget

@@ -78,7 +78,10 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
       const art = await voice.synthesize(s.vo_text, voiceId);
       try {
         console.log(`  · section ${i + 1}/${d.sections.length} (Runway render can take a minute)...`);
-        const takes = await video.generate({ prompt: `Cinematic b-roll, no on-screen text: ${s.on_screen || s.vo_text.slice(0, 90)}`, model: 'runway', durationS: 5 });
+        // Steer away from AI-video's weak spots: wide/establishing, environmental, soft
+        // focus — no tight close-ups of faces or hands (where artifacts show most).
+        const prompt = `Cinematic wide establishing b-roll, environmental and atmospheric, soft natural light, gentle slow camera move, shallow depth of field on objects (not people). Avoid tight close-ups of faces or hands. No on-screen text. Scene: ${s.on_screen || s.vo_text.slice(0, 90)}`;
+        const takes = await video.generate({ prompt, model: 'runway', durationS: 5 });
         shots.push({ visual_uri: takes[0]?.uri ?? null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen });
       } catch (err) {
         console.warn(`  ⚠ section ${i + 1} Runway failed (${String(err).slice(0, 160)}); using caption slate`);
