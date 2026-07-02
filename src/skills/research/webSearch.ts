@@ -1,8 +1,11 @@
 import { config } from '../../config.js';
 import { createLogger } from '../../logger.js';
+import { fetchWithRetry } from '../../util/http.js';
 
 // Web research skill with a pluggable provider. Real provider = Tavily (TAVILY_API_KEY);
-// falls back to a deterministic mock so research runs offline. Used by Research (1) & QA (12).
+// falls back to a deterministic mock so research runs offline. Consumed by the research
+// agent and the evidence-retrieval skill — search is enrichment for both, so the live
+// provider degrades to empty results on any failure instead of throwing or hanging.
 export interface SearchResult { title: string; url: string; snippet: string }
 export interface WebSearchProvider { readonly name: string; search(query: string, max?: number): Promise<SearchResult[]> }
 
@@ -12,14 +15,22 @@ class TavilyProvider implements WebSearchProvider {
   readonly name = 'tavily';
   constructor(private apiKey: string) {}
   async search(query: string, max = 6): Promise<SearchResult[]> {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ api_key: this.apiKey, query, max_results: max, search_depth: 'basic' }),
-    });
-    if (!res.ok) { log.warn('tavily error, returning empty', { status: res.status }); return []; }
-    const data = (await res.json()) as { results?: { title: string; url: string; content: string }[] };
-    return (data.results ?? []).map((r) => ({ title: r.title, url: r.url, snippet: r.content?.slice(0, 280) ?? '' }));
+    try {
+      // fetchWithRetry: per-attempt timeout + transient-only retry; key in the
+      // Authorization header, not the JSON body, so it can't leak into request logs.
+      const res = await fetchWithRetry('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({ query, max_results: max, search_depth: 'basic' }),
+      }, { label: 'tavily' });
+      const data = (await res.json()) as { results?: { title?: string; url?: string; content?: string }[] };
+      return (data.results ?? [])
+        .filter((r) => r.title && r.url)
+        .map((r) => ({ title: r.title!, url: r.url!, snippet: r.content?.slice(0, 280) ?? '' }));
+    } catch (err) {
+      log.warn('tavily search failed, returning empty', { err: String(err).slice(0, 160) });
+      return [];
+    }
   }
 }
 

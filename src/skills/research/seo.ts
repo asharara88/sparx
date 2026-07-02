@@ -1,8 +1,15 @@
-// SEO keyword skill: clusters keywords into topical groups and (optionally) attaches
-// search-volume via a provider. No paid key wired by default — volumes are null and
-// the clustering is heuristic. Used by Research (1), Packaging (10), Publishing (11).
+// SEO keyword skill: clusters keywords into topical groups by shared head term.
+// Heuristic and deterministic — no paid provider wired. Used by the research agent
+// (cluster labels and primary phrases feed the concept keywords).
 export interface KeywordCluster { label: string; keywords: string[] }
 export interface SeoResult { seed: string; clusters: KeywordCluster[]; primary: string[] }
+
+// Function words that would make meaningless cluster labels ('best ai tools' and
+// 'top ai tools' must cluster on the substance, never on 'best'/'top').
+const STOPWORDS = new Set([
+  'a', 'an', 'and', 'are', 'best', 'for', 'from', 'how', 'in', 'is', 'my', 'of', 'on', 'or',
+  'that', 'the', 'their', 'this', 'to', 'top', 'vs', 'what', 'when', 'why', 'with', 'without', 'your',
+]);
 
 // Lightweight heuristic clustering by shared head term. Good enough as a real,
 // deterministic baseline; swap in an embeddings/volume provider later.
@@ -10,8 +17,12 @@ export function clusterKeywords(seed: string, keywords: string[]): SeoResult {
   const norm = Array.from(new Set(keywords.map((k) => k.trim().toLowerCase()).filter(Boolean)));
   const buckets = new Map<string, string[]>();
   for (const k of norm) {
-    const head = (k.split(/\s+/)[0] ?? 'misc');
-    const key = head.length > 3 ? head : (k.split(/\s+/)[1] ?? head);
+    const tokens = k.split(/\s+/);
+    // Head = first substantive token; a stopword can never become a cluster label.
+    // All-stopword phrases fall back to the whole phrase as their own bucket.
+    const key = tokens.find((t) => !STOPWORDS.has(t) && t.length > 3)
+      ?? tokens.find((t) => !STOPWORDS.has(t))
+      ?? k;
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(k);
   }

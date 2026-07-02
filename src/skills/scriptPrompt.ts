@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createLogger } from '../logger.js';
 
 // Shared "house style" and prompt builders for script generation, used by BOTH the
 // production scriptwriter agent and the demo renderer so quality, format, and pacing
@@ -6,11 +7,14 @@ import { z } from 'zod';
 // path at once, and the rotating "lens" keeps successive runs from converging on the
 // same structure and phrasing.
 
+const log = createLogger({ mod: 'scriptPrompt' });
+
 // Lightweight demo/AB script shape (the production ScriptDraftSchema is richer). Shared
-// so the demo renderer and the A/B harness validate against one definition.
+// so the demo renderer and the A/B harness validate against one definition. Max sized
+// above what buildDemoPrompt callers request, so a correct response never fails validation.
 export const DemoScriptSchema = z.object({
   hook: z.string().min(8),
-  sections: z.array(z.object({ vo_text: z.string().min(1), on_screen: z.string().min(1) })).min(1).max(6),
+  sections: z.array(z.object({ vo_text: z.string().min(1), on_screen: z.string().min(1) })).min(1).max(12),
   cta: z.string().min(1),
 });
 export type DemoScript = z.infer<typeof DemoScriptSchema>;
@@ -175,7 +179,8 @@ export async function refineTopic(llm: RefineLLM, rawTopic: string): Promise<Ref
       mock: JSON.stringify({ topic: raw, angle: `A specific, surprising take on ${raw}.` }),
     });
     return res.data ?? fallback;
-  } catch {
+  } catch (err) {
+    log.warn('topic refinement failed, using raw topic', { err: String(err).slice(0, 160) });
     return fallback;
   }
 }
