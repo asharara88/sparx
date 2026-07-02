@@ -1,6 +1,8 @@
 import { config } from '../config.js';
 import { createLogger } from '../logger.js';
-import { estimateShotCost } from '../skills/cost.js';
+import { estimateImageCost, estimateShotCost } from '../skills/costModel.js';
+import { settleLimit } from '../util/concurrency.js';
+import { fetchWithRetry, pollUntil } from '../util/http.js';
 import type { MediaArtifact, ProviderInfo } from './types.js';
 
 // AI video generation provider. Real path = Runway (api.dev.runwayml.com):
@@ -13,9 +15,6 @@ export type RunwayRatio = '1280:720' | '720:1280' | '1104:832' | '960:960';
 export interface VideoRequest { prompt: string; model: VideoModel; durationS: number; takes?: number; seed?: number; ratio?: RunwayRatio; promptImage?: string }
 export interface VideoProvider extends ProviderInfo { generate(req: VideoRequest): Promise<MediaArtifact[]> }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const TRANSIENT = new Set([408, 429, 500, 502, 503, 504]);
-
 interface RunwayTask { id: string; status: 'PENDING' | 'RUNNING' | 'THROTTLED' | 'SUCCEEDED' | 'FAILED'; output?: string[]; failure?: string; failureCode?: string }
 
 export class RunwayVideo implements VideoProvider {
@@ -27,21 +26,11 @@ export class RunwayVideo implements VideoProvider {
     return { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json', 'X-Runway-Version': c.RUNWAY_VERSION };
   }
 
-  private async req<T>(path: string, init: RequestInit, attempts = 3): Promise<T> {
-    const c = config();
-    let last: unknown;
-    for (let i = 0; i < attempts; i++) {
-      try {
-        const res = await fetch(`${c.RUNWAY_API_BASE}${path}`, { ...init, headers: this.headers() });
-        if (!res.ok) {
-          const body = await res.text();
-          if (TRANSIENT.has(res.status) && i < attempts - 1) { await sleep(2 ** i * 700); continue; }
-          throw new Error(`Runway ${res.status}: ${body.slice(0, 240)}`);
-        }
-        return (await res.json()) as T;
-      } catch (e) { last = e; if (i < attempts - 1) await sleep(2 ** i * 700); }
-    }
-    throw new Error(`Runway request failed: ${String(last)}`);
+  // Shared resilience core: per-attempt timeout, transient-only retry — a 4xx
+  // (bad key/param) throws immediately with the status instead of burning retries.
+  private async req<T>(path: string, init: RequestInit): Promise<T> {
+    const res = await fetchWithRetry(`${config().RUNWAY_API_BASE}${path}`, { ...init, headers: this.headers() }, { label: 'runway' });
+    return (await res.json()) as T;
   }
 
   // gen4.5 is image-to-video — it needs a start image. gen4_image ratios differ from
@@ -75,43 +64,46 @@ export class RunwayVideo implements VideoProvider {
     return out.id;
   }
 
-  private async poll(id: string): Promise<string[]> {
-    const c = config();
-    const deadline = Date.now() + c.RUNWAY_POLL_TIMEOUT_MS;
-    let delay = 3000;
-    while (Date.now() < deadline) {
-      const t = await this.req<RunwayTask>(`/v1/tasks/${id}`, { method: 'GET' });
-      if (t.status === 'SUCCEEDED') return t.output ?? [];
-      if (t.status === 'FAILED') throw new Error(`Runway task failed: ${t.failureCode ?? ''} ${t.failure ?? ''}`.trim());
-      await sleep(delay);
-      delay = Math.min(delay * 1.5, 15000);
-    }
-    throw new Error(`Runway task ${id} timed out after ${c.RUNWAY_POLL_TIMEOUT_MS}ms`);
+  private async poll(id: string, kind: 'image' | 'video'): Promise<string[]> {
+    return pollUntil<string[]>({
+      label: `runway ${kind} task ${id}`,          // task id in the timeout error for crash forensics
+      intervalMs: 5000,
+      timeoutMs: config().RUNWAY_POLL_TIMEOUT_MS,
+      check: async () => {
+        const t = await this.req<RunwayTask>(`/v1/tasks/${id}`, { method: 'GET' });
+        if (t.status === 'SUCCEEDED') return t.output ?? [];
+        if (t.status === 'FAILED') throw new Error(`Runway task ${id} failed: ${t.failureCode ?? ''} ${t.failure ?? ''}`.trim());
+        return undefined;
+      },
+    });
   }
 
   async generate(req: VideoRequest): Promise<MediaArtifact[]> {
     const c = config();
     const takes = Math.min(req.takes ?? 1, c.RUNWAY_MAX_TAKES); // cap real-API takes to control cost
-    const perTakeCost = estimateShotCost(req.durationS, 'runway');
-    const out: MediaArtifact[] = [];
-    for (let i = 0; i < takes; i++) {
+    // Cost estimated via the cost model BEFORE returning: per take, one video run
+    // plus the synthesized start image when the caller didn't supply one.
+    const perTakeCost = estimateShotCost(req.durationS, 'runway') + (req.promptImage ? 0 : estimateImageCost());
+    // Takes are independent tasks — submit and poll them concurrently.
+    const settled = await settleLimit(Array.from({ length: takes }, (_, i) => i), takes, async (i): Promise<MediaArtifact> => {
       // gen4.5 needs a start image: synthesize one from the prompt unless caller gave one.
       let promptImage = req.promptImage;
       if (!promptImage) {
         const imgId = await this.createImageTask(req.prompt, req.ratio);
         log.info('runway image task submitted', { id: imgId, take: i });
-        const imgs = await this.poll(imgId);
-        if (imgs.length === 0) { log.warn('runway image gen returned no output', { id: imgId }); continue; }
+        const imgs = await this.poll(imgId, 'image');
+        if (imgs.length === 0) throw new Error(`Runway image task ${imgId} returned no output`);
         promptImage = imgs[0]!;
       }
       const id = await this.createTask({ ...req, promptImage });
-      log.info('runway task submitted', { id, take: i, duration: req.durationS });
-      const urls = await this.poll(id);
-      if (urls.length === 0) { log.warn('runway task returned no output', { id }); continue; }
-      out.push({ uri: urls[0]!, durationS: req.durationS, costUsd: perTakeCost, meta: { take: i, taskId: id, model: c.RUNWAY_MODEL } });
-    }
-    if (out.length === 0) throw new Error('Runway produced no usable takes');
-    return out;
+      log.info('runway video task submitted', { id, take: i, duration: req.durationS });
+      const urls = await this.poll(id, 'video');
+      if (urls.length === 0) throw new Error(`Runway task ${id} returned no output`);
+      return { uri: urls[0]!, durationS: req.durationS, costUsd: perTakeCost, meta: { take: i, taskId: id, model: c.RUNWAY_MODEL } };
+    });
+    for (const f of settled.failed) log.warn('take failed', { take: f.item, err: String(f.error).slice(0, 200) });
+    if (settled.ok.length === 0) throw new Error(`Runway produced no usable takes: ${String(settled.failed[0]?.error).slice(0, 200)}`);
+    return settled.ok.map((o) => o.value);
   }
 }
 
@@ -119,7 +111,7 @@ class MockVideo implements VideoProvider {
   readonly name = 'mock'; readonly live = false;
   async generate(req: VideoRequest): Promise<MediaArtifact[]> {
     const takes = req.takes ?? 2;
-    return Array.from({ length: takes }, (_, i) => ({ uri: `mock://video/${req.model}/${Math.abs(hash(req.prompt))}_${i}.mp4`, durationS: req.durationS, costUsd: 0, meta: { take: i, model: req.model } }));
+    return Array.from({ length: takes }, (_, i) => ({ uri: `mock://video/${req.model}/${Math.abs(hash(req.prompt))}_${i}.mp4`, durationS: req.durationS, costUsd: 0, license: 'mock', meta: { take: i, model: req.model } }));
   }
 }
 function hash(s: string) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return h; }

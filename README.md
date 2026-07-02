@@ -13,9 +13,15 @@ voice). Add keys to upgrade each stage to real output.
 ```bash
 npm install
 cp .env.example .env        # then fill in any keys you have (all optional)
-npm test                    # 26 tests
-npm run dev                 # run the full pipeline (gates held for review by default)
+npm test                    # full suite
+npm run dev                 # run the full pipeline (holds at gate A for review)
+npm run dev -- "topic"      # seed the episode with a requested topic
 AUTO_APPROVE_GATES=true npm run dev   # run unattended through every stage
+
+# gate decisions on a held episode (persists via Supabase):
+npm run dev -- --resume <episode_id> --approve
+npm run dev -- --resume <episode_id> --revise "shorter hook, cut section 3"
+npm run dev -- --resume <episode_id> --reject
 ```
 
 The pipeline writes its rendered video to `generated/<episode_id>/cut.mp4`.
@@ -82,11 +88,19 @@ configured to list episodes; demo renders work regardless and appear in the prev
 ## Architecture
 
 A `Producer` drives an episode through a state machine ([src/producer/stateMachine.ts](src/producer/stateMachine.ts)):
-research → script (gate A/B) → media generation → assemble + **render** → QA (gate C) →
-package → publish. Each stage runs one or more agents ([src/agents/](src/agents/)); media
-providers ([src/media/](src/media/)) each have a real and a mock implementation. The render
-agent composites the timeline into one mp4 via ffmpeg.
+research → script + **fact-check** (gates A/B) → media generation → assemble +
+**captions** + **render** + **render QC** → QA (gate C) → package → publish +
+**shorts render**. Each stage runs one or more agents ([src/agents/](src/agents/))
+declared via `defineAgent` — declarative skills/reads/writes, enforced write
+whitelists, an error boundary, and per-run timing ([src/agents/core.ts](src/agents/core.ts)).
+Agents call reusable, registered **skills** ([src/skills/](src/skills/)); media providers
+([src/media/](src/media/)) each have a real and a mock implementation. Per-item provider
+work (sections, shots, thumbnails) runs in bounded parallel (`MEDIA_CONCURRENCY`), and a
+content-keyed artifact cache stops retries from re-billing identical inputs. After
+publish, `npm run analytics -- <episode_id>` folds performance into a cross-episode
+channel memory that research and packaging read next time.
 
+Framework guide: [docs/Agent-Framework.md](docs/Agent-Framework.md) ·
 Full design: [docs/YouTube-Studio-Build-Spec.md](docs/YouTube-Studio-Build-Spec.md).
 
 ## Requirements

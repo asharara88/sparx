@@ -111,6 +111,45 @@ export interface Edit {
   approved: boolean;
 }
 
+export type ClaimVerdict = 'supported' | 'unsupported' | 'uncertain';
+
+export interface FactCheckClaim {
+  claim: string;
+  verdict: ClaimVerdict;
+  source: string;      // best supporting/refuting URL ('' when none found)
+  note: string;
+}
+
+export interface FactCheck {
+  checked: boolean;
+  claims: FactCheckClaim[];
+  unsupported_count: number;
+}
+
+export interface Captions {
+  srt_uri: string;
+  vtt_uri: string;
+  cue_count: number;
+}
+
+export interface RenderQC {
+  checked: boolean;
+  passed: boolean;
+  duration_s: number;
+  has_audio: boolean;
+  width: number;
+  height: number;
+  issues: string[];
+}
+
+export interface Analytics {
+  checked_at: string;
+  views: number;
+  impressions_ctr: number;
+  avg_view_duration_s: number;
+  notes: string[];
+}
+
 export interface QA {
   fact_checks: string[];
   license_checks: string[];
@@ -135,6 +174,7 @@ export interface Packaging {
 
 export interface Publish {
   youtube_video_id: string;
+  uploaded: boolean;           // true only after a REAL upload (authoritative; never inferred from id shape)
   scheduled_at: string;
   tags: string[];
   chapters: string[];
@@ -160,6 +200,17 @@ export interface HistoryEntry {
   event: string;
 }
 
+// A creator's "Revise" decision at a gate (Build-Spec §3.2/§5.4): control returns
+// to the gate's upstream working state, and the notes are passed to that state's
+// agents via AgentInvocation.params.revision_notes. Persisted so a held episode
+// resumed in another process still carries the pending revision.
+export interface RevisionRequest {
+  gate: 'A' | 'B' | 'C';
+  notes: string;
+  at: string;
+  resolved: boolean;
+}
+
 export interface EpisodeState {
   episode_id: string;
   created_at: string;
@@ -174,12 +225,29 @@ export interface EpisodeState {
   sourced_assets: SourcedAsset[];
   music: Music;
   edit: Edit;
+  captions: Captions;
+  render_qc: RenderQC;
+  fact_check: FactCheck;
   qa: QA;
+  analytics: Analytics;
   shorts: Short[];
   packaging: Packaging;
   publish: Publish;
   budget: Budget;
+  revisions: RevisionRequest[];
   history: HistoryEntry[];
+}
+
+/**
+ * Fill fields missing from a persisted state (rows saved by older code predate
+ * fact_check/captions/render_qc/analytics/publish.uploaded). Agents dereference
+ * these unconditionally, so loads must normalize or old episodes fail on load.
+ */
+export function normalizeEpisodeState(raw: Partial<EpisodeState> & { episode_id: string }): EpisodeState {
+  const defaults = newEpisodeState(raw.episode_id);
+  const merged = { ...defaults, ...raw } as EpisodeState;
+  merged.publish = { ...defaults.publish, ...(raw.publish ?? {}) };
+  return merged;
 }
 
 export function newEpisodeState(
@@ -205,11 +273,16 @@ export function newEpisodeState(
     sourced_assets: [],
     music: { track_uri: '', sfx: [], license: '', cost_usd: 0 },
     edit: { timeline_uri: '', captioned: false, render_uri: '', duration_s: 0, approved: false },
+    captions: { srt_uri: '', vtt_uri: '', cue_count: 0 },
+    render_qc: { checked: false, passed: false, duration_s: 0, has_audio: false, width: 0, height: 0, issues: [] },
+    fact_check: { checked: false, claims: [], unsupported_count: 0 },
     qa: { fact_checks: [], license_checks: [], brand_checks: [], ai_disclosure_required: true, passed: false, blocking_issues: [] },
+    analytics: { checked_at: '', views: 0, impressions_ctr: 0, avg_view_duration_s: 0, notes: [] },
     shorts: [],
     packaging: { thumbnails: [], titles: [], descriptions: [] },
-    publish: { youtube_video_id: '', scheduled_at: '', tags: [], chapters: [], ai_label_applied: false, shorts_posted: [] },
+    publish: { youtube_video_id: '', uploaded: false, scheduled_at: '', tags: [], chapters: [], ai_label_applied: false, shorts_posted: [] },
     budget: { cap_usd_month: opts.cap_usd_month ?? 500, spent_this_episode_usd: 0, ledger: [] },
+    revisions: [],
     history: [],
   };
 }

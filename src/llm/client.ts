@@ -25,7 +25,7 @@ export interface CompleteResult<T = unknown> {
   live: boolean;
 }
 
-const TRANSIENT = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
+import { TRANSIENT_STATUS as TRANSIENT } from '../util/http.js';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Models that reject the `temperature` parameter (deprecated / fixed for them).
@@ -56,12 +56,17 @@ class AnthropicLLM implements LLM {
 
   private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage; truncated: boolean }> {
     const c = config();
+    // Long system prompts (house style, shared rubrics) are re-sent verbatim across
+    // chained calls — mark them cacheable so Anthropic prompt caching cuts input cost.
+    const systemPayload: unknown = system.length >= 2048
+      ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+      : system;
     let lastErr: unknown;
     for (let attempt = 0; attempt <= c.LLM_MAX_RETRIES; attempt++) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), c.LLM_TIMEOUT_MS);
       try {
-        const reqBody: Record<string, unknown> = { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+        const reqBody: Record<string, unknown> = { model, max_tokens: maxTokens, system: systemPayload, messages: [{ role: 'user', content: prompt }] };
         // Some newer models (e.g. Opus 4.8) deprecate `temperature` and 400 if it's sent.
         if (modelSupportsTemperature(model)) reqBody.temperature = temperature;
         const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -120,9 +125,12 @@ class AnthropicLLM implements LLM {
     // would truncate again — give the repair more room.
     const repairBudget = truncated ? Math.min(budget * 2, 16000) : budget;
     this.log.warn('llm json failed validation, repairing', { error: first.error, truncated, repairBudget });
+    // Show the model its own invalid output — a stateless re-roll with only an error
+    // hint referencing text the model can't see mostly reproduces the same mistake.
+    const previous = text.length > 6000 ? `${text.slice(0, 6000)}\n…(truncated)` : text;
     const repairPrompt = truncated
       ? `${args.prompt}\n\nYour previous reply was cut off before the JSON closed. Return the COMPLETE, valid JSON only — be more concise so it fits.`
-      : `${args.prompt}\n\nYour previous reply was invalid: ${first.error}\nReturn corrected JSON only.`;
+      : `${args.prompt}\n\nYour previous reply was:\n${previous}\n\nIt was invalid: ${first.error}\nReturn corrected JSON only.`;
     const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0);
     const second = tryValidate(repaired.text, args.schema);
     const usage2: Usage = { inputTokens: usage.inputTokens + repaired.usage.inputTokens, outputTokens: usage.outputTokens + repaired.usage.outputTokens, costUsd: usage.costUsd + repaired.usage.costUsd };
