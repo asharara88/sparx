@@ -110,6 +110,29 @@ New agents added by the overhaul:
   hash identically (`ARTIFACT_CACHE=false` to disable); long LLM system prompts
   are marked for Anthropic prompt caching automatically.
 
+## Gates: approve / revise / reject / resume
+
+The three human gates (A concept, B script, C cut) accept full decisions, not
+just booleans. `Revise` returns the episode to the gate's upstream working
+state — A→researching, B→scripting, C→assembling — with the creator's notes
+delivered to that state's agents via `params.revision_notes` (research and the
+scriptwriter weave them into their prompts). Revise loops are capped
+(`maxRevisionsPerGate`, default 3); `Reject` fails the episode. Revisions are
+persisted on the episode (`state.revisions`), so a held episode survives the
+process.
+
+Operating a gated episode from the CLI (requires Supabase for persistence):
+
+```bash
+npm run dev -- "requested topic"                 # new episode; holds at gate A
+npm run dev -- --resume <episode_id> --approve   # approve the held gate, continue
+npm run dev -- --resume <episode_id> --revise "shorter hook, cut section 3"
+npm run dev -- --resume <episode_id> --reject
+```
+
+Each run decides one gate and holds at the next; `AUTO_APPROVE_GATES=true`
+runs unattended.
+
 ## Money
 
 Every paid step estimates with `cost-model` before spending and reports actual
