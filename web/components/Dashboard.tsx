@@ -592,11 +592,13 @@ function PreviewView({ preview, videoSrc, onLatestDemo, onClear, setVideoBust, o
       <div className="card">
         {preview && loadError ? (
           <p className="empty">
+            {/* MEDIA_ERR_SRC_NOT_SUPPORTED covers both "no file yet" (404) and
+                "browser can't decode it" — keep the copy honest about both. */}
             {preview === 'demo' ? (
-              <>No demo render found yet — start one from Runs.<br />
+              <>Couldn’t play the demo render — if none exists yet, start one from Runs.<br />
                 <button type="button" className="ghost" style={{ marginTop: 12 }} onClick={onRuns}>Go to Runs</button></>
             ) : (
-              <>This episode’s video could not be loaded.<br />
+              <>This episode’s video couldn’t be loaded or played.<br />
                 <button type="button" className="ghost" style={{ marginTop: 12 }} onClick={onBrowse}>Back to Library</button></>
             )}
           </p>

@@ -194,15 +194,17 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
   writeFileSync(listFile, clips.map((c) => `file '${resolve(c.path)}'`).join('\n'));
   const finalPath = join(dir, 'cut.mp4');
   let music = false;
+  // +faststart moves the moov atom to the front so browsers can start playback
+  // before the byte-range streaming has delivered the whole file.
   if (musicSrc) {
     ff([
       '-f', 'concat', '-safe', '0', '-i', listFile, '-stream_loop', '-1', '-i', musicSrc,
       '-filter_complex', '[1:a]volume=0.15[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=2[a]',
-      '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', finalPath,
+      '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', '-movflags', '+faststart', finalPath,
     ]);
     music = true;
   } else {
-    ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', finalPath]);
+    ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', '-movflags', '+faststart', finalPath]);
   }
 
   // 4) Cleanup intermediates, keep the final cut.
