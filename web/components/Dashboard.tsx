@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [voiceId, setVoiceId] = useState('');
   const [runwayTakes, setRunwayTakes] = useState(1);
+  const [music, setMusic] = useState(false);
 
   const loadEpisodes = useCallback(async () => {
     try {
@@ -111,7 +112,7 @@ export default function Dashboard() {
       const usesVoice = mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only';
       const usesRunway = mode === 'demo' ? demoMode === 'broll' : hostMode === 'voice_only';
       const body = mode === 'demo'
-        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
+        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, music, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
         : { mode, autoApprove, avatarId, hostMode, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
@@ -186,7 +187,7 @@ export default function Dashboard() {
       <main className="main">
         {view === 'runs' && (
           <RunsView
-            {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, runwayTakes, setRunwayTakes, busy, runState, runLog, runTail, tailRef, startRun }}
+            {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, runwayTakes, setRunwayTakes, music, setMusic, busy, runState, runLog, runTail, tailRef, startRun }}
             onViewResult={() => setView('preview')}
           />
         )}
@@ -225,17 +226,25 @@ function RunsView(p: any) {
   const {
     mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode,
     hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId,
-    voices, voiceId, setVoiceId, runwayTakes, setRunwayTakes,
+    voices, voiceId, setVoiceId, runwayTakes, setRunwayTakes, music, setMusic,
     busy, runState, runLog, runTail, tailRef, startRun, onViewResult,
   } = p;
 
   // Which controls are relevant to the currently-selected engine.
   const usesVoice = mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only';
   const usesRunway = mode === 'demo' ? demoMode === 'broll' : hostMode === 'voice_only';
+  // Background music is a demo-render option (the full pipeline scores music via its own agent).
+  const showAV = mode === 'demo' || usesVoice || usesRunway;
 
-  const audioVideoControls = (usesVoice || usesRunway) && (
+  const audioVideoControls = showAV && (
     <>
       <div className="ctrl-divider"><span>Audio &amp; video</span></div>
+      {mode === 'demo' && (
+        <label className="switch-row">
+          <input type="checkbox" checked={music} onChange={(e) => setMusic(e.target.checked)} />
+          <span>Background music <span className="hint">(ElevenLabs — needs API key; looped bed, ducked under narration)</span></span>
+        </label>
+      )}
       {usesVoice && (
         <>
           <label>Narration voice (ElevenLabs)</label>
