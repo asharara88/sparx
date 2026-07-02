@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineAgent } from './core.js';
+import type { FactCheckClaim } from '../types/episode.js';
 import { getLLM } from '../llm/client.js';
 import { verifyClaim } from '../skills/evidenceRetrieval.js';
 import { mapLimit } from '../util/concurrency.js';
@@ -15,6 +16,14 @@ import { config } from '../config.js';
 const ClaimsSchema = z.object({
   claims: z.array(z.string().min(8)).max(8),
 });
+
+// Verification burns search + LLM spend per claim; below this floor we record
+// 'uncertain' (non-blocking at Gate C) instead of spending the last cents.
+const MIN_VERIFY_BUDGET_USD = 0.5;
+
+// Near-identical key: models often restate the same stat with different casing
+// or punctuation — verifying both is paying twice for one answer.
+const claimKey = (c: string) => c.toLowerCase().replace(/[^a-z0-9%$ ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 export const factChecker = defineAgent({
   name: 'fact_checker',
@@ -34,13 +43,32 @@ export const factChecker = defineAgent({
       prompt: `Narration:\n${narration.slice(0, 6000)}\n\nReturn JSON {"claims":[up to 8 short claim strings]}. If there are no checkable claims, return {"claims":[]}.`,
       mock: JSON.stringify({ claims: [] }),
     });
-    const claims = extraction.data!.claims;
+
+    const seen = new Set<string>();
+    const claims = extraction.data!.claims.filter((c) => {
+      const k = claimKey(c);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const deduped = extraction.data!.claims.length - claims.length;
+    if (deduped) ctx.log.info('deduped near-identical claims', { deduped });
 
     if (claims.length === 0) {
       return {
         writes: { fact_check: { checked: true, claims: [], unsupported_count: 0 } },
         cost_usd: extraction.usage.costUsd,
         notes: 'no checkable claims',
+      };
+    }
+
+    if (ctx.budget_remaining_usd < MIN_VERIFY_BUDGET_USD) {
+      const uncertain: FactCheckClaim[] = claims.map((claim) => ({ claim, verdict: 'uncertain', source: '', note: 'verification skipped: budget nearly exhausted' }));
+      ctx.log.warn('skipping claim verification — budget below floor', { remaining: ctx.budget_remaining_usd, claims: claims.length });
+      return {
+        writes: { fact_check: { checked: true, claims: uncertain, unsupported_count: 0 } },
+        cost_usd: extraction.usage.costUsd,
+        notes: `${claims.length} claims left uncertain: budget $${ctx.budget_remaining_usd.toFixed(2)} < $${MIN_VERIFY_BUDGET_USD.toFixed(2)} floor`,
       };
     }
 
@@ -52,7 +80,7 @@ export const factChecker = defineAgent({
     return {
       writes: { fact_check: { checked: true, claims: verified, unsupported_count: unsupported.length } },
       cost_usd: extraction.usage.costUsd,
-      notes: `${verified.length} claims: ${verified.length - unsupported.length - uncertain.length} supported, ${unsupported.length} unsupported, ${uncertain.length} uncertain`,
+      notes: `${verified.length} claims: ${verified.length - unsupported.length - uncertain.length} supported, ${unsupported.length} unsupported, ${uncertain.length} uncertain${deduped ? `, ${deduped} deduped` : ''}`,
     };
   },
 });
