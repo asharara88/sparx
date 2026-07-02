@@ -198,7 +198,9 @@ async function buildShot(i: number, shot: RenderShot, inputs: ResolvedInputs, tm
     '-map', '[v]', '-map', '[a]',
     '-t', String(dur),
     '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-r', String(FPS),
-    '-c:a', 'aac', '-ar', '44100', '-b:a', '128k',
+    // '-ac 2' keeps every clip's channel layout identical (mono voiceovers would
+    // otherwise break the stream-copy concat).
+    '-c:a', 'aac', '-ar', '44100', '-ac', '2', '-b:a', '128k',
     out,
   );
   await ff(args);
@@ -216,13 +218,21 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
   try {
     // 1) Resolve every input up front, remote downloads in parallel (bounded) — a
     //    20-shot episode no longer pays 20 serial round-trips before encoding starts.
+    //    Memoized by URI so an asset reused across shots is downloaded once.
     const limit = config().MEDIA_CONCURRENCY;
-    const musicPending = resolveInput(opts.musicUri, join(tmp, 'music.mp3'));
+    const fetched = new Map<string, Promise<string | null>>();
+    const memoResolve = (uri: string | null | undefined, dest: string): Promise<string | null> => {
+      if (!uri) return Promise.resolve(null);
+      let p = fetched.get(uri);
+      if (!p) { p = resolveInput(uri, dest); fetched.set(uri, p); }
+      return p;
+    };
+    const musicPending = memoResolve(opts.musicUri, join(tmp, 'music.mp3'));
     const inputs: ResolvedInputs[] = await mapLimit(opts.shots, limit, async (shot, i) => {
       const visExt = shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4';
       const [visual, audio] = await Promise.all([
-        resolveInput(shot.visual_uri, join(tmp, `vis_${i}.${visExt}`)),
-        resolveInput(shot.audio_uri, join(tmp, `aud_${i}.mp3`)),
+        memoResolve(shot.visual_uri, join(tmp, `vis_${i}.${visExt}`)),
+        memoResolve(shot.audio_uri, join(tmp, `aud_${i}.mp3`)),
       ]);
       return { visual, audio };
     });
@@ -233,25 +243,26 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
     for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, inputs[i]!, tmp, font));
     const real = clips.filter((c) => c.real).length;
 
-    // 3) Concat via stream copy — every clip was just encoded with identical codec
-    //    params, so re-encoding the full episode a second time buys nothing.
+    // 3) Concat + optional music (ducked under the voiceover) in ONE pass. Every clip
+    //    was just encoded with identical codec params (libx264/yuv420p/fps + aac/
+    //    44100/stereo), so the video stream copies straight through the concat
+    //    demuxer — re-encoding the full episode a second time buys nothing.
+    //    +faststart moves the moov atom to the front so browsers can start playback
+    //    before the byte-range streaming has delivered the whole file.
     const musicSrc = await musicPending;
     const listFile = join(tmp, 'concat.txt');
     writeFileSync(listFile, clips.map((c) => `file '${resolve(c.path).replace(/'/g, "'\\''")}'`).join('\n'));
-    const concatOut = musicSrc ? join(tmp, 'cut_nomusic.mp4') : join(dir, 'cut.mp4');
-    await ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', concatOut]);
-
-    // 4) Optional background music, ducked under the voiceover.
+    const finalPath = join(dir, 'cut.mp4');
     let music = false;
-    let finalPath = concatOut;
     if (musicSrc) {
-      finalPath = join(dir, 'cut.mp4');
       await ff([
-        '-i', concatOut, '-stream_loop', '-1', '-i', musicSrc,
+        '-f', 'concat', '-safe', '0', '-i', listFile, '-stream_loop', '-1', '-i', musicSrc,
         '-filter_complex', '[1:a]volume=0.15[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=2[a]',
-        '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', finalPath,
+        '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', '-movflags', '+faststart', finalPath,
       ]);
       music = true;
+    } else {
+      await ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', '-movflags', '+faststart', finalPath]);
     }
 
     const durationS = clips.reduce((n, c) => n + c.durationS, 0);

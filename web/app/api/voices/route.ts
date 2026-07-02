@@ -27,7 +27,9 @@ function roster(): VoiceOption[] {
       }
     } catch { /* fall through to defaults */ }
   }
-  return DEFAULT_VOICES;
+  // Copy: the GET handler below may unshift into this array, and the module
+  // constant must not accumulate entries across requests.
+  return [...DEFAULT_VOICES];
 }
 
 // List selectable voices + which one is the current default (ELEVENLABS_VOICE_ID).

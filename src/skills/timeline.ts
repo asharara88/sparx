@@ -10,6 +10,10 @@ import { defineSkill } from './registry.js';
 // Resolution order per shot: generated take > avatar clip > sourced asset >
 // null (placeholder slate). Audio comes from the section's voiceover clip;
 // duration is the VO clip's measured duration, else the shot's planned one.
+// Exception: when the resolved visual IS the avatar clip, that clip already
+// carries its own narration (HeyGen TTS or lip-synced ElevenLabs) — overlaying
+// the separate voiceover would replace the audio the mouth is synced to, so the
+// entry stays audio_uri-null and takes the avatar clip's duration.
 
 export interface TimelineEntry {
   index: number;
@@ -43,13 +47,18 @@ export function buildTimeline(state: EpisodeState): Timeline {
     const first = !voiced.has(shot.section_id);
     voiced.add(shot.section_id);
     const vo = first ? voBySection.get(shot.section_id) : undefined;
+    const avatarClip = avatarByShot.get(shot.shot_id);
+    const visual = genByShot.get(shot.shot_id)?.selected_uri ?? avatarClip?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null;
+    // An avatar clip carries its own narration (HeyGen TTS or lip-synced ElevenLabs);
+    // overlaying the separate voiceover would replace the audio the mouth is synced to.
+    const avatarAudio = !!avatarClip?.video_uri && visual === avatarClip.video_uri;
     return {
       index,
       shot_id: shot.shot_id,
       section_id: shot.section_id,
-      visual_uri: genByShot.get(shot.shot_id)?.selected_uri ?? avatarByShot.get(shot.shot_id)?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null,
-      audio_uri: vo?.audio_uri ?? null,
-      duration_s: vo?.duration_s ?? shot.duration_s,
+      visual_uri: visual,
+      audio_uri: avatarAudio ? null : vo?.audio_uri ?? null,
+      duration_s: avatarAudio ? avatarClip.duration_s : vo?.duration_s ?? shot.duration_s,
       caption: first ? sec?.vo_text ?? '' : '',
       on_screen: sec?.on_screen ?? '',
     };

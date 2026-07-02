@@ -1,6 +1,7 @@
 import { defineAgent } from './core.js';
 import type { AvatarClip } from '../types/episode.js';
-import { getAvatar } from '../media/avatar.js';
+import { getAvatar, resolveAvatarVoice } from '../media/avatar.js';
+import { getVoice } from '../media/voice.js';
 import { settleLimit } from '../util/concurrency.js';
 import { cachedArtifact, contentKey } from '../skills/artifactCache.js';
 import { estimateAvatarCost, shouldThrottle } from '../skills/costModel.js';
@@ -10,8 +11,11 @@ import { config } from '../config.js';
 // each shot whose source is "avatar" (intros, cutaways, explainers, dubs — handoff §5).
 // Clips render IN PARALLEL (each is a multi-minute HeyGen poll), budget-gated with
 // pessimistic reservation, and content-cached so retries never re-bill identical
-// (avatar, voice, text) inputs. Writes the disjoint `avatar_clips` field so it runs
-// in parallel with the video/asset agents.
+// (avatar, voice, text) inputs. Lip-sync source (AVATAR_VOICE): with a live
+// ElevenLabs voice, each clip's narration is synthesized there and uploaded so
+// HeyGen syncs the mouth to YOUR voice; otherwise HeyGen's TTS speaks the text.
+// Writes the disjoint `avatar_clips` field so it runs in parallel with the
+// video/asset agents.
 
 export const avatar = defineAgent({
   name: 'avatar',
@@ -22,8 +26,17 @@ export const avatar = defineAgent({
 
   async execute(ctx) {
     const provider = getAvatar();
+    const voice = getVoice();
     const c = config();
     const avatarId = c.HEYGEN_AVATAR_ID;
+    // Only spend ElevenLabs credits when the avatar provider is real.
+    const voiceMode = provider.live ? resolveAvatarVoice(c.AVATAR_VOICE, voice.live) : 'heygen';
+    if (provider.live && c.AVATAR_VOICE === 'elevenlabs' && voiceMode === 'heygen')
+      ctx.log.warn('AVATAR_VOICE=elevenlabs but the voice provider is mock (no ELEVENLABS_API_KEY); using HeyGen TTS');
+    const elevenVoiceId = ctx.state.voiceover.voice_id || c.ELEVENLABS_VOICE_ID;
+    // The lip-sync source is part of the artifact identity — switching AVATAR_VOICE
+    // must not serve a clip narrated by the other voice from the cache.
+    const voiceKey = voiceMode === 'elevenlabs' ? `elevenlabs:${elevenVoiceId}` : c.HEYGEN_VOICE_ID;
     const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
     const voBySection = new Map(ctx.state.voiceover.clips.map((v) => [v.section_id, v]));
     const shots = ctx.state.shot_list.filter((s) => s.source === 'avatar');
@@ -56,10 +69,23 @@ export const avatar = defineAgent({
     const { ok: made, failed } = await settleLimit(dispatch, c.MEDIA_CONCURRENCY, async (shot): Promise<AvatarClip> => {
       const text = secById.get(shot.section_id)!.vo_text;
       let durationS = spokenS(shot.section_id, shot.duration_s);
-      const art = await cachedArtifact(contentKey('avatar', avatarId, c.HEYGEN_VOICE_ID, text), async () => {
-        const a = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s });
+      const art = await cachedArtifact(contentKey('avatar', avatarId, voiceKey, text), async () => {
+        let audioUri: string | undefined;
+        let voiceCost = 0;
+        if (voiceMode === 'elevenlabs') {
+          try {
+            const audio = await voice.synthesize(text, elevenVoiceId);
+            audioUri = audio.uri;
+            voiceCost = audio.costUsd;
+          } catch (err) {
+            // Narration failure shouldn't sink the clip — HeyGen TTS still produces
+            // a fully lip-synced avatar, just not in the cloned voice.
+            ctx.log.warn('elevenlabs narration failed; falling back to HeyGen TTS for this clip', { shot: shot.shot_id, err: String(err).slice(0, 160) });
+          }
+        }
+        const a = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s, audioUri });
         durationS = a.durationS ?? durationS;
-        return { uri: a.uri, costUsd: a.costUsd };
+        return { uri: a.uri, costUsd: a.costUsd + voiceCost };
       });
       return { shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: durationS, cost_usd: art.costUsd };
     });
@@ -67,12 +93,12 @@ export const avatar = defineAgent({
     for (const f of failed) ctx.log.warn('avatar generation failed; editor placeholder covers the gap', { shot: f.item.shot_id, err: String(f.error).slice(0, 200) });
     const clips = made.map((m) => m.value);
     const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0);
-    ctx.log.info('avatar clips rendered', { clips: clips.length, throttled: throttled.length, noText: noText.length, failed: failed.length, provider: provider.name });
+    ctx.log.info('avatar clips rendered', { clips: clips.length, throttled: throttled.length, noText: noText.length, failed: failed.length, provider: provider.name, voice: voiceMode });
 
     const bits = [`${clips.length} avatar clips`];
     if (throttled.length) bits.push(`${throttled.length} skipped over budget: ${throttled.join(', ')}`);
     if (noText.length) bits.push(`${noText.length} without narration: ${noText.join(', ')}`);
     if (failed.length) bits.push(`${failed.length} failed: ${failed.map((f) => f.item.shot_id).join(', ')}`);
-    return { writes: { avatar_clips: clips }, cost_usd: cost, notes: `${bits.join('; ')} (${provider.name})` };
+    return { writes: { avatar_clips: clips }, cost_usd: cost, notes: `${bits.join('; ')} (${provider.name}, voice=${voiceMode})` };
   },
 });

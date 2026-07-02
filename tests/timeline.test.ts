@@ -55,15 +55,24 @@ describe('buildTimeline', () => {
   it('attaches section voiceover audio and prefers VO duration over shot duration', () => {
     const { entries } = buildTimeline(stateWithShots());
     expect(entries[0]).toMatchObject({ shot_id: 'sh1', section_id: 's1', audio_uri: 'vo1', duration_s: 7 });
-    expect(entries[1]).toMatchObject({ audio_uri: 'vo2', duration_s: 8 });
+    // sh2's visual IS the avatar clip → it speaks its own narration; no VO overlay,
+    // and the clip's duration (not the VO clip's) times the entry.
+    expect(entries[1]).toMatchObject({ audio_uri: null, duration_s: 5 });
     // no VO clip → shot's planned duration, silence.
     expect(entries[2]).toMatchObject({ audio_uri: null, duration_s: 6 });
     expect(entries[3]).toMatchObject({ audio_uri: null, duration_s: 3 });
   });
 
+  it('does not silence the VO when an avatar clip exists but a generated take won the visual', () => {
+    // sh1 has an avatar clip in the fixture, but the generated take outranks it —
+    // the entry is ordinary b-roll, so the section VO must still be overlaid.
+    const { entries } = buildTimeline(stateWithShots());
+    expect(entries[0]).toMatchObject({ visual_uri: 'gen1', audio_uri: 'vo1', duration_s: 7 });
+  });
+
   it('sums entry durations into duration_s and indexes entries in shot order', () => {
     const t = buildTimeline(stateWithShots());
-    expect(t.duration_s).toBe(7 + 8 + 6 + 3);
+    expect(t.duration_s).toBe(7 + 5 + 6 + 3); // sh2 runs at its avatar clip's length
     expect(t.entries.map((e) => e.index)).toEqual([0, 1, 2, 3]);
   });
 
@@ -92,7 +101,7 @@ describe('buildTimeline', () => {
     const { entries } = buildTimeline(s);
     expect(entries[0]).toMatchObject({ shot_id: 'sh1', audio_uri: 'vo1', duration_s: 7, caption: 'narration one' });
     expect(entries[1]).toMatchObject({ shot_id: 'sh1b', audio_uri: null, duration_s: 3, caption: '' }); // silent, planned duration
-    expect(entries[2]).toMatchObject({ shot_id: 'sh2', audio_uri: 'vo2' });
+    expect(entries[2]).toMatchObject({ shot_id: 'sh2', audio_uri: null }); // avatar clip carries its own narration
   });
 });
 
@@ -110,12 +119,12 @@ describe('rendered clock (sectionSpans / renderedTotal / renderedDuration)', () 
     s.voiceover.clips[0]!.duration_s = 7.3;
     s.shot_list.splice(1, 0, { shot_id: 'sh1b', section_id: 's1', source: 'stock', duration_s: 2.4, prompt: {}, selected_asset: null, cost_estimate_usd: 0 });
     const spans = sectionSpans(buildTimeline(s));
-    // s1: ceil(7.3) + ceil(2.4) = 8 + 3 = 11; then s2 8s, s3 6s, s4 3s
+    // s1: ceil(7.3) + ceil(2.4) = 8 + 3 = 11; then s2 5s (avatar clip length), s3 6s, s4 3s
     expect(spans).toEqual([
       { section_id: 's1', startS: 0, durationS: 11 },
-      { section_id: 's2', startS: 11, durationS: 8 },
-      { section_id: 's3', startS: 19, durationS: 6 },
-      { section_id: 's4', startS: 25, durationS: 3 },
+      { section_id: 's2', startS: 11, durationS: 5 },
+      { section_id: 's3', startS: 16, durationS: 6 },
+      { section_id: 's4', startS: 22, durationS: 3 },
     ]);
     // spans are contiguous and non-overlapping on the rendered clock
     for (let i = 1; i < spans.length; i++) expect(spans[i]!.startS).toBe(spans[i - 1]!.startS + spans[i - 1]!.durationS);
@@ -124,7 +133,7 @@ describe('rendered clock (sectionSpans / renderedTotal / renderedDuration)', () 
   it('renderedTotal is the whole-second sum, ahead of the fractional timeline sum', () => {
     const s = stateWithShots();
     s.voiceover.clips[0]!.duration_s = 6.1;
-    s.voiceover.clips[1]!.duration_s = 7.5;
+    s.avatar_clips[1]!.duration_s = 7.5; // sh2 times by its avatar clip, not the VO
     const t = buildTimeline(s);
     expect(t.duration_s).toBeCloseTo(6.1 + 7.5 + 6 + 3);
     expect(renderedTotal(t)).toBe(7 + 8 + 6 + 3);

@@ -25,7 +25,9 @@ function roster(): AvatarOption[] {
       }
     } catch { /* fall through to defaults */ }
   }
-  return DEFAULT_AVATARS;
+  // Copy: the GET handler below may unshift into this array, and the module
+  // constant must not accumulate entries across requests.
+  return [...DEFAULT_AVATARS];
 }
 
 // List selectable avatars + which one is the current default (HEYGEN_AVATAR_ID).

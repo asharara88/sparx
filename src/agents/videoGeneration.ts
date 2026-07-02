@@ -13,7 +13,7 @@ import { config } from '../config.js';
 // retry never re-bills identical prompts. Skipped/failed shots are recorded in
 // notes — the editor's placeholder fallback covers the gaps.
 
-const TAKES = 2; // requested takes per shot; the paid provider caps to RUNWAY_MAX_TAKES
+const TAKES = 2; // takes per shot for the free mock; the paid provider follows RUNWAY_MAX_TAKES
 
 export const videoGeneration = defineAgent({
   name: 'video_generation',
@@ -28,10 +28,14 @@ export const videoGeneration = defineAgent({
     const model: VideoModel = 'runway';
     const shots = ctx.state.shot_list.filter((s) => s.source === 'generated');
 
+    // Take count for the paid provider follows RUNWAY_MAX_TAKES (the dashboard's
+    // "Runway takes" setting); selectBest is still a stub, so extra takes only buy
+    // retry insurance. Mocks keep the free default.
+    const effectiveTakes = provider.live ? Math.max(1, c.RUNWAY_MAX_TAKES) : TAKES;
+
     // Reserve estimates BEFORE dispatch: parallel shots can't see each other's
     // in-flight spend, so each estimate is committed pessimistically up front and
     // a shot is skipped when it would cross the remaining budget.
-    const effectiveTakes = provider.live ? Math.min(TAKES, c.RUNWAY_MAX_TAKES) : TAKES;
     let reserved = 0;
     const throttled: string[] = [];
     // Only gate live spend — mock shots cost $0 and must never be skipped under
@@ -47,7 +51,7 @@ export const videoGeneration = defineAgent({
       const prompt = shot.prompt[model] ?? shot.prompt.kling ?? shot.prompt.veo ?? '';
       let takes: string[] = [];
       const art = await cachedArtifact(contentKey('video', model, prompt, shot.duration_s, shot.prompt.seed), async () => {
-        const out = await provider.generate({ prompt, model, durationS: shot.duration_s, takes: TAKES, seed: shot.prompt.seed });
+        const out = await provider.generate({ prompt, model, durationS: shot.duration_s, takes: effectiveTakes, seed: shot.prompt.seed });
         takes = out.map((t) => t.uri);
         return { uri: selectBest(takes), costUsd: out.reduce((n, t) => n + t.costUsd, 0) };
       });

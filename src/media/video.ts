@@ -81,21 +81,27 @@ export class RunwayVideo implements VideoProvider {
   async generate(req: VideoRequest): Promise<MediaArtifact[]> {
     const c = config();
     const takes = Math.min(req.takes ?? 1, c.RUNWAY_MAX_TAKES); // cap real-API takes to control cost
-    // Cost estimated via the cost model BEFORE returning: per take, one video run
-    // plus the synthesized start image when the caller didn't supply one.
-    const perTakeCost = estimateShotCost(req.durationS, 'runway') + (req.promptImage ? 0 : estimateImageCost());
-    // Takes are independent tasks — submit and poll them concurrently.
+    const perTakeCost = estimateShotCost(req.durationS, 'runway');
+
+    // gen4.5 needs a start image: synthesize ONE from the prompt unless the caller
+    // gave one, and share it across takes (per-take images doubled latency and image
+    // cost for little gain — the per-take seed below still varies the motion).
+    let promptImage = req.promptImage;
+    let imageCost = 0;
+    if (!promptImage) {
+      const imgId = await this.createImageTask(req.prompt, req.ratio);
+      log.info('runway image task submitted', { id: imgId });
+      const imgs = await this.poll(imgId, 'image');
+      if (imgs.length === 0) throw new Error(`Runway image task ${imgId} returned no output`);
+      promptImage = imgs[0]!;
+      imageCost = estimateImageCost();
+    }
+
+    // Takes are independent tasks — submit and poll them concurrently; one failed
+    // take logs and drops rather than aborting the rest.
     const settled = await settleLimit(Array.from({ length: takes }, (_, i) => i), takes, async (i): Promise<MediaArtifact> => {
-      // gen4.5 needs a start image: synthesize one from the prompt unless caller gave one.
-      let promptImage = req.promptImage;
-      if (!promptImage) {
-        const imgId = await this.createImageTask(req.prompt, req.ratio);
-        log.info('runway image task submitted', { id: imgId, take: i });
-        const imgs = await this.poll(imgId, 'image');
-        if (imgs.length === 0) throw new Error(`Runway image task ${imgId} returned no output`);
-        promptImage = imgs[0]!;
-      }
-      const id = await this.createTask({ ...req, promptImage });
+      const seed = req.seed === undefined ? undefined : req.seed + i;
+      const id = await this.createTask({ ...req, promptImage, seed });
       log.info('runway video task submitted', { id, take: i, duration: req.durationS });
       const urls = await this.poll(id, 'video');
       if (urls.length === 0) throw new Error(`Runway task ${id} returned no output`);
@@ -103,7 +109,8 @@ export class RunwayVideo implements VideoProvider {
     });
     for (const f of settled.failed) log.warn('take failed', { take: f.item, err: String(f.error).slice(0, 200) });
     if (settled.ok.length === 0) throw new Error(`Runway produced no usable takes: ${String(settled.failed[0]?.error).slice(0, 200)}`);
-    return settled.ok.map((o) => o.value);
+    // The one shared start image is billed once, on the first surviving take.
+    return settled.ok.map((o, idx) => (idx === 0 && imageCost > 0 ? { ...o.value, costUsd: o.value.costUsd + imageCost } : o.value));
   }
 }
 
