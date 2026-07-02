@@ -34,7 +34,9 @@ export const research: Agent = {
       tier: 'pro',          // Opus: the angle is the highest-leverage creative call after the script
       temperature: 0.9,
       schema: IdeationSchema,
-      system: 'You are a sharp YouTube strategist. Generate distinctive, specific angles with real retention potential. Avoid generic listicles and anything already saturated.',
+      system: 'You are a sharp YouTube strategist. Generate distinctive, specific angles with real retention potential. Avoid generic listicles and anything already saturated. ' +
+        'Make the candidates genuinely different bets — different mechanisms (contrarian take, experiment, investigation, story, teardown) and different emotional drivers — not rephrasings of one idea. ' +
+        'Include at least one unexpected, off-distribution angle a competitor in this niche would not think to make.',
       prompt: `Niche: ${niche}\nLanguages: ${languages.join(', ')}\nAvoid past topics: ${past.join('; ') || '(none)'}\n\nWeb context:\n${evidence}\n\nReturn JSON {"candidates":[{"angle","why"}]} with 3-6 candidates.`,
       mock: JSON.stringify({
         candidates: [
@@ -51,7 +53,8 @@ export const research: Agent = {
       tier: 'pro',          // Opus: scoring/selecting the strongest angle + sharp working title
       temperature: 0.4,
       schema: ConceptOutputSchema,
-      system: 'You are a YouTube packaging expert. Score angles 0-10 on curiosity, payoff, differentiation, and search demand; pick the best; then package a full concept. Be concrete.',
+      system: 'You are a YouTube packaging expert. Score angles 0-10 on curiosity, payoff, differentiation, and search demand; pick the best; then package a full concept. Be concrete. ' +
+        'Score analytically and consistently — the same angle should always earn the same score. Creativity belongs in the packaging fields (title, thumbnail concept), not in the scoring.',
       prompt: `Niche: ${niche}\nCandidate angles:\n${candidates.map((c, i) => `${i + 1}. ${c.angle} (${c.why})`).join('\n')}\n\nWeb context:\n${evidence}\n\nReturn JSON matching: {topic, working_title, angle, rationale, audience, thumbnail_concept, scored:[{angle,score,why}], keywords[3-12], competitor_refs[], target_length_min}.`,
       mock: JSON.stringify({
         topic: `${niche}: the workflow mistake`,

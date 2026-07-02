@@ -33,7 +33,7 @@ export const scriptwriter: Agent = {
     // 1) outline — most capable model; the house style + lens come from the shared system prompt.
     const outline = await llm.complete({
       tier: 'pro', temperature: 0.9, maxTokens: 2000, schema: OutlineSchema,
-      system: `${SCRIPT_SYSTEM}\n\nStep 1 of 3 — PLAN ONLY: write multiple distinct hook options and a beat sheet that engineers open loops and payoffs.`,
+      system: `${SCRIPT_SYSTEM}\n\nStep 1 of 3 — PLAN ONLY: write multiple distinct hook options and a beat sheet that engineers open loops and payoffs. Each hook variant must be a genuinely different bet — a different emotion, device, or claim — never a rewording of another variant. Make at least one a bold, unexpected choice.`,
       prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nAudience: ${c.audience}\nCreative lens for THIS script: ${lens}\nTarget: ~${c.target_length_min} min.\n\nReturn ONLY compact JSON: {"hook_variants":[2-4 short plain-text strings],"beat_sheet":[4-9 short plain-text strings]}. Each string is one line of plain text — NOT an object. No prose outside the JSON.`,
       mock: JSON.stringify({
         hook_variants: [
@@ -71,7 +71,7 @@ export const scriptwriter: Agent = {
     // 3) self-critique
     const critique = await llm.complete({
       tier: 'fast', temperature: 0.3, schema: CritiqueSchema,
-      system: 'You are a ruthless retention editor. Grade the hook and structure. If the hook can be sharper, provide a stronger one.',
+      system: 'You are a ruthless retention editor. Grade the hook and structure, and name every weakness you find — including minor ones; do not filter for importance. Always attempt a stronger revised_hook; omit it only if the existing hook already beats your best attempt.',
       prompt: `Hook: ${d.hook}\nSections: ${d.sections.map((s) => s.beat).join(' | ')}\n\nReturn JSON {passes:boolean, critique:string, revised_hook?:string}.`,
       mock: JSON.stringify({ passes: true, critique: 'Hook lands; open loops resolve; CTA is specific.', revised_hook: undefined }),
     });
