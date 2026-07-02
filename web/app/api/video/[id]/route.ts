@@ -36,10 +36,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const size = statSync(file).size;
   const range = req.headers.get('range');
 
-  if (range) {
-    const m = /bytes=(\d*)-(\d*)/.exec(range);
-    const start = m && m[1] ? parseInt(m[1], 10) : 0;
-    const end = m && m[2] ? parseInt(m[2], 10) : size - 1;
+  // bytes=N-M / bytes=N- / bytes=-N (suffix: last N bytes — players probe the
+  // trailing moov atom this way). Clamp to the file and 416 anything unsatisfiable;
+  // an unclamped end would advertise a Content-Length the stream never delivers.
+  // Multi-range ("bytes=0-1,5-9") or malformed headers don't match the regex:
+  // RFC 9110 lets a server ignore a Range it can't honor, so those fall through
+  // to the full 200 below instead of failing a satisfiable request with 416.
+  const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range) : null;
+  if (m && (m[1] || m[2])) {
+    let start: number;
+    let end: number;
+    if (m[1]) {
+      start = parseInt(m[1], 10);
+      end = m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    } else {
+      start = Math.max(0, size - parseInt(m[2]!, 10));
+      end = size - 1;
+    }
+    if (start >= size || start > end) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+    }
     return new Response(fileToWebStream(file, start, end), {
       status: 206,
       headers: {

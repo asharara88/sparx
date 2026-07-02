@@ -1,6 +1,7 @@
 import type { Agent } from './types.js';
 import { ok } from './types.js';
 import { config, isTruthy } from '../config.js';
+import { shotTimeline } from '../producer/timeline.js';
 import { createLogger } from '../logger.js';
 import { ffmpegAvailable, renderEpisode, type RenderShot } from '../media/render.js';
 
@@ -28,23 +29,15 @@ export const render: Agent = {
       return ok(ctx, {}, 0, 'skipped: ffmpeg not installed');
     }
 
-    // Reconstruct the per-shot EDL from state (same resolution order as the editor).
-    const genByShot = new Map(ctx.state.generated_video.map((g) => [g.shot_id, g]));
-    const avatarByShot = new Map(ctx.state.avatar_clips.map((a) => [a.shot_id, a]));
-    const assetByShot = new Map(ctx.state.sourced_assets.map((a) => [a.shot_id, a]));
-    const voBySection = new Map(ctx.state.voiceover.clips.map((c) => [c.section_id, c]));
-    const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
-
-    const shots: RenderShot[] = ctx.state.shot_list.map((shot) => {
-      const vo = voBySection.get(shot.section_id);
-      const sec = secById.get(shot.section_id);
-      return {
-        visual_uri: genByShot.get(shot.shot_id)?.selected_uri ?? avatarByShot.get(shot.shot_id)?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null,
-        audio_uri: vo?.audio_uri ?? null,
-        duration_s: vo?.duration_s ?? shot.duration_s,
-        caption: sec?.on_screen || sec?.vo_text || '',
-      };
-    });
+    // The shared shot timeline (producer/timeline.ts) — the same resolution the
+    // editor's EDL and the shorts/publishing time math are built from.
+    const shots: RenderShot[] = shotTimeline(ctx.state).map((t) => ({
+      visual_uri: t.visual_uri,
+      audio_uri: t.audio_uri,
+      fallback_audio_uri: t.fallback_audio_uri,
+      duration_s: t.duration_s,
+      caption: t.on_screen || t.vo_text || '',
+    }));
 
     if (!shots.length) return ok(ctx, {}, 0, 'no shots to render');
 

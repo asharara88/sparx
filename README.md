@@ -30,7 +30,9 @@ DEMO_SECTIONS=3 npm run demo:video -- "Three AI tools every creator should try"
 ```
 
 - **Avatar mode** (default when `HEYGEN_API_KEY` is set): your HeyGen avatar speaks each
-  section on camera, in your own voice.
+  section on camera. When `ELEVENLABS_API_KEY` is also set, the narration is synthesized
+  with your ElevenLabs voice and uploaded to HeyGen, which lip-syncs the avatar to that
+  audio — set `AVATAR_VOICE=heygen` to keep HeyGen's built-in TTS instead.
 - **Voiceover mode** (`DEMO_MODE=voiceover`): ElevenLabs narration over caption slates
   (silent if no `ELEVENLABS_API_KEY`).
 
@@ -45,7 +47,7 @@ Everything is optional — blanks fall back to mocks. See [.env.example](.env.ex
 | `ANTHROPIC_API_KEY` | real LLM (script/QA/packaging) | mock script |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | persistent episode state | in-memory store |
 | `HEYGEN_API_KEY` (+ `HEYGEN_AVATAR_ID`, `HEYGEN_VOICE_ID`) | talking-head avatar video | mock / silent |
-| `ELEVENLABS_API_KEY` (+ `ELEVENLABS_VOICE_ID`) | voiceover audio | silent |
+| `ELEVENLABS_API_KEY` (+ `ELEVENLABS_VOICE_ID`) | voiceover audio + avatar lip-sync in your voice | silent / HeyGen TTS |
 | `RUNWAY_API_KEY` | AI-generated b-roll | placeholder slate |
 | `PEXELS_API_KEY` | stock footage/images | placeholder |
 | `YOUTUBE_CLIENT_ID` + `_SECRET` + `_REFRESH_TOKEN` | durable upload (auto-refresh) | mock upload |

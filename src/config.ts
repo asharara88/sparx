@@ -40,7 +40,9 @@ const Schema = z.object({
   HEYGEN_AVATAR_ID: z.string().default(''),
   HEYGEN_VOICE_ID: z.string().default(''),
   HEYGEN_API_BASE: z.string().url().default('https://api.heygen.com'),
+  HEYGEN_UPLOAD_BASE: z.string().url().default('https://upload.heygen.com'),
   HEYGEN_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  AVATAR_VOICE: z.enum(['auto', 'heygen', 'elevenlabs']).default('auto'), // avatar lip-sync source: 'elevenlabs' narrates with your ElevenLabs voice (uploaded to HeyGen), 'heygen' uses HeyGen TTS, 'auto' prefers ElevenLabs when keyed
   YOUTUBE_ACCESS_TOKEN: z.string().optional(),           // static OAuth token (~1h); for one-off tests
   YOUTUBE_CLIENT_ID: z.string().optional(),              // OAuth client for durable refresh-token flow
   YOUTUBE_CLIENT_SECRET: z.string().optional(),

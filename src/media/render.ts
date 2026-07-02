@@ -16,6 +16,9 @@ const BG = '0x14142B';
 export interface RenderShot {
   visual_uri: string | null;
   audio_uri: string | null;
+  // Narration used only if the visual (whose baked-in audio was expected to carry
+  // the shot, e.g. an avatar clip) can't be fetched or has no audio stream.
+  fallback_audio_uri?: string | null;
   duration_s: number;
   caption?: string;
 }
@@ -99,23 +102,25 @@ function wrapCaption(text: string): string {
 
 const NORMALIZE = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${BG},setsar=1,fps=${FPS},format=yuv420p`;
 
-async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
+async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: string | null, visual: string | null, audio: string | null, fallbackAudio: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
   let dur = Math.max(1, Math.round(shot.duration_s || 4));
   const out = join(tmpDir, `shot_${String(i).padStart(3, '0')}.mp4`);
 
-  // Resolve real inputs (best effort): http download or existing local file.
-  const visExt = shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4';
-  const visual = await resolveInput(shot.visual_uri, join(tmpDir, `vis_${i}.${visExt}`));
-  const audio = await resolveInput(shot.audio_uri, join(tmpDir, `aud_${i}.mp3`));
   const visualIsImage = !!visual && isImage(visual);
   const visualIsVideo = !!visual && !visualIsImage;
 
   // Audio source priority: explicit voiceover file > the visual video's own baked-in
-  // audio (e.g. a HeyGen avatar that already speaks) > silence.
-  const audioSource: 'file' | 'visual' | 'silence' = audio ? 'file' : (visualIsVideo && hasAudioStream(visual!) ? 'visual' : 'silence');
+  // audio (e.g. a HeyGen avatar that already speaks) > the fallback narration (when
+  // the avatar clip the audio was delegated to didn't materialize) > silence.
+  let audioFile = audio;
+  let audioSource: 'file' | 'visual' | 'silence';
+  if (audioFile) audioSource = 'file';
+  else if (visualIsVideo && hasAudioStream(visual!)) audioSource = 'visual';
+  else if (fallbackAudio) { audioFile = fallbackAudio; audioSource = 'file'; }
+  else audioSource = 'silence';
 
   // Fit the shot to the narration / avatar clip so nothing is cut off.
-  if (audioSource === 'file') { const ad = probeDurationS(audio!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
+  if (audioSource === 'file') { const ad = probeDurationS(audioFile!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
   else if (audioSource === 'visual') { const vd = probeDurationS(visual!); if (vd) dur = Math.max(dur, Math.ceil(vd)); }
 
   // drawtext overlay (only when we have a font and a caption).
@@ -143,7 +148,7 @@ async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: stri
 
   // Audio input + filter (input index 1 unless we're reusing the visual's own audio).
   let aChain: string;
-  if (audioSource === 'file') { args.push('-i', audio!); aChain = '[1:a]aresample=44100,apad[a]'; }
+  if (audioSource === 'file') { args.push('-i', audioFile!); aChain = '[1:a]aresample=44100,apad[a]'; }
   else if (audioSource === 'visual') { aChain = '[0:a]aresample=44100,apad[a]'; }
   else { args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'); aChain = '[1:a]aresample=44100,apad[a]'; }
 
@@ -152,7 +157,9 @@ async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: stri
     '-map', '[v]', '-map', '[a]',
     '-t', String(dur),
     '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-r', String(FPS),
-    '-c:a', 'aac', '-ar', '44100', '-b:a', '128k',
+    // '-ac 2' keeps every clip's channel layout identical (mono voiceovers would
+    // otherwise break the stream-copy concat).
+    '-c:a', 'aac', '-ar', '44100', '-ac', '2', '-b:a', '128k',
     out,
   );
   ff(args);
@@ -167,29 +174,47 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
   const font = FONT_CANDIDATES.find(existsSync) ?? null;
   if (!font) log.warn('no system font found; rendering without burned captions');
 
-  // 1) Per-shot clips (sequential — deterministic and gentle on memory).
+  // 1a) Prefetch every input concurrently (network never waits on encodes), memoized
+  //     by URI so an asset reused across shots is downloaded once.
+  const fetched = new Map<string, Promise<string | null>>();
+  const prefetch = (uri: string | null | undefined, dest: string): Promise<string | null> => {
+    if (!uri) return Promise.resolve(null);
+    let p = fetched.get(uri);
+    if (!p) { p = resolveInput(uri, dest); fetched.set(uri, p); }
+    return p;
+  };
+  const [inputs, musicSrc] = await Promise.all([
+    Promise.all(opts.shots.map((shot, i) => Promise.all([
+      prefetch(shot.visual_uri, join(tmp, `vis_${i}.${shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4'}`)),
+      prefetch(shot.audio_uri, join(tmp, `aud_${i}.mp3`)),
+      prefetch(shot.fallback_audio_uri, join(tmp, `aud_fb_${i}.mp3`)),
+    ]))),
+    prefetch(opts.musicUri, join(tmp, 'music.mp3')),
+  ]);
+
+  // 1b) Per-shot clips (encodes stay sequential — deterministic and gentle on memory).
   const clips: { path: string; real: boolean; durationS: number }[] = [];
-  for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, tmp, font));
+  for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, tmp, font, inputs[i]![0], inputs[i]![1], inputs[i]![2]));
   const real = clips.filter((c) => c.real).length;
 
-  // 2) Concat (re-encode; all clips share identical codec params so this is clean).
-  const musicSrc = await resolveInput(opts.musicUri, join(tmp, 'music.mp3'));
+  // 2) Concat + optional music in ONE pass. Every clip was encoded with identical
+  //    codec params (libx264/yuv420p/fps + aac/44100/stereo), so the video stream
+  //    copies straight through the concat demuxer — no second full-length encode.
   const listFile = join(tmp, 'concat.txt');
   writeFileSync(listFile, clips.map((c) => `file '${resolve(c.path)}'`).join('\n'));
-  const concatOut = musicSrc ? join(tmp, 'cut_nomusic.mp4') : join(dir, 'cut.mp4');
-  ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '44100', concatOut]);
-
-  // 3) Optional background music, ducked under the voiceover.
+  const finalPath = join(dir, 'cut.mp4');
   let music = false;
-  let finalPath = concatOut;
+  // +faststart moves the moov atom to the front so browsers can start playback
+  // before the byte-range streaming has delivered the whole file.
   if (musicSrc) {
-    finalPath = join(dir, 'cut.mp4');
     ff([
-      '-i', concatOut, '-stream_loop', '-1', '-i', musicSrc,
+      '-f', 'concat', '-safe', '0', '-i', listFile, '-stream_loop', '-1', '-i', musicSrc,
       '-filter_complex', '[1:a]volume=0.15[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=2[a]',
-      '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', finalPath,
+      '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', '-movflags', '+faststart', finalPath,
     ]);
     music = true;
+  } else {
+    ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', '-movflags', '+faststart', finalPath]);
   }
 
   // 4) Cleanup intermediates, keep the final cut.
