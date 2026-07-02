@@ -64,10 +64,11 @@ body {
 .brand-sub { font-size: 11px; color: var(--faint); margin-top: -2px; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; }
+/* Nav items are anchors (hash routing) styled like the buttons they replaced. */
 .nav-item {
   display: flex; align-items: center; gap: 11px;
   padding: 9px 11px; border-radius: 10px;
-  color: var(--muted); font-size: 14px; font-weight: 500;
+  color: var(--muted); font-size: 14px; font-weight: 500; text-decoration: none;
   background: transparent; border: none; width: 100%; text-align: left;
   cursor: pointer; transition: background .12s, color .12s;
 }
@@ -80,6 +81,8 @@ body {
   margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted);
   background: var(--panel-3); border-radius: 999px; padding: 1px 8px; min-width: 22px; text-align: center;
 }
+.nav-badge.ok { color: var(--ok); }
+.nav-badge.bad { color: var(--bad); }
 
 .sidebar-foot { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
 .health {
@@ -109,6 +112,18 @@ body {
 .card > h2 {
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--muted); margin: 0 0 18px; font-weight: 600;
+}
+
+/* Live-progress card: the log fills the card instead of nesting three bordered
+   boxes (card > toast > logbox) around a height-capped log with dead space. */
+.card.live { display: flex; flex-direction: column; }
+.card.live .empty { flex: 1; display: grid; place-items: center; }
+.card.live .toast { flex: 1; min-height: 0; display: flex; flex-direction: column; background: transparent; border: none; padding: 0; margin-top: 0; }
+.card.live .logbox { flex: 1; max-height: none; min-height: 220px; }
+/* On a single column, surface live progress above the form exactly when there
+   is a run to watch (.toast only renders for an active/finished run). */
+@media (max-width: 939px) {
+  .grid.cols .card.live:has(.toast) { order: -1; }
 }
 
 /* ---------------- Form controls ---------------- */
@@ -152,7 +167,8 @@ button.ghost:hover { background: var(--panel-3); filter: none; }
 }
 .seg button { margin: 0; border-radius: 8px; padding: 9px 12px; background: transparent; color: var(--muted); font-weight: 600; }
 .seg button:hover { filter: none; color: var(--text); }
-.seg button:not(.off) { background: #6a49f0; color: #fff; box-shadow: var(--shadow); }
+/* Tinted selected state (matches .pill.on) so the toggle doesn't outrank the CTA. */
+.seg button:not(.off) { background: rgba(124,92,255,.16); color: #cfc4ff; box-shadow: inset 0 0 0 1px rgba(124,92,255,.45); }
 .seg button.off { background: transparent; }
 
 /* ---------------- Providers ---------------- */
