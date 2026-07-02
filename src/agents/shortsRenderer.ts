@@ -6,12 +6,15 @@ import { config } from '../config.js';
 
 // Agent — Shorts Renderer. Turns the shorts plan's source ranges into REAL
 // vertical clips cut from the rendered episode (the plan previously shipped
-// fictional render:// URIs that no code ever produced). Runs in distributing,
-// parallel with publishing.
+// fictional render:// URIs that no code ever produced), burning each short's
+// hook in as an overlay and enforcing the Shorts length cap. Runs in
+// distributing, parallel with publishing.
+
+const MAX_SHORT_S = 180; // YouTube Shorts cap (3 minutes)
 
 export const shortsRenderer = defineAgent({
   name: 'shorts_renderer',
-  description: 'Cut each planned short from the rendered episode as a real 9:16 vertical clip via ffmpeg.',
+  description: 'Cut each planned short from the rendered episode as a real 9:16 vertical clip via ffmpeg, hook burned in, capped to Shorts length.',
   skills: ['video-clipping'],
   reads: ['shorts', 'edit'],
   writes: ['shorts'],
@@ -22,9 +25,11 @@ export const shortsRenderer = defineAgent({
 
     const source = ctx.state.edit.render_uri;
     const rendered = await mapLimit(plan, config().MEDIA_CONCURRENCY, async (short) => {
-      const [startS, endS] = short.source_range_s;
+      const [startS, rawEndS] = short.source_range_s;
+      const endS = Math.min(rawEndS, startS + MAX_SHORT_S);
+      if (endS < rawEndS) ctx.log.warn('short span exceeds Shorts cap; trimming', { short: short.short_id, fromS: Math.round(rawEndS - startS), toS: MAX_SHORT_S });
       const out = join('generated', ctx.episode_id, 'shorts', `${short.short_id}.mp4`);
-      const clip = await clipVertical({ sourceUri: source, startS, endS, outPath: out }).catch((e) => {
+      const clip = await clipVertical({ sourceUri: source, startS, endS, outPath: out, overlayText: short.hook }).catch((e) => {
         ctx.log.warn('short clip failed', { short: short.short_id, err: String(e).slice(0, 160) });
         return { uri: '', durationS: endS - startS, real: false };
       });

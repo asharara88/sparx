@@ -16,6 +16,7 @@ export interface ClipRequest {
   startS: number;
   endS: number;
   outPath: string;        // where to write the vertical clip
+  overlayText?: string;   // optional hook text burned in near the top (drawtext)
 }
 
 export interface ClipResult { uri: string; durationS: number; real: boolean }
@@ -30,7 +31,15 @@ function runFfmpeg(args: string[]): Promise<void> {
   });
 }
 
-/** Trim [startS, endS] and center-crop to 1080x1920 vertical. */
+// drawtext parses ':', quotes, '%' and '\' specially — strip rather than escape
+// (hooks are marketing copy; losing punctuation beats losing the clip).
+function drawtextFilter(text: string): string {
+  const safe = text.replace(/[\\':%,;=\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 64);
+  if (!safe) return '';
+  return `,drawtext=text='${safe}':fontcolor=white:fontsize=56:borderw=4:bordercolor=black@0.8:x=(w-text_w)/2:y=h*0.1`;
+}
+
+/** Trim [startS, endS], center-crop to 1080x1920 vertical, optionally burn in the hook. */
 export async function clipVertical(req: ClipRequest): Promise<ClipResult> {
   const durationS = Math.max(0, req.endS - req.startS);
   if (!existsSync(req.sourceUri) || !ffprobeAvailable() || durationS === 0) {
@@ -38,23 +47,33 @@ export async function clipVertical(req: ClipRequest): Promise<ClipResult> {
     return { uri: '', durationS, real: false };
   }
   mkdirSync(dirname(req.outPath), { recursive: true });
-  await runFfmpeg([
+  // scale so height fills 1920, then center-crop width to 1080 (9:16)
+  const baseVf = 'scale=-2:1920,crop=min(iw\\,1080):1920:(iw-1080)/2:0,setsar=1';
+  const overlay = req.overlayText ? drawtextFilter(req.overlayText) : '';
+  const args = (vf: string) => [
     '-y',
     '-ss', req.startS.toFixed(2),
     '-t', durationS.toFixed(2),
     '-i', req.sourceUri,
-    // scale so height fills 1920, then center-crop width to 1080 (9:16)
-    '-vf', 'scale=-2:1920,crop=min(iw\\,1080):1920:(iw-1080)/2:0,setsar=1',
+    '-vf', vf,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
     '-c:a', 'aac', '-movflags', '+faststart',
     req.outPath,
-  ]);
+  ];
+  try {
+    await runFfmpeg(args(baseVf + overlay));
+  } catch (e) {
+    // ffmpeg builds without fontconfig reject drawtext — degrade to a clean clip.
+    if (!overlay) throw e;
+    log.warn('drawtext overlay failed; retrying without hook burn-in', { err: String(e).slice(0, 160) });
+    await runFfmpeg(args(baseVf));
+  }
   return { uri: req.outPath, durationS, real: true };
 }
 
 export const videoClippingSkill = defineSkill<ClipRequest, ClipResult>({
   name: 'video-clipping',
-  description: 'ffmpeg trim + 9:16 vertical reframe of the rendered episode for Shorts; degrades to a placeholder result when ffmpeg/source is unavailable.',
+  description: 'ffmpeg trim + 9:16 vertical reframe of the rendered episode for Shorts, with optional hook-text burn-in; degrades to a placeholder result when ffmpeg/source is unavailable.',
   live: () => ffprobeAvailable(),
   run: (req) => clipVertical(req),
 });
