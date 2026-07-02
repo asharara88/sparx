@@ -26,12 +26,16 @@ export function toSearchQuery(claim: string): string {
   return (q || claim).slice(0, 140);
 }
 
-export async function verifyClaim(claim: string): Promise<FactCheckClaim> {
+/** A verified claim plus what the verdict LLM call cost — callers sum the cost
+ *  into their agent cost_usd and strip it before writing state. */
+export type VerifiedClaim = FactCheckClaim & { cost_usd: number };
+
+export async function verifyClaim(claim: string): Promise<VerifiedClaim> {
   const search = await webResearch(toSearchQuery(claim), 4).catch(() => ({ query: claim, results: [], live: false }));
   // Mock search results are fabricated snippets — judging against them would launder
   // fake evidence into a confident verdict. Fail closed to 'uncertain'.
   if (!search.live || !search.results.length) {
-    return { claim, verdict: 'uncertain', source: '', note: 'no live evidence retrieved (search unavailable or mock)' };
+    return { claim, verdict: 'uncertain', source: '', note: 'no live evidence retrieved (search unavailable or mock)', cost_usd: 0 };
   }
   const results = search.results;
   const evidence = results.map((r, i) => `[${i + 1}] ${r.title} (${r.url})\n${r.snippet}`).join('\n\n').slice(0, 3000);
@@ -44,11 +48,11 @@ export async function verifyClaim(claim: string): Promise<FactCheckClaim> {
   });
   const v = res.data!;
   const source = results[(v.source_index ?? 1) - 1]?.url ?? results[0]!.url;   // record the cited source, not just the top hit
-  return { claim, verdict: v.verdict as ClaimVerdict, source, note: v.note };
+  return { claim, verdict: v.verdict as ClaimVerdict, source, note: v.note, cost_usd: res.usage.costUsd };
 }
 
-export const evidenceRetrievalSkill = defineSkill<{ claim: string }, FactCheckClaim>({
+export const evidenceRetrievalSkill = defineSkill<{ claim: string }, VerifiedClaim>({
   name: 'evidence-retrieval',
-  description: 'Verify a factual claim against retrieved web evidence; returns a typed claim/verdict/source record, degrading to uncertain without a provider.',
+  description: 'Verify a factual claim against retrieved web evidence; returns a typed claim/verdict/source record plus the verdict LLM cost, degrading to uncertain without a provider.',
   run: async ({ claim }) => verifyClaim(claim),
 });

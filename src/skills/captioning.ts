@@ -42,18 +42,32 @@ export function chunkText(text: string, maxChars = MAX_CUE_CHARS): string[] {
   return chunks;
 }
 
-/** Lay section text over its time range, weighting each cue by its share of characters. */
+/**
+ * Lay section text over its time range, weighting each cue by its share of
+ * characters. Cues never cross their section boundary (the next section's first
+ * cue starts there) — when the remaining time is too short for another readable
+ * cue, the text merges into the previous cue instead of overflowing.
+ */
 export function buildCues(sections: CaptionSection[]): CaptionCue[] {
   const cues: CaptionCue[] = [];
   for (const s of sections) {
     const chunks = chunkText(s.text);
     if (!chunks.length || s.durationS <= 0) continue;
+    const sectionEnd = s.startS + s.durationS;
     const totalChars = chunks.reduce((n, c) => n + c.length, 0);
     let t = s.startS;
+    let firstOfSection = cues.length;
     for (const chunk of chunks) {
+      const prev = cues[cues.length - 1];
+      if (sectionEnd - t < MIN_CUE_S && cues.length > firstOfSection && prev) {
+        // no room for another readable cue — fold the text into the last one
+        prev.text = `${prev.text} ${chunk}`;
+        prev.endS = sectionEnd;
+        continue;
+      }
       const span = Math.max(MIN_CUE_S, (chunk.length / totalChars) * s.durationS);
-      const end = Math.min(t + span, s.startS + s.durationS);
-      cues.push({ startS: t, endS: Math.max(end, t + MIN_CUE_S), text: chunk });
+      const end = Math.min(t + span, sectionEnd);
+      cues.push({ startS: t, endS: end, text: chunk });
       t = end;
     }
   }

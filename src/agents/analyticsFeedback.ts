@@ -36,7 +36,9 @@ export const analyticsFeedback = defineAgent({
     const notes: string[] = [];
     let views = 0, avgView = 0;
 
-    if (!videoId || videoId.startsWith('pending_') || videoId.startsWith('mock')) {
+    // publish.uploaded is the authoritative signal for a real upload — never
+    // sniff the id shape (prefixes are provider trivia, not a contract).
+    if (!videoId || !ctx.state.publish.uploaded) {
       notes.push('no real published video id; analytics unavailable');
     } else {
       const stats = await fetchStats(videoId).catch((e) => {

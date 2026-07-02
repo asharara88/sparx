@@ -9,7 +9,8 @@ import { sleep } from './concurrency.js';
 //     with the response body, never blindly retried
 //   - Retry-After honored when present, else capped exponential backoff + jitter
 
-const TRANSIENT_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
+// Shared transient-status policy (also used by the LLM client — one list, one policy).
+export const TRANSIENT_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
 const log = createLogger({ mod: 'http' });
 
 export class HttpError extends Error {
@@ -36,7 +37,15 @@ function retryAfterMs(res: Response): number | null {
   return Number.isNaN(at) ? null : Math.max(0, Math.min(at - Date.now(), 30_000));
 }
 
-/** fetch with per-attempt timeout and transient-only retry. Returns the ok Response; throws HttpError on non-2xx. */
+/**
+ * fetch with per-attempt timeout and transient-only retry. Returns the ok
+ * Response; throws HttpError on non-2xx.
+ *
+ * CAVEAT: the timeout covers the request through response HEADERS. Body reads
+ * (res.json(), streaming) run after the timer clears and are unbounded — a
+ * stalled 200 body can still hang the caller. Long downloads should wrap their
+ * body pipeline in their own deadline.
+ */
 export async function fetchWithRetry(url: string, init: RequestInit = {}, opts: FetchRetryOpts = {}): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? config().HTTP_TIMEOUT_MS;
   const retries = opts.retries ?? 2;

@@ -72,14 +72,18 @@ export const factChecker = defineAgent({
       };
     }
 
-    const verified = await mapLimit(claims, config().MEDIA_CONCURRENCY, (c) => verifyClaim(c));
+    const results = await mapLimit(claims, config().MEDIA_CONCURRENCY, (c) => verifyClaim(c));
+    // The per-claim verdict LLM calls are real spend — sum them into this agent's
+    // cost, but keep cost_usd OUT of the state records (claims are claim/verdict/source/note).
+    const verifyCost = results.reduce((n, r) => n + r.cost_usd, 0);
+    const verified: FactCheckClaim[] = results.map(({ cost_usd: _cost, ...claim }) => claim);
     const unsupported = verified.filter((v) => v.verdict === 'unsupported');
     const uncertain = verified.filter((v) => v.verdict === 'uncertain');
-    ctx.log.info('claims verified', { claims: verified.length, unsupported: unsupported.length, uncertain: uncertain.length });
+    ctx.log.info('claims verified', { claims: verified.length, unsupported: unsupported.length, uncertain: uncertain.length, verifyCost });
 
     return {
       writes: { fact_check: { checked: true, claims: verified, unsupported_count: unsupported.length } },
-      cost_usd: extraction.usage.costUsd,
+      cost_usd: extraction.usage.costUsd + verifyCost,
       notes: `${verified.length} claims: ${verified.length - unsupported.length - uncertain.length} supported, ${unsupported.length} unsupported, ${uncertain.length} uncertain${deduped ? `, ${deduped} deduped` : ''}`,
     };
   },

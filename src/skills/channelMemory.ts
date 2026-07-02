@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { config } from '../config.js';
 import { createLogger } from '../logger.js';
@@ -47,7 +47,11 @@ export function saveChannelMemory(mem: ChannelMemory) {
   const p = config().CHANNEL_MEMORY_PATH;
   try {
     mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, JSON.stringify(mem, null, 2));
+    // tmp+rename: publishing and the analytics script may write concurrently —
+    // a reader must never parse a torn file and reset memory to empty.
+    const tmp = `${p}.tmp`;
+    writeFileSync(tmp, JSON.stringify(mem, null, 2));
+    renameSync(tmp, p);
   } catch (e) {
     log.warn('channel memory not persisted', { path: p, err: String(e).slice(0, 120) });
   }

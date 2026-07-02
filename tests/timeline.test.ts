@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimeline, timelineSkill } from '../src/skills/timeline.js';
+import { buildTimeline, renderedDuration, renderedTotal, sectionSpans, timelineSkill } from '../src/skills/timeline.js';
 import { hasSkill } from '../src/skills/registry.js';
 import { newEpisodeState } from '../src/types/episode.js';
 import type { EpisodeState } from '../src/types/episode.js';
@@ -83,5 +83,51 @@ describe('buildTimeline', () => {
     expect(hasSkill('timeline')).toBe(true);
     const s = stateWithShots();
     await expect(timelineSkill.run({ state: s })).resolves.toEqual(buildTimeline(s));
+  });
+
+  it('attaches section VO to the FIRST shot only; later shots of the section are silent b-roll', () => {
+    const s = stateWithShots();
+    // second shot for s1: must NOT repeat the section's VO clip
+    s.shot_list.splice(1, 0, { shot_id: 'sh1b', section_id: 's1', source: 'stock', duration_s: 3, prompt: {}, selected_asset: null, cost_estimate_usd: 0 });
+    const { entries } = buildTimeline(s);
+    expect(entries[0]).toMatchObject({ shot_id: 'sh1', audio_uri: 'vo1', duration_s: 7, caption: 'narration one' });
+    expect(entries[1]).toMatchObject({ shot_id: 'sh1b', audio_uri: null, duration_s: 3, caption: '' }); // silent, planned duration
+    expect(entries[2]).toMatchObject({ shot_id: 'sh2', audio_uri: 'vo2' });
+  });
+});
+
+describe('rendered clock (sectionSpans / renderedTotal / renderedDuration)', () => {
+  it('renderedDuration ceils to whole seconds with a 1s floor', () => {
+    expect(renderedDuration(4)).toBe(4);
+    expect(renderedDuration(4.2)).toBe(5);
+    expect(renderedDuration(0.3)).toBe(1);
+    expect(renderedDuration(0)).toBe(1);
+  });
+
+  it('sectionSpans aggregates per-section whole-second spans in timeline order', () => {
+    const s = stateWithShots();
+    // fractional VO + a multi-shot section: s1 = 7.3s VO shot + 2.4s b-roll shot
+    s.voiceover.clips[0]!.duration_s = 7.3;
+    s.shot_list.splice(1, 0, { shot_id: 'sh1b', section_id: 's1', source: 'stock', duration_s: 2.4, prompt: {}, selected_asset: null, cost_estimate_usd: 0 });
+    const spans = sectionSpans(buildTimeline(s));
+    // s1: ceil(7.3) + ceil(2.4) = 8 + 3 = 11; then s2 8s, s3 6s, s4 3s
+    expect(spans).toEqual([
+      { section_id: 's1', startS: 0, durationS: 11 },
+      { section_id: 's2', startS: 11, durationS: 8 },
+      { section_id: 's3', startS: 19, durationS: 6 },
+      { section_id: 's4', startS: 25, durationS: 3 },
+    ]);
+    // spans are contiguous and non-overlapping on the rendered clock
+    for (let i = 1; i < spans.length; i++) expect(spans[i]!.startS).toBe(spans[i - 1]!.startS + spans[i - 1]!.durationS);
+  });
+
+  it('renderedTotal is the whole-second sum, ahead of the fractional timeline sum', () => {
+    const s = stateWithShots();
+    s.voiceover.clips[0]!.duration_s = 6.1;
+    s.voiceover.clips[1]!.duration_s = 7.5;
+    const t = buildTimeline(s);
+    expect(t.duration_s).toBeCloseTo(6.1 + 7.5 + 6 + 3);
+    expect(renderedTotal(t)).toBe(7 + 8 + 6 + 3);
+    expect(renderedTotal(t)).toBe(sectionSpans(t).reduce((n, sp) => n + sp.durationS, 0));
   });
 });

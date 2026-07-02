@@ -107,7 +107,7 @@ export const scriptwriter = defineAgent({
 
     // Deterministic checks — they flag for GATE B, never block (mock drafts stay green).
     const spoken = [finalHook, ...sections.map((s) => s.vo_text), d.cta].join(' ').toLowerCase();
-    const banned = BANNED_PHRASES.filter((p) => spoken.includes(p));
+    const banned = BANNED_PHRASES.filter((p) => spoken.includes(p.toLowerCase())); // canonical case-insensitive check (matches brandCompliance)
     const tooShort = word_count < Math.round(targetWords * 0.6);
 
     const critiqueLog = [

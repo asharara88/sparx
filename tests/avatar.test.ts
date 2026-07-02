@@ -3,6 +3,7 @@ import { HeyGenAvatar, __setAvatar, type AvatarProvider } from '../src/media/ava
 import { avatar } from '../src/agents/avatar.js';
 import { newEpisodeState, type Shot, type ScriptSection } from '../src/types/episode.js';
 import type { MediaArtifact } from '../src/media/types.js';
+import { config } from '../src/config.js';
 import { ctxFor } from './helpers.js';
 
 const realFetch = globalThis.fetch;
@@ -89,21 +90,45 @@ describe('avatar agent', () => {
     expect(r.notes).toMatch(/1 without narration: sh4/);
   });
 
-  it('uses the measured VO duration as the cost basis and throttles over-budget shots', async () => {
+  it('uses the measured VO duration as the cost basis and throttles over-budget LIVE shots', async () => {
     const marker = uniq();
-    const provider = stubProvider();
+    const provider = stubProvider({ live: true }); // the budget gate only applies to live spend
     __setAvatar(provider);
-    const s = newEpisodeState('ep_av2', { host_mode: 'avatar' });
-    s.script.sections = [section('s1', `one ${marker}`), section('s2', `two ${marker}`)];
+    // live provider needs an avatar id or the agent escalates before the gate;
+    // config caches on first read, so patch the cached object for this test.
+    const c = config() as unknown as { HEYGEN_AVATAR_ID: string };
+    const prevId = c.HEYGEN_AVATAR_ID;
+    c.HEYGEN_AVATAR_ID = 'av_test';
+    try {
+      const s = newEpisodeState('ep_av2', { host_mode: 'avatar' });
+      s.script.sections = [section('s1', `one ${marker}`), section('s2', `two ${marker}`)];
+      s.shot_list = [avatarShot('sh1', 's1', 5), avatarShot('sh2', 's2', 5)];
+      // VO says each section actually speaks 10 min → $3/clip at $0.30/min; cap fits one
+      s.voiceover.clips = [{ section_id: 's1', audio_uri: 'a', duration_s: 600 }, { section_id: 's2', audio_uri: 'b', duration_s: 600 }];
+      s.budget.cap_usd_month = 4;
+      const r = await avatar.run(ctxFor(s));
+      expect(r.status).toBe('ok');
+      expect(r.writes.avatar_clips).toHaveLength(1);
+      expect(provider.calls).toBe(1); // throttled shot never dispatched
+      expect(r.notes).toMatch(/over budget/);
+    } finally {
+      c.HEYGEN_AVATAR_ID = prevId;
+    }
+  });
+
+  it('never budget-gates a mock ($0) provider, even under a tiny cap', async () => {
+    const marker = uniq();
+    const provider = stubProvider(); // live: false
+    __setAvatar(provider);
+    const s = newEpisodeState('ep_av4', { host_mode: 'avatar' });
+    s.script.sections = [section('s1', `uno ${marker}`), section('s2', `dos ${marker}`)];
     s.shot_list = [avatarShot('sh1', 's1', 5), avatarShot('sh2', 's2', 5)];
-    // VO says each section actually speaks 10 min → $3/clip at $0.30/min; cap fits one
     s.voiceover.clips = [{ section_id: 's1', audio_uri: 'a', duration_s: 600 }, { section_id: 's2', audio_uri: 'b', duration_s: 600 }];
-    s.budget.cap_usd_month = 4;
+    s.budget.cap_usd_month = 0.01; // would throttle everything if the gate ran
     const r = await avatar.run(ctxFor(s));
     expect(r.status).toBe('ok');
-    expect(r.writes.avatar_clips).toHaveLength(1);
-    expect(provider.calls).toBe(1); // throttled shot never dispatched
-    expect(r.notes).toMatch(/over budget/);
+    expect(r.writes.avatar_clips).toHaveLength(2); // mock shots are free — none skipped
+    expect(r.notes).not.toMatch(/over budget/);
   });
 
   it('escalates to needs_human when a live provider has no avatar id configured', async () => {

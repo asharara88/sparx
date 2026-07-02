@@ -43,9 +43,13 @@ export const avatar = defineAgent({
     const throttled: string[] = []; const noText: string[] = [];
     const dispatch = shots.filter((shot) => {
       if (!secById.get(shot.section_id)?.vo_text) { noText.push(shot.shot_id); return false; }
-      const est = estimateAvatarCost(spokenS(shot.section_id, shot.duration_s));
-      if (shouldThrottle(ctx.state, reserved + est)) { throttled.push(shot.shot_id); return false; }
-      reserved += est;
+      // Only gate live spend — mock shots cost $0 and must never be skipped
+      // under a small cap (same live-only gating as voiceover/music).
+      if (provider.live) {
+        const est = estimateAvatarCost(spokenS(shot.section_id, shot.duration_s));
+        if (shouldThrottle(ctx.state, reserved + est)) { throttled.push(shot.shot_id); return false; }
+        reserved += est;
+      }
       return true;
     });
 

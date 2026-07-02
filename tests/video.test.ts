@@ -52,10 +52,10 @@ function genShot(id: string, prompt: string, durationS = 4): Shot {
   return { shot_id: id, section_id: `sec_${id}`, source: 'generated', duration_s: durationS, prompt: { runway: prompt }, selected_asset: null, cost_estimate_usd: 0.2 };
 }
 
-function stubProvider(opts: { costPerTake?: number; failFor?: Set<string>; onCall?: () => Promise<void> } = {}): VideoProvider & { maxInFlight: number; calls: number } {
+function stubProvider(opts: { live?: boolean; costPerTake?: number; failFor?: Set<string>; onCall?: () => Promise<void> } = {}): VideoProvider & { maxInFlight: number; calls: number } {
   let inFlight = 0;
   const p = {
-    name: 'stub', live: false, maxInFlight: 0, calls: 0,
+    name: 'stub', live: opts.live ?? false, maxInFlight: 0, calls: 0,
     async generate(req: { prompt: string; durationS: number; takes?: number }): Promise<MediaArtifact[]> {
       p.calls++; inFlight++; p.maxInFlight = Math.max(p.maxInFlight, inFlight);
       await opts.onCall?.();
@@ -83,13 +83,13 @@ describe('videoGeneration agent', () => {
     expect(r.cost_usd).toBeCloseTo(6 * 2 * 0.1); // 2 takes per shot from the stub
   });
 
-  it('skips shots whose pessimistic estimate crosses the remaining budget, with a note', async () => {
+  it('skips LIVE shots whose pessimistic estimate crosses the remaining budget, with a note', async () => {
     const marker = uniq();
-    const provider = stubProvider();
+    const provider = stubProvider({ live: true }); // the budget gate only applies to live spend
     __setVideo(provider);
     const s = newEpisodeState('ep_vg2');
-    // per-shot estimate: 2 takes * (10s * $0.05 + $0.08 image) = $1.16 → cap fits exactly one
-    s.budget.cap_usd_month = 1.5;
+    // per-shot estimate (live caps to RUNWAY_MAX_TAKES=1): 1 take * (10s * $0.05 + $0.08 image) = $0.58 → cap fits exactly one
+    s.budget.cap_usd_month = 1.0;
     s.shot_list = [genShot('sh0', `a ${marker}`, 10), genShot('sh1', `b ${marker}`, 10)];
     const r = await videoGeneration.run(ctxFor(s));
     expect(r.status).toBe('ok');
@@ -97,6 +97,19 @@ describe('videoGeneration agent', () => {
     expect(provider.calls).toBe(1); // throttled shot never dispatched
     expect(r.notes).toMatch(/over budget/);
     expect(r.notes).toContain('sh1');
+  });
+
+  it('never budget-gates a mock ($0) provider, even under a tiny cap', async () => {
+    const marker = uniq();
+    const provider = stubProvider(); // live: false
+    __setVideo(provider);
+    const s = newEpisodeState('ep_vg4');
+    s.budget.cap_usd_month = 0.01; // would throttle everything if the gate ran
+    s.shot_list = [genShot('sh0', `c ${marker}`, 10), genShot('sh1', `d ${marker}`, 10)];
+    const r = await videoGeneration.run(ctxFor(s));
+    expect(r.status).toBe('ok');
+    expect(r.writes.generated_video).toHaveLength(2); // mock shots are free — none skipped
+    expect(r.notes).not.toMatch(/over budget/);
   });
 
   it('degrades a failed shot to a skip (notes) instead of failing the batch', async () => {

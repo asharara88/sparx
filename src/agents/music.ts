@@ -36,7 +36,8 @@ export const music = defineAgent({
     const [track, sfx] = await Promise.all([
       cachedArtifact(contentKey('music', MOOD, dur), async () => {
         made.art = await provider.selectTrack(MOOD, dur);
-        return { uri: made.art.uri, costUsd: made.art.costUsd };
+        // durationS rides along into the cache so hits keep the measured bed length
+        return { uri: made.art.uri, costUsd: made.art.costUsd, durationS: made.art.durationS };
       }),
       Promise.all(SFX_NAMES.map((n) => provider.sfx(n))),
     ]);

@@ -106,13 +106,3 @@ export function validateAgents(agents: Record<string, Agent>): string[] {
   }
   return problems;
 }
-
-// ---- result helpers (agents on defineAgent return AgentOutput; these build them) ----
-
-export function ok(writes: Partial<EpisodeState>, cost = 0, notes?: string): AgentOutput {
-  return { writes, cost_usd: cost, notes, status: 'ok' };
-}
-
-export function needsHuman(notes: string, writes: Partial<EpisodeState> = {}, cost = 0): AgentOutput {
-  return { writes, cost_usd: cost, notes, status: 'needs_human' };
-}

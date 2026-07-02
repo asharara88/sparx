@@ -5,6 +5,7 @@ import { ShotPlanSchema, type ShotPlan } from '../schemas/phase1.js';
 import { videoPrompts, type ShotSpec } from '../skills/videoPrompt.js';
 import { estimateShotCost, estimateAvatarCost } from '../skills/costModel.js';
 import { validateRefs } from '../skills/referenceValidation.js';
+import { guessSpeechSeconds } from '../media/voice.js';
 
 // Agent 3 — Visual Director:
 //   1) LLM plans each shot: source choice WITH reasoning + a rich shot spec
@@ -20,8 +21,8 @@ type PlanShot = ShotPlan['shots'][number];
 const DEFAULT_SHOT_S = 4;
 // Estimates price the runway rate — the video-generation agent's default model.
 const EST_MODEL = 'runway' as const;
-// Matches the voice provider's words/2.3 pacing heuristic (media/voice.ts).
-const speechSeconds = (text: string) => Math.max(DEFAULT_SHOT_S, Math.round(text.split(/\s+/).filter(Boolean).length / 2.3));
+// The voice provider's shared words/2.3 pacing heuristic, floored to a usable shot length.
+const speechSeconds = (text: string) => Math.max(DEFAULT_SHOT_S, guessSpeechSeconds(text));
 
 export const visualDirector = defineAgent({
   name: 'visual_director',

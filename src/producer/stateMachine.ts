@@ -25,9 +25,9 @@ export const MACHINE: Record<EpisodeStatus, StateDef | null> = {
   assembling:     { stages: [['editor'], ['captions', 'render'], ['render_qc']], next: 'qa' },
   qa:             { stages: [['qa']],                                    next: 'cut_review' },
   cut_review:     { stages: [], next: 'distributing',  gate: 'C' },
-  // shorts plan + packaging in parallel; then shorts_renderer (needs the plan + final cut)
-  // alongside publishing (needs packaging).
-  distributing:   { stages: [['shorts', 'packaging'], ['shorts_renderer', 'publishing']], next: 'published' },
+  // shorts plan + packaging in parallel; shorts_renderer cuts real clips; publishing
+  // runs LAST so publish.shorts_posted reflects what was actually rendered, not the plan.
+  distributing:   { stages: [['shorts', 'packaging'], ['shorts_renderer'], ['publishing']], next: 'published' },
   published:      null,
   failed:         null,
   on_hold:        null,

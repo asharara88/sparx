@@ -25,7 +25,7 @@ export interface CompleteResult<T = unknown> {
   live: boolean;
 }
 
-const TRANSIENT = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
+import { TRANSIENT_STATUS as TRANSIENT } from '../util/http.js';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Models that reject the `temperature` parameter (deprecated / fixed for them).

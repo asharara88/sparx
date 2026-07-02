@@ -2,7 +2,7 @@ import { defineAgent } from './core.js';
 import { getVoice, guessSpeechSeconds } from '../media/voice.js';
 import { config } from '../config.js';
 import { settleLimit } from '../util/concurrency.js';
-import { cachedArtifact, contentKey } from '../skills/artifactCache.js';
+import { cachedArtifact, contentKey, getCached } from '../skills/artifactCache.js';
 import { estimateVoiceCost, shouldThrottle } from '../skills/costModel.js';
 import type { MediaArtifact } from '../media/types.js';
 
@@ -25,23 +25,26 @@ export const voiceover = defineAgent({
     const sections = ctx.state.script.sections;
 
     // Estimate before spending; only gate live spend — the mock path is free.
-    const estimate = estimateVoiceCost(sections.reduce((n, s) => n + s.vo_text.length, 0));
+    // Already-cached sections cost $0 to "re-synthesize", so only the UNCACHED
+    // narration counts toward the estimate (otherwise a cheap rerun of a mostly
+    // cached episode false-trips the cap).
+    const uncached = sections.filter((s) => !getCached(contentKey('voice', voiceId, s.vo_text)));
+    const estimate = estimateVoiceCost(uncached.reduce((n, s) => n + s.vo_text.length, 0));
     if (voice.live && shouldThrottle(ctx.state, estimate)) {
-      return { writes: {}, status: 'needs_human', notes: `estimated voice cost $${estimate.toFixed(2)} would exceed the budget cap` };
+      return { writes: {}, status: 'needs_human', notes: `estimated voice cost $${estimate.toFixed(2)} (${uncached.length}/${sections.length} uncached sections) would exceed the budget cap` };
     }
     // Known duplicate-spend: in 'avatar' host mode HeyGen renders the same narration
     // with its own voice track — flag it so the money isn't burned silently.
     if (voice.live && ctx.state.channel.host_mode === 'avatar') ctx.log.warn('host_mode=avatar also carries voice — narration is being paid for twice', { estimate });
 
     const settled = await settleLimit(sections, config().MEDIA_CONCURRENCY, async (s) => {
-      const made: { art?: MediaArtifact } = {}; // set on cache miss only
       const art = await cachedArtifact(contentKey('voice', voiceId, s.vo_text), async () => {
-        made.art = await voice.synthesize(s.vo_text, voiceId);
-        return { uri: made.art.uri, costUsd: made.art.costUsd };
+        const made: MediaArtifact = await voice.synthesize(s.vo_text, voiceId);
+        return { uri: made.uri, costUsd: made.costUsd, durationS: made.durationS };
       });
-      // Cache hits carry uri+cost only — fall back to the speaking-rate guess
-      // (same formula as the mock provider) instead of re-probing here.
-      return { clip: { section_id: s.id, audio_uri: art.uri, duration_s: made.art?.durationS || guessSpeechSeconds(s.vo_text) }, costUsd: art.costUsd };
+      // durationS flows through the cache (misses report it, hits keep the stored
+      // measurement); the words/2.3 guess is only the last resort.
+      return { clip: { section_id: s.id, audio_uri: art.uri, duration_s: art.durationS || guessSpeechSeconds(s.vo_text) }, costUsd: art.costUsd };
     });
     for (const f of settled.failed) ctx.log.warn('voiceover failed for section; leaving silent', { section: f.item.id, err: String(f.error).slice(0, 160) });
 

@@ -174,6 +174,7 @@ export interface Packaging {
 
 export interface Publish {
   youtube_video_id: string;
+  uploaded: boolean;           // true only after a REAL upload (authoritative; never inferred from id shape)
   scheduled_at: string;
   tags: string[];
   chapters: string[];
@@ -225,6 +226,18 @@ export interface EpisodeState {
   history: HistoryEntry[];
 }
 
+/**
+ * Fill fields missing from a persisted state (rows saved by older code predate
+ * fact_check/captions/render_qc/analytics/publish.uploaded). Agents dereference
+ * these unconditionally, so loads must normalize or old episodes fail on load.
+ */
+export function normalizeEpisodeState(raw: Partial<EpisodeState> & { episode_id: string }): EpisodeState {
+  const defaults = newEpisodeState(raw.episode_id);
+  const merged = { ...defaults, ...raw } as EpisodeState;
+  merged.publish = { ...defaults.publish, ...(raw.publish ?? {}) };
+  return merged;
+}
+
 export function newEpisodeState(
   episode_id: string,
   opts: { niche?: string; languages?: string[]; host_mode?: HostMode; cap_usd_month?: number } = {}
@@ -255,7 +268,7 @@ export function newEpisodeState(
     analytics: { checked_at: '', views: 0, impressions_ctr: 0, avg_view_duration_s: 0, notes: [] },
     shorts: [],
     packaging: { thumbnails: [], titles: [], descriptions: [] },
-    publish: { youtube_video_id: '', scheduled_at: '', tags: [], chapters: [], ai_label_applied: false, shorts_posted: [] },
+    publish: { youtube_video_id: '', uploaded: false, scheduled_at: '', tags: [], chapters: [], ai_label_applied: false, shorts_posted: [] },
     budget: { cap_usd_month: opts.cap_usd_month ?? 500, spent_this_episode_usd: 0, ledger: [] },
     history: [],
   };

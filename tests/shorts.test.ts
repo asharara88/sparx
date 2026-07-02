@@ -18,6 +18,8 @@ function base(durations: [string, number][] = [['s1', 10], ['s2', 20], ['s3', 30
     clips: durations.map(([section_id, duration_s]) => ({ section_id, audio_uri: 'a', duration_s })),
     total_duration_s: durations.reduce((n, [, d]) => n + d, 0),
   };
+  // spans come from the rendered timeline, which needs a shot per section (VO duration wins on the first shot)
+  s.shot_list = durations.map(([section_id], i) => ({ shot_id: `sh${i + 1}`, section_id, source: 'stock' as const, duration_s: 4, prompt: {}, selected_asset: null, cost_estimate_usd: 0 }));
   return s;
 }
 
@@ -38,6 +40,13 @@ describe('shorts', () => {
     expect(r.writes.shorts?.length).toBe(1);
     expect(r.writes.shorts?.[0]?.source_range_s).toEqual([0, 30]);   // 10s + 20s, not '?? 0' guesses
     expect(r.writes.shorts?.[0]?.render_uri).toMatch(/^plan:\/\//); // plan ref; shorts_renderer cuts the real file
+  });
+
+  it('cuts on the rendered whole-second clock, not fractional VO sums', async () => {
+    __setLLM(planLLM({ shorts: [{ start_section: 's2', end_section: 's2', hook: 'Clock hook', why: '' }] }));
+    const r = await shorts.run(ctxFor(base([['s1', 9.6], ['s2', 20.3], ['s3', 30]])));
+    // rendered: s1 ceil(9.6)=10, s2 ceil(20.3)=21 → the renderer cuts [10, 31] from cut.mp4
+    expect(r.writes.shorts?.[0]?.source_range_s).toEqual([10, 31]);
   });
 
   it('computes mid-video ranges from real durations', async () => {
@@ -92,6 +101,7 @@ describe('shorts', () => {
   it('skips the LLM entirely when there is no timing data', async () => {
     const s = base();
     s.voiceover = { voice_id: '', clips: [], total_duration_s: 0 };
+    s.shot_list = []; // no shots either → the rendered timeline is empty
     __setLLM({ live: true, complete: async () => { throw new Error('must not be called'); }, totalUsage: () => ({ inputTokens: 0, outputTokens: 0, costUsd: 0 }) });
     const r = await shorts.run(ctxFor(s));
     expect(r.status).toBe('ok');

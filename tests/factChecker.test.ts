@@ -65,6 +65,10 @@ describe('fact_checker', () => {
     expect(moon?.verdict).toBe('unsupported');
     expect(moon?.source).toBe('https://ex.com/1');
     expect(calls.length).toBe(2);
+    // per-claim verdict LLM spend is reported on the agent (extraction + 2 verdicts)…
+    expect(r.cost_usd).toBeCloseTo(0.003);
+    // …but never written into the state records
+    expect(r.writes.fact_check?.claims.every((c) => !('cost_usd' in c))).toBe(true);
   });
 
   it('skips verification below the budget floor, leaving claims uncertain', async () => {

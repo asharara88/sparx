@@ -1,6 +1,6 @@
 import { defineAgent } from './core.js';
 import { probeMedia } from '../skills/mediaProbe.js';
-import { buildTimeline } from '../skills/timeline.js';
+import { buildTimeline, renderedTotal } from '../skills/timeline.js';
 
 // Agent — Render QC. Probes the actual rendered file (ffprobe) before QA sees it:
 // duration vs the EDL timeline, audio presence when narration exists, and
@@ -37,8 +37,10 @@ export const renderQc = defineAgent({
 
     const issues: string[] = [];
     // Independent expectation: re-derive the EDL from state instead of trusting
-    // whatever the render agent wrote back.
-    const expected = buildTimeline(ctx.state).duration_s;
+    // whatever the render agent wrote back. Compare on the RENDERED clock — the
+    // renderer pads every shot to whole seconds, so the fractional timeline sum
+    // would falsely trip the tolerance on fast-cut episodes.
+    const expected = renderedTotal(buildTimeline(ctx.state));
     if (probe.durationS <= 0) issues.push('render has zero duration');
     if (expected > 0 && probe.durationS > 0) {
       const drift = Math.abs(probe.durationS - expected) / expected;

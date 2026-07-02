@@ -34,7 +34,9 @@ export const videoGeneration = defineAgent({
     const effectiveTakes = provider.live ? Math.min(TAKES, c.RUNWAY_MAX_TAKES) : TAKES;
     let reserved = 0;
     const throttled: string[] = [];
-    const dispatch = shots.filter((shot) => {
+    // Only gate live spend — mock shots cost $0 and must never be skipped under
+    // a small cap (same live-only gating as voiceover/music).
+    const dispatch = !provider.live ? shots : shots.filter((shot) => {
       const est = effectiveTakes * (estimateShotCost(shot.duration_s, model) + estimateImageCost()); // + start image per take
       if (shouldThrottle(ctx.state, reserved + est)) { throttled.push(shot.shot_id); return false; }
       reserved += est;

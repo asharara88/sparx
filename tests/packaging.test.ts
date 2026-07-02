@@ -14,6 +14,7 @@ process.env.ARTIFACT_CACHE = 'true';
 const { packaging } = await import('../src/agents/packaging.js');
 const { __setImage } = await import('../src/media/image.js');
 const { __setLLM } = await import('../src/llm/client.js');
+const { __resetArtifactCache } = await import('../src/skills/artifactCache.js');
 const { saveChannelMemory } = await import('../src/skills/channelMemory.js');
 const { newEpisodeState } = await import('../src/types/episode.js');
 const { ctxFor } = await import('./helpers.js');
@@ -22,8 +23,10 @@ beforeEach(() => {
   __setLLM(null);
   __setImage(null);
   saveChannelMemory({ episodes: [] });
-  // fresh artifact cache per test (the cache test exercises persistence within a test)
+  // fresh artifact cache per test (the cache test exercises persistence within a
+  // test) — the manifest lives in memory now, so drop that too, not just the file
   rmSync(join(process.env.CACHE_DIR!, 'artifacts.json'), { force: true });
+  __resetArtifactCache();
 });
 
 function base(topic = 'sleep science') {

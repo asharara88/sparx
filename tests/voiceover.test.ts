@@ -97,6 +97,33 @@ describe('voiceover', () => {
     expect(r2.cost_usd).toBe(0);
     expect(calls).toBe(2); // cache hit — synthesize never re-called
     expect(r2.writes.voiceover?.clips.map((c) => c.audio_uri)).toEqual(r1.writes.voiceover?.clips.map((c) => c.audio_uri));
+    // hits keep the provider-measured duration from the cache, not the words/2.3 guess
+    expect(r1.writes.voiceover?.clips.map((c) => c.duration_s)).toEqual([4, 4]);
+    expect(r2.writes.voiceover?.clips.map((c) => c.duration_s)).toEqual([4, 4]);
+    expect(r2.writes.voiceover?.total_duration_s).toBe(8);
+  });
+
+  it('budget-gates only the UNCACHED sections: a fully cached rerun passes a nearly spent cap', async () => {
+    let calls = 0;
+    const fake: VoiceProvider = {
+      name: 'fake', live: true, // live → the gate applies
+      async synthesize(text) {
+        calls++;
+        return { uri: `https://fake.test/voice/gate/${encodeURIComponent(text)}.mp3`, durationS: 3, costUsd: 0.4, license: 'mock' };
+      },
+    };
+    __setVoice(fake);
+    const s = stateWith(['gated cacheable narration alpha', 'gated cacheable narration beta'], 'vo-gate');
+    const r1 = await voiceover.run(ctxFor(s));
+    expect(r1.status).toBe('ok');
+    expect(calls).toBe(2);
+    // budget nearly exhausted: the OLD all-sections estimate would trip the cap,
+    // but everything is cached (cost 0), so the run must proceed.
+    s.budget.spent_this_episode_usd = s.budget.cap_usd_month - 0.001;
+    const r2 = await voiceover.run(ctxFor(s));
+    expect(r2.status).toBe('ok');
+    expect(r2.cost_usd).toBe(0);
+    expect(calls).toBe(2); // no re-billing
   });
 
   it('fails the precondition cleanly when there is no script', async () => {

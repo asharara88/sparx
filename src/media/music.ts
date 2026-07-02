@@ -33,11 +33,13 @@ class ElevenLabsMusic implements MusicProvider {
     // scripts/sparx_music_gen.mjs returns richer metadata but isn't needed here.
     const url = new URL('https://api.elevenlabs.io/v1/music');
     url.searchParams.set('output_format', 'mp3_44100_128');
+    // Composition is slow — a full bed can take well past the 30s default
+    // per-attempt HTTP timeout tuned for plain API calls.
     const res = await fetchWithRetry(url.toString(), {
       method: 'POST',
       headers: { 'xi-api-key': this.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
       body: JSON.stringify({ prompt, music_length_ms: ms, force_instrumental: true, model_id: 'music_v2' }),
-    }, { label: 'elevenlabs.music' });
+    }, { label: 'elevenlabs.music', timeoutMs: Math.max(config().HTTP_TIMEOUT_MS, 180_000) });
     const bytes = Buffer.from(await res.arrayBuffer());
     // Persist to a real local file so the render step can composite it. (Swap for object
     // storage in a hosted deployment.) The file path is the artifact uri.

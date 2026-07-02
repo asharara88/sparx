@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,6 +40,8 @@ function base(id = 'pub1', sectionCount = 4, durS = 15) {
   for (let i = 1; i <= sectionCount; i++) {
     s.script.sections.push({ id: `s${i}`, beat: `beat ${i}`, vo_text: `narration ${i}`, shot_note: '', on_screen: `Chapter ${i}`, retention_device: '' });
     s.voiceover.clips.push({ section_id: `s${i}`, audio_uri: `a${i}`, duration_s: durS });
+    // chapters read the rendered timeline (sectionSpans), which needs a shot per section
+    s.shot_list.push({ shot_id: `sh${i}`, section_id: `s${i}`, source: 'stock', duration_s: 4, prompt: {}, selected_asset: null, cost_estimate_usd: 0 });
   }
   s.edit.render_uri = 'render://pub/cut.mp4'; // not a real file → provider decides
   return s;
@@ -75,6 +77,28 @@ describe('publishing metadata validation', () => {
     const r = await publishing.run(ctxFor(base('pub_close', 4, 5)));
     expect(reqs.uploads[0].description).not.toContain('Chapters:');
     expect(r.notes).toContain('chapters omitted');
+  });
+
+  it('omits chapters when the LAST chapter is under 10s before the video end', async () => {
+    const { provider, reqs } = recorder();
+    __setYouTube(provider as any);
+    const s = base('pub_last', 4, 15);
+    s.voiceover.clips[3]!.duration_s = 5; // last section only 5s of runway
+    const r = await publishing.run(ctxFor(s));
+    expect(reqs.uploads[0].description).not.toContain('Chapters:');
+    expect(r.notes).toContain('chapters omitted');
+    expect(r.notes).toContain('video end');
+  });
+
+  it('stamps chapters on the rendered (whole-second) clock, not the fractional VO sum', async () => {
+    const { provider, reqs } = recorder();
+    __setYouTube(provider as any);
+    const s = base('pub_clock', 4, 15);
+    // fractional VO clips: rendered clock ceils each to 16s → 0:00 / 0:16 / 0:32 / 0:48
+    for (const cl of s.voiceover.clips) cl.duration_s = 15.2;
+    const r = await publishing.run(ctxFor(s));
+    expect(r.writes.publish?.chapters).toEqual(['0:00 Chapter 1', '0:16 Chapter 2', '0:32 Chapter 3', '0:48 Chapter 4']);
+    expect(reqs.uploads[0].description).toContain('0:48 Chapter 4');
   });
 
   it('trims tags to the ~500-character TOTAL budget, not a count cap', async () => {
@@ -182,5 +206,64 @@ describe('publishing side effects', () => {
     await publishing.run(ctxFor(s));
     expect(reqs.captions.length).toBe(0);
     expect(reqs.thumbnails.length).toBe(0);
+  });
+
+  it('writes the authoritative uploaded flag from the provider result', async () => {
+    __setYouTube(recorder({ uploaded: false }).provider as any);
+    const r1 = await publishing.run(ctxFor(base('pub_flag_mock')));
+    expect(r1.writes.publish?.uploaded).toBe(false);
+    __setYouTube(recorder({ uploaded: true }).provider as any);
+    const r2 = await publishing.run(ctxFor(base('pub_flag_live')));
+    expect(r2.writes.publish?.uploaded).toBe(true);
+  });
+
+  it('records only rendered shorts in shorts_posted, never plan:// refs', async () => {
+    __setYouTube(recorder().provider as any);
+    const clip = join(tmp, 'short_1.mp4');
+    writeFileSync(clip, 'mp4');
+    const s = base('pub_shorts');
+    s.shorts = [
+      { short_id: 'short_1', source_range_s: [0, 30], render_uri: clip, hook: 'rendered' },
+      { short_id: 'short_2', source_range_s: [30, 60], render_uri: 'plan://pub_shorts/short_2', hook: 'still a plan' },
+    ];
+    const r = await publishing.run(ctxFor(s));
+    expect(r.writes.publish?.shorts_posted).toEqual(['short_1']);
+    expect(r.notes).toContain('1 planned shorts unrendered');
+  });
+
+  it('downloads a remote (CDN) best thumbnail to a local file before attaching', async () => {
+    const { provider, reqs } = recorder({ uploaded: true });
+    __setYouTube(provider as any);
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({ ok: true, status: 200, arrayBuffer: async () => new TextEncoder().encode('jpeg-bytes').buffer, text: async () => '' })) as any;
+    try {
+      const s = base('pub_thumb_remote');
+      s.packaging.thumbnails = ['https://cdn.example.com/signed/thumb.jpg'];
+      const r = await publishing.run(ctxFor(s));
+      expect(reqs.thumbnails.length).toBe(1);
+      const attachedPath = reqs.thumbnails[0]![1];
+      expect(attachedPath).toMatch(/pub_thumb_remote[\\/]thumbnail\.jpg$/);
+      expect(existsSync(attachedPath)).toBe(true);
+      expect(r.notes).toContain('thumbnail');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('notes a failed remote thumbnail download instead of silently skipping', async () => {
+    const { provider, reqs } = recorder({ uploaded: true });
+    __setYouTube(provider as any);
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => { throw new Error('cdn unreachable'); }) as any;
+    try {
+      const s = base('pub_thumb_fail');
+      s.packaging.thumbnails = ['https://cdn.example.com/signed/thumb.jpg'];
+      const r = await publishing.run(ctxFor(s));
+      expect(reqs.thumbnails.length).toBe(0);
+      expect(r.status).toBe('ok');
+      expect(r.notes).toContain('thumbnail download failed');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });

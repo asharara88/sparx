@@ -64,6 +64,24 @@ describe('captioning', () => {
   it('skips zero-duration sections instead of emitting instant cues', () => {
     expect(buildCues([{ text: 'ghost section', startS: 0, durationS: 0 }])).toEqual([]);
   });
+
+  it('never produces overlapping cues, within or across sections', () => {
+    // long texts over short spans force multi-chunk sections whose tiny trailing
+    // chunks must merge into the previous cue instead of overflowing the boundary
+    const wall = (n: number, tag: string) => Array.from({ length: n }, (_, i) => `${tag}${i}word`).join(' ');
+    const sections = [
+      { text: wall(30, 'a'), startS: 0, durationS: 2.5 },
+      { text: wall(25, 'b'), startS: 2.5, durationS: 1.2 },
+      { text: wall(40, 'c'), startS: 3.7, durationS: 6.3 },
+    ];
+    const cues = buildCues(sections);
+    expect(cues.length).toBeGreaterThan(3);
+    for (const c of cues) expect(c.endS).toBeGreaterThan(c.startS);
+    for (let i = 1; i < cues.length; i++) {
+      expect(cues[i]!.startS, `cue ${i} must not start before cue ${i - 1} ends`).toBeGreaterThanOrEqual(cues[i - 1]!.endS - 1e-9);
+    }
+    expect(cues.at(-1)!.endS).toBeLessThanOrEqual(10 + 1e-9); // never past the last section boundary
+  });
 });
 
 describe('asset matching', () => {
