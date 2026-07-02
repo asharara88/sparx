@@ -225,6 +225,10 @@ td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size
 .ctrl-divider span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 600; }
 label .hint { color: var(--faint); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
+.switch-row { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 2px; cursor: pointer; font-size: 14px; color: var(--text); }
+.switch-row input[type=checkbox] { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--accent); cursor: pointer; flex: none; }
+.switch-row .hint { display: block; color: var(--faint); font-size: 12px; margin-top: 1px; }
+
 video { width: 100%; border-radius: 12px; border: 1px solid var(--border); background: #000; display: block; }
 
 .player-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }

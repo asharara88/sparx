@@ -99,6 +99,7 @@ export default function Dashboard() {
   const [voiceId, setVoiceId] = useState('');
   const [avatarVoice, setAvatarVoice] = useState<AvatarVoice>('auto');
   const [runwayTakes, setRunwayTakes] = useState(1);
+  const [music, setMusic] = useState(false);
 
   const loadEpisodes = useCallback(async () => {
     try {
@@ -180,7 +181,7 @@ export default function Dashboard() {
       const usesRunway = mode === 'demo' ? demoMode === 'broll' : hostMode === 'voice_only';
       const avatarOpts = usesAvatar && avatarVoice !== 'auto' ? { avatarVoice } : {};
       const body = mode === 'demo'
-        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
+        ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, music, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
         : { mode, autoApprove, avatarId, hostMode, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
@@ -263,7 +264,7 @@ export default function Dashboard() {
       <main className="main">
         {view === 'runs' && (
           <RunsView
-            {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes, busy, runState, runMode, runLog, runTail, elapsed, tailRef, onLogScroll, startRun }}
+            {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes, music, setMusic, busy, runState, runMode, runLog, runTail, elapsed, tailRef, onLogScroll, startRun }}
             onViewResult={() => {
               if (runMode === 'pipeline') setView('library');
               else { setPreview('demo'); setView('preview'); }
@@ -312,6 +313,7 @@ interface RunsViewProps {
   voices: VoiceOption[]; voiceId: string; setVoiceId: Dispatch<SetStateAction<string>>;
   avatarVoice: AvatarVoice; setAvatarVoice: Dispatch<SetStateAction<AvatarVoice>>;
   runwayTakes: number; setRunwayTakes: Dispatch<SetStateAction<number>>;
+  music: boolean; setMusic: Dispatch<SetStateAction<boolean>>;
   busy: boolean; runState: RunState; runMode: RunMode; runLog: string | null; runTail: string; elapsed: string;
   tailRef: { current: HTMLPreElement | null }; onLogScroll: () => void;
   startRun: () => void; onViewResult: () => void;
@@ -321,7 +323,7 @@ function RunsView(p: RunsViewProps) {
   const {
     mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode,
     hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId,
-    voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes,
+    voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes, music, setMusic,
     busy, runState, runMode, runLog, runTail, elapsed, tailRef, onLogScroll, startRun, onViewResult,
   } = p;
 
@@ -330,6 +332,8 @@ function RunsView(p: RunsViewProps) {
   const usesVoice = (mode === 'demo' ? (demoMode === 'voiceover' || demoMode === 'broll') : hostMode === 'voice_only')
     || (usesAvatar && avatarVoice === 'elevenlabs');
   const usesRunway = mode === 'demo' ? demoMode === 'broll' : hostMode === 'voice_only';
+  // Background music is a demo-render option (the full pipeline scores music via its own agent).
+  const showAV = mode === 'demo' || usesVoice || usesRunway;
 
   // Demo-only progress sugar: surface the latest "section i/n" line from the log.
   const stageMatches = [...runTail.matchAll(/section (\d+)\/(\d+)/g)];
@@ -349,9 +353,15 @@ function RunsView(p: RunsViewProps) {
     </>
   );
 
-  const audioVideoControls = (usesVoice || usesRunway) && (
+  const audioVideoControls = showAV && (
     <>
       <div className="ctrl-divider"><span>Audio &amp; video</span></div>
+      {mode === 'demo' && (
+        <label className="switch-row">
+          <input type="checkbox" checked={music} onChange={(e) => setMusic(e.target.checked)} />
+          <span>Background music <span className="hint">(ElevenLabs — needs API key; looped bed, ducked under narration)</span></span>
+        </label>
+      )}
       {usesVoice && (
         <>
           <label htmlFor="run-voice">Narration voice (ElevenLabs)</label>
