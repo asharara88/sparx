@@ -1,4 +1,5 @@
 import type { EpisodeState } from '../types/episode.js';
+import { normalizeEpisodeState } from '../types/episode.js';
 import { getSupabase } from './supabase.js';
 
 // Persistence for the Episode State. Uses Supabase when configured;
@@ -34,7 +35,9 @@ class SupabaseStore implements StateStore {
   async load(id: string) {
     const { data, error } = await this.client.from('episodes').select('state').eq('episode_id', id).maybeSingle();
     if (error) throw new Error(`Supabase load failed: ${error.message}`);
-    return (data?.state as EpisodeState) ?? null;
+    if (!data?.state) return null;
+    // Rows saved by older code lack newer state fields — normalize before agents touch them.
+    return normalizeEpisodeState(data.state as Partial<EpisodeState> & { episode_id: string });
   }
   async logEvent(episodeId: string, agent: string | null, event: string, detail?: unknown) {
     await this.client.from('pipeline_events').insert({ episode_id: episodeId, agent, event, detail: detail ?? null });

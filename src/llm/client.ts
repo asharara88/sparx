@@ -25,7 +25,7 @@ export interface CompleteResult<T = unknown> {
   live: boolean;
 }
 
-const TRANSIENT = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
+import { TRANSIENT_STATUS as TRANSIENT } from '../util/http.js';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Models that reject the `temperature` parameter (removed / non-default values 400).
@@ -71,12 +71,17 @@ class AnthropicLLM implements LLM {
 
   private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage; truncated: boolean }> {
     const c = config();
+    // Long system prompts (house style, shared rubrics) are re-sent verbatim across
+    // chained calls — mark them cacheable so Anthropic prompt caching cuts input cost.
+    const systemPayload: unknown = system.length >= 2048
+      ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+      : system;
     let lastErr: unknown;
     for (let attempt = 0; attempt <= c.LLM_MAX_RETRIES; attempt++) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), c.LLM_TIMEOUT_MS);
       try {
-        const reqBody: Record<string, unknown> = { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+        const reqBody: Record<string, unknown> = { model, max_tokens: maxTokens, system: systemPayload, messages: [{ role: 'user', content: prompt }] };
         // Some newer models (e.g. Opus 4.8, Fable 5) deprecate `temperature` and 400 if it's sent.
         if (modelSupportsTemperature(model)) reqBody.temperature = temperature;
         const headers: Record<string, string> = { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
@@ -110,6 +115,10 @@ class AnthropicLLM implements LLM {
         // empty or a discarded partial). With the fallback opted in above, seeing this means
         // the whole chain declined — not retryable with the same prompt.
         if (data.stop_reason === 'refusal') {
+          // A mid-stream refusal still bills the already-streamed output — record
+          // the spend before throwing so the ledger doesn't undercount.
+          const rIn = data.usage?.input_tokens ?? 0, rOut = data.usage?.output_tokens ?? 0;
+          this.total.inputTokens += rIn; this.total.outputTokens += rOut; this.total.costUsd += costFor(data.model ?? model, rIn, rOut);
           throw new LLMError(`Anthropic refusal (category=${data.stop_details?.category ?? 'unknown'}): ${data.stop_details?.explanation ?? 'request declined by safety classifiers'}`, false);
         }
         const text = data.content.map((p) => p.text ?? '').join('').trim();
@@ -155,12 +164,19 @@ class AnthropicLLM implements LLM {
     if (first.ok) return { text, data: first.data, usage, live: true };
 
     // If the first reply was cut off by the token cap, repairing at the same budget
-    // would truncate again — give the repair more room.
-    const repairBudget = truncated ? Math.min(budget * 2, 16000) : budget;
+    // would truncate again — give the repair more room. The 16K ceiling bounds the
+    // VISIBLE output; thinking headroom rides on top of it, else a thinking-active
+    // model whose budget already sits at the ceiling would repair with zero extra room.
+    const headroom = hasThinking(model) ? 8000 : 0;
+    const visible = budget - headroom;
+    const repairBudget = truncated ? Math.min(visible * 2, 16000) + headroom : budget;
     this.log.warn('llm json failed validation, repairing', { error: first.error, truncated, repairBudget });
+    // Show the model its own invalid output — a stateless re-roll with only an error
+    // hint referencing text the model can't see mostly reproduces the same mistake.
+    const previous = text.length > 6000 ? `${text.slice(0, 6000)}\n…(truncated)` : text;
     const repairPrompt = truncated
       ? `${args.prompt}\n\nYour previous reply was cut off before the JSON closed. Return the COMPLETE, valid JSON only — be more concise so it fits.`
-      : `${args.prompt}\n\nYour previous reply was invalid: ${first.error}\nReturn corrected JSON only.`;
+      : `${args.prompt}\n\nYour previous reply was:\n${previous}\n\nIt was invalid: ${first.error}\nReturn corrected JSON only.`;
     const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0);
     const second = tryValidate(repaired.text, args.schema);
     const usage2: Usage = { inputTokens: usage.inputTokens + repaired.usage.inputTokens, outputTokens: usage.outputTokens + repaired.usage.outputTokens, costUsd: usage.costUsd + repaired.usage.costUsd };

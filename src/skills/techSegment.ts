@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { TechSegment, TechSegmentMode, TechSegmentSignals } from '../types/episode.js';
+import { defineSkill } from './registry.js';
 
 // Tech-segment skill — the fixed "tech spotlight" slot every episode carries.
 // Centralizes the mode rubric (spotlight vs explainer vs hybrid), the disclosure
@@ -65,7 +66,15 @@ export function disclosureFor(sponsored: boolean): { ar: string; en: string } {
 // must match the sponsorship status (an independence line can't stand in for
 // a paid-partnership disclosure).
 export function requiredDisclosureLines(ts: Pick<TechSegment, 'sponsored' | 'disclosure'>, languages: string[]): string[] {
-  const d = ts.disclosure && (ts.disclosure.ar || ts.disclosure.en) ? ts.disclosure : disclosureFor(ts.sponsored);
+  // Custom copy is honored, but the canonical copy of the OPPOSITE sponsorship
+  // status is treated as stale, not custom: the planner always writes the
+  // independence copy (sponsored=false), so flipping only the flag must switch
+  // the requirement to the paid-partnership line — never let the stale
+  // independence copy satisfy a sponsored segment's legal disclosure.
+  const stale = disclosureFor(!ts.sponsored);
+  const stored = ts.disclosure;
+  const isStale = !!stored && stored.ar === stale.ar && stored.en === stale.en;
+  const d = stored && (stored.ar || stored.en) && !isStale ? stored : disclosureFor(ts.sponsored);
   const lines: string[] = [];
   if (languages.some((l) => l.toLowerCase().startsWith('ar'))) lines.push(d.ar);
   if (languages.some((l) => l.toLowerCase().startsWith('en'))) lines.push(d.en);
@@ -115,3 +124,11 @@ export function techClaimRules(mode: TechSegmentMode): string {
     return `${shared} Flag any spec/accuracy number without an attributable source, and ANY medical-benefit claim (spotlights stick to specs).`;
   return `${shared} Flag unhedged mechanism claims in the explainer spine, and any invented spec or price attached to the named devices.`;
 }
+
+// Registered so agents can declare the dependency (validated at startup); the
+// callable surface is the deterministic rubric over extracted signals.
+export const techSegmentSkill = defineSkill<TechSegmentSignals, { mode: TechSegmentMode; trace: string }>({
+  name: 'tech-segment',
+  description: 'Fixed tech-spotlight slot: deterministic spotlight/explainer/hybrid rubric over LLM-extracted signals, disclosure copy, and per-mode script/QA rules.',
+  run: async (sig) => decideMode(sig),
+});

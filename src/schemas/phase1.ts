@@ -10,7 +10,9 @@ export const AngleCandidateSchema = z.object({
   why: z.string().min(8),
 });
 export const IdeationSchema = z.object({
-  candidates: z.array(AngleCandidateSchema).min(3).max(8),
+  // Prompt asks for 3-8; an over-eager model returning more is benign drift —
+  // keep the first 8 instead of forcing a paid repair round-trip.
+  candidates: z.array(AngleCandidateSchema).min(3).transform((a) => a.slice(0, 8)),
 });
 export type Ideation = z.infer<typeof IdeationSchema>;
 
@@ -28,9 +30,9 @@ export const ConceptOutputSchema = z.object({
   audience: z.string().min(3),
   thumbnail_concept: z.string().min(3),
   scored: z.array(ScoredAngleSchema).min(1),
-  keywords: z.array(z.string()).min(3).max(12),
+  keywords: z.array(z.string()).min(3).transform((k) => k.slice(0, 12)),  // extra keywords are benign; trim, don't repair
   competitor_refs: z.array(z.string()).default([]),
-  target_length_min: z.number().min(4).max(30),
+  target_length_min: z.coerce.number().min(4).max(30),   // models sometimes return "10" as a string
 });
 export type ConceptOutput = z.infer<typeof ConceptOutputSchema>;
 
@@ -74,7 +76,9 @@ export const ScriptSectionSchema = z.object({
 });
 export const ScriptDraftSchema = z.object({
   hook: z.string().min(8),
-  sections: z.array(ScriptSectionSchema).min(4).max(12),
+  // Max sized for the longest legitimate script: target_length_min caps at 30 and
+  // sections run 2-4 sentences, so 12 was structurally too small for long targets.
+  sections: z.array(ScriptSectionSchema).min(4).max(24),
   cta: z.string().min(4),
 });
 export type ScriptDraft = z.infer<typeof ScriptDraftSchema>;
@@ -89,7 +93,7 @@ export type Critique = z.infer<typeof CritiqueSchema>;
 
 // --- Visual Director: shot plan ---
 export const ShotPlanItemSchema = z.object({
-  section_id: z.string(),
+  section_id: z.coerce.string(),   // models sometimes return numeric section ids; coerce like ScriptSectionSchema.id
   source: z.enum(['stock', 'generated', 'graphic', 'avatar', 'host']),
   reason: z.string(),
   description: z.string().min(3),
@@ -97,7 +101,7 @@ export const ShotPlanItemSchema = z.object({
   camera: z.string().optional(),
   motion: z.enum(['low', 'medium', 'high']).optional(),
   mood: z.string().optional(),
-  duration_s: z.number().min(1).max(15).optional(),
+  duration_s: z.coerce.number().min(1).max(15).optional(),   // "4" as a string is benign drift
   negative: z.array(z.string()).optional(),
 });
 export const ShotPlanSchema = z.object({ shots: z.array(ShotPlanItemSchema).min(1) });

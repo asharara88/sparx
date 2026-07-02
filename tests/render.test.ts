@@ -4,10 +4,18 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ffmpegAvailable, renderEpisode, type RenderShot } from '../src/media/render.js';
+import { render } from '../src/agents/render.js';
+import { newEpisodeState } from '../src/types/episode.js';
+import { ctxFor } from './helpers.js';
 
 // Renderer unit tests. Fixtures are generated locally with ffmpeg's lavfi sources
 // (no network), then fed through renderEpisode() and verified with ffprobe — so the
 // real EDL -> mp4 path is exercised end-to-end against actual encoded output.
+// The agent-level RENDER_FAKE skip runs everywhere (no ffmpeg needed) — it is the
+// zero-key path the whole pipeline depends on. Set before anything calls config()
+// (config caches on first read).
+process.env.RENDER_FAKE = 'true';
+
 const HAS_FFMPEG = ffmpegAvailable();
 const d = HAS_FFMPEG ? describe : describe.skip;
 
@@ -82,5 +90,20 @@ d('renderEpisode (EDL -> mp4)', () => {
 
   it('throws when given no shots', async () => {
     await expect(renderEpisode({ episodeId: 'ut_empty', shots: [], outDir: join(work, 'ut_empty') })).rejects.toThrow(/no shots/);
+  });
+});
+
+describe('render agent (graceful skip)', () => {
+  it('skips under RENDER_FAKE with empty writes, keeping the editor placeholder ref', async () => {
+    const s = newEpisodeState('rd_fake');
+    s.script.sections = [{ id: 's1', beat: 'open', vo_text: 'one', shot_note: '', on_screen: 'A', retention_device: 'loop' }];
+    s.shot_list = [{ shot_id: 'sh1', section_id: 's1', source: 'stock', duration_s: 4, prompt: {}, selected_asset: null, cost_estimate_usd: 0 }];
+    s.edit = { timeline_uri: 'generated/rd_fake/timeline.json', captioned: false, render_uri: 'render://rd_fake/cut.mp4', duration_s: 4, approved: false };
+
+    const r = await render.run(ctxFor(s));
+    expect(r.status).toBe('ok');
+    expect(r.writes).toEqual({});                              // edit.render_uri stays the placeholder
+    expect(r.notes).toContain('RENDER_FAKE');
+    expect(s.edit.render_uri).toBe('render://rd_fake/cut.mp4');
   });
 });
