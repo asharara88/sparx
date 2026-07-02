@@ -14,5 +14,6 @@ export { assetMatchingSkill, buildAssetQuery, rankAssets, type AssetCandidate, t
 export { videoClippingSkill, clipVertical, type ClipRequest, type ClipResult } from './videoClipping.js';
 export { webResearchSkill, webResearch, type SearchResult } from './research/webSearch.js';
 export { seoKeywordSkill, clusterKeywords, type SeoResult, type KeywordCluster } from './research/seo.js';
+export { timelineSkill, buildTimeline, type Timeline, type TimelineEntry } from './timeline.js';
 
 export { getSkill, hasSkill, listSkills, missingSkills } from './registry.js';

@@ -1,11 +1,15 @@
 import { defineAgent } from './core.js';
 import { probeMedia } from '../skills/mediaProbe.js';
+import { buildTimeline } from '../skills/timeline.js';
 
 // Agent — Render QC. Probes the actual rendered file (ffprobe) before QA sees it:
-// duration vs the editor's timeline, audio presence when narration exists, and
+// duration vs the EDL timeline, audio presence when narration exists, and
 // resolution. Previously nothing verified the mp4 — an empty or silent render
-// sailed to publishing. When there is no local render (mock/no-ffmpeg runs), it
-// reports checked:false rather than fabricating a pass or blocking mock runs.
+// sailed to publishing. The expected duration comes from buildTimeline (not
+// edit.duration_s, which the render agent now overwrites with the probed value —
+// that comparison would always pass). When there is no local render
+// (mock/no-ffmpeg runs), it reports checked:false rather than fabricating a pass
+// or blocking mock runs.
 
 const DURATION_TOLERANCE = 0.2; // ±20% vs timeline before it's an issue
 const MIN_HEIGHT = 720;
@@ -13,8 +17,8 @@ const MIN_HEIGHT = 720;
 export const renderQc = defineAgent({
   name: 'render_qc',
   description: 'Probe the rendered cut with ffprobe and flag duration/audio/resolution problems before QA.',
-  skills: ['media-probe'],
-  reads: ['edit', 'voiceover'],
+  skills: ['media-probe', 'timeline'],
+  reads: ['edit', 'voiceover', 'shot_list', 'script', 'generated_video', 'avatar_clips', 'sourced_assets'],
   writes: ['render_qc'],
 
   async execute(ctx) {
@@ -32,8 +36,11 @@ export const renderQc = defineAgent({
     }
 
     const issues: string[] = [];
-    const expected = ctx.state.edit.duration_s;
-    if (expected > 0) {
+    // Independent expectation: re-derive the EDL from state instead of trusting
+    // whatever the render agent wrote back.
+    const expected = buildTimeline(ctx.state).duration_s;
+    if (probe.durationS <= 0) issues.push('render has zero duration');
+    if (expected > 0 && probe.durationS > 0) {
       const drift = Math.abs(probe.durationS - expected) / expected;
       if (drift > DURATION_TOLERANCE) issues.push(`duration ${probe.durationS.toFixed(1)}s deviates ${(drift * 100).toFixed(0)}% from timeline ${expected}s`);
     }

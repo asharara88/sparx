@@ -1,17 +1,27 @@
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { closeSync, createWriteStream, existsSync, mkdirSync, openSync, readSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { createLogger } from '../logger.js';
+import { config } from '../config.js';
+import { mapLimit } from '../util/concurrency.js';
+import { fetchWithRetry } from '../util/http.js';
+import { probeMedia } from '../skills/mediaProbe.js';
 
 // Final render / compositing. Takes the editor's EDL and turns it into ONE real
 // mp4 via ffmpeg: each shot becomes a normalized 1280x720 clip (real footage when
 // the URI is a downloadable http(s) URL, a captioned placeholder slate otherwise),
 // then all shots are concatenated and optional background music is mixed in.
+// Remote assets download in parallel (bounded by MEDIA_CONCURRENCY, streamed to
+// disk); encodes stay sequential but run through async spawn so the event loop —
+// and the captions agent running concurrently in the same stage — never block.
 // Degrades gracefully: if ffmpeg is absent the caller keeps the placeholder ref.
 const log = createLogger({ mod: 'render' });
 
 const W = 1280, H = 720, FPS = 30;
 const BG = '0x14142B';
+const FFMPEG_TIMEOUT_MS = 10 * 60_000; // per invocation; a hung encode must not hang the pipeline
 
 export interface RenderShot {
   visual_uri: string | null;
@@ -35,28 +45,72 @@ const FONT_CANDIDATES = [
   '/System/Library/Fonts/Supplemental/Arial.ttf',
 ];
 
+let ffmpegOk: boolean | null = null;
 export function ffmpegAvailable(): boolean {
-  try { return spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0; }
-  catch { return false; }
+  if (ffmpegOk !== null) return ffmpegOk;
+  try { ffmpegOk = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0; }
+  catch { ffmpegOk = false; }
+  return ffmpegOk;
 }
 
-function ff(args: string[]): void {
-  const r = spawnSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  if (r.status !== 0) throw new Error(`ffmpeg failed: ${(r.stderr || r.error?.message || 'unknown').slice(-400)}`);
+/** Run ffmpeg asynchronously (spawn, not spawnSync — a multi-minute encode must not block the event loop). */
+function ff(args: string[]): Promise<void> {
+  return new Promise((done, fail) => {
+    const child = spawn('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d: Buffer) => { stderr = (stderr + d.toString()).slice(-4000); });
+    const timer = setTimeout(() => { child.kill('SIGKILL'); }, FFMPEG_TIMEOUT_MS);
+    child.on('error', (err) => { clearTimeout(timer); fail(new Error(`ffmpeg failed: ${String(err.message).slice(-400)}`)); });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) done();
+      else if (signal) fail(new Error(`ffmpeg killed (${signal}) after ${FFMPEG_TIMEOUT_MS}ms`));
+      else fail(new Error(`ffmpeg failed: ${(stderr || `exit ${code}`).slice(-400)}`));
+    });
+  });
 }
 
 const isHttp = (uri: string | null | undefined): uri is string => !!uri && /^https?:\/\//i.test(uri);
 const isImage = (uri: string) => /\.(jpe?g|png|webp|gif|bmp)(\?|$)/i.test(uri);
 
+/** Escape a value used inside -filter_complex options (':' separates options, ',' filters). */
+const escFilter = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/:/g, '\\:').replace(/,/g, '\\,');
+
+// Sniff a local file's magic bytes: extension-based detection misses extensionless
+// signed URLs (Runway/HeyGen), which would loop a still image as a 1-frame "video".
+function isImageFile(path: string): boolean {
+  try {
+    const fd = openSync(path, 'r');
+    const buf = Buffer.alloc(12);
+    const n = readSync(fd, buf, 0, 12, 0);
+    closeSync(fd);
+    if (n >= 4) {
+      if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true;                                    // JPEG
+      if (buf.readUInt32BE(0) === 0x89504e47) return true;                                                       // PNG
+      if (buf.toString('ascii', 0, 3) === 'GIF') return true;                                                    // GIF
+      if (buf.toString('ascii', 0, 2) === 'BM') return true;                                                     // BMP
+      if (n >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return true; // WebP
+    }
+  } catch { /* fall through to extension */ }
+  return isImage(path);
+}
+
 async function download(url: string, dest: string): Promise<boolean> {
   try {
-    const res = await fetch(url);
-    if (!res.ok) return false;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length === 0) return false;
-    writeFileSync(dest, buf);
+    const res = await fetchWithRetry(url, {}, { label: 'render.asset' });
+    if (!res.body) return false;
+    await pipeline(Readable.fromWeb(res.body as unknown as import('node:stream/web').ReadableStream), createWriteStream(dest));
+    if (statSync(dest).size === 0) {
+      log.warn('asset download produced an empty file; using placeholder', { url: url.slice(0, 140) });
+      return false;
+    }
     return true;
-  } catch { return false; }
+  } catch (e) {
+    // A dead asset (expired signed URL, 403, timeout) degrades to a placeholder slate —
+    // but loudly, so it's diagnosable instead of a silent real→placeholder flip.
+    log.warn('asset download failed; using placeholder', { url: url.slice(0, 140), err: String(e).slice(0, 160) });
+    return false;
+  }
 }
 
 // Resolve a media URI to a usable local file: download http(s), pass through an
@@ -68,19 +122,13 @@ async function resolveInput(uri: string | null | undefined, dest: string): Promi
   return null;
 }
 
-function probeDurationS(path: string): number | null {
-  try {
-    const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', path], { encoding: 'utf8' });
-    const d = parseFloat((r.stdout ?? '').trim());
-    return Number.isFinite(d) && d > 0 ? d : null;
-  } catch { return null; }
+async function probeDurationS(path: string): Promise<number | null> {
+  const d = (await probeMedia(path))?.durationS ?? 0;
+  return d > 0 ? d : null;
 }
 
-function hasAudioStream(path: string): boolean {
-  try {
-    const r = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_type', '-of', 'default=nw=1', path], { encoding: 'utf8' });
-    return /codec_type=audio/.test(r.stdout ?? '');
-  } catch { return false; }
+async function hasAudioStream(path: string): Promise<boolean> {
+  return (await probeMedia(path))?.hasAudio ?? false;
 }
 
 // Wrap to ~52 chars/line, max 3 lines, so drawtext (no auto-wrap) stays on-screen.
@@ -99,31 +147,29 @@ function wrapCaption(text: string): string {
 
 const NORMALIZE = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${BG},setsar=1,fps=${FPS},format=yuv420p`;
 
-async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
+interface ResolvedInputs { visual: string | null; audio: string | null }
+
+async function buildShot(i: number, shot: RenderShot, inputs: ResolvedInputs, tmpDir: string, font: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
   let dur = Math.max(1, Math.round(shot.duration_s || 4));
   const out = join(tmpDir, `shot_${String(i).padStart(3, '0')}.mp4`);
-
-  // Resolve real inputs (best effort): http download or existing local file.
-  const visExt = shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4';
-  const visual = await resolveInput(shot.visual_uri, join(tmpDir, `vis_${i}.${visExt}`));
-  const audio = await resolveInput(shot.audio_uri, join(tmpDir, `aud_${i}.mp3`));
-  const visualIsImage = !!visual && isImage(visual);
+  const { visual, audio } = inputs;
+  const visualIsImage = !!visual && isImageFile(visual);
   const visualIsVideo = !!visual && !visualIsImage;
 
   // Audio source priority: explicit voiceover file > the visual video's own baked-in
   // audio (e.g. a HeyGen avatar that already speaks) > silence.
-  const audioSource: 'file' | 'visual' | 'silence' = audio ? 'file' : (visualIsVideo && hasAudioStream(visual!) ? 'visual' : 'silence');
+  const audioSource: 'file' | 'visual' | 'silence' = audio ? 'file' : (visualIsVideo && (await hasAudioStream(visual!)) ? 'visual' : 'silence');
 
   // Fit the shot to the narration / avatar clip so nothing is cut off.
-  if (audioSource === 'file') { const ad = probeDurationS(audio!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
-  else if (audioSource === 'visual') { const vd = probeDurationS(visual!); if (vd) dur = Math.max(dur, Math.ceil(vd)); }
+  if (audioSource === 'file') { const ad = await probeDurationS(audio!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
+  else if (audioSource === 'visual') { const vd = await probeDurationS(visual!); if (vd) dur = Math.max(dur, Math.ceil(vd)); }
 
   // drawtext overlay (only when we have a font and a caption).
   let draw = '';
   if (font && shot.caption?.trim()) {
     const capFile = join(tmpDir, `cap_${i}.txt`);
     writeFileSync(capFile, wrapCaption(shot.caption));
-    draw = `,drawtext=fontfile=${font}:textfile=${capFile}:reload=0:fontcolor=white:fontsize=34:line_spacing=8:box=1:boxcolor=0x000000AA:boxborderw=16:x=(w-text_w)/2:y=h-text_h-48`;
+    draw = `,drawtext=fontfile=${escFilter(font)}:textfile=${escFilter(capFile)}:reload=0:fontcolor=white:fontsize=34:line_spacing=8:box=1:boxcolor=0x000000AA:boxborderw=16:x=(w-text_w)/2:y=h-text_h-48`;
   }
 
   const args: string[] = [];
@@ -155,7 +201,7 @@ async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: stri
     '-c:a', 'aac', '-ar', '44100', '-b:a', '128k',
     out,
   );
-  ff(args);
+  await ff(args);
   return { path: out, real: !!visual, durationS: dur };
 }
 
@@ -167,34 +213,51 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
   const font = FONT_CANDIDATES.find(existsSync) ?? null;
   if (!font) log.warn('no system font found; rendering without burned captions');
 
-  // 1) Per-shot clips (sequential — deterministic and gentle on memory).
-  const clips: { path: string; real: boolean; durationS: number }[] = [];
-  for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, tmp, font));
-  const real = clips.filter((c) => c.real).length;
+  try {
+    // 1) Resolve every input up front, remote downloads in parallel (bounded) — a
+    //    20-shot episode no longer pays 20 serial round-trips before encoding starts.
+    const limit = config().MEDIA_CONCURRENCY;
+    const musicPending = resolveInput(opts.musicUri, join(tmp, 'music.mp3'));
+    const inputs: ResolvedInputs[] = await mapLimit(opts.shots, limit, async (shot, i) => {
+      const visExt = shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4';
+      const [visual, audio] = await Promise.all([
+        resolveInput(shot.visual_uri, join(tmp, `vis_${i}.${visExt}`)),
+        resolveInput(shot.audio_uri, join(tmp, `aud_${i}.mp3`)),
+      ]);
+      return { visual, audio };
+    });
 
-  // 2) Concat (re-encode; all clips share identical codec params so this is clean).
-  const musicSrc = await resolveInput(opts.musicUri, join(tmp, 'music.mp3'));
-  const listFile = join(tmp, 'concat.txt');
-  writeFileSync(listFile, clips.map((c) => `file '${resolve(c.path)}'`).join('\n'));
-  const concatOut = musicSrc ? join(tmp, 'cut_nomusic.mp4') : join(dir, 'cut.mp4');
-  ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '44100', concatOut]);
+    // 2) Per-shot encodes (sequential — deterministic and gentle on CPU/memory; the
+    //    async spawn keeps the process responsive while each encode runs).
+    const clips: { path: string; real: boolean; durationS: number }[] = [];
+    for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, inputs[i]!, tmp, font));
+    const real = clips.filter((c) => c.real).length;
 
-  // 3) Optional background music, ducked under the voiceover.
-  let music = false;
-  let finalPath = concatOut;
-  if (musicSrc) {
-    finalPath = join(dir, 'cut.mp4');
-    ff([
-      '-i', concatOut, '-stream_loop', '-1', '-i', musicSrc,
-      '-filter_complex', '[1:a]volume=0.15[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=2[a]',
-      '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', finalPath,
-    ]);
-    music = true;
+    // 3) Concat via stream copy — every clip was just encoded with identical codec
+    //    params, so re-encoding the full episode a second time buys nothing.
+    const musicSrc = await musicPending;
+    const listFile = join(tmp, 'concat.txt');
+    writeFileSync(listFile, clips.map((c) => `file '${resolve(c.path).replace(/'/g, "'\\''")}'`).join('\n'));
+    const concatOut = musicSrc ? join(tmp, 'cut_nomusic.mp4') : join(dir, 'cut.mp4');
+    await ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', concatOut]);
+
+    // 4) Optional background music, ducked under the voiceover.
+    let music = false;
+    let finalPath = concatOut;
+    if (musicSrc) {
+      finalPath = join(dir, 'cut.mp4');
+      await ff([
+        '-i', concatOut, '-stream_loop', '-1', '-i', musicSrc,
+        '-filter_complex', '[1:a]volume=0.15[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=2[a]',
+        '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-ar', '44100', '-shortest', finalPath,
+      ]);
+      music = true;
+    }
+
+    const durationS = clips.reduce((n, c) => n + c.durationS, 0);
+    return { path: resolve(finalPath), durationS, shots: clips.length, real, placeholders: clips.length - real, music };
+  } finally {
+    // Cleanup intermediates (also on failure — no leaked render_tmp), keep the final cut.
+    try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   }
-
-  // 4) Cleanup intermediates, keep the final cut.
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-
-  const durationS = clips.reduce((n, c) => n + c.durationS, 0);
-  return { path: resolve(finalPath), durationS, shots: clips.length, real, placeholders: clips.length - real, music };
 }
