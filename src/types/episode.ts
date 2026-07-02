@@ -111,6 +111,45 @@ export interface Edit {
   approved: boolean;
 }
 
+export type ClaimVerdict = 'supported' | 'unsupported' | 'uncertain';
+
+export interface FactCheckClaim {
+  claim: string;
+  verdict: ClaimVerdict;
+  source: string;      // best supporting/refuting URL ('' when none found)
+  note: string;
+}
+
+export interface FactCheck {
+  checked: boolean;
+  claims: FactCheckClaim[];
+  unsupported_count: number;
+}
+
+export interface Captions {
+  srt_uri: string;
+  vtt_uri: string;
+  cue_count: number;
+}
+
+export interface RenderQC {
+  checked: boolean;
+  passed: boolean;
+  duration_s: number;
+  has_audio: boolean;
+  width: number;
+  height: number;
+  issues: string[];
+}
+
+export interface Analytics {
+  checked_at: string;
+  views: number;
+  impressions_ctr: number;
+  avg_view_duration_s: number;
+  notes: string[];
+}
+
 export interface QA {
   fact_checks: string[];
   license_checks: string[];
@@ -174,7 +213,11 @@ export interface EpisodeState {
   sourced_assets: SourcedAsset[];
   music: Music;
   edit: Edit;
+  captions: Captions;
+  render_qc: RenderQC;
+  fact_check: FactCheck;
   qa: QA;
+  analytics: Analytics;
   shorts: Short[];
   packaging: Packaging;
   publish: Publish;
@@ -205,7 +248,11 @@ export function newEpisodeState(
     sourced_assets: [],
     music: { track_uri: '', sfx: [], license: '', cost_usd: 0 },
     edit: { timeline_uri: '', captioned: false, render_uri: '', duration_s: 0, approved: false },
+    captions: { srt_uri: '', vtt_uri: '', cue_count: 0 },
+    render_qc: { checked: false, passed: false, duration_s: 0, has_audio: false, width: 0, height: 0, issues: [] },
+    fact_check: { checked: false, claims: [], unsupported_count: 0 },
     qa: { fact_checks: [], license_checks: [], brand_checks: [], ai_disclosure_required: true, passed: false, blocking_issues: [] },
+    analytics: { checked_at: '', views: 0, impressions_ctr: 0, avg_view_duration_s: 0, notes: [] },
     shorts: [],
     packaging: { thumbnails: [], titles: [], descriptions: [] },
     publish: { youtube_video_id: '', scheduled_at: '', tags: [], chapters: [], ai_label_applied: false, shorts_posted: [] },

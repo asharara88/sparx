@@ -48,3 +48,11 @@ export async function webResearch(query: string, max = 6): Promise<{ query: stri
   const results = await p.search(query, max);
   return { query, results, live: p.name !== 'mock' };
 }
+
+import { defineSkill } from '../registry.js';
+export const webResearchSkill = defineSkill<{ query: string; max?: number }, { query: string; results: SearchResult[]; live: boolean }>({
+  name: 'web-research',
+  description: 'Search the web via the configured provider (Tavily when keyed, deterministic mock otherwise); returns titled results with snippets.',
+  live: () => getWebSearch().name !== 'mock',
+  run: ({ query, max }) => webResearch(query, max),
+});

@@ -19,4 +19,5 @@ export interface AgentResult {
   cost_usd: number;
   notes?: string;
   next_suggested?: string;
+  duration_ms?: number;           // wall-clock runtime, recorded by the agent runtime
 }

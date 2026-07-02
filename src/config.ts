@@ -11,6 +11,13 @@ const Schema = z.object({
   LOG_FORMAT: z.enum(['pretty', 'json']).default('pretty'),
   RENDER_FAKE: z.enum(['true', 'false']).default('false'), // skip ffmpeg in the render agent (tests/dev only)
 
+  // performance / resilience
+  MEDIA_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4), // per-agent parallel provider calls (sections/shots/clips)
+  HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),  // per-attempt timeout for all provider fetches
+  ARTIFACT_CACHE: z.enum(['true', 'false']).default('true'),            // content-keyed cache: skip re-paying providers for identical inputs
+  CACHE_DIR: z.string().default('generated/.cache'),
+  CHANNEL_MEMORY_PATH: z.string().default('generated/channel-memory.json'), // cross-episode store (topics, titles, analytics)
+
   // llm
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),

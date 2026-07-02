@@ -1,7 +1,9 @@
 import type { EpisodeState, EpisodeStatus, HistoryEntry } from '../types/episode.js';
 import type { AgentResult } from './envelope.js';
-import { MACHINE, GUARDS } from './stateMachine.js';
+import { MACHINE, GUARDS, validateMachine } from './stateMachine.js';
 import { AGENTS } from '../agents/index.js';
+import { validateAgents } from '../agents/core.js';
+import { PipelineError } from '../errors.js';
 import { createStore, type StateStore } from '../state/store.js';
 import * as budget from './budget.js';
 
@@ -28,6 +30,9 @@ export class Producer {
     this.onGate = opts.onGate;
     this.maxRetries = opts.maxRetries ?? 2;
     this.log = opts.log ?? (() => {});
+    // Fail fast on wiring mistakes: machine ↔ registry mismatch, unknown skill declarations.
+    const problems = [...validateMachine(AGENTS), ...validateAgents(AGENTS)];
+    if (problems.length) throw new Error(`pipeline wiring invalid:\n  ${problems.join('\n  ')}`);
   }
 
   private async pushHistory(state: EpisodeState, agent: string, event: string) {
@@ -100,7 +105,8 @@ export class Producer {
         this.mergeWrites(state, r.writes);
         budget.record(state, r.agent, r.cost_usd);
         if (r.cost_usd > 0) await this.store.recordCost(state.episode_id, r.agent, r.cost_usd, r.notes);
-        await this.pushHistory(state, r.agent, `${r.status}${r.notes ? ':' + r.notes : ''}`);
+        const timing = r.duration_ms !== undefined ? ` [${(r.duration_ms / 1000).toFixed(1)}s]` : '';
+        await this.pushHistory(state, r.agent, `${r.status}${r.notes ? ':' + r.notes : ''}${timing}`);
       }
 
       if (results.some((r) => r.status === 'failed')) {
@@ -121,20 +127,33 @@ export class Producer {
     const agent = AGENTS[name];
     if (!agent) return { episode_id: state.episode_id, agent: name, status: 'failed', writes: {}, cost_usd: 0, notes: 'unknown agent' };
 
+    // Agents built on defineAgent never throw (the runtime maps errors to statuses),
+    // but a legacy agent or a runtime bug must not escape Promise.all and crash the
+    // pipeline past the 'failed' bookkeeping — catch here as defense in depth.
     const retries = RETRYABLE_STATES.includes(state.status) ? this.maxRetries : 0;
     let last: AgentResult | null = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const res = await agent.run({
-        episode_id: state.episode_id,
-        agent: name,
-        state,
-        budget_remaining_usd: budget.remaining(state),
-      });
+      let res: AgentResult;
+      const started = Date.now();
+      try {
+        res = await agent.run({
+          episode_id: state.episode_id,
+          agent: name,
+          state,
+          budget_remaining_usd: budget.remaining(state),
+        });
+      } catch (err) {
+        const retryable = err instanceof PipelineError && err.retryable;
+        const msg = err instanceof Error ? err.message : String(err);
+        this.log(`✗ ${name} threw: ${msg.slice(0, 160)}`);
+        res = { episode_id: state.episode_id, agent: name, status: retryable ? 'retry' : 'failed', writes: {}, cost_usd: 0, notes: msg.slice(0, 300), duration_ms: Date.now() - started };
+      }
       last = res;
       if (res.status !== 'retry') return res;
       this.log(`↻ ${name} retry ${attempt + 1}/${retries}`);
     }
-    return last!;
+    // Retries exhausted while still asking to retry → the stage failed.
+    return { ...last!, status: 'failed', notes: `retries exhausted: ${last!.notes ?? ''}`.trim() };
   }
 
   private mergeWrites(state: EpisodeState, writes: Partial<EpisodeState>) {

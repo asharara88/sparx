@@ -20,3 +20,10 @@ export function clusterKeywords(seed: string, keywords: string[]): SeoResult {
   const primary = [seed.toLowerCase(), ...norm.sort((a, b) => b.length - a.length).slice(0, 3)];
   return { seed, clusters, primary: Array.from(new Set(primary)) };
 }
+
+import { defineSkill } from '../registry.js';
+export const seoKeywordSkill = defineSkill<{ seed: string; keywords: string[] }, SeoResult>({
+  name: 'seo-keywords',
+  description: 'Cluster keywords into topical groups and pick primary phrases for titles/tags (heuristic baseline; provider-upgradeable).',
+  run: async ({ seed, keywords }) => clusterKeywords(seed, keywords),
+});
