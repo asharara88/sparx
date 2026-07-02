@@ -117,7 +117,9 @@ body {
 /* Live-progress card: the log fills the card instead of nesting three bordered
    boxes (card > toast > logbox) around a height-capped log with dead space. */
 .card.live { display: flex; flex-direction: column; }
-.card.live .empty { flex: 1; display: grid; place-items: center; }
+/* align-content centers the block's inline content without turning the <p>'s
+   text nodes into grid/flex items (which would stack them on separate rows). */
+.card.live .empty { flex: 1; align-content: center; }
 .card.live .toast { flex: 1; min-height: 0; display: flex; flex-direction: column; background: transparent; border: none; padding: 0; margin-top: 0; }
 .card.live .logbox { flex: 1; max-height: none; min-height: 220px; }
 /* On a single column, surface live progress above the form exactly when there
