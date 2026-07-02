@@ -66,9 +66,10 @@ module import and `src/skills/index.ts` is the registration hub.
 ```
 research ──gate A── scriptwriter ──┬── fact_checker      (claims verified pre-spend)
                                    └── visual_director
-        ──gate B── voiceover ∥ video_generation ∥ avatar ∥ asset_sourcing → music
+        ──gate B── voiceover ∥ video_generation ∥ avatar ∥ asset_sourcing
+        → generation_reconciler ∥ music
         → editor → captions ∥ render → render_qc → qa ──gate C──
-        → shorts ∥ packaging → shorts_renderer ∥ publishing → published
+        → shorts ∥ packaging → shorts_renderer → publishing → published
                                                   └─(later)─ analytics_feedback
 ```
 
@@ -82,6 +83,10 @@ New agents added by the overhaul:
 - **render_qc** — ffprobes the actual mp4 (duration drift, missing audio,
   sub-720p) before QA; unverifiable renders are reported as `checked: false`,
   never fabricated passes.
+- **generation_reconciler** — after the generation stage, backfills ranked stock
+  footage for any shot whose planned visual failed to materialize (provider
+  failure, budget throttle, stock miss) so assembly doesn't bake in placeholder
+  slates and QA doesn't block after the money is spent.
 - **shorts_renderer** — cuts each planned short into a real 9:16 vertical clip
   (previously shorts shipped fictional `render://` URIs).
 - **analytics_feedback** — post-publish; folds views/retention into channel

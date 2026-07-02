@@ -18,8 +18,10 @@ export const MACHINE: Record<EpisodeStatus, StateDef | null> = {
   // so factual problems surface at GATE B, before any generation money is spent.
   scripting:      { stages: [['scriptwriter'], ['fact_checker', 'visual_director']], next: 'script_review' },
   script_review:  { stages: [], next: 'generating',    gate: 'B' },
-  // VO + video + stock in parallel; music after (needs voiceover.total_duration_s).
-  generating:     { stages: [['voiceover', 'video_generation', 'avatar', 'asset_sourcing'], ['music']], next: 'assembling' },
+  // VO + video + stock in parallel; then music (needs voiceover.total_duration_s)
+  // alongside the reconciler, which backfills stock for any shot whose planned
+  // visual failed to generate — before assembly bakes in placeholder slates.
+  generating:     { stages: [['voiceover', 'video_generation', 'avatar', 'asset_sourcing'], ['generation_reconciler', 'music']], next: 'assembling' },
   // captions needs only the editor's timeline + voiceover, so it runs alongside the
   // (slow) ffmpeg render; render_qc probes the rendered file before QA sees it.
   assembling:     { stages: [['editor'], ['captions', 'render'], ['render_qc']], next: 'qa' },

@@ -8,6 +8,7 @@ import { voiceover } from './voiceover.js';
 import { videoGeneration } from './videoGeneration.js';
 import { avatar } from './avatar.js';
 import { assetSourcing } from './assetSourcing.js';
+import { generationReconciler } from './generationReconciler.js';
 import { music } from './music.js';
 import { editor } from './editor.js';
 import { render } from './render.js';
@@ -25,7 +26,8 @@ import { analyticsFeedback } from './analyticsFeedback.js';
 // via scripts/analytics.ts (or a scheduler) and feeds channel memory.
 export const AGENTS: Record<string, Agent> = {
   research, scriptwriter, fact_checker: factChecker, visual_director: visualDirector,
-  voiceover, video_generation: videoGeneration, avatar, asset_sourcing: assetSourcing, music,
+  voiceover, video_generation: videoGeneration, avatar, asset_sourcing: assetSourcing,
+  generation_reconciler: generationReconciler, music,
   editor, render, captions, render_qc: renderQc, qa,
   shorts, shorts_renderer: shortsRenderer, packaging, publishing,
   analytics_feedback: analyticsFeedback,
