@@ -13,9 +13,15 @@ voice). Add keys to upgrade each stage to real output.
 ```bash
 npm install
 cp .env.example .env        # then fill in any keys you have (all optional)
-npm test                    # 26 tests
-npm run dev                 # run the full pipeline (gates held for review by default)
+npm test                    # full suite
+npm run dev                 # run the full pipeline (holds at gate A for review)
+npm run dev -- "topic"      # seed the episode with a requested topic
 AUTO_APPROVE_GATES=true npm run dev   # run unattended through every stage
+
+# gate decisions on a held episode (persists via Supabase):
+npm run dev -- --resume <episode_id> --approve
+npm run dev -- --resume <episode_id> --revise "shorter hook, cut section 3"
+npm run dev -- --resume <episode_id> --reject
 ```
 
 The pipeline writes its rendered video to `generated/<episode_id>/cut.mp4`.

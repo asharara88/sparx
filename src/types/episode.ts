@@ -200,6 +200,17 @@ export interface HistoryEntry {
   event: string;
 }
 
+// A creator's "Revise" decision at a gate (Build-Spec §3.2/§5.4): control returns
+// to the gate's upstream working state, and the notes are passed to that state's
+// agents via AgentInvocation.params.revision_notes. Persisted so a held episode
+// resumed in another process still carries the pending revision.
+export interface RevisionRequest {
+  gate: 'A' | 'B' | 'C';
+  notes: string;
+  at: string;
+  resolved: boolean;
+}
+
 export interface EpisodeState {
   episode_id: string;
   created_at: string;
@@ -223,6 +234,7 @@ export interface EpisodeState {
   packaging: Packaging;
   publish: Publish;
   budget: Budget;
+  revisions: RevisionRequest[];
   history: HistoryEntry[];
 }
 
@@ -270,6 +282,7 @@ export function newEpisodeState(
     packaging: { thumbnails: [], titles: [], descriptions: [] },
     publish: { youtube_video_id: '', uploaded: false, scheduled_at: '', tags: [], chapters: [], ai_label_applied: false, shorts_posted: [] },
     budget: { cap_usd_month: opts.cap_usd_month ?? 500, spent_this_episode_usd: 0, ledger: [] },
+    revisions: [],
     history: [],
   };
 }

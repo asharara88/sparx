@@ -30,6 +30,18 @@ export const research = defineAgent({
     const notes: string[] = [];
     const year = new Date().getFullYear();
 
+    // Gate-A "revise" sends the creator's notes here; a CLI-seeded topic arrives
+    // as concept.topic with no angle yet (a revised concept always has one).
+    const revisionNotes = typeof ctx.params?.revision_notes === 'string' ? ctx.params.revision_notes : '';
+    const requestedTopic = !ctx.state.concept.angle ? ctx.state.concept.topic : '';
+    const priorAngle = revisionNotes ? ctx.state.concept.angle : '';
+    const directives = [
+      requestedTopic ? `The creator requested this topic — ideate angles FOR it, not around it: "${requestedTopic}"` : '',
+      priorAngle ? `Previous concept under revision: "${priorAngle}"` : '',
+      revisionNotes ? `Creator revision notes — every candidate must address them: ${revisionNotes}` : '',
+    ].filter(Boolean).join('\n');
+    if (revisionNotes) notes.push('revised per creator notes');
+
     // Real dedup source: channel memory carries past episodes' topics/titles.
     const past = pastTopics().map((p) => p.topic || p.title).filter(Boolean);
 
@@ -58,7 +70,7 @@ export const research = defineAgent({
       temperature: 0.9,
       schema: IdeationSchema,
       system: 'You are a sharp YouTube strategist. Generate distinctive, specific angles with real retention potential. Avoid generic listicles and anything already saturated.',
-      prompt: `Niche: ${niche}\nLanguages: ${languages.join(', ')}\nAvoid these past episode topics: ${past.join('; ') || '(none)'}\n\nWeb context:\n${evidence}\n\nReturn JSON {"candidates":[{"angle","why"}]} with 3-8 candidates.`,
+      prompt: `Niche: ${niche}\nLanguages: ${languages.join(', ')}\nAvoid these past episode topics: ${past.join('; ') || '(none)'}${directives ? `\n${directives}` : ''}\n\nWeb context:\n${evidence}\n\nReturn JSON {"candidates":[{"angle","why"}]} with 3-8 candidates.`,
       mock: JSON.stringify({
         candidates: [
           { angle: `The ${niche} workflow everyone copies is quietly costing them — here's the fix`, why: 'Strong curiosity gap + practical payoff' },
@@ -75,7 +87,7 @@ export const research = defineAgent({
       temperature: 0.4,
       schema: ConceptOutputSchema,
       system: 'You are a YouTube packaging expert. Score angles 0-10 on curiosity, payoff, differentiation, and search demand; pick the best; then package a full concept. Be concrete.',
-      prompt: `Niche: ${niche}\nCandidate angles:\n${candidates.map((c, i) => `${i + 1}. ${c.angle} (${c.why})`).join('\n')}\n\nWeb context:\n${evidence}\n\nReturn JSON matching: {topic, working_title, angle, rationale, audience, thumbnail_concept, scored:[{angle,score,why}], keywords[3-12], competitor_refs[], target_length_min}.`,
+      prompt: `Niche: ${niche}${directives ? `\n${directives}` : ''}\nCandidate angles:\n${candidates.map((c, i) => `${i + 1}. ${c.angle} (${c.why})`).join('\n')}\n\nWeb context:\n${evidence}\n\nReturn JSON matching: {topic, working_title, angle, rationale, audience, thumbnail_concept, scored:[{angle,score,why}], keywords[3-12], competitor_refs[], target_length_min}.`,
       mock: JSON.stringify({
         topic: `${niche}: the workflow mistake`,
         working_title: `The ${niche} Mistake That's Costing You`,
