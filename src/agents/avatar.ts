@@ -40,16 +40,18 @@ export const avatar: Agent = {
     // clip's ESTIMATE synchronously before its first await, then swaps in the actual
     // cost on completion (a failed clip frees its reservation) — so concurrent tasks
     // never overshoot the cap the way unguarded parallelism would.
-    let reserved = 0; let skipped = 0;
+    let reserved = 0; let skipped = 0; let sunkVoiceCost = 0;
     const results = await mapLimit(avatarShots, CONCURRENCY, async (shot): Promise<AvatarClip | null> => {
       const text = secById.get(shot.section_id)?.vo_text ?? '';
       if (!text) { skipped++; return null; }
       const est = Math.max(0.02, shot.duration_s * 0.005);
       if (!canAfford(ctx.state, reserved + est)) { skipped++; return null; }
       reserved += est;
+      // Hoisted so the catch can account for narration that was already billed
+      // before HeyGen failed — that spend is sunk, not refundable.
+      let audioUri: string | undefined;
+      let voiceCost = 0;
       try {
-        let audioUri: string | undefined;
-        let voiceCost = 0;
         if (voiceMode === 'elevenlabs') {
           try {
             const audio = await voice.synthesize(text, elevenVoiceId);
@@ -66,14 +68,16 @@ export const avatar: Agent = {
         reserved += clipCost - est;
         return { shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: art.durationS ?? shot.duration_s, cost_usd: clipCost };
       } catch (err) {
-        reserved -= est;
+        // Free the reservation except the narration already billed, and ledger it.
+        reserved -= est - voiceCost;
+        sunkVoiceCost += voiceCost;
         log.warn('avatar generation failed; leaving for stock fallback', { shot: shot.shot_id, err: String(err) });
         skipped++;
         return null;
       }
     });
     const clips = results.filter((r): r is AvatarClip => r !== null);
-    const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0);
+    const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0) + sunkVoiceCost;
     log.info('avatar clips rendered', { clips: clips.length, skipped, provider: provider.name, voice: voiceMode });
     return ok(ctx, { avatar_clips: clips }, cost, `${clips.length} avatar clips${skipped ? `, ${skipped} skipped` : ''} (${provider.name}, voice=${voiceMode})`);
   },

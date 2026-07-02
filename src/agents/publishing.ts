@@ -2,6 +2,7 @@ import type { Agent } from './types.js';
 import { ok } from './types.js';
 import { config } from '../config.js';
 import { getYouTube } from '../media/youtube.js';
+import { sectionTimes } from '../producer/timeline.js';
 import { createLogger } from '../logger.js';
 
 // Agent 11 — SEO & Publishing. Assembles real publish metadata (tags, timestamped
@@ -14,13 +15,11 @@ export const publishing: Agent = {
     const log = createLogger({ agent: 'publishing', episode: ctx.episode_id });
     const c = config();
 
-    // chapters with cumulative timestamps from voiceover durations
-    const durBySec = new Map(ctx.state.voiceover.clips.map((cl) => [cl.section_id, cl.duration_s]));
-    let t = 0;
-    const chapters = ctx.state.script.sections.map((s) => {
-      const stamp = fmt(t); t += durBySec.get(s.id) ?? 0;
-      return `${stamp} ${s.on_screen || s.beat}`;
-    });
+    // Chapters with cumulative timestamps from the shared shot timeline — the same
+    // durations the cut is rendered from (avatar clips use their real HeyGen length,
+    // not the voiceover word-count estimate).
+    const { startBySec } = sectionTimes(ctx.state);
+    const chapters = ctx.state.script.sections.map((s) => `${fmt(startBySec.get(s.id) ?? 0)} ${s.on_screen || s.beat}`);
 
     const title = ctx.state.packaging.titles[0] ?? ctx.state.concept.working_title;
     const baseDesc = ctx.state.packaging.descriptions[0] ?? ctx.state.concept.angle;

@@ -3,10 +3,12 @@ import { ok } from './types.js';
 import type { Short } from '../types/episode.js';
 import { getLLM } from '../llm/client.js';
 import { ShortsPlanSchema } from '../schemas/phase34.js';
+import { sectionTimes } from '../producer/timeline.js';
 import { createLogger } from '../logger.js';
 
 // Agent 9 — Shorts / Repurposing. LLM picks high-retention spans (by section);
-// we convert section ranges to time ranges using the voiceover durations.
+// section ranges become time ranges via the shared shot timeline, so the clips
+// land where the content actually sits in the rendered cut.
 export const shorts: Agent = {
   name: 'shorts',
   async run(ctx) {
@@ -14,11 +16,7 @@ export const shorts: Agent = {
     const llm = getLLM();
     const secs = ctx.state.script.sections;
 
-    // cumulative start time per section from voiceover clip durations
-    const durBySec = new Map(ctx.state.voiceover.clips.map((c) => [c.section_id, c.duration_s]));
-    const startBySec = new Map<string, number>();
-    let t = 0;
-    for (const s of secs) { startBySec.set(s.id, t); t += durBySec.get(s.id) ?? 0; }
+    const { startBySec, durBySec } = sectionTimes(ctx.state);
     const endOf = (id: string) => (startBySec.get(id) ?? 0) + (durBySec.get(id) ?? 0);
 
     const plan = await llm.complete({

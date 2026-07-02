@@ -335,10 +335,12 @@ function RunsView(p: RunsViewProps) {
   // Background music is a demo-render option (the full pipeline scores music via its own agent).
   const showAV = mode === 'demo' || usesVoice || usesRunway;
 
-  // Demo-only progress sugar: surface the latest "section i/n" line from the log.
-  const stageMatches = [...runTail.matchAll(/section (\d+)\/(\d+)/g)];
-  const lastStage = stageMatches[stageMatches.length - 1];
-  const stage = runState === 'running' && lastStage ? `Rendering section ${lastStage[1]}/${lastStage[2]}` : null;
+  // Demo-only progress sugar. Sections render concurrently, so count completions
+  // (the "✓ section i/n done" lines) instead of trusting the latest start line —
+  // with 2 in flight, the last "· section i/n" overstates progress from t=0.
+  const total = runTail.match(/section \d+\/(\d+)/)?.[1];
+  const finished = new Set([...runTail.matchAll(/✓ section (\d+)\//g)].map((mm) => mm[1])).size;
+  const stage = runState === 'running' && total ? `Rendering sections — ${finished}/${total} done` : null;
 
   // Lip-sync source for avatar clips: your ElevenLabs voice (uploaded to HeyGen,
   // mouth synced to that audio) vs HeyGen's built-in TTS.
@@ -474,11 +476,17 @@ function RunsView(p: RunsViewProps) {
           ) : (
             <div className="toast">
               <div className="toast-head">
-                <span className="run-state" role="status">
-                  {runState === 'running' && <><span className="spin" aria-hidden="true" />Working…{elapsed ? ` ${elapsed}` : ''}</>}
-                  {runState === 'done' && <span className="ok"><Icon d={IC.check} className="icon-sm" /> Done{elapsed ? ` in ${elapsed}` : ''}</span>}
-                  {runState === 'failed' && <span className="bad"><Icon d={IC.alert} className="icon-sm" /> Run failed</span>}
-                  {runState === 'idle' && 'Starting…'}
+                {/* The 1s elapsed ticker lives OUTSIDE the live region — inside it,
+                    screen readers would re-announce the status every second. */}
+                <span className="run-state">
+                  {runState === 'running' && <span className="spin" aria-hidden="true" />}
+                  {runState === 'done' && <span className="ok"><Icon d={IC.check} className="icon-sm" /></span>}
+                  {runState === 'failed' && <span className="bad"><Icon d={IC.alert} className="icon-sm" /></span>}
+                  <span role="status" className={runState === 'done' ? 'ok' : runState === 'failed' ? 'bad' : undefined}>
+                    {runState === 'running' ? 'Working…' : runState === 'done' ? 'Done' : runState === 'failed' ? 'Run failed' : 'Starting…'}
+                  </span>
+                  {runState === 'running' && elapsed && <span aria-hidden="true">{elapsed}</span>}
+                  {runState === 'done' && elapsed && <span className="ok" aria-hidden="true">in {elapsed}</span>}
                 </span>
                 {runState === 'done' && <button type="button" className="ghost" onClick={onViewResult}>{runMode === 'pipeline' ? 'Open Library ▸' : 'View result ▸'}</button>}
                 {runState === 'failed' && <button type="button" className="ghost" onClick={startRun} disabled={busy}><Icon d={IC.retry} className="icon-sm" /> Retry</button>}
@@ -631,8 +639,10 @@ function PreviewView({ preview, videoSrc, onLatestDemo, onClear, setVideoBust, o
             />
 
             <div className="player-controls">
+              {/* Fixed label + aria-pressed (like Loop): a flipping Unmute/Mute label
+                  with aria-pressed announces the inverse of the real state. */}
               <button type="button" className={`pill ${muted ? 'on' : ''}`} aria-pressed={muted} onClick={toggleMute}>
-                <Icon d={muted ? IC.volumeX : IC.volume} className="icon-sm" />{muted ? 'Unmute' : 'Mute'}
+                <Icon d={muted ? IC.volumeX : IC.volume} className="icon-sm" />Mute
               </button>
               <button type="button" className={`pill ${loop ? 'on' : ''}`} aria-pressed={loop} onClick={() => setLoop((l) => !l)}>
                 <Icon d={IC.repeat} className="icon-sm" />Loop

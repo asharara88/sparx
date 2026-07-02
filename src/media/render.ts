@@ -16,6 +16,9 @@ const BG = '0x14142B';
 export interface RenderShot {
   visual_uri: string | null;
   audio_uri: string | null;
+  // Narration used only if the visual (whose baked-in audio was expected to carry
+  // the shot, e.g. an avatar clip) can't be fetched or has no audio stream.
+  fallback_audio_uri?: string | null;
   duration_s: number;
   caption?: string;
 }
@@ -99,7 +102,7 @@ function wrapCaption(text: string): string {
 
 const NORMALIZE = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${BG},setsar=1,fps=${FPS},format=yuv420p`;
 
-async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: string | null, visual: string | null, audio: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
+async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: string | null, visual: string | null, audio: string | null, fallbackAudio: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
   let dur = Math.max(1, Math.round(shot.duration_s || 4));
   const out = join(tmpDir, `shot_${String(i).padStart(3, '0')}.mp4`);
 
@@ -107,11 +110,17 @@ async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: stri
   const visualIsVideo = !!visual && !visualIsImage;
 
   // Audio source priority: explicit voiceover file > the visual video's own baked-in
-  // audio (e.g. a HeyGen avatar that already speaks) > silence.
-  const audioSource: 'file' | 'visual' | 'silence' = audio ? 'file' : (visualIsVideo && hasAudioStream(visual!) ? 'visual' : 'silence');
+  // audio (e.g. a HeyGen avatar that already speaks) > the fallback narration (when
+  // the avatar clip the audio was delegated to didn't materialize) > silence.
+  let audioFile = audio;
+  let audioSource: 'file' | 'visual' | 'silence';
+  if (audioFile) audioSource = 'file';
+  else if (visualIsVideo && hasAudioStream(visual!)) audioSource = 'visual';
+  else if (fallbackAudio) { audioFile = fallbackAudio; audioSource = 'file'; }
+  else audioSource = 'silence';
 
   // Fit the shot to the narration / avatar clip so nothing is cut off.
-  if (audioSource === 'file') { const ad = probeDurationS(audio!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
+  if (audioSource === 'file') { const ad = probeDurationS(audioFile!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
   else if (audioSource === 'visual') { const vd = probeDurationS(visual!); if (vd) dur = Math.max(dur, Math.ceil(vd)); }
 
   // drawtext overlay (only when we have a font and a caption).
@@ -139,7 +148,7 @@ async function buildShot(i: number, shot: RenderShot, tmpDir: string, font: stri
 
   // Audio input + filter (input index 1 unless we're reusing the visual's own audio).
   let aChain: string;
-  if (audioSource === 'file') { args.push('-i', audio!); aChain = '[1:a]aresample=44100,apad[a]'; }
+  if (audioSource === 'file') { args.push('-i', audioFile!); aChain = '[1:a]aresample=44100,apad[a]'; }
   else if (audioSource === 'visual') { aChain = '[0:a]aresample=44100,apad[a]'; }
   else { args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'); aChain = '[1:a]aresample=44100,apad[a]'; }
 
@@ -178,13 +187,14 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
     Promise.all(opts.shots.map((shot, i) => Promise.all([
       prefetch(shot.visual_uri, join(tmp, `vis_${i}.${shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4'}`)),
       prefetch(shot.audio_uri, join(tmp, `aud_${i}.mp3`)),
+      prefetch(shot.fallback_audio_uri, join(tmp, `aud_fb_${i}.mp3`)),
     ]))),
     prefetch(opts.musicUri, join(tmp, 'music.mp3')),
   ]);
 
   // 1b) Per-shot clips (encodes stay sequential — deterministic and gentle on memory).
   const clips: { path: string; real: boolean; durationS: number }[] = [];
-  for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, tmp, font, inputs[i]![0], inputs[i]![1]));
+  for (const [i, shot] of opts.shots.entries()) clips.push(await buildShot(i, shot, tmp, font, inputs[i]![0], inputs[i]![1], inputs[i]![2]));
   const real = clips.filter((c) => c.real).length;
 
   // 2) Concat + optional music in ONE pass. Every clip was encoded with identical
