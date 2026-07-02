@@ -39,6 +39,7 @@ export const render = defineAgent({
     const shots: RenderShot[] = entries.map((e) => ({
       visual_uri: e.visual_uri,
       audio_uri: e.audio_uri,
+      fallback_audio_uri: e.fallback_audio_uri,
       duration_s: e.duration_s,
       caption: e.on_screen || e.caption,
     }));

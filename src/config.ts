@@ -21,8 +21,8 @@ const Schema = z.object({
   // llm
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  LLM_MODEL: z.string().default('claude-sonnet-4-6'),      // 'main' tier — economical default for non-creative agents
-  LLM_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),  // 'fast' tier — grading/critique
+  LLM_MODEL: z.string().default('claude-opus-4-8'),        // 'main' tier — quality-first for non-creative agents (qa/shorts/etc.)
+  LLM_FAST_MODEL: z.string().default('claude-sonnet-5'),   // 'fast' tier — grading/critique/topic refinement; near-Opus quality, still quick
   LLM_PRO_MODEL: z.string().default('claude-fable-5'),     // 'pro' tier — Fable 5 at max effort, for the creative spine (angle, script, packaging)
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000), // Fable 5 turns at high effort can run minutes; 60s would abort every hard call

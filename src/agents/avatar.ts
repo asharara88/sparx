@@ -66,33 +66,41 @@ export const avatar = defineAgent({
       return true;
     });
 
+    // Narration billed before a failed HeyGen render is sunk, not refundable —
+    // it must reach the ledger even though the clip itself is dropped.
+    let sunkVoiceCost = 0;
     const { ok: made, failed } = await settleLimit(dispatch, c.MEDIA_CONCURRENCY, async (shot): Promise<AvatarClip> => {
       const text = secById.get(shot.section_id)!.vo_text;
       let durationS = spokenS(shot.section_id, shot.duration_s);
-      const art = await cachedArtifact(contentKey('avatar', avatarId, voiceKey, text), async () => {
-        let audioUri: string | undefined;
-        let voiceCost = 0;
-        if (voiceMode === 'elevenlabs') {
-          try {
-            const audio = await voice.synthesize(text, elevenVoiceId);
-            audioUri = audio.uri;
-            voiceCost = audio.costUsd;
-          } catch (err) {
-            // Narration failure shouldn't sink the clip — HeyGen TTS still produces
-            // a fully lip-synced avatar, just not in the cloned voice.
-            ctx.log.warn('elevenlabs narration failed; falling back to HeyGen TTS for this clip', { shot: shot.shot_id, err: String(err).slice(0, 160) });
+      let voiceCost = 0;
+      try {
+        const art = await cachedArtifact(contentKey('avatar', avatarId, voiceKey, text), async () => {
+          let audioUri: string | undefined;
+          if (voiceMode === 'elevenlabs') {
+            try {
+              const audio = await voice.synthesize(text, elevenVoiceId);
+              audioUri = audio.uri;
+              voiceCost = audio.costUsd;
+            } catch (err) {
+              // Narration failure shouldn't sink the clip — HeyGen TTS still produces
+              // a fully lip-synced avatar, just not in the cloned voice.
+              ctx.log.warn('elevenlabs narration failed; falling back to HeyGen TTS for this clip', { shot: shot.shot_id, err: String(err).slice(0, 160) });
+            }
           }
-        }
-        const a = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s, audioUri });
-        durationS = a.durationS ?? durationS;
-        return { uri: a.uri, costUsd: a.costUsd + voiceCost };
-      });
-      return { shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: durationS, cost_usd: art.costUsd };
+          const a = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s, audioUri });
+          durationS = a.durationS ?? durationS;
+          return { uri: a.uri, costUsd: a.costUsd + voiceCost };
+        });
+        return { shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: durationS, cost_usd: art.costUsd };
+      } catch (err) {
+        sunkVoiceCost += voiceCost;
+        throw err;
+      }
     });
 
     for (const f of failed) ctx.log.warn('avatar generation failed; editor placeholder covers the gap', { shot: f.item.shot_id, err: String(f.error).slice(0, 200) });
     const clips = made.map((m) => m.value);
-    const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0);
+    const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0) + sunkVoiceCost;
     ctx.log.info('avatar clips rendered', { clips: clips.length, throttled: throttled.length, noText: noText.length, failed: failed.length, provider: provider.name, voice: voiceMode });
 
     const bits = [`${clips.length} avatar clips`];

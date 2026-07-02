@@ -1,5 +1,9 @@
+import { existsSync } from 'node:fs';
 import type { EpisodeState } from '../types/episode.js';
 import { defineSkill } from './registry.js';
+
+// A URI the renderer can actually fetch: downloadable http(s) or an existing local file.
+export const isUsableUri = (u: string | null | undefined): u is string => !!u && (/^https?:\/\//i.test(u) || existsSync(u));
 
 // Single source of truth for EDL resolution. Previously the editor and render
 // agents each rebuilt the same genByShot/avatarByShot/assetByShot/voBySection
@@ -21,6 +25,10 @@ export interface TimelineEntry {
   section_id: string;
   visual_uri: string | null;   // resolved visual, null → placeholder
   audio_uri: string | null;    // section voiceover clip (first shot of the section only), null → silence
+  // Narration to fall back to if the visual can't be fetched at render time
+  // (e.g. an expired HeyGen URL); only set when audio_uri was suppressed because
+  // the avatar clip was expected to carry the shot's audio.
+  fallback_audio_uri: string | null;
   duration_s: number;          // VO clip duration (first shot of section) else shot duration
   caption: string;             // narration text (section vo_text)
   on_screen: string;           // on-screen title text (section on_screen)
@@ -51,13 +59,16 @@ export function buildTimeline(state: EpisodeState): Timeline {
     const visual = genByShot.get(shot.shot_id)?.selected_uri ?? avatarClip?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null;
     // An avatar clip carries its own narration (HeyGen TTS or lip-synced ElevenLabs);
     // overlaying the separate voiceover would replace the audio the mouth is synced to.
-    const avatarAudio = !!avatarClip?.video_uri && visual === avatarClip.video_uri;
+    // Only trust that when the clip URI is actually fetchable — a mock:// or missing
+    // clip would otherwise suppress the voiceover and render a silent cut.
+    const avatarAudio = !!avatarClip?.video_uri && visual === avatarClip.video_uri && isUsableUri(avatarClip.video_uri);
     return {
       index,
       shot_id: shot.shot_id,
       section_id: shot.section_id,
       visual_uri: visual,
       audio_uri: avatarAudio ? null : vo?.audio_uri ?? null,
+      fallback_audio_uri: avatarAudio ? vo?.audio_uri ?? null : null,
       duration_s: avatarAudio ? avatarClip.duration_s : vo?.duration_s ?? shot.duration_s,
       caption: first ? sec?.vo_text ?? '' : '',
       on_screen: sec?.on_screen ?? '',

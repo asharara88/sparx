@@ -86,12 +86,14 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
           }
         }
         const clip = await avatar.generate({ text: s.vo_text, avatarId: c.HEYGEN_AVATAR_ID, voiceId: c.HEYGEN_VOICE_ID, durationS: fallbackDur, audioUri });
+        console.log(`  ✓ section ${i + 1}/${d.sections.length} done`);
         // Avatar video carries its own voice; the render keeps that audio.
         return { visual_uri: clip.uri, audio_uri: null, duration_s: clip.durationS ?? 6, caption: s.on_screen };
       } catch (err) {
         // Mirror the avatar agent: one HeyGen failure/timeout shouldn't sink the whole
         // demo — fall back to a captioned slate for this section so the render completes.
         console.warn(`  ⚠ section ${i + 1} HeyGen failed (${String(err).slice(0, 160)}); using caption slate`);
+        console.log(`  ✓ section ${i + 1}/${d.sections.length} done`);
         return { visual_uri: null, audio_uri: null, duration_s: fallbackDur, caption: s.on_screen };
       }
     }));
@@ -117,14 +119,17 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
       const art = artR.value;
       if (takesR.status === 'rejected') {
         console.warn(`  ⚠ section ${i + 1} Runway failed (${String(takesR.reason).slice(0, 160)}); using caption slate`);
+        console.log(`  ✓ section ${i + 1}/${d.sections.length} done`);
         return { visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen };
       }
+      console.log(`  ✓ section ${i + 1}/${d.sections.length} done`);
       return { visual_uri: takesR.value[0]?.uri ?? null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen };
     }));
   } else {
     console.log(`Voicing ${d.sections.length} sections (voice=${voice.name})...`);
-    shots.push(...await mapLimit(d.sections, CONC, async (s) => {
+    shots.push(...await mapLimit(d.sections, CONC, async (s, i) => {
       const art = await voice.synthesize(s.vo_text, voiceId);
+      console.log(`  ✓ section ${i + 1}/${d.sections.length} done`);
       return { visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? 5, caption: s.on_screen };
     }));
   }

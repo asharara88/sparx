@@ -41,7 +41,8 @@ export const packaging = defineAgent({
 
     const out = await llm.complete({
       tier: 'pro', temperature: 0.8, schema: PackagingSchema,   // Opus: titles drive CTR — the click
-      system: 'You are a YouTube packaging expert writing for a broad, general audience. Write high-CTR titles (curiosity + clarity, <70 chars), compelling descriptions with keywords, and distinct thumbnail concepts described as vivid image prompts. Use plain, everyday words — no jargon, acronyms, or technical/insider terms a casual viewer wouldn\'t instantly understand. Titles and descriptions should read at a ~6th-8th-grade level.',
+      system: 'You are a YouTube packaging expert writing for a broad, general audience. Write high-CTR titles (curiosity + clarity, <70 chars), compelling descriptions with keywords, and distinct thumbnail concepts described as vivid image prompts. Use plain, everyday words — no jargon, acronyms, or technical/insider terms a casual viewer wouldn\'t instantly understand. Titles and descriptions should read at a ~6th-8th-grade level. ' +
+        'Each title must test a different strategy (e.g. curiosity gap, bold claim, mistake/negative frame, outcome promise) — never variants of one phrasing. Each thumbnail concept must be a visually distinct idea, not the same scene redressed.',
       prompt: `Topic: ${c.topic}\nAngle: ${c.angle}\nHook: ${ctx.state.script.hook}\nAudience: ${c.audience}\nKeywords: ${c.keywords.join(', ')}\nPrimary search phrases: ${seo.primary.join(', ')}${avoid}${disclosure}\n\nReturn JSON {titles[3-5], descriptions[1-2], thumbnail_concepts[2-3]}.`,
       mock: JSON.stringify({
         titles: [c.working_title || c.topic, `The ${c.topic} mistake costing you`, `Why your ${c.topic} isn't working`],

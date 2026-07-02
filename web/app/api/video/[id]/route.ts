@@ -33,24 +33,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const file = join(GENERATED_DIR, id, 'cut.mp4');
   if (!existsSync(file)) return new Response('not found', { status: 404 });
 
-  const size = statSync(file).size;
+  const { size, mtimeMs } = statSync(file);
+  // no-cache + ETag: the player remounts on every view switch, so let each mount
+  // revalidate cheaply (304) instead of re-downloading the whole mp4 — while a
+  // re-rendered cut under the same id (new mtime) still busts the cache.
+  const etag = `"${size}-${Math.floor(mtimeMs)}"`;
+  const cacheHeaders = { ETag: etag, 'Cache-Control': 'private, no-cache' };
+  if (req.headers.get('if-none-match') === etag) {
+    return new Response(null, { status: 304, headers: { ...cacheHeaders, 'Accept-Ranges': 'bytes' } });
+  }
   const range = req.headers.get('range');
 
-  if (range) {
-    // bytes=N-M / bytes=N- / bytes=-N (suffix: last N bytes — players probe the
-    // trailing moov atom this way). Clamp to the file and 416 anything unsatisfiable;
-    // an unclamped end would advertise a Content-Length the stream never delivers.
-    const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+  // bytes=N-M / bytes=N- / bytes=-N (suffix: last N bytes — players probe the
+  // trailing moov atom this way). Clamp to the file and 416 anything unsatisfiable;
+  // an unclamped end would advertise a Content-Length the stream never delivers.
+  // Multi-range ("bytes=0-1,5-9") or malformed headers don't match the regex:
+  // RFC 9110 lets a server ignore a Range it can't honor, so those fall through
+  // to the full 200 below instead of failing a satisfiable request with 416.
+  const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range) : null;
+  if (m && (m[1] || m[2])) {
     let start: number;
     let end: number;
-    if (m && m[1]) {
+    if (m[1]) {
       start = parseInt(m[1], 10);
       end = m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
-    } else if (m && m[2]) {
-      start = Math.max(0, size - parseInt(m[2], 10));
-      end = size - 1;
     } else {
-      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+      start = Math.max(0, size - parseInt(m[2]!, 10));
+      end = size - 1;
     }
     if (start >= size || start > end) {
       return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
@@ -62,11 +71,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         'Content-Range': `bytes ${start}-${end}/${size}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': String(end - start + 1),
+        ...cacheHeaders,
       },
     });
   }
 
   return new Response(fileToWebStream(file, 0, size - 1), {
-    headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(size), 'Accept-Ranges': 'bytes' },
+    headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(size), 'Accept-Ranges': 'bytes', ...cacheHeaders },
   });
 }

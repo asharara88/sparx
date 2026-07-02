@@ -66,7 +66,15 @@ export function disclosureFor(sponsored: boolean): { ar: string; en: string } {
 // must match the sponsorship status (an independence line can't stand in for
 // a paid-partnership disclosure).
 export function requiredDisclosureLines(ts: Pick<TechSegment, 'sponsored' | 'disclosure'>, languages: string[]): string[] {
-  const d = ts.disclosure && (ts.disclosure.ar || ts.disclosure.en) ? ts.disclosure : disclosureFor(ts.sponsored);
+  // Custom copy is honored, but the canonical copy of the OPPOSITE sponsorship
+  // status is treated as stale, not custom: the planner always writes the
+  // independence copy (sponsored=false), so flipping only the flag must switch
+  // the requirement to the paid-partnership line — never let the stale
+  // independence copy satisfy a sponsored segment's legal disclosure.
+  const stale = disclosureFor(!ts.sponsored);
+  const stored = ts.disclosure;
+  const isStale = !!stored && stored.ar === stale.ar && stored.en === stale.en;
+  const d = stored && (stored.ar || stored.en) && !isStale ? stored : disclosureFor(ts.sponsored);
   const lines: string[] = [];
   if (languages.some((l) => l.toLowerCase().startsWith('ar'))) lines.push(d.ar);
   if (languages.some((l) => l.toLowerCase().startsWith('en'))) lines.push(d.en);

@@ -28,17 +28,25 @@ export interface CompleteResult<T = unknown> {
 import { TRANSIENT_STATUS as TRANSIENT } from '../util/http.js';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Models that reject the `temperature` parameter (deprecated / fixed for them).
-// Sending it returns HTTP 400, so we omit it for these and let the model default.
+// Models that reject the `temperature` parameter (removed / non-default values 400).
+// We omit it for these and let the model default; steer creativity via prompts instead.
 function modelSupportsTemperature(model: string): boolean {
-  return !/opus-4-8|fable-5|mythos-5/i.test(model);
+  return !/opus-4-8|fable-5|mythos-5|sonnet-5/i.test(model);
 }
 
-// Fable 5 has always-on thinking (thinking tokens count toward max_tokens) and safety
-// classifiers that can decline a request. We run it at max effort and opt into the
-// server-side Opus fallback so a false-positive refusal re-serves instead of failing.
+// Fable 5 has always-on thinking and safety classifiers that can decline a request.
+// We run it at max effort and opt into the server-side Opus fallback so a
+// false-positive refusal re-serves instead of failing.
 function isFable(model: string): boolean {
   return /fable-5|mythos-5/i.test(model);
+}
+
+// Models that run with thinking active: always-on for Fable 5, on-by-default for
+// Sonnet 5, and explicitly opted in for Opus 4.8 (quality-first). Thinking tokens
+// count toward max_tokens, so calls to these get headroom on top of the caller's
+// visible-output budget.
+function hasThinking(model: string): boolean {
+  return isFable(model) || /sonnet-5|opus-4-8/i.test(model);
 }
 
 export interface LLM {
@@ -81,6 +89,10 @@ class AnthropicLLM implements LLM {
           reqBody.output_config = { effort: 'max' };
           reqBody.fallbacks = [{ model: 'claude-opus-4-8' }];
           headers['anthropic-beta'] = 'server-side-fallback-2026-06-01';
+        } else if (/opus-4-8/i.test(model)) {
+          // Opus 4.8 runs without thinking when the param is omitted — opt in for quality.
+          // (Fable 5 must omit it: always-on, explicit config 400s. Sonnet 5 defaults to adaptive.)
+          reqBody.thinking = { type: 'adaptive' };
         }
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -103,6 +115,10 @@ class AnthropicLLM implements LLM {
         // empty or a discarded partial). With the fallback opted in above, seeing this means
         // the whole chain declined — not retryable with the same prompt.
         if (data.stop_reason === 'refusal') {
+          // A mid-stream refusal still bills the already-streamed output — record
+          // the spend before throwing so the ledger doesn't undercount.
+          const rIn = data.usage?.input_tokens ?? 0, rOut = data.usage?.output_tokens ?? 0;
+          this.total.inputTokens += rIn; this.total.outputTokens += rOut; this.total.costUsd += costFor(data.model ?? model, rIn, rOut);
           throw new LLMError(`Anthropic refusal (category=${data.stop_details?.category ?? 'unknown'}): ${data.stop_details?.explanation ?? 'request declined by safety classifiers'}`, false);
         }
         const text = data.content.map((p) => p.text ?? '').join('').trim();
@@ -135,10 +151,10 @@ class AnthropicLLM implements LLM {
   async complete<T>(args: CompleteArgs<T>): Promise<CompleteResult<T>> {
     const model = args.model ?? this.model(args.tier ?? 'main');
     const sys = args.schema ? `${args.system}\n\nRespond with ONLY valid JSON matching the requested shape. No prose, no code fences.` : args.system;
-    // Fable 5 thinking is always on and its tokens count toward max_tokens; callers size
-    // budgets for the visible output, so give the thinking room on top (still < ~16K,
-    // the safe ceiling for non-streaming requests).
-    const budget = (args.maxTokens ?? 2000) + (isFable(model) ? 8000 : 0);
+    // Thinking tokens count toward max_tokens; callers size budgets for the visible
+    // output, so give thinking-active models room on top (still < ~16K, the safe
+    // ceiling for non-streaming requests).
+    const budget = (args.maxTokens ?? 2000) + (hasThinking(model) ? 8000 : 0);
     const { text, usage, truncated } = await this.call(model, sys, args.prompt, budget, args.temperature ?? 0.7);
 
     if (!args.schema) return { text, data: undefined, usage, live: true };
@@ -148,8 +164,12 @@ class AnthropicLLM implements LLM {
     if (first.ok) return { text, data: first.data, usage, live: true };
 
     // If the first reply was cut off by the token cap, repairing at the same budget
-    // would truncate again — give the repair more room.
-    const repairBudget = truncated ? Math.min(budget * 2, 16000) : budget;
+    // would truncate again — give the repair more room. The 16K ceiling bounds the
+    // VISIBLE output; thinking headroom rides on top of it, else a thinking-active
+    // model whose budget already sits at the ceiling would repair with zero extra room.
+    const headroom = hasThinking(model) ? 8000 : 0;
+    const visible = budget - headroom;
+    const repairBudget = truncated ? Math.min(visible * 2, 16000) + headroom : budget;
     this.log.warn('llm json failed validation, repairing', { error: first.error, truncated, repairBudget });
     // Show the model its own invalid output — a stateless re-roll with only an error
     // hint referencing text the model can't see mostly reproduces the same mistake.

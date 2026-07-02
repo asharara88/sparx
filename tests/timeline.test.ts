@@ -24,9 +24,9 @@ function stateWithShots(): EpisodeState {
   // sh1 is covered by ALL THREE sources → the generated take must win.
   s.generated_video = [{ shot_id: 'sh1', model: 'runway', takes: ['gen1'], selected_uri: 'gen1', cost_usd: 0 }];
   s.avatar_clips = [
-    { shot_id: 'sh1', avatar_id: 'a', video_uri: 'av1', duration_s: 4, cost_usd: 0 },
+    { shot_id: 'sh1', avatar_id: 'a', video_uri: 'https://cdn.heygen/av1.mp4', duration_s: 4, cost_usd: 0 },
     // sh2 is covered by avatar AND sourced asset → the avatar clip must win.
-    { shot_id: 'sh2', avatar_id: 'a', video_uri: 'av2', duration_s: 5, cost_usd: 0 },
+    { shot_id: 'sh2', avatar_id: 'a', video_uri: 'https://cdn.heygen/av2.mp4', duration_s: 5, cost_usd: 0 },
   ];
   s.sourced_assets = [
     { shot_id: 'sh1', type: 'stock', uri: 'asset1', license: 'Pexels License', cost_usd: 0 },
@@ -49,7 +49,7 @@ function stateWithShots(): EpisodeState {
 describe('buildTimeline', () => {
   it('resolves visuals in priority order: generated > avatar > sourced asset > null', () => {
     const { entries } = buildTimeline(stateWithShots());
-    expect(entries.map((e) => e.visual_uri)).toEqual(['gen1', 'av2', 'asset3', null]);
+    expect(entries.map((e) => e.visual_uri)).toEqual(['gen1', 'https://cdn.heygen/av2.mp4', 'asset3', null]);
   });
 
   it('attaches section voiceover audio and prefers VO duration over shot duration', () => {
@@ -68,6 +68,23 @@ describe('buildTimeline', () => {
     // the entry is ordinary b-roll, so the section VO must still be overlaid.
     const { entries } = buildTimeline(stateWithShots());
     expect(entries[0]).toMatchObject({ visual_uri: 'gen1', audio_uri: 'vo1', duration_s: 7 });
+  });
+
+  it('only trusts avatar-carried audio when the clip URI is fetchable — a mock:// clip keeps the VO', () => {
+    // Zero-key runs produce mock:// avatar clips; suppressing the VO for those
+    // rendered a fully silent cut. The VO must survive as the entry's audio.
+    const s = stateWithShots();
+    s.avatar_clips[1]!.video_uri = 'mock://avatar/default/12w.mp4';
+    const { entries } = buildTimeline(s);
+    expect(entries[1]).toMatchObject({ visual_uri: 'mock://avatar/default/12w.mp4', audio_uri: 'vo2', duration_s: 8, fallback_audio_uri: null });
+  });
+
+  it('carries the suppressed VO as fallback_audio_uri when the avatar clip DOES carry the audio', () => {
+    // If the fetchable HeyGen URL later expires at render time, the renderer
+    // falls back to this narration instead of cutting a silent shot.
+    const { entries } = buildTimeline(stateWithShots());
+    expect(entries[1]).toMatchObject({ audio_uri: null, fallback_audio_uri: 'vo2' });
+    expect(entries[0]).toMatchObject({ audio_uri: 'vo1', fallback_audio_uri: null }); // normal shots carry no fallback
   });
 
   it('sums entry durations into duration_s and indexes entries in shot order', () => {

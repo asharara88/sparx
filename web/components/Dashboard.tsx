@@ -69,6 +69,7 @@ export default function Dashboard() {
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [episodesLoaded, setEpisodesLoaded] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [preview, setPreview] = useState<string | null>(null);
   const [videoBust, setVideoBust] = useState<number>(0);
@@ -82,6 +83,8 @@ export default function Dashboard() {
   // mid-run, so completion handling must not read the live form state.
   const [runMode, setRunMode] = useState<RunMode>('demo');
   const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  // false while a finished run's result hasn't been looked at yet (drives the nav badge)
+  const [resultSeen, setResultSeen] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const tailRef = useRef<HTMLPreElement>(null);
   const pinnedRef = useRef(true); // is the log scrolled to the bottom?
@@ -102,11 +105,13 @@ export default function Dashboard() {
   const [music, setMusic] = useState(false);
 
   const loadEpisodes = useCallback(async () => {
+    if (document.visibilityState === 'hidden') return; // don't poll a tab nobody is looking at
     try {
       const r = await fetch('/api/episodes', { cache: 'no-store' });
       const j = await r.json();
       setConfigured(j.configured);
       setEpisodes(j.episodes ?? []);
+      setEpisodesLoaded(true);
     } catch { /* ignore transient */ }
   }, []);
 
@@ -116,14 +121,66 @@ export default function Dashboard() {
     fetch('/api/voices').then((r) => r.json()).then((j) => { setVoices(j.voices ?? []); setVoiceId(j.defaultId ?? (j.voices?.[0]?.id ?? '')); }).catch(() => {});
     loadEpisodes();
     const t = setInterval(loadEpisodes, 5000);
-    return () => clearInterval(t);
+    // Refresh the moment the tab becomes visible again so the skipped ticks never show stale data.
+    const onVis = () => { if (document.visibilityState === 'visible') loadEpisodes(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
   }, [loadEpisodes]);
+
+  // The location hash is the source of truth for the active view ('#library',
+  // '#preview=<id|demo>', …) so refresh, back/forward, and deep links keep
+  // their place. Unknown or empty hashes fall back to Runs.
+  useEffect(() => {
+    const apply = () => {
+      const h = window.location.hash.slice(1);
+      if (h.startsWith('preview')) {
+        let id = '';
+        if (h.includes('=')) {
+          try { id = decodeURIComponent(h.slice(h.indexOf('=') + 1)); } catch { /* malformed escape in a hand-typed hash */ }
+        }
+        if (id) setPreview(id);
+        setView('preview');
+      } else {
+        setView(h === 'library' || h === 'setup' ? h : 'runs');
+      }
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+  }, []);
+
+  // Re-attach to a run that survived a reload: the spawned process keeps running
+  // (and spending) whether or not the dashboard is open, so a refresh must not
+  // orphan it. The 2s poller converges to the real state on its first tick.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sparx.activeRun') ?? 'null');
+      if (typeof saved?.log !== 'string') return;
+      // Runs take minutes; a saved run this old means its log was likely cleaned
+      // up (run-status reports missing logs as still-running, so we'd spin forever).
+      if (typeof saved.startedAt === 'number' && Date.now() - saved.startedAt > 6 * 3600_000) {
+        localStorage.removeItem('sparx.activeRun');
+        return;
+      }
+      setRunMode(saved.mode === 'pipeline' ? 'pipeline' : 'demo');
+      setRunStartedAt(typeof saved.startedAt === 'number' ? saved.startedAt : Date.now());
+      setResultSeen(false);
+      setRunLog(saved.log);
+      setRunState('running');
+    } catch { /* corrupt or blocked storage — nothing to restore */ }
+  }, []);
+
+  // A finished run's nav badge clears once the user actually looks at Runs.
+  useEffect(() => {
+    if (view === 'runs' && (runState === 'done' || runState === 'failed')) setResultSeen(true);
+  }, [view, runState]);
 
   // Poll the active run's log for live progress + completion.
   useEffect(() => {
     if (!runLog || runState === 'done' || runState === 'failed') return;
     let stop = false;
     const tick = async () => {
+      if (document.visibilityState === 'hidden') return; // resume on the first visible tick
       try {
         const r = await fetch(`/api/run-status?log=${encodeURIComponent(runLog)}`, { cache: 'no-store' });
         const j = await r.json();
@@ -131,6 +188,7 @@ export default function Dashboard() {
         setRunTail(j.tail || '');
         if (j.done) {
           setRunState(j.ok ? 'done' : 'failed');
+          try { localStorage.removeItem('sparx.activeRun'); } catch { /* ignore */ }
           if (j.ok && runMode === 'demo' && j.videoMtime) {
             setVideoBust(j.videoMtime);
             // Load/refresh the demo preview — but never hijack an episode the
@@ -170,6 +228,7 @@ export default function Dashboard() {
     setRunTail('');
     setRunState('idle');
     setRunLog(null);
+    try { localStorage.removeItem('sparx.activeRun'); } catch { /* ignore */ }
     try {
       // Which engines actually consume each control:
       //  · ElevenLabs voice → voiceover + b-roll (demo), voice_only (pipeline), and
@@ -186,11 +245,14 @@ export default function Dashboard() {
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
       if (j.started && j.log) {
+        const startedAt = Date.now();
         setRunMode(mode);
-        setRunStartedAt(Date.now());
+        setRunStartedAt(startedAt);
+        setResultSeen(false);
         pinnedRef.current = true;
         setRunLog(j.log);
         setRunState('running');
+        try { localStorage.setItem('sparx.activeRun', JSON.stringify({ log: j.log, mode, startedAt })); } catch { /* ignore */ }
       } else {
         setRunState('failed');
         setRunTail('Failed to start run.');
@@ -209,7 +271,7 @@ export default function Dashboard() {
   const openPreview = useCallback((id: string, bust = 0) => {
     setPreview(id);
     setVideoBust(bust);
-    setView('preview');
+    window.location.hash = `preview=${encodeURIComponent(id)}`;
   }, []);
 
   const providerHealth = useMemo(() => {
@@ -228,21 +290,25 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <nav className="nav">
+        <nav className="nav" aria-label="Primary">
           {NAV.map((n) => (
-            <button
+            <a
               key={n.id}
-              type="button"
+              href={`#${n.id}`}
               className={`nav-item ${view === n.id ? 'active' : ''}`}
               aria-label={n.label}
               aria-current={view === n.id ? 'page' : undefined}
-              onClick={() => setView(n.id)}
             >
               {n.icon}
               <span className="nav-label">{n.label}</span>
               {n.id === 'library' && episodes.length > 0 && <span className="nav-badge">{episodes.length}</span>}
               {n.id === 'runs' && runState === 'running' && <span className="nav-badge"><span className="spin" style={{ margin: 0 }} aria-hidden="true" /></span>}
-            </button>
+              {n.id === 'runs' && !resultSeen && (runState === 'done' || runState === 'failed') && (
+                <span className={`nav-badge ${runState === 'done' ? 'ok' : 'bad'}`} aria-label={runState === 'done' ? 'run finished' : 'run failed'}>
+                  {runState === 'done' ? '✓' : '!'}
+                </span>
+              )}
+            </a>
           ))}
         </nav>
 
@@ -251,7 +317,7 @@ export default function Dashboard() {
             type="button"
             className="health"
             aria-label={`Provider setup: ${providerHealth.total ? `${providerHealth.on} of ${providerHealth.total}` : 'unknown'} providers keyed`}
-            onClick={() => setView('setup')}
+            onClick={() => { window.location.hash = 'setup'; }}
           >
             <span className={`dot ${providerHealth.on > 0 ? 'on' : 'off'}`} />
             <span className="health-label">
@@ -266,18 +332,30 @@ export default function Dashboard() {
           <RunsView
             {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes, music, setMusic, busy, runState, runMode, runLog, runTail, elapsed, tailRef, onLogScroll, startRun }}
             onViewResult={() => {
-              if (runMode === 'pipeline') setView('library');
-              else { setPreview('demo'); setView('preview'); }
+              if (runMode === 'pipeline') window.location.hash = 'library';
+              else { setPreview('demo'); window.location.hash = 'preview=demo'; }
             }}
           />
         )}
 
         {view === 'library' && (
-          <LibraryView episodes={episodes} configured={configured} onPreview={openPreview} onNewRun={() => setView('runs')} />
+          <LibraryView episodes={episodes} configured={configured} loaded={episodesLoaded} onPreview={openPreview} onNewRun={() => { window.location.hash = 'runs'; }} />
         )}
 
         {view === 'preview' && (
-          <PreviewView preview={preview} videoSrc={videoSrc} onLatestDemo={() => setPreview('demo')} onClear={() => setPreview(null)} setVideoBust={setVideoBust} onBrowse={() => setView('library')} onRuns={() => setView('runs')} />
+          <PreviewView
+            preview={preview}
+            videoSrc={videoSrc}
+            onLatestDemo={() => { setPreview('demo'); window.location.hash = 'preview=demo'; }}
+            onClear={() => {
+              setPreview(null);
+              // keep the hash honest so a refresh doesn't resurrect the cleared clip
+              try { history.replaceState(null, '', '#preview'); } catch { /* ignore */ }
+            }}
+            setVideoBust={setVideoBust}
+            onBrowse={() => { window.location.hash = 'library'; }}
+            onRuns={() => { window.location.hash = 'runs'; }}
+          />
         )}
 
         {view === 'setup' && (
@@ -335,10 +413,12 @@ function RunsView(p: RunsViewProps) {
   // Background music is a demo-render option (the full pipeline scores music via its own agent).
   const showAV = mode === 'demo' || usesVoice || usesRunway;
 
-  // Demo-only progress sugar: surface the latest "section i/n" line from the log.
-  const stageMatches = [...runTail.matchAll(/section (\d+)\/(\d+)/g)];
-  const lastStage = stageMatches[stageMatches.length - 1];
-  const stage = runState === 'running' && lastStage ? `Rendering section ${lastStage[1]}/${lastStage[2]}` : null;
+  // Demo-only progress sugar. Sections render concurrently, so count completions
+  // (the "✓ section i/n done" lines) instead of trusting the latest start line —
+  // with 2 in flight, the last "· section i/n" overstates progress from t=0.
+  const total = runTail.match(/section \d+\/(\d+)/)?.[1];
+  const finished = new Set([...runTail.matchAll(/✓ section (\d+)\//g)].map((mm) => mm[1])).size;
+  const stage = runState === 'running' && total ? `Rendering sections — ${finished}/${total} done` : null;
 
   // Lip-sync source for avatar clips: your ElevenLabs voice (uploaded to HeyGen,
   // mouth synced to that audio) vs HeyGen's built-in TTS.
@@ -366,6 +446,7 @@ function RunsView(p: RunsViewProps) {
         <>
           <label htmlFor="run-voice">Narration voice (ElevenLabs)</label>
           <select id="run-voice" value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
+            {voices.length === 0 && <option value="">Loading voices…</option>}
             {voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
           </select>
         </>
@@ -418,6 +499,7 @@ function RunsView(p: RunsViewProps) {
                 <>
                   <label htmlFor="run-avatar-demo">Avatar</label>
                   <select id="run-avatar-demo" value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
+                    {avatars.length === 0 && <option value="">Loading avatars…</option>}
                     {avatars.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
                   </select>
                   {avatarVoiceControl}
@@ -451,6 +533,7 @@ function RunsView(p: RunsViewProps) {
                 <>
                   <label htmlFor="run-avatar-pipeline">Avatar</label>
                   <select id="run-avatar-pipeline" value={avatarId} onChange={(e) => setAvatarId(e.target.value)}>
+                    {avatars.length === 0 && <option value="">Loading avatars…</option>}
                     {avatars.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
                   </select>
                   {avatarVoiceControl}
@@ -467,18 +550,24 @@ function RunsView(p: RunsViewProps) {
           </button>
         </div>
 
-        <div className="card">
+        <div className="card live">
           <h2>Live progress</h2>
           {!runLog && runState !== 'failed' ? (
             <p className="empty">No active run. Configure a run and hit <strong>{mode === 'demo' ? 'Render demo' : 'Start pipeline'}</strong> to watch progress here.</p>
           ) : (
             <div className="toast">
               <div className="toast-head">
-                <span className="run-state" role="status">
-                  {runState === 'running' && <><span className="spin" aria-hidden="true" />Working…{elapsed ? ` ${elapsed}` : ''}</>}
-                  {runState === 'done' && <span className="ok"><Icon d={IC.check} className="icon-sm" /> Done{elapsed ? ` in ${elapsed}` : ''}</span>}
-                  {runState === 'failed' && <span className="bad"><Icon d={IC.alert} className="icon-sm" /> Run failed</span>}
-                  {runState === 'idle' && 'Starting…'}
+                {/* The 1s elapsed ticker lives OUTSIDE the live region — inside it,
+                    screen readers would re-announce the status every second. */}
+                <span className="run-state">
+                  {runState === 'running' && <span className="spin" aria-hidden="true" />}
+                  {runState === 'done' && <span className="ok"><Icon d={IC.check} className="icon-sm" /></span>}
+                  {runState === 'failed' && <span className="bad"><Icon d={IC.alert} className="icon-sm" /></span>}
+                  <span role="status" className={runState === 'done' ? 'ok' : runState === 'failed' ? 'bad' : undefined}>
+                    {runState === 'running' ? 'Working…' : runState === 'done' ? 'Done' : runState === 'failed' ? 'Run failed' : 'Starting…'}
+                  </span>
+                  {runState === 'running' && elapsed && <span aria-hidden="true">{elapsed}</span>}
+                  {runState === 'done' && elapsed && <span className="ok" aria-hidden="true">in {elapsed}</span>}
                 </span>
                 {runState === 'done' && <button type="button" className="ghost" onClick={onViewResult}>{runMode === 'pipeline' ? 'Open Library ▸' : 'View result ▸'}</button>}
                 {runState === 'failed' && <button type="button" className="ghost" onClick={startRun} disabled={busy}><Icon d={IC.retry} className="icon-sm" /> Retry</button>}
@@ -493,8 +582,8 @@ function RunsView(p: RunsViewProps) {
   );
 }
 
-function LibraryView({ episodes, configured, onPreview, onNewRun }: {
-  episodes: Episode[]; configured: boolean; onPreview: (id: string, bust?: number) => void; onNewRun: () => void;
+function LibraryView({ episodes, configured, loaded, onPreview, onNewRun }: {
+  episodes: Episode[]; configured: boolean; loaded: boolean; onPreview: (id: string, bust?: number) => void; onNewRun: () => void;
 }) {
   return (
     <>
@@ -516,7 +605,13 @@ function LibraryView({ episodes, configured, onPreview, onNewRun }: {
 
       <div className="card">
         <h2>Episodes</h2>
-        {episodes.length === 0 ? (
+        {!loaded ? (
+          <div aria-hidden="true">
+            <div className="skeleton" style={{ marginBottom: 10 }} />
+            <div className="skeleton" style={{ marginBottom: 10 }} />
+            <div className="skeleton" />
+          </div>
+        ) : episodes.length === 0 ? (
           <p className="empty">
             No episodes yet.<br />
             <button type="button" className="ghost" style={{ marginTop: 12 }} onClick={onNewRun}>Start your first run</button>
@@ -525,13 +620,13 @@ function LibraryView({ episodes, configured, onPreview, onNewRun }: {
           <div className="table-wrap" tabIndex={0} role="region" aria-label="Episodes table">
             <table>
               <thead>
-                <tr><th>Episode</th><th>Status</th><th>Niche</th><th>Spent</th><th>Updated</th><th></th></tr>
+                <tr><th>Episode</th><th>Status</th><th>Niche</th><th>Spent</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr>
               </thead>
               <tbody>
                 {episodes.map((e) => (
                   <tr key={e.episode_id}>
                     <td className="mono">{e.episode_id}</td>
-                    <td><span className={`status ${e.status}`}>{e.status}</span></td>
+                    <td><span className={`status ${e.status}`}>{e.status.replace(/_/g, ' ')}</span></td>
                     <td>{e.niche ?? '—'}</td>
                     <td>${Number(e.spent_usd).toFixed(2)}</td>
                     <td className="mono" title={new Date(e.updated_at).toLocaleString()}>{relTime(e.updated_at)}</td>
@@ -631,8 +726,10 @@ function PreviewView({ preview, videoSrc, onLatestDemo, onClear, setVideoBust, o
             />
 
             <div className="player-controls">
+              {/* Fixed label + aria-pressed (like Loop): a flipping Unmute/Mute label
+                  with aria-pressed announces the inverse of the real state. */}
               <button type="button" className={`pill ${muted ? 'on' : ''}`} aria-pressed={muted} onClick={toggleMute}>
-                <Icon d={muted ? IC.volumeX : IC.volume} className="icon-sm" />{muted ? 'Unmute' : 'Mute'}
+                <Icon d={muted ? IC.volumeX : IC.volume} className="icon-sm" />Mute
               </button>
               <button type="button" className={`pill ${loop ? 'on' : ''}`} aria-pressed={loop} onClick={() => setLoop((l) => !l)}>
                 <Icon d={IC.repeat} className="icon-sm" />Loop
@@ -667,13 +764,20 @@ function SetupView({ providers }: { providers: Provider[] }) {
         <div className="providers">
           {providers.map((p) => (
             <span className="chip" key={p.env} title={p.env}>
-              <span className={`dot ${p.configured ? 'on' : 'off'}`} />
+              <span className={`dot ${p.configured ? 'on' : 'off'}`} aria-hidden="true" />
               {p.key}
+              <span className="sr-only">{p.configured ? ': key present' : ': no key'}</span>
             </span>
           ))}
-          {providers.length === 0 && <span style={{ color: 'var(--muted)' }}>loading…</span>}
+          {providers.length === 0 && (
+            <>
+              <span className="skeleton" style={{ width: 110, height: 30, borderRadius: 999 }} />
+              <span className="skeleton" style={{ width: 128, height: 30, borderRadius: 999 }} />
+              <span className="skeleton" style={{ width: 96, height: 30, borderRadius: 999 }} />
+            </>
+          )}
         </div>
-        <p className="note">Green = key present in <code>.env</code>. Blank keys fall back to mocks.</p>
+        <p className="note">A filled green dot means the key is present in <code>.env</code>. Blank keys fall back to mocks.</p>
       </div>
     </>
   );

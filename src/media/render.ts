@@ -26,6 +26,9 @@ const FFMPEG_TIMEOUT_MS = 10 * 60_000; // per invocation; a hung encode must not
 export interface RenderShot {
   visual_uri: string | null;
   audio_uri: string | null;
+  // Narration used only if the visual (whose baked-in audio was expected to carry
+  // the shot, e.g. an avatar clip) can't be fetched or has no audio stream.
+  fallback_audio_uri?: string | null;
   duration_s: number;
   caption?: string;
 }
@@ -147,18 +150,24 @@ function wrapCaption(text: string): string {
 
 const NORMALIZE = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${BG},setsar=1,fps=${FPS},format=yuv420p`;
 
-interface ResolvedInputs { visual: string | null; audio: string | null }
+interface ResolvedInputs { visual: string | null; audio: string | null; fallbackAudio: string | null }
 
 async function buildShot(i: number, shot: RenderShot, inputs: ResolvedInputs, tmpDir: string, font: string | null): Promise<{ path: string; real: boolean; durationS: number }> {
   let dur = Math.max(1, Math.round(shot.duration_s || 4));
   const out = join(tmpDir, `shot_${String(i).padStart(3, '0')}.mp4`);
-  const { visual, audio } = inputs;
+  const { visual, fallbackAudio } = inputs;
   const visualIsImage = !!visual && isImageFile(visual);
   const visualIsVideo = !!visual && !visualIsImage;
 
   // Audio source priority: explicit voiceover file > the visual video's own baked-in
-  // audio (e.g. a HeyGen avatar that already speaks) > silence.
-  const audioSource: 'file' | 'visual' | 'silence' = audio ? 'file' : (visualIsVideo && (await hasAudioStream(visual!)) ? 'visual' : 'silence');
+  // audio (e.g. a HeyGen avatar that already speaks) > the fallback narration (when
+  // the avatar clip the audio was delegated to didn't materialize) > silence.
+  let audio = inputs.audio;
+  let audioSource: 'file' | 'visual' | 'silence';
+  if (audio) audioSource = 'file';
+  else if (visualIsVideo && (await hasAudioStream(visual!))) audioSource = 'visual';
+  else if (fallbackAudio) { audio = fallbackAudio; audioSource = 'file'; }
+  else audioSource = 'silence';
 
   // Fit the shot to the narration / avatar clip so nothing is cut off.
   if (audioSource === 'file') { const ad = await probeDurationS(audio!); if (ad) dur = Math.max(dur, Math.ceil(ad)); }
@@ -230,11 +239,12 @@ export async function renderEpisode(opts: RenderOptions): Promise<RenderResult> 
     const musicPending = memoResolve(opts.musicUri, join(tmp, 'music.mp3'));
     const inputs: ResolvedInputs[] = await mapLimit(opts.shots, limit, async (shot, i) => {
       const visExt = shot.visual_uri && isImage(shot.visual_uri) ? 'jpg' : 'mp4';
-      const [visual, audio] = await Promise.all([
+      const [visual, audio, fallbackAudio] = await Promise.all([
         memoResolve(shot.visual_uri, join(tmp, `vis_${i}.${visExt}`)),
         memoResolve(shot.audio_uri, join(tmp, `aud_${i}.mp3`)),
+        memoResolve(shot.fallback_audio_uri, join(tmp, `aud_fb_${i}.mp3`)),
       ]);
-      return { visual, audio };
+      return { visual, audio, fallbackAudio };
     });
 
     // 2) Per-shot encodes (sequential — deterministic and gentle on CPU/memory; the

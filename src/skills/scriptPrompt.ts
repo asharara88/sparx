@@ -73,6 +73,7 @@ export const HOUSE_STYLE = `House style — apply on every run:
 - Earn attention continuously: every section either opens a curiosity loop or pays one off. No throat-clearing, no recap filler.
 - Specifics over abstractions: concrete examples, real numbers, named things — never "many people", "a lot of value", "studies show".
 - One idea per section, advancing the story; don't restate the previous section.
+- Surprise the ear: vary sentence rhythm and structure, and never settle for the first stock way to say something — reach for the fresher, more specific phrasing.
 - Pacing: ~${SPOKEN_WPM} words per spoken minute; 2-4 sentences per section.
 - Never use these phrases: ${BANNED_PHRASES.map((p) => `"${p}"`).join(', ')}.`;
 
