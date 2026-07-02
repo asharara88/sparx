@@ -2,6 +2,7 @@ import type { Agent } from './types.js';
 import { ok } from './types.js';
 import { getLLM } from '../llm/client.js';
 import { QAReviewSchema } from '../schemas/phase34.js';
+import { requiredDisclosureLines, techClaimRules, TECH_SECTION_ID } from '../skills/techSegment.js';
 import { createLogger } from '../logger.js';
 
 // Agent 12 — QA / Brand-safety. Gatekeeper for GATE C (qa.passed must be true).
@@ -31,11 +32,36 @@ export const qa: Agent = {
 
     const ai_disclosure_required = ctx.state.generated_video.length > 0 || ctx.state.avatar_clips.length > 0;
 
+    // Tech-slot compliance (deterministic — disclosure is law/brand, not style):
+    //   - the slot must exist in the script (it's a format promise)
+    //   - the right disclosure copy for the sponsorship status must appear verbatim
+    //     (sponsored → paid-partnership disclosure is a LEGAL requirement)
+    //   - spotlight/hybrid: no generative render of the real product slipped through
+    const ts = ctx.state.tech_segment;
+    if (ts?.enabled) {
+      const techSec = ctx.state.script.sections.find((x) => x.id === TECH_SECTION_ID);
+      if (!techSec) {
+        blocking.push('tech segment enabled but missing from script');
+      } else {
+        const lines = requiredDisclosureLines(ts, ctx.state.channel.languages);
+        if (!lines.some((l) => techSec.vo_text.includes(l))) {
+          blocking.push(ts.sponsored
+            ? 'sponsored tech segment without paid-partnership disclosure (legal requirement)'
+            : 'tech segment missing independence disclosure line');
+        }
+      }
+      if (ts.mode !== 'explainer') {
+        const techShotIds = new Set(ctx.state.shot_list.filter((sh) => sh.section_id === TECH_SECTION_ID).map((sh) => sh.shot_id));
+        const genProduct = ctx.state.generated_video.filter((g) => techShotIds.has(g.shot_id));
+        if (genProduct.length) blocking.push(`${genProduct.length} generative render(s) of a real product in the tech segment`);
+      }
+    }
+
     // LLM claim + brand review
     const review = await llm.complete({
       tier: 'fast', temperature: 0.2, schema: QAReviewSchema,
       system: 'You are a QA reviewer for YouTube content. Flag unverifiable factual claims and brand-safety/voice issues. Be specific and conservative.',
-      prompt: `Hook: ${ctx.state.script.hook}\nNarration:\n${ctx.state.script.sections.map((s) => s.vo_text).join('\n')}\n\nReturn JSON {claims_ok:boolean, brand_ok:boolean, issues:string[]}.`,
+      prompt: `Hook: ${ctx.state.script.hook}\nNarration:\n${ctx.state.script.sections.map((s) => s.vo_text).join('\n')}${ts?.enabled ? `\n\nThe section with id "${TECH_SECTION_ID}" is a ${ts.mode}-mode tech segment. ${techClaimRules(ts.mode)}` : ''}\n\nReturn JSON {claims_ok:boolean, brand_ok:boolean, issues:string[]}.`,
       mock: JSON.stringify({ claims_ok: true, brand_ok: true, issues: [] }),
     });
     const r = review.data!;

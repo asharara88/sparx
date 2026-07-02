@@ -16,9 +16,9 @@ const Schema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().default('claude-sonnet-4-6'),      // 'main' tier — economical default for non-creative agents
   LLM_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),  // 'fast' tier — grading/critique
-  LLM_PRO_MODEL: z.string().default('claude-opus-4-8'),    // 'pro' tier — Opus, for the creative spine (angle, script, packaging)
+  LLM_PRO_MODEL: z.string().default('claude-fable-5'),     // 'pro' tier — Fable 5 at max effort, for the creative spine (angle, script, packaging)
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
-  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000), // Fable 5 turns at high effort can run minutes; 60s would abort every hard call
 
   // research providers (optional; mock used when absent)
   TAVILY_API_KEY: z.string().optional(),

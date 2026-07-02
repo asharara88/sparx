@@ -5,6 +5,7 @@ import { getLLM } from '../llm/client.js';
 import { ShotPlanSchema } from '../schemas/phase1.js';
 import { videoPrompts, type ShotSpec } from '../skills/videoPrompt.js';
 import { estimateShotCost } from '../skills/cost.js';
+import { TECH_SECTION_ID } from '../skills/techSegment.js';
 import { createLogger } from '../logger.js';
 import { AgentError } from '../errors.js';
 
@@ -22,11 +23,22 @@ export const visualDirector: Agent = {
     if (sections.length === 0) throw new AgentError('visual_director', 'no script sections to plan shots for');
     const host = ctx.state.channel.host_mode;
     const llm = getLLM();
+    // Fixed tech slot: the visual problem FLIPS by mode. Explainer → generated shines
+    // (concepts, generic hands-and-devices). Spotlight/hybrid → generated is banned for
+    // the tech section: AI video cannot render a real product accurately, and a wrong
+    // product on a skeptical evidence-first show is a credibility wound. Prefer official
+    // press/b-roll via stock instead.
+    const ts = ctx.state.tech_segment;
+    const techGuide = ts?.enabled
+      ? (ts.mode === 'explainer'
+          ? `\nTech section ("${TECH_SECTION_ID}"): concept explainer — "generated" is a good fit (abstract/environmental, no real branded products).`
+          : `\nTech section ("${TECH_SECTION_ID}"): real product (${ts.product?.name ?? ts.topic}) — NEVER "generated"; use "stock" (official press assets / b-roll) or "graphic".`)
+      : '';
 
     const plan = await llm.complete({
       tier: 'pro', temperature: 0.5, maxTokens: 2800, schema: ShotPlanSchema,   // Opus: richer, more precise gen prompts → better footage
       system: 'You are a Visual Director. For each section choose the best SOURCE (host/generated/stock/graphic/avatar) with a one-line reason, and write a concrete shot spec. Use "generated" only where it clearly adds value; prefer stock/graphic otherwise to control cost.',
-      prompt: `Host mode: ${host}. Budget remaining: $${ctx.budget_remaining_usd.toFixed(2)}.\nSections:\n${sections.map((s) => `- ${s.id} [${s.beat}] vo="${s.vo_text.slice(0, 80)}" note="${s.shot_note}" onscreen="${s.on_screen}"`).join('\n')}\n\nReturn JSON {shots:[{section_id, source, reason, description, style, camera, motion(low|medium|high), mood, duration_s, negative[]}]}.`,
+      prompt: `Host mode: ${host}. Budget remaining: $${ctx.budget_remaining_usd.toFixed(2)}.${techGuide}\nSections:\n${sections.map((s) => `- ${s.id} [${s.beat}] vo="${s.vo_text.slice(0, 80)}" note="${s.shot_note}" onscreen="${s.on_screen}"`).join('\n')}\n\nReturn JSON {shots:[{section_id, source, reason, description, style, camera, motion(low|medium|high), mood, duration_s, negative[]}]}.`,
       mock: JSON.stringify({
         shots: sections.map((s, i) => ({
           section_id: s.id,
@@ -75,6 +87,18 @@ export const visualDirector: Agent = {
         return { ...s, source: 'generated', prompt: videoPrompts(spec), cost_estimate_usd: estimateShotCost(s.duration_s, 'runway') };
       });
       log.info('voice_only host mode: all shots set to generated b-roll (wide framing)', { shots: shots.length });
+    }
+
+    // tech-slot backstop: whatever the plan (or a host-mode override) said, a real
+    // product never goes to a generative model. Runs last-but-one so it wins.
+    if (ts?.enabled && ts.mode !== 'explainer') {
+      let forced = 0;
+      shots = shots.map((sh) => {
+        if (sh.section_id !== TECH_SECTION_ID || sh.source === 'stock' || sh.source === 'graphic' || sh.source === 'host') return sh;
+        forced++;
+        return { ...sh, source: 'stock' as const, prompt: {}, cost_estimate_usd: 0 };
+      });
+      if (forced) log.info('tech section forced to stock (real product; no generative render)', { forced, product: ts.product?.name ?? ts.topic });
     }
 
     // cost-aware optimization: downgrade generated→stock until within budget

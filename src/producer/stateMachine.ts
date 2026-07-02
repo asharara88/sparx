@@ -12,7 +12,7 @@ export interface StateDef {
 
 export const MACHINE: Record<EpisodeStatus, StateDef | null> = {
   draft:          { stages: [],                                          next: 'researching' },
-  researching:    { stages: [['research']],                             next: 'concept_review' },
+  researching:    { stages: [['research'], ['tech_segment_planner']],   next: 'concept_review' },
   concept_review: { stages: [], next: 'scripting',     gate: 'A' },
   scripting:      { stages: [['scriptwriter'], ['visual_director']],     next: 'script_review' },
   script_review:  { stages: [], next: 'generating',    gate: 'B' },

@@ -31,7 +31,14 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Models that reject the `temperature` parameter (deprecated / fixed for them).
 // Sending it returns HTTP 400, so we omit it for these and let the model default.
 function modelSupportsTemperature(model: string): boolean {
-  return !/opus-4-8/i.test(model);
+  return !/opus-4-8|fable-5|mythos-5/i.test(model);
+}
+
+// Fable 5 has always-on thinking (thinking tokens count toward max_tokens) and safety
+// classifiers that can decline a request. We run it at max effort and opt into the
+// server-side Opus fallback so a false-positive refusal re-serves instead of failing.
+function isFable(model: string): boolean {
+  return /fable-5|mythos-5/i.test(model);
 }
 
 export interface LLM {
@@ -62,12 +69,18 @@ class AnthropicLLM implements LLM {
       const timer = setTimeout(() => ctrl.abort(), c.LLM_TIMEOUT_MS);
       try {
         const reqBody: Record<string, unknown> = { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
-        // Some newer models (e.g. Opus 4.8) deprecate `temperature` and 400 if it's sent.
+        // Some newer models (e.g. Opus 4.8, Fable 5) deprecate `temperature` and 400 if it's sent.
         if (modelSupportsTemperature(model)) reqBody.temperature = temperature;
+        const headers: Record<string, string> = { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
+        if (isFable(model)) {
+          reqBody.output_config = { effort: 'max' };
+          reqBody.fallbacks = [{ model: 'claude-opus-4-8' }];
+          headers['anthropic-beta'] = 'server-side-fallback-2026-06-01';
+        }
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           signal: ctrl.signal,
-          headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          headers,
           body: JSON.stringify(reqBody),
         });
         if (!res.ok) {
@@ -80,15 +93,25 @@ class AnthropicLLM implements LLM {
           }
           throw new LLMError(`Anthropic ${res.status}: ${body.slice(0, 300)}`, TRANSIENT.has(res.status));
         }
-        const data = (await res.json()) as { content: { text?: string }[]; stop_reason?: string; usage?: { input_tokens: number; output_tokens: number } };
+        const data = (await res.json()) as { content: { text?: string }[]; stop_reason?: string; stop_details?: { category?: string | null; explanation?: string | null } | null; model?: string; usage?: { input_tokens: number; output_tokens: number } };
+        // Fable 5 safety classifiers return HTTP 200 with stop_reason "refusal" (content is
+        // empty or a discarded partial). With the fallback opted in above, seeing this means
+        // the whole chain declined — not retryable with the same prompt.
+        if (data.stop_reason === 'refusal') {
+          throw new LLMError(`Anthropic refusal (category=${data.stop_details?.category ?? 'unknown'}): ${data.stop_details?.explanation ?? 'request declined by safety classifiers'}`, false);
+        }
         const text = data.content.map((p) => p.text ?? '').join('').trim();
         const truncated = data.stop_reason === 'max_tokens';
         if (truncated) this.log.warn('llm response hit max_tokens (truncated)', { model, maxTokens });
         const inTok = data.usage?.input_tokens ?? 0, outTok = data.usage?.output_tokens ?? 0;
-        const usage: Usage = { inputTokens: inTok, outputTokens: outTok, costUsd: costFor(model, inTok, outTok) };
+        // Price against the model that actually served the response — on a Fable refusal
+        // the server-side fallback re-serves on Opus, billed at Opus rates.
+        const usage: Usage = { inputTokens: inTok, outputTokens: outTok, costUsd: costFor(data.model ?? model, inTok, outTok) };
         this.total.inputTokens += inTok; this.total.outputTokens += outTok; this.total.costUsd += usage.costUsd;
         return { text, usage, truncated };
       } catch (err) {
+        // Non-retryable failures (4xx, safety refusals) won't change on a re-send.
+        if (err instanceof LLMError && !err.retryable) throw err;
         lastErr = err;
         const aborted = err instanceof Error && err.name === 'AbortError';
         if (attempt < c.LLM_MAX_RETRIES) {
@@ -107,7 +130,10 @@ class AnthropicLLM implements LLM {
   async complete<T>(args: CompleteArgs<T>): Promise<CompleteResult<T>> {
     const model = args.model ?? this.model(args.tier ?? 'main');
     const sys = args.schema ? `${args.system}\n\nRespond with ONLY valid JSON matching the requested shape. No prose, no code fences.` : args.system;
-    const budget = args.maxTokens ?? 2000;
+    // Fable 5 thinking is always on and its tokens count toward max_tokens; callers size
+    // budgets for the visible output, so give the thinking room on top (still < ~16K,
+    // the safe ceiling for non-streaming requests).
+    const budget = (args.maxTokens ?? 2000) + (isFable(model) ? 8000 : 0);
     const { text, usage, truncated } = await this.call(model, sys, args.prompt, budget, args.temperature ?? 0.7);
 
     if (!args.schema) return { text, data: undefined, usage, live: true };

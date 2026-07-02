@@ -1,5 +1,6 @@
 import type { Agent } from './types.js';
 import { research } from './research.js';
+import { techSegmentPlanner } from './techSegmentPlanner.js';
 import { scriptwriter } from './scriptwriter.js';
 import { visualDirector } from './visualDirector.js';
 import { voiceover } from './voiceover.js';
@@ -16,7 +17,7 @@ import { publishing } from './publishing.js';
 
 // Agent registry keyed by the names used in the state machine.
 export const AGENTS: Record<string, Agent> = {
-  research, scriptwriter, visual_director: visualDirector,
+  research, tech_segment_planner: techSegmentPlanner, scriptwriter, visual_director: visualDirector,
   voiceover, video_generation: videoGeneration, avatar, asset_sourcing: assetSourcing, music,
   editor, render, qa,
   shorts, packaging, publishing,

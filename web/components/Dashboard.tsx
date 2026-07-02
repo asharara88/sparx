@@ -400,7 +400,7 @@ function LibraryView({ episodes, configured, onPreview, onNewRun }: {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Episode</th><th>Status</th><th>Niche</th><th>Spent</th><th>Updated</th><th></th></tr>
+                <tr><th>Episode</th><th>Status</th><th>Niche</th><th>Spent</th><th>Updated</th> </th></tr>
               </thead>
               <tbody>
                 {episodes.map((e) => (
