@@ -37,7 +37,9 @@ export const visualDirector: Agent = {
 
     const plan = await llm.complete({
       tier: 'pro', temperature: 0.5, maxTokens: 2800, schema: ShotPlanSchema,   // Opus: richer, more precise gen prompts → better footage
-      system: 'You are a Visual Director. For each section choose the best SOURCE (host/generated/stock/graphic/avatar) with a one-line reason, and write a concrete shot spec. Use "generated" only where it clearly adds value; prefer stock/graphic otherwise to control cost.',
+      system: 'You are a Visual Director. For each section choose the SOURCE (host/generated/stock/graphic/avatar) that best serves the story, with a one-line reason, and write a concrete shot spec. ' +
+        'Pick "generated" wherever a bespoke visual would land the idea harder; pick stock/graphic when authenticity or clarity genuinely fits the beat better — choose on quality, not cost (the budget is enforced downstream). ' +
+        'Make each spec precise enough that two directors would film the same shot.',
       prompt: `Host mode: ${host}. Budget remaining: $${ctx.budget_remaining_usd.toFixed(2)}.${techGuide}\nSections:\n${sections.map((s) => `- ${s.id} [${s.beat}] vo="${s.vo_text.slice(0, 80)}" note="${s.shot_note}" onscreen="${s.on_screen}"`).join('\n')}\n\nReturn JSON {shots:[{section_id, source, reason, description, style, camera, motion(low|medium|high), mood, duration_s, negative[]}]}.`,
       mock: JSON.stringify({
         shots: sections.map((s, i) => ({
