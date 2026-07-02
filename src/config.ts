@@ -37,7 +37,7 @@ const Schema = z.object({
   KLING_API_KEY: z.string().optional(),
   PEXELS_API_KEY: z.string().optional(),
   HEYGEN_API_KEY: z.string().optional(),
-  HEYGEN_AVATAR_ID: z.string().default(''),
+  HEYGEN_AVATAR_ID: z.string().default('616dbc1cbc584b91966c7d6d5d907632'),
   HEYGEN_VOICE_ID: z.string().default(''),
   HEYGEN_API_BASE: z.string().url().default('https://api.heygen.com'),
   HEYGEN_UPLOAD_BASE: z.string().url().default('https://upload.heygen.com'),
