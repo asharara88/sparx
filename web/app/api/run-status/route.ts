@@ -21,7 +21,13 @@ export async function GET(req: Request) {
   const tail = lines.slice(-40).join('\n');
 
   const ok = /✅ Demo rendered|pipeline finished/.test(text);
-  const failed = /demo failed:|pipeline crashed|Error:/.test(text) && !ok;
+  // Both entry points catch everything and print an explicit marker (scripts/demo.ts
+  // → "demo failed:", src/index.ts → "pipeline crashed"). The line-anchored Error
+  // pattern only catches a process that died before those handlers (e.g. a tsx
+  // module-resolution stack). It must NOT match recoverable per-section warnings
+  // like "  ⚠ section 1 Runway failed (Error: …)" — those are indented and the run
+  // continues to a rendered cut, so flagging them killed the poll mid-run.
+  const failed = /demo failed:|pipeline crashed|^[A-Za-z]*Error( \[\w+\])?:/m.test(text) && !ok;
   const done = ok || failed;
 
   const video = join(GENERATED_DIR, 'demo', 'cut.mp4');
