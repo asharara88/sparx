@@ -37,9 +37,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const range = req.headers.get('range');
 
   if (range) {
-    const m = /bytes=(\d*)-(\d*)/.exec(range);
-    const start = m && m[1] ? parseInt(m[1], 10) : 0;
-    const end = m && m[2] ? parseInt(m[2], 10) : size - 1;
+    // bytes=N-M / bytes=N- / bytes=-N (suffix: last N bytes — players probe the
+    // trailing moov atom this way). Clamp to the file and 416 anything unsatisfiable;
+    // an unclamped end would advertise a Content-Length the stream never delivers.
+    const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+    let start: number;
+    let end: number;
+    if (m && m[1]) {
+      start = parseInt(m[1], 10);
+      end = m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    } else if (m && m[2]) {
+      start = Math.max(0, size - parseInt(m[2], 10));
+      end = size - 1;
+    } else {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+    }
+    if (start >= size || start > end) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+    }
     return new Response(fileToWebStream(file, start, end), {
       status: 206,
       headers: {

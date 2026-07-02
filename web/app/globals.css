@@ -8,7 +8,9 @@
   --border-2: #34344a;
   --text: #e7e7f0;
   --muted: #9a9ab0;
-  --faint: #6b6b82;
+  /* 5.3:1 on --panel, 4.95:1 on --panel-2 — the smallest text this styles must
+     clear WCAG AA (4.5:1); stays darker than --muted so the hierarchy holds. */
+  --faint: #8a8aa2;
   --accent: #7c5cff;
   --accent-2: #5cc8ff;
   --ok: #34d399;
@@ -88,7 +90,7 @@ body {
 .health strong { color: var(--text); font-weight: 600; }
 
 /* ---------------- Main content ---------------- */
-.main { min-width: 0; padding: 30px 34px 64px; max-width: 1120px; }
+.main { min-width: 0; padding: 30px 34px 64px; max-width: 1120px; margin-inline: auto; width: 100%; }
 
 .view-head { margin-bottom: 22px; }
 .view-head .title-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -124,11 +126,13 @@ select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9ab0' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
 }
-.row { display: flex; gap: 12px; }
-.row > * { flex: 1; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.row > * { flex: 1 1 160px; min-width: 0; }
 
 button {
-  background: linear-gradient(180deg, var(--accent), #6a49f0);
+  /* Both gradient stops keep white 14px/600 text above the 4.5:1 AA line
+     (4.66:1 and 5.49:1) — plain --accent is only 4.35:1. */
+  background: linear-gradient(180deg, #715af7, #6a49f0);
   color: white; border: none; border-radius: 10px; padding: 11px 16px;
   font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 18px; width: 100%;
   transition: filter .12s, transform .04s;
@@ -148,7 +152,7 @@ button.ghost:hover { background: var(--panel-3); filter: none; }
 }
 .seg button { margin: 0; border-radius: 8px; padding: 9px 12px; background: transparent; color: var(--muted); font-weight: 600; }
 .seg button:hover { filter: none; color: var(--text); }
-.seg button:not(.off) { background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+.seg button:not(.off) { background: #6a49f0; color: #fff; box-shadow: var(--shadow); }
 .seg button.off { background: transparent; }
 
 /* ---------------- Providers ---------------- */
@@ -180,8 +184,14 @@ td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size
 .status.on_hold, .status.failed { color: var(--bad); border-color: #5e1d1d; background: rgba(248,113,113,.08); }
 .status.researching, .status.scripting, .status.generating, .status.assembling, .status.qa { color: var(--accent-2); border-color: #1d425e; background: rgba(92,200,255,.08); }
 
-a.play { color: var(--accent-2); text-decoration: none; font-weight: 600; font-size: 13px; cursor: pointer; }
-a.play:hover { text-decoration: underline; }
+/* Inline action styled as a link but marked up as a <button> (keyboard/SR reachable);
+   the resets neutralize the global gradient button rule. */
+.play {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 0; margin: 0; width: auto; font: inherit;
+  color: var(--accent-2); text-decoration: none; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.play:hover { background: none; filter: none; text-decoration: underline; }
 
 /* ---------------- Misc ---------------- */
 .empty {
@@ -201,6 +211,8 @@ a.play:hover { text-decoration: underline; }
 .toast-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-weight: 600; }
 .toast-head .ok { color: var(--ok); }
 .toast-head .bad { color: var(--bad); }
+.run-state, .run-state .ok, .run-state .bad { display: inline-flex; align-items: center; gap: 7px; }
+.toast-stage { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
 .logbox {
   background: #08080e; border: 1px solid var(--border); border-radius: 8px;
   padding: 12px; margin: 0; max-height: 260px; overflow: auto;
@@ -242,6 +254,19 @@ video { width: 100%; border-radius: 12px; border: 1px solid var(--border); backg
   vertical-align: -2px; margin-right: 6px; flex: none;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  /* Even out the ring so it reads as a static badge, not a broken partial circle. */
+  .spin { animation: none; border-top-color: rgba(255,255,255,.3); }
+}
+
+/* Small stroke icon used inside pills, toasts, banners, and .play buttons. */
+.icon-sm { width: 14px; height: 14px; flex: none; color: currentColor; vertical-align: -2px; }
+
+/* Keyboard focus for controls whose UA ring is suppressed or hard to see. */
+.play:focus-visible, .pill:focus-visible, .nav-item:focus-visible, .health:focus-visible,
+.logbox:focus-visible, .table-wrap:focus-visible {
+  outline: 2px solid var(--accent-2); outline-offset: 2px;
+}
 
 /* ---------------- Responsive: sidebar -> topbar ---------------- */
 @media (max-width: 820px) {
@@ -256,7 +281,6 @@ video { width: 100%; border-radius: 12px; border: 1px solid var(--border); backg
   .nav-item { padding: 8px 12px; white-space: nowrap; }
   .nav-item .nav-label { display: none; }
   .nav-item.active .nav-label, .nav-badge { display: inline; }
-  .nav-badge { display: none; }
   .sidebar-foot { margin: 0 0 0 auto; padding: 0; border: none; flex: none; }
   .health { padding: 8px; }
   .health .health-label { display: none; }

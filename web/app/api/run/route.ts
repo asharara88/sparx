@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { spawn } from 'node:child_process';
-import { mkdirSync, openSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import { ensureEnv } from '@/lib/root-env';
 import { REPO_ROOT, GENERATED_DIR } from '@/lib/paths';
@@ -50,6 +50,9 @@ export async function POST(req: Request) {
 
   const child = spawn('npx', args, { cwd: REPO_ROOT, env, detached: true, stdio: ['ignore', fd, fd] });
   child.unref();
+  // spawn dup()ed the descriptor into the child; close the parent's copy so each
+  // run doesn't leak an fd in the server process.
+  closeSync(fd);
 
   // Return the log basename so the dashboard can poll /api/run-status for live progress.
   return NextResponse.json({ started: true, mode, pid: child.pid, log: `${mode}-${stamp}.log` });

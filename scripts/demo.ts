@@ -6,6 +6,7 @@ import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
 import { getMusic } from '../src/media/music.js';
 import { SCRIPT_SYSTEM, buildDemoPrompt, DemoScriptSchema, refineTopic } from '../src/skills/scriptPrompt.js';
+import { mapLimit } from '../src/producer/concurrency.js';
 import { config } from '../src/config.js';
 
 // Quick demo renderer: write a short script with the LLM, then either
@@ -17,6 +18,9 @@ import { config } from '../src/config.js';
 //   DEMO_SECTIONS=3 DEMO_MODE=avatar|voiceover npm run demo:video
 const topic = process.argv.slice(2).join(' ') || '5 newborn-care mistakes new parents make — and the old advice doctors now warn against';
 const want = Math.max(1, Math.min(6, parseInt(process.env.DEMO_SECTIONS || '5', 10)));
+// Sections render concurrently up to this cap. Default 2: HeyGen entry tiers allow
+// only a few concurrent renders, and a quota 429 would fall through to a caption slate.
+const CONC = Math.max(1, Math.min(4, parseInt(process.env.DEMO_CONCURRENCY || '2', 10) || 2));
 
 // Demos fail fast to a caption slate rather than block on the full production HeyGen
 // poll (.env typically sets 5 min). Cap at 2 min — or DEMO_HEYGEN_POLL_TIMEOUT_MS if set
@@ -66,8 +70,10 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
     // ElevenLabs voice and HeyGen syncs the avatar's mouth to that uploaded audio;
     // 'heygen' uses HeyGen's built-in TTS. Only spend voice credits on a real avatar.
     const avatarVoice = avatar.live ? resolveAvatarVoice(c.AVATAR_VOICE, voice.live) : 'heygen';
-    console.log(`Generating ${d.sections.length} avatar clips (provider=${avatar.name}, avatar=${c.HEYGEN_AVATAR_ID || '(default)'}, voice=${avatarVoice})...`);
-    for (const [i, s] of d.sections.entries()) {
+    console.log(`Generating ${d.sections.length} avatar clips (provider=${avatar.name}, avatar=${c.HEYGEN_AVATAR_ID || '(default)'}, voice=${avatarVoice}, concurrency=${CONC})...`);
+    // Sections render concurrently (mapLimit keeps result order); within a section,
+    // voice-then-avatar stays serial because HeyGen lip-syncs to the uploaded audio.
+    shots.push(...await mapLimit(d.sections, CONC, async (s, i) => {
       console.log(`  · section ${i + 1}/${d.sections.length} (HeyGen render can take a minute)...`);
       const fallbackDur = Math.max(3, Math.round(s.vo_text.split(/\s+/).length / 2.3));
       try {
@@ -81,41 +87,46 @@ process.env.HEYGEN_POLL_TIMEOUT_MS = process.env.DEMO_HEYGEN_POLL_TIMEOUT_MS || 
         }
         const clip = await avatar.generate({ text: s.vo_text, avatarId: c.HEYGEN_AVATAR_ID, voiceId: c.HEYGEN_VOICE_ID, durationS: fallbackDur, audioUri });
         // Avatar video carries its own voice; the render keeps that audio.
-        shots.push({ visual_uri: clip.uri, audio_uri: null, duration_s: clip.durationS ?? 6, caption: s.on_screen });
+        return { visual_uri: clip.uri, audio_uri: null, duration_s: clip.durationS ?? 6, caption: s.on_screen };
       } catch (err) {
         // Mirror the avatar agent: one HeyGen failure/timeout shouldn't sink the whole
         // demo — fall back to a captioned slate for this section so the render completes.
         console.warn(`  ⚠ section ${i + 1} HeyGen failed (${String(err).slice(0, 160)}); using caption slate`);
-        shots.push({ visual_uri: null, audio_uri: null, duration_s: fallbackDur, caption: s.on_screen });
+        return { visual_uri: null, audio_uri: null, duration_s: fallbackDur, caption: s.on_screen };
       }
-    }
+    }));
   } else if (mode === 'broll') {
     // Cinematic b-roll: Runway generates the footage (text→image→video), the voice
     // provider narrates over it. Runway clips have no audio, so the narration is the
     // sole audio track (silent if no ELEVENLABS_API_KEY).
     const video = getVideo();
-    console.log(`Generating ${d.sections.length} b-roll clips (provider=${video.name}) + voiceover (voice=${voice.name})...`);
-    for (const [i, s] of d.sections.entries()) {
+    console.log(`Generating ${d.sections.length} b-roll clips (provider=${video.name}) + voiceover (voice=${voice.name}, concurrency=${CONC})...`);
+    shots.push(...await mapLimit(d.sections, CONC, async (s, i) => {
       const fallbackDur = Math.max(3, Math.round(s.vo_text.split(/\s+/).length / 2.3));
-      const art = await voice.synthesize(s.vo_text, voiceId);
-      try {
-        console.log(`  · section ${i + 1}/${d.sections.length} (Runway render can take a minute)...`);
-        // Steer away from AI-video's weak spots: wide/establishing, environmental, soft
-        // focus — no tight close-ups of faces or hands (where artifacts show most).
-        const prompt = `Cinematic wide establishing b-roll, environmental and atmospheric, soft natural light, gentle slow camera move, shallow depth of field on objects (not people). Avoid tight close-ups of faces or hands. No on-screen text. Scene: ${s.on_screen || s.vo_text.slice(0, 90)}`;
-        const takes = await video.generate({ prompt, model: 'runway', durationS: 5 });
-        shots.push({ visual_uri: takes[0]?.uri ?? null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen });
-      } catch (err) {
-        console.warn(`  ⚠ section ${i + 1} Runway failed (${String(err).slice(0, 160)}); using caption slate`);
-        shots.push({ visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen });
+      console.log(`  · section ${i + 1}/${d.sections.length} (Runway render can take a minute)...`);
+      // Steer away from AI-video's weak spots: wide/establishing, environmental, soft
+      // focus — no tight close-ups of faces or hands (where artifacts show most).
+      const prompt = `Cinematic wide establishing b-roll, environmental and atmospheric, soft natural light, gentle slow camera move, shallow depth of field on objects (not people). Avoid tight close-ups of faces or hands. No on-screen text. Scene: ${s.on_screen || s.vo_text.slice(0, 90)}`;
+      // Narration and footage are independent — run both at once. Voice failure still
+      // aborts the demo (as before); Runway failure falls back to a narrated slate.
+      const [artR, takesR] = await Promise.allSettled([
+        voice.synthesize(s.vo_text, voiceId),
+        video.generate({ prompt, model: 'runway', durationS: 5 }),
+      ]);
+      if (artR.status === 'rejected') throw artR.reason;
+      const art = artR.value;
+      if (takesR.status === 'rejected') {
+        console.warn(`  ⚠ section ${i + 1} Runway failed (${String(takesR.reason).slice(0, 160)}); using caption slate`);
+        return { visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen };
       }
-    }
+      return { visual_uri: takesR.value[0]?.uri ?? null, audio_uri: art.uri, duration_s: art.durationS ?? fallbackDur, caption: s.on_screen };
+    }));
   } else {
     console.log(`Voicing ${d.sections.length} sections (voice=${voice.name})...`);
-    for (const s of d.sections) {
+    shots.push(...await mapLimit(d.sections, CONC, async (s) => {
       const art = await voice.synthesize(s.vo_text, voiceId);
-      shots.push({ visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? 5, caption: s.on_screen });
-    }
+      return { visual_uri: null, audio_uri: art.uri, duration_s: art.durationS ?? 5, caption: s.on_screen };
+    }));
   }
   // Outro card with the CTA.
   shots.push({ visual_uri: null, audio_uri: null, duration_s: 3, caption: d.cta });

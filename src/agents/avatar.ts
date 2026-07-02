@@ -5,7 +5,12 @@ import { getAvatar, resolveAvatarVoice } from '../media/avatar.js';
 import { getVoice } from '../media/voice.js';
 import { config } from '../config.js';
 import { canAfford } from '../producer/budget.js';
+import { mapLimit } from '../producer/concurrency.js';
 import { createLogger } from '../logger.js';
+
+// HeyGen entry tiers only allow a few concurrent renders; each render is a
+// minutes-long submit+poll cycle, so even 2 in flight roughly halves wall-clock.
+const CONCURRENCY = 2;
 
 // Agent 3b — Avatar (HeyGen). Renders an avatar speaking the section narration for
 // each shot whose source is "avatar" (intros, cutaways, explainers, dubs — handoff §5).
@@ -31,13 +36,17 @@ export const avatar: Agent = {
     const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
     const avatarShots = ctx.state.shot_list.filter((s) => s.source === 'avatar');
 
-    const clips: AvatarClip[] = [];
-    let cost = 0; let skipped = 0;
-    for (const shot of avatarShots) {
+    // Clips render concurrently (cap CONCURRENCY). The budget guard reserves each
+    // clip's ESTIMATE synchronously before its first await, then swaps in the actual
+    // cost on completion (a failed clip frees its reservation) — so concurrent tasks
+    // never overshoot the cap the way unguarded parallelism would.
+    let reserved = 0; let skipped = 0;
+    const results = await mapLimit(avatarShots, CONCURRENCY, async (shot): Promise<AvatarClip | null> => {
       const text = secById.get(shot.section_id)?.vo_text ?? '';
-      if (!text) { skipped++; continue; }
+      if (!text) { skipped++; return null; }
       const est = Math.max(0.02, shot.duration_s * 0.005);
-      if (!canAfford(ctx.state, cost + est)) { skipped++; continue; }
+      if (!canAfford(ctx.state, reserved + est)) { skipped++; return null; }
+      reserved += est;
       try {
         let audioUri: string | undefined;
         let voiceCost = 0;
@@ -53,13 +62,18 @@ export const avatar: Agent = {
           }
         }
         const art = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s, audioUri });
-        cost += art.costUsd + voiceCost;
-        clips.push({ shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: art.durationS ?? shot.duration_s, cost_usd: art.costUsd + voiceCost });
+        const clipCost = art.costUsd + voiceCost;
+        reserved += clipCost - est;
+        return { shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: art.durationS ?? shot.duration_s, cost_usd: clipCost };
       } catch (err) {
+        reserved -= est;
         log.warn('avatar generation failed; leaving for stock fallback', { shot: shot.shot_id, err: String(err) });
         skipped++;
+        return null;
       }
-    }
+    });
+    const clips = results.filter((r): r is AvatarClip => r !== null);
+    const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0);
     log.info('avatar clips rendered', { clips: clips.length, skipped, provider: provider.name, voice: voiceMode });
     return ok(ctx, { avatar_clips: clips }, cost, `${clips.length} avatar clips${skipped ? `, ${skipped} skipped` : ''} (${provider.name}, voice=${voiceMode})`);
   },

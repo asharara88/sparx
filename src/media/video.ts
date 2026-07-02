@@ -93,23 +93,34 @@ export class RunwayVideo implements VideoProvider {
     const c = config();
     const takes = Math.min(req.takes ?? 1, c.RUNWAY_MAX_TAKES); // cap real-API takes to control cost
     const perTakeCost = estimateShotCost(req.durationS, 'runway');
-    const out: MediaArtifact[] = [];
-    for (let i = 0; i < takes; i++) {
-      // gen4.5 needs a start image: synthesize one from the prompt unless caller gave one.
-      let promptImage = req.promptImage;
-      if (!promptImage) {
-        const imgId = await this.createImageTask(req.prompt, req.ratio);
-        log.info('runway image task submitted', { id: imgId, take: i });
-        const imgs = await this.poll(imgId);
-        if (imgs.length === 0) { log.warn('runway image gen returned no output', { id: imgId }); continue; }
-        promptImage = imgs[0]!;
-      }
-      const id = await this.createTask({ ...req, promptImage });
-      log.info('runway task submitted', { id, take: i, duration: req.durationS });
-      const urls = await this.poll(id);
-      if (urls.length === 0) { log.warn('runway task returned no output', { id }); continue; }
-      out.push({ uri: urls[0]!, durationS: req.durationS, costUsd: perTakeCost, meta: { take: i, taskId: id, model: c.RUNWAY_MODEL } });
+
+    // gen4.5 needs a start image: synthesize ONE from the prompt unless the caller
+    // gave one, and share it across takes (per-take images doubled latency and image
+    // cost for little gain — the per-take seed below still varies the motion).
+    let promptImage = req.promptImage;
+    if (!promptImage) {
+      const imgId = await this.createImageTask(req.prompt, req.ratio);
+      log.info('runway image task submitted', { id: imgId });
+      const imgs = await this.poll(imgId);
+      if (imgs.length === 0) throw new Error('Runway image gen returned no output');
+      promptImage = imgs[0]!;
     }
+
+    // Takes run concurrently; one failed take logs and drops rather than aborting the rest.
+    const results = await Promise.all(Array.from({ length: takes }, async (_, i): Promise<MediaArtifact | null> => {
+      try {
+        const seed = req.seed === undefined ? undefined : req.seed + i;
+        const id = await this.createTask({ ...req, promptImage, seed });
+        log.info('runway task submitted', { id, take: i, duration: req.durationS });
+        const urls = await this.poll(id);
+        if (urls.length === 0) { log.warn('runway task returned no output', { id }); return null; }
+        return { uri: urls[0]!, durationS: req.durationS, costUsd: perTakeCost, meta: { take: i, taskId: id, model: c.RUNWAY_MODEL } };
+      } catch (err) {
+        log.warn('runway take failed', { take: i, err: String(err).slice(0, 160) });
+        return null;
+      }
+    }));
+    const out = results.filter((r): r is MediaArtifact => r !== null);
     if (out.length === 0) throw new Error('Runway produced no usable takes');
     return out;
   }
