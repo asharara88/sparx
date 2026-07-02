@@ -82,11 +82,19 @@ configured to list episodes; demo renders work regardless and appear in the prev
 ## Architecture
 
 A `Producer` drives an episode through a state machine ([src/producer/stateMachine.ts](src/producer/stateMachine.ts)):
-research → script (gate A/B) → media generation → assemble + **render** → QA (gate C) →
-package → publish. Each stage runs one or more agents ([src/agents/](src/agents/)); media
-providers ([src/media/](src/media/)) each have a real and a mock implementation. The render
-agent composites the timeline into one mp4 via ffmpeg.
+research → script + **fact-check** (gates A/B) → media generation → assemble +
+**captions** + **render** + **render QC** → QA (gate C) → package → publish +
+**shorts render**. Each stage runs one or more agents ([src/agents/](src/agents/))
+declared via `defineAgent` — declarative skills/reads/writes, enforced write
+whitelists, an error boundary, and per-run timing ([src/agents/core.ts](src/agents/core.ts)).
+Agents call reusable, registered **skills** ([src/skills/](src/skills/)); media providers
+([src/media/](src/media/)) each have a real and a mock implementation. Per-item provider
+work (sections, shots, thumbnails) runs in bounded parallel (`MEDIA_CONCURRENCY`), and a
+content-keyed artifact cache stops retries from re-billing identical inputs. After
+publish, `npm run analytics -- <episode_id>` folds performance into a cross-episode
+channel memory that research and packaging read next time.
 
+Framework guide: [docs/Agent-Framework.md](docs/Agent-Framework.md) ·
 Full design: [docs/YouTube-Studio-Build-Spec.md](docs/YouTube-Studio-Build-Spec.md).
 
 ## Requirements
