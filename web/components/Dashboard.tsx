@@ -134,7 +134,10 @@ export default function Dashboard() {
     const apply = () => {
       const h = window.location.hash.slice(1);
       if (h.startsWith('preview')) {
-        const id = h.includes('=') ? decodeURIComponent(h.slice(h.indexOf('=') + 1)) : '';
+        let id = '';
+        if (h.includes('=')) {
+          try { id = decodeURIComponent(h.slice(h.indexOf('=') + 1)); } catch { /* malformed escape in a hand-typed hash */ }
+        }
         if (id) setPreview(id);
         setView('preview');
       } else {
@@ -153,6 +156,12 @@ export default function Dashboard() {
     try {
       const saved = JSON.parse(localStorage.getItem('sparx.activeRun') ?? 'null');
       if (typeof saved?.log !== 'string') return;
+      // Runs take minutes; a saved run this old means its log was likely cleaned
+      // up (run-status reports missing logs as still-running, so we'd spin forever).
+      if (typeof saved.startedAt === 'number' && Date.now() - saved.startedAt > 6 * 3600_000) {
+        localStorage.removeItem('sparx.activeRun');
+        return;
+      }
       setRunMode(saved.mode === 'pipeline' ? 'pipeline' : 'demo');
       setRunStartedAt(typeof saved.startedAt === 'number' ? saved.startedAt : Date.now());
       setResultSeen(false);
