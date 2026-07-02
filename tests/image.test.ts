@@ -26,4 +26,9 @@ describe('RunwayImage (gen4_image flow)', () => {
     mockFetch({ id: 'img_2' }, { id: 'img_2', status: 'FAILED', failure: 'nope' });
     await expect(new RunwayImage('key').generate({ prompt: 'x' })).rejects.toThrow(/failed/i);
   });
+  it('throws immediately on a non-transient 4xx without retrying', async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}), text: async () => 'forbidden' } as any)) as any;
+    await expect(new RunwayImage('key').generate({ prompt: 'x' })).rejects.toThrow(/403/);
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(1); // the old req() retried 4xx with backoff
+  });
 });

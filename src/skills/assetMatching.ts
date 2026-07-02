@@ -30,9 +30,10 @@ export function buildAssetQuery(input: { shot_note: string; beat?: string; topic
 
 /**
  * Score candidates for a shot. Weights: keyword overlap with the shot description
- * (0-0.4), landscape orientation ≥720p (0-0.3), duration covering the shot (0-0.3).
+ * (0-0.4), landscape orientation ≥720p (0-0.3), duration fit (0-0.3). Generic over
+ * the candidate type so provider extras (license, meta) survive ranking.
  */
-export function rankAssets(input: { query: string; targetDurationS?: number; candidates: AssetCandidate[] }): RankedAsset[] {
+export function rankAssets<C extends AssetCandidate>(input: { query: string; targetDurationS?: number; candidates: C[] }): (C & { score: number })[] {
   const qWords = new Set(keywords(input.query));
   const scored = input.candidates.map((c) => {
     let score = 0;
@@ -51,7 +52,10 @@ export function rankAssets(input: { query: string; targetDurationS?: number; can
       score += 0.15;
     }
     if (input.targetDurationS && c.durationS) {
-      score += c.durationS >= input.targetDurationS ? 0.3 : 0.3 * (c.durationS / input.targetDurationS);
+      // Best: covers the shot without being uncuttably long (≥3x buries the wanted
+      // moment and bloats downloads). Short clips score by the fraction they cover.
+      const ratio = c.durationS / input.targetDurationS;
+      score += ratio >= 1 && ratio < 3 ? 0.3 : ratio >= 3 ? 0.18 : 0.3 * ratio;
     } else {
       score += 0.15;
     }

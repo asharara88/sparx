@@ -1,42 +1,74 @@
-import type { Agent } from './types.js';
-import { ok } from './types.js';
+import { defineAgent } from './core.js';
 import type { AvatarClip } from '../types/episode.js';
 import { getAvatar } from '../media/avatar.js';
+import { settleLimit } from '../util/concurrency.js';
+import { cachedArtifact, contentKey } from '../skills/artifactCache.js';
+import { estimateAvatarCost, shouldThrottle } from '../skills/costModel.js';
 import { config } from '../config.js';
-import { canAfford } from '../producer/budget.js';
-import { createLogger } from '../logger.js';
 
 // Agent 3b — Avatar (HeyGen). Renders an avatar speaking the section narration for
 // each shot whose source is "avatar" (intros, cutaways, explainers, dubs — handoff §5).
-// Writes the disjoint `avatar_clips` field so it runs in parallel with video/asset agents.
-export const avatar: Agent = {
+// Clips render IN PARALLEL (each is a multi-minute HeyGen poll), budget-gated with
+// pessimistic reservation, and content-cached so retries never re-bill identical
+// (avatar, voice, text) inputs. Writes the disjoint `avatar_clips` field so it runs
+// in parallel with the video/asset agents.
+
+export const avatar = defineAgent({
   name: 'avatar',
-  async run(ctx) {
-    const log = createLogger({ agent: 'avatar', episode: ctx.episode_id });
+  description: 'Render HeyGen talking-head clips for avatar shots in parallel, budget-gated and content-cached.',
+  skills: ['artifact-cache', 'cost-model'],
+  reads: ['shot_list', 'script', 'channel', 'voiceover'],
+  writes: ['avatar_clips'],
+
+  async execute(ctx) {
     const provider = getAvatar();
     const c = config();
-    const avatarId = ctx.state.channel.host_mode === 'avatar' || ctx.state.channel.host_mode === 'mixed'
-      ? c.HEYGEN_AVATAR_ID : c.HEYGEN_AVATAR_ID;
+    const avatarId = c.HEYGEN_AVATAR_ID;
     const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
-    const avatarShots = ctx.state.shot_list.filter((s) => s.source === 'avatar');
+    const voBySection = new Map(ctx.state.voiceover.clips.map((v) => [v.section_id, v]));
+    const shots = ctx.state.shot_list.filter((s) => s.source === 'avatar');
 
-    const clips: AvatarClip[] = [];
-    let cost = 0; let skipped = 0;
-    for (const shot of avatarShots) {
-      const text = secById.get(shot.section_id)?.vo_text ?? '';
-      if (!text) { skipped++; continue; }
-      const est = Math.max(0.02, shot.duration_s * 0.005);
-      if (!canAfford(ctx.state, cost + est)) { skipped++; continue; }
-      try {
-        const art = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s });
-        cost += art.costUsd;
-        clips.push({ shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: art.durationS ?? shot.duration_s, cost_usd: art.costUsd });
-      } catch (err) {
-        log.warn('avatar generation failed; leaving for stock fallback', { shot: shot.shot_id, err: String(err) });
-        skipped++;
-      }
-    }
-    log.info('avatar clips rendered', { clips: clips.length, skipped, provider: provider.name });
-    return ok(ctx, { avatar_clips: clips }, cost, `${clips.length} avatar clips${skipped ? `, ${skipped} skipped` : ''} (${provider.name})`);
+    if (shots.length && (ctx.state.channel.host_mode === 'real_face' || ctx.state.channel.host_mode === 'voice_only'))
+      ctx.log.warn('avatar shots present but host_mode has no avatar', { host_mode: ctx.state.channel.host_mode, shots: shots.length });
+    // Live provider with an empty avatar id would 400 every shot and silently ship
+    // zero clips — escalate instead of degrading.
+    if (shots.length && provider.live && !avatarId)
+      return { writes: { avatar_clips: [] }, status: 'needs_human' as const, notes: 'HEYGEN_API_KEY is set but HEYGEN_AVATAR_ID is empty — cannot render avatar shots' };
+
+    // The section's VO clip speaks the same text HeyGen will — its measured duration
+    // is a better cost basis than the planned shot duration.
+    const spokenS = (sectionId: string, fallback: number) => voBySection.get(sectionId)?.duration_s ?? fallback;
+
+    let reserved = 0;
+    const throttled: string[] = []; const noText: string[] = [];
+    const dispatch = shots.filter((shot) => {
+      if (!secById.get(shot.section_id)?.vo_text) { noText.push(shot.shot_id); return false; }
+      const est = estimateAvatarCost(spokenS(shot.section_id, shot.duration_s));
+      if (shouldThrottle(ctx.state, reserved + est)) { throttled.push(shot.shot_id); return false; }
+      reserved += est;
+      return true;
+    });
+
+    const { ok: made, failed } = await settleLimit(dispatch, c.MEDIA_CONCURRENCY, async (shot): Promise<AvatarClip> => {
+      const text = secById.get(shot.section_id)!.vo_text;
+      let durationS = spokenS(shot.section_id, shot.duration_s);
+      const art = await cachedArtifact(contentKey('avatar', avatarId, c.HEYGEN_VOICE_ID, text), async () => {
+        const a = await provider.generate({ text, avatarId, voiceId: c.HEYGEN_VOICE_ID, durationS: shot.duration_s });
+        durationS = a.durationS ?? durationS;
+        return { uri: a.uri, costUsd: a.costUsd };
+      });
+      return { shot_id: shot.shot_id, avatar_id: avatarId || 'default', video_uri: art.uri, duration_s: durationS, cost_usd: art.costUsd };
+    });
+
+    for (const f of failed) ctx.log.warn('avatar generation failed; editor placeholder covers the gap', { shot: f.item.shot_id, err: String(f.error).slice(0, 200) });
+    const clips = made.map((m) => m.value);
+    const cost = clips.reduce((n, cl) => n + cl.cost_usd, 0);
+    ctx.log.info('avatar clips rendered', { clips: clips.length, throttled: throttled.length, noText: noText.length, failed: failed.length, provider: provider.name });
+
+    const bits = [`${clips.length} avatar clips`];
+    if (throttled.length) bits.push(`${throttled.length} skipped over budget: ${throttled.join(', ')}`);
+    if (noText.length) bits.push(`${noText.length} without narration: ${noText.join(', ')}`);
+    if (failed.length) bits.push(`${failed.length} failed: ${failed.map((f) => f.item.shot_id).join(', ')}`);
+    return { writes: { avatar_clips: clips }, cost_usd: cost, notes: `${bits.join('; ')} (${provider.name})` };
   },
-};
+});
