@@ -25,9 +25,13 @@ export const videoGeneration: Agent = {
     // concurrently. Trade-off vs. the old serial loop: gating is by estimate rather
     // than accumulated actuals (identical with the default RUNWAY_MAX_TAKES=1), and
     // budget reserved for a shot that fails is not reallocated to later shots.
+    // shot.cost_estimate_usd is per take, so reserve it once per configured take —
+    // the provider bills every take it returns.
+    const takeCount = config().RUNWAY_MAX_TAKES;
     let estTotal = 0; let skipped = 0;
     const affordable = gen.filter((shot) => {
-      if (canAfford(ctx.state, estTotal + shot.cost_estimate_usd)) { estTotal += shot.cost_estimate_usd; return true; }
+      const est = shot.cost_estimate_usd * takeCount;
+      if (canAfford(ctx.state, estTotal + est)) { estTotal += est; return true; }
       skipped++;
       return false;
     });
@@ -38,7 +42,7 @@ export const videoGeneration: Agent = {
       try {
         // Take count follows RUNWAY_MAX_TAKES (dashboard "Runway takes" slider);
         // selectBest is still a stub, so extra takes only buy retry insurance.
-        const takes = await provider.generate({ prompt, model, durationS: shot.duration_s, takes: config().RUNWAY_MAX_TAKES, seed: shot.prompt.seed });
+        const takes = await provider.generate({ prompt, model, durationS: shot.duration_s, takes: takeCount, seed: shot.prompt.seed });
         const best = selectBest(takes.map((t) => t.uri));
         const clipCost = takes.reduce((n, t) => n + t.costUsd, 0);
         return { shot_id: shot.shot_id, model, takes: takes.map((t) => t.uri), selected_uri: best, cost_usd: clipCost };

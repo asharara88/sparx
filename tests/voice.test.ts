@@ -35,12 +35,18 @@ describe('ElevenLabsVoice cache', () => {
   it('dedupes concurrent requests for the same text (voiceover + avatar agents)', async () => {
     globalThis.fetch = mockTts();
     const v = new ElevenLabsVoice('key');
+    // Long enough that one synthesis has a nonzero rounded cost.
+    const text = 'same section narration '.repeat(100);
     const [a, b] = await Promise.all([
-      v.synthesize('same section narration', VOICE_ID),
-      v.synthesize('same section narration', VOICE_ID),
+      v.synthesize(text, VOICE_ID),
+      v.synthesize(text, VOICE_ID),
     ]);
     expect(a.uri).toBe(b.uri);
     expect((globalThis.fetch as any).mock.calls.length).toBe(1);
+    // Only the initiating caller records the API charge; the joiner reports $0,
+    // so the one ElevenLabs bill is never double-counted in the episode ledger.
+    expect(Math.min(a.costUsd, b.costUsd)).toBe(0);
+    expect(Math.max(a.costUsd, b.costUsd)).toBeGreaterThan(0);
   });
 
   it('different text still hits the API separately', async () => {

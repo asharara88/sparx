@@ -22,7 +22,11 @@ export const editor: Agent = {
     const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
 
     const edl = ctx.state.shot_list.map((shot, i) => {
-      const visual = genByShot.get(shot.shot_id)?.selected_uri ?? avatarByShot.get(shot.shot_id)?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null;
+      const avatarClip = avatarByShot.get(shot.shot_id);
+      const visual = genByShot.get(shot.shot_id)?.selected_uri ?? avatarClip?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null;
+      // An avatar clip carries its own narration (HeyGen TTS or lip-synced ElevenLabs);
+      // overlaying the separate voiceover would replace the audio the mouth is synced to.
+      const avatarAudio = !!avatarClip?.video_uri && visual === avatarClip.video_uri;
       const vo = voBySection.get(shot.section_id);
       const sec = secById.get(shot.section_id);
       return {
@@ -31,8 +35,8 @@ export const editor: Agent = {
         section_id: shot.section_id,
         visual_uri: visual,
         missing_visual: visual === null,
-        audio_uri: vo?.audio_uri ?? null,
-        duration_s: vo?.duration_s ?? shot.duration_s,
+        audio_uri: avatarAudio ? null : vo?.audio_uri ?? null,
+        duration_s: avatarAudio ? avatarClip.duration_s : vo?.duration_s ?? shot.duration_s,
         caption: sec?.vo_text ?? '',
         on_screen: sec?.on_screen ?? '',
       };

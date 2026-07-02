@@ -36,12 +36,17 @@ export const render: Agent = {
     const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
 
     const shots: RenderShot[] = ctx.state.shot_list.map((shot) => {
+      const avatarClip = avatarByShot.get(shot.shot_id);
+      const visual = genByShot.get(shot.shot_id)?.selected_uri ?? avatarClip?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null;
+      // An avatar clip carries its own narration (HeyGen TTS or lip-synced ElevenLabs);
+      // overlaying the separate voiceover would replace the audio the mouth is synced to.
+      const avatarAudio = !!avatarClip?.video_uri && visual === avatarClip.video_uri;
       const vo = voBySection.get(shot.section_id);
       const sec = secById.get(shot.section_id);
       return {
-        visual_uri: genByShot.get(shot.shot_id)?.selected_uri ?? avatarByShot.get(shot.shot_id)?.video_uri ?? assetByShot.get(shot.shot_id)?.uri ?? null,
-        audio_uri: vo?.audio_uri ?? null,
-        duration_s: vo?.duration_s ?? shot.duration_s,
+        visual_uri: visual,
+        audio_uri: avatarAudio ? null : vo?.audio_uri ?? null,
+        duration_s: avatarAudio ? avatarClip.duration_s : vo?.duration_s ?? shot.duration_s,
         caption: sec?.on_screen || sec?.vo_text || '',
       };
     });

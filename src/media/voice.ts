@@ -34,8 +34,11 @@ class ElevenLabsVoice implements VoiceProvider {
     if (existsSync(file) && statSync(file).size > 0) {
       return { uri: file, durationS, costUsd: 0, meta: { bytes: statSync(file).size, cached: true } };
     }
+    // Joiners of an in-flight synthesis report zero cost — only the initiating
+    // caller records the API charge, else concurrent voiceover+avatar requests
+    // for the same section would double-count one ElevenLabs bill in the ledger.
     const pending = inflight.get(key);
-    if (pending) return pending;
+    if (pending) return pending.then((a) => ({ ...a, costUsd: 0, meta: { ...a.meta, cached: true } }));
 
     const work = (async (): Promise<MediaArtifact> => {
       const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${id}`, {
