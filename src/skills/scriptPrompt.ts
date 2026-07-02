@@ -93,6 +93,7 @@ export function buildDraftPrompt(p: {
   minSections?: number;
   maxSections?: number;
   lens?: string;
+  techBrief?: string;   // fixed tech-spotlight slot (skills/techSegment) — appended when the segment is enabled
 }): string {
   const lens = p.lens ?? pickLens();
   const lo = p.minSections ?? 5;
@@ -111,6 +112,7 @@ export function buildDraftPrompt(p: {
       `{"id": "s1".., "beat": short beat label, "vo_text": 2-4 spoken sentences, ` +
       `"shot_note": what's on screen, "on_screen": <=6-word caption, "retention_device": e.g. open loop / payoff / pattern interrupt}], "cta": string}`,
     `Make vo_text genuinely speakable and specific. The hook must create an immediate, concrete reason to keep watching.`,
+    ...(p.techBrief ? ['', p.techBrief] : []),
   ].join('\n');
 }
 

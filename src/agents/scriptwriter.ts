@@ -3,6 +3,7 @@ import type { Script } from '../types/episode.js';
 import { getLLM } from '../llm/client.js';
 import { OutlineSchema, ScriptDraftSchema, CritiqueSchema, type ScriptDraft, type Critique } from '../schemas/phase1.js';
 import { SCRIPT_SYSTEM, buildDraftPrompt, pickLens, SPOKEN_WPM, BANNED_PHRASES } from '../skills/scriptPrompt.js';
+import { buildTechBrief, requiredDisclosureLines, TECH_SECTION_ID } from '../skills/techSegment.js';
 
 // Agent 2 — Scriptwriter (multi-step):
 //   1) outline: hook variants + beat sheet
@@ -16,7 +17,8 @@ import { SCRIPT_SYSTEM, buildDraftPrompt, pickLens, SPOKEN_WPM, BANNED_PHRASES }
 export const scriptwriter = defineAgent({
   name: 'scriptwriter',
   description: 'Outline, draft, and self-critique the full episode narration, with one redraft on a failing critique.',
-  reads: ['concept', 'channel'],
+  skills: ['tech-segment'],
+  reads: ['concept', 'channel', 'tech_segment'],
   writes: ['script'],
   requires: (s) => (s.concept.topic ? null : 'no approved concept to write from'),
 
@@ -28,6 +30,10 @@ export const scriptwriter = defineAgent({
     // One creative lens for the whole run, shared by outline + draft, so the plan and
     // the prose pull in the same direction (and differ from the previous run).
     const lens = pickLens();
+    // Fixed tech-spotlight slot: mode-specific writing rules + the disclosure line
+    // come from the tech-segment skill; the brief rides the draft prompt.
+    const ts = ctx.state.tech_segment;
+    const techBrief = ts?.enabled ? buildTechBrief(ts, ctx.state.channel.languages) : undefined;
     let cost = 0;
 
     // 1) outline — most capable model; the house style + lens come from the shared system prompt.
@@ -66,7 +72,7 @@ export const scriptwriter = defineAgent({
         prompt: buildDraftPrompt({
           topic: c.topic, angle: c.angle, hostMode: host,
           hook: o.hook_variants[0]!, beats: o.beat_sheet, targetWords,
-          minSections: 5, maxSections: 9, lens,
+          minSections: 5, maxSections: ts?.enabled ? 10 : 9, lens, techBrief,
         }) + (critiqueNotes ? `\n\nAn editor rejected the previous draft. Fix these issues in this rewrite:\n${critiqueNotes}` : ''),
         mock: draftMock,
       });
@@ -103,6 +109,31 @@ export const scriptwriter = defineAgent({
     const sections = d.sections.map((s, i) => ({
       id: s.id || `s${i + 1}`, beat: s.beat, vo_text: s.vo_text, shot_note: s.shot_note, on_screen: s.on_screen, retention_device: s.retention_device,
     }));
+
+    // Deterministic tech-slot guarantee (the segment is format, disclosure is compliance —
+    // neither is left to model compliance-with-instructions):
+    //   - normalize the tech section's id to the hard contract (visuals/QA find it by id)
+    //   - ensure a required disclosure line is present verbatim (append if the model dropped it)
+    //   - if the model produced no tech section at all, append a minimal one from the brief
+    if (ts?.enabled) {
+      const lines = requiredDisclosureLines(ts, ctx.state.channel.languages);
+      const idx = sections.findIndex((x) => x.id === TECH_SECTION_ID || /tech/i.test(x.beat));
+      if (idx >= 0) {
+        const sec = sections[idx]!;
+        sec.id = TECH_SECTION_ID;
+        if (!lines.some((l) => sec.vo_text.includes(l))) sec.vo_text = `${sec.vo_text.trim()} ${lines[0]}`;
+      } else {
+        const ctaAt = sections.length;  // insert before nothing → append just ahead of CTA delivery
+        sections.splice(ctaAt, 0, {
+          id: TECH_SECTION_ID, beat: 'tech spotlight',
+          vo_text: `One more thing worth knowing about ${ts.topic}: ${ts.tie_in}. ${lines[0]}`,
+          shot_note: ts.mode === 'explainer' ? 'concept b-roll / motion graphic' : `product footage: ${ts.product?.name ?? ts.topic} (official press assets)`,
+          on_screen: ts.topic.split(' ').slice(0, 5).join(' '),
+          retention_device: 'pattern interrupt',
+        });
+        ctx.log.warn('model omitted the tech section; appended deterministic fallback', { topic: ts.topic, mode: ts.mode });
+      }
+    }
     const word_count = sections.reduce((n, s) => n + s.vo_text.split(/\s+/).filter(Boolean).length, 0);
 
     // Deterministic checks — they flag for GATE B, never block (mock drafts stay green).

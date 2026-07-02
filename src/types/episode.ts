@@ -35,6 +35,36 @@ export interface Concept {
   approved: boolean;
 }
 
+// Fixed tech-spotlight slot (health×tech). Auto-planned per episode by the
+// tech_segment_planner; the MODE decision is deterministic (skills/techSegment)
+// over LLM-extracted signals, and everything that drove it is kept on state
+// (candidates + signals + decision_trace) as an audit trail. `sponsored` drives
+// mandatory disclosure copy — a legal requirement when true, brand voice when false.
+export type TechSegmentMode = 'spotlight' | 'explainer' | 'hybrid';
+
+export interface TechCandidateEval { name: string; kind: 'product' | 'category'; relevance: number; why: string }
+
+export interface TechSegmentSignals {
+  specific_product_exists: boolean;
+  gulf_available: boolean;
+  claims_testable: boolean;
+  regulatory_murky: boolean;
+  category_or_concept: boolean;
+}
+
+export interface TechSegment {
+  enabled: boolean;                 // false → pipeline behaves exactly as before
+  mode: TechSegmentMode;
+  topic: string;                    // the chosen tech item ("Oura Ring 4", "GLP-1 peptides")
+  tie_in: string;                   // one line: why it belongs in THIS episode
+  product: { name: string; category: string; gulf_availability: string } | null; // spotlight/hybrid
+  candidates: TechCandidateEval[];  // options considered (audit trail)
+  signals: TechSegmentSignals;      // rubric inputs (audit trail)
+  decision_trace: string;           // human-readable why-this-mode
+  sponsored: boolean;
+  disclosure: { ar: string; en: string };
+}
+
 export interface ScriptSection {
   id: string;
   beat: string;               // role of this section in the arc (e.g. "open loop", "payoff")
@@ -206,6 +236,7 @@ export interface EpisodeState {
   status: EpisodeStatus;
   channel: { niche: string; languages: string[]; host_mode: HostMode };
   concept: Concept;
+  tech_segment: TechSegment;
   script: Script;
   shot_list: Shot[];
   voiceover: Voiceover;
@@ -253,6 +284,7 @@ export function newEpisodeState(
       host_mode: opts.host_mode ?? 'real_face',
     },
     concept: { topic: '', working_title: '', angle: '', rationale: '', audience: '', thumbnail_concept: '', angle_candidates: [], keywords: [], competitor_refs: [], target_length_min: 10, approved: false },
+    tech_segment: { enabled: false, mode: 'explainer', topic: '', tie_in: '', product: null, candidates: [], signals: { specific_product_exists: false, gulf_available: false, claims_testable: false, regulatory_murky: false, category_or_concept: false }, decision_trace: '', sponsored: false, disclosure: { ar: '', en: '' } },
     script: { hook: '', hook_variants: [], beat_sheet: [], sections: [], cta: '', brand_voice_pass: false, critique: '', word_count: 0, approved: false },
     shot_list: [],
     voiceover: { voice_id: '', clips: [], total_duration_s: 0 },   // empty → voiceover agent falls back to config().ELEVENLABS_VOICE_ID

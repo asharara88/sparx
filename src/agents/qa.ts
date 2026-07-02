@@ -1,6 +1,7 @@
 import { defineAgent } from './core.js';
 import { getLLM } from '../llm/client.js';
 import { checkCompliance, isLicenseAccepted, reviewBrandVoice } from '../skills/brandCompliance.js';
+import { requiredDisclosureLines, techClaimRules, TECH_SECTION_ID } from '../skills/techSegment.js';
 
 // Agent 12 — QA / Brand-safety. Gatekeeper for GATE C (qa.passed must be true).
 // FAIL-CLOSED on real detected problems, non-blocking on unverifiable-in-mock ones:
@@ -15,8 +16,8 @@ import { checkCompliance, isLicenseAccepted, reviewBrandVoice } from '../skills/
 export const qa = defineAgent({
   name: 'qa',
   description: 'Gate C gatekeeper: deterministic coverage/licensing/compliance checks plus fact-check, render-QC, caption, and LLM brand-voice review.',
-  skills: ['brand-compliance'],
-  reads: ['script', 'shot_list', 'generated_video', 'avatar_clips', 'sourced_assets', 'music', 'voiceover', 'fact_check', 'render_qc', 'captions'],
+  skills: ['brand-compliance', 'tech-segment'],
+  reads: ['script', 'shot_list', 'generated_video', 'avatar_clips', 'sourced_assets', 'music', 'voiceover', 'fact_check', 'render_qc', 'captions', 'tech_segment', 'channel'],
   writes: ['qa'],
   requires: (s) => (s.shot_list.length === 0 ? 'no shot list to review' : null),
 
@@ -62,12 +63,40 @@ export const qa = defineAgent({
     // captions: narration without a caption track hurts reach — flag, don't block
     if (s.voiceover.clips.length > 0 && s.captions.cue_count === 0) brand_checks.push('narration present but no caption cues');
 
+    // Tech-slot compliance (deterministic — disclosure is law/brand, not style):
+    //   - the slot must exist in the script (it's a format promise)
+    //   - the right disclosure copy for the sponsorship status must appear verbatim
+    //     (sponsored → paid-partnership disclosure is a LEGAL requirement)
+    //   - spotlight/hybrid: no generative render of the real product slipped through
+    const ts = s.tech_segment;
+    if (ts?.enabled) {
+      const techSec = s.script.sections.find((x) => x.id === TECH_SECTION_ID);
+      if (!techSec) {
+        blocking.push('tech segment enabled but missing from script');
+      } else {
+        const lines = requiredDisclosureLines(ts, s.channel.languages);
+        if (!lines.some((l) => techSec.vo_text.includes(l))) {
+          blocking.push(ts.sponsored
+            ? 'sponsored tech segment without paid-partnership disclosure (legal requirement)'
+            : 'tech segment missing independence disclosure line');
+        }
+      }
+      if (ts.mode !== 'explainer') {
+        const techShotIds = new Set(s.shot_list.filter((sh) => sh.section_id === TECH_SECTION_ID).map((sh) => sh.shot_id));
+        const genProduct = s.generated_video.filter((g) => techShotIds.has(g.shot_id));
+        if (genProduct.length) blocking.push(`${genProduct.length} generative render(s) of a real product in the tech segment`);
+      }
+    }
+
     // LLM brand-voice review, skipped when deterministic checks already hold the
     // episode — the verdict is a hold either way, and the post-fix re-run pays once.
     let cost = 0;
     if (blocking.length === 0) {
       try {
-        const { review, cost_usd } = await reviewBrandVoice(s.script, getLLM());
+        const techRules = ts?.enabled
+          ? `The section with id "${TECH_SECTION_ID}" is a ${ts.mode}-mode tech segment. ${techClaimRules(ts.mode)}`
+          : undefined;
+        const { review, cost_usd } = await reviewBrandVoice(s.script, getLLM(), techRules);
         cost = cost_usd;
         if (!review.claims_ok) blocking.push('unverifiable-as-phrased claims flagged');
         if (!review.brand_ok) blocking.push('brand-voice issue flagged');

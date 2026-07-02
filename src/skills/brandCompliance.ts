@@ -52,12 +52,12 @@ export function checkCompliance(state: EpisodeState): ComplianceReport {
 // LLM voice review lives with compliance so QA stays a thin gate. Scoped to brand
 // voice + sniffing claims that are unverifiable AS PHRASED (evidence-based checks
 // are the fact_checker's job). Throws propagate — the caller decides fail-closed.
-export async function reviewBrandVoice(script: Script, llm: LLM): Promise<{ review: QAReview; cost_usd: number }> {
+export async function reviewBrandVoice(script: Script, llm: LLM, extraRules?: string): Promise<{ review: QAReview; cost_usd: number }> {
   const narration = script.sections.map((s) => s.vo_text).join('\n').slice(0, 6000);
   const res = await llm.complete({
     tier: 'fast', temperature: 0.2, schema: QAReviewSchema,
     system: 'You review YouTube narration for brand voice (confident, specific, no hype cliches) and flag claims phrased so vaguely or absolutely that no source could verify them as stated. Do not re-verify facts against the world. Be specific and conservative.',
-    prompt: `Hook: ${script.hook}\nNarration:\n${narration}\n\nReturn JSON {"claims_ok":boolean,"brand_ok":boolean,"issues":["specific issue", ...]}.`,
+    prompt: `Hook: ${script.hook}\nNarration:\n${narration}${extraRules ? `\n\n${extraRules}` : ''}\n\nReturn JSON {"claims_ok":boolean,"brand_ok":boolean,"issues":["specific issue", ...]}.`,
     mock: JSON.stringify({ claims_ok: true, brand_ok: true, issues: [] }),
   });
   return { review: res.data!, cost_usd: res.usage.costUsd };

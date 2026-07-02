@@ -12,7 +12,7 @@ export interface StateDef {
 
 export const MACHINE: Record<EpisodeStatus, StateDef | null> = {
   draft:          { stages: [],                                          next: 'researching' },
-  researching:    { stages: [['research']],                             next: 'concept_review' },
+  researching:    { stages: [['research'], ['tech_segment_planner']],   next: 'concept_review' },
   concept_review: { stages: [], next: 'scripting',     gate: 'A' },
   // fact_checker + visual_director both consume the finished script; they run in parallel
   // so factual problems surface at GATE B, before any generation money is spent.

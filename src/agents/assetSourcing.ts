@@ -2,6 +2,7 @@ import { defineAgent } from './core.js';
 import type { SourcedAsset } from '../types/episode.js';
 import { getStock } from '../media/stock.js';
 import { buildAssetQuery, rankAssets } from '../skills/assetMatching.js';
+import { TECH_SECTION_ID } from '../skills/techSegment.js';
 import { settleLimit } from '../util/concurrency.js';
 import { config } from '../config.js';
 
@@ -17,19 +18,24 @@ const CANDIDATES = 6; // ask the provider for several options so ranking has rea
 export const assetSourcing = defineAgent({
   name: 'asset_sourcing',
   description: 'Source and rank stock b-roll/images for stock and graphic shots via the asset-matching skill.',
-  skills: ['asset-matching'],
-  reads: ['shot_list', 'script', 'concept'],
+  skills: ['asset-matching', 'tech-segment'],
+  reads: ['shot_list', 'script', 'concept', 'tech_segment'],
   writes: ['sourced_assets'],
 
   async execute(ctx) {
     const stock = getStock();
     const secById = new Map(ctx.state.script.sections.map((s) => [s.id, s]));
     const topic = ctx.state.concept.topic;
+    const ts = ctx.state.tech_segment;
     const shots = ctx.state.shot_list.filter((s) => s.source === 'stock' || s.source === 'graphic');
 
     const { ok: found, failed } = await settleLimit(shots, config().MEDIA_CONCURRENCY, async (shot): Promise<SourcedAsset | null> => {
       const sec = secById.get(shot.section_id);
-      const query = buildAssetQuery({ shot_note: sec?.shot_note ?? '', beat: sec?.beat, topic });
+      // Real-product tech shots search by product name (official press assets first);
+      // everything else goes through the asset-matching query heuristic.
+      const query = shot.section_id === TECH_SECTION_ID && ts?.enabled && ts.mode !== 'explainer' && (ts.product?.name || ts.topic)
+        ? `${ts.product?.name ?? ts.topic} official press`
+        : buildAssetQuery({ shot_note: sec?.shot_note ?? '', beat: sec?.beat, topic });
       const kind = shot.source === 'graphic' ? 'image' : 'video';
       const candidates = await stock.search(query, kind, CANDIDATES);
       if (candidates.length === 0) return null; // miss — editor placeholder covers it

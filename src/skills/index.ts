@@ -15,5 +15,6 @@ export { videoClippingSkill, clipVertical, type ClipRequest, type ClipResult } f
 export { webResearchSkill, webResearch, type SearchResult } from './research/webSearch.js';
 export { seoKeywordSkill, clusterKeywords, type SeoResult, type KeywordCluster } from './research/seo.js';
 export { timelineSkill, buildTimeline, type Timeline, type TimelineEntry } from './timeline.js';
+export { techSegmentSkill, decideMode, disclosureFor, requiredDisclosureLines, buildTechBrief, techClaimRules, TECH_SECTION_ID, TechCandidatesSchema, TechSignalsSchema } from './techSegment.js';
 
 export { getSkill, hasSkill, listSkills, missingSkills } from './registry.js';
