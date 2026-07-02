@@ -3,6 +3,9 @@ import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createLogger } from '../logger.js';
 import { config } from '../config.js';
+import { fetchWithRetry } from '../util/http.js';
+import { PRICES } from '../skills/costModel.js';
+import { probeMedia } from '../skills/mediaProbe.js';
 import type { MediaArtifact, ProviderInfo } from './types.js';
 
 // Music/SFX provider. When ELEVENLABS_API_KEY is set we compose a real instrumental
@@ -30,12 +33,11 @@ class ElevenLabsMusic implements MusicProvider {
     // scripts/sparx_music_gen.mjs returns richer metadata but isn't needed here.
     const url = new URL('https://api.elevenlabs.io/v1/music');
     url.searchParams.set('output_format', 'mp3_44100_128');
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url.toString(), {
       method: 'POST',
       headers: { 'xi-api-key': this.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
       body: JSON.stringify({ prompt, music_length_ms: ms, force_instrumental: true, model_id: 'music_v2' }),
-    });
-    if (!res.ok) throw new Error(`ElevenLabs music ${res.status}: ${await res.text()}`);
+    }, { label: 'elevenlabs.music' });
     const bytes = Buffer.from(await res.arrayBuffer());
     // Persist to a real local file so the render step can composite it. (Swap for object
     // storage in a hosted deployment.) The file path is the artifact uri.
@@ -43,23 +45,25 @@ class ElevenLabsMusic implements MusicProvider {
     mkdirSync(dir, { recursive: true });
     const file = resolve(join(dir, `bed_${hash(prompt + ms)}.mp3`));
     writeFileSync(file, bytes);
-    // ElevenLabs music is credit-priced with no confirmed per-second USD rate at write
-    // time — leave cost at 0 and record bytes/length in meta until pricing is wired.
-    return { uri: file, durationS: Math.round(ms / 1000), costUsd: 0, license: 'elevenlabs-music', meta: { bytes: bytes.length, ms } };
+    // ElevenLabs music is credit-priced with no confirmed per-second USD rate;
+    // PRICES.music_flat is the single tuning knob so ledger and estimate can't drift.
+    const probe = await probeMedia(file);
+    return { uri: file, durationS: probe?.durationS || Math.round(ms / 1000), costUsd: PRICES.music_flat, license: 'elevenlabs-music', meta: { bytes: bytes.length, ms, measured: Boolean(probe) } };
   }
 
-  // No music-API SFX generation yet — return a no-op mock artifact so callers don't break.
+  // No music-API SFX generation yet — an honest mock artifact so callers don't break
+  // and QA's license check can tell it apart from a real, licensed asset.
   async sfx(name: string): Promise<MediaArtifact> {
-    return { uri: `mock://sfx/${encodeURIComponent(name)}.wav`, costUsd: 0, license: 'mock-sfx-license' };
+    return { uri: `mock://sfx/${encodeURIComponent(name)}.wav`, costUsd: 0, license: 'mock' };
   }
 }
 
 class MockMusic implements MusicProvider {
   readonly name = 'mock'; readonly live = false;
   async selectTrack(mood: string, durationS: number): Promise<MediaArtifact> {
-    return { uri: `mock://music/${encodeURIComponent(mood)}_${durationS}s.mp3`, durationS, costUsd: 0, license: 'mock-music-license' };
+    return { uri: `mock://music/${encodeURIComponent(mood)}_${durationS}s.mp3`, durationS, costUsd: 0, license: 'mock' };
   }
-  async sfx(name: string): Promise<MediaArtifact> { return { uri: `mock://sfx/${encodeURIComponent(name)}.wav`, costUsd: 0, license: 'mock-sfx-license' }; }
+  async sfx(name: string): Promise<MediaArtifact> { return { uri: `mock://sfx/${encodeURIComponent(name)}.wav`, costUsd: 0, license: 'mock' }; }
 }
 
 let provider: MusicProvider | null = null;
