@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateShotCost, shouldThrottle } from '../src/skills/cost.js';
+import { estimateShotCost, shouldThrottle } from '../src/skills/costModel.js';
 import { newEpisodeState } from '../src/types/episode.js';
 
 describe('cost skill', () => {

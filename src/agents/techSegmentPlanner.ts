@@ -1,10 +1,7 @@
-import type { Agent } from './types.js';
-import { ok } from './types.js';
+import { defineAgent } from './core.js';
 import type { TechSegment } from '../types/episode.js';
 import { getLLM } from '../llm/client.js';
 import { TechCandidatesSchema, TechSignalsSchema, decideMode, disclosureFor } from '../skills/techSegment.js';
-import { createLogger } from '../logger.js';
-import { AgentError } from '../errors.js';
 
 // Agent 1b — Tech Segment Planner (auto-run, no extra gate; rides GATE A with the concept):
 //   1) propose 3-6 health×tech candidates relevant to THIS episode's topic, UAE/KSA-aware
@@ -14,12 +11,16 @@ import { AgentError } from '../errors.js';
 // Everything that drove the call (candidates, signals, trace) is written to state.
 const MIN_RELEVANCE = 5;
 
-export const techSegmentPlanner: Agent = {
+export const techSegmentPlanner = defineAgent({
   name: 'tech_segment_planner',
-  async run(ctx) {
-    const log = createLogger({ agent: 'tech_segment_planner', episode: ctx.episode_id });
+  description: 'Plan the fixed health×tech spotlight slot: propose candidates, extract rubric signals, and decide spotlight/explainer/hybrid deterministically.',
+  skills: ['tech-segment'],
+  reads: ['concept'],
+  writes: ['tech_segment'],
+  requires: (s) => (s.concept.topic ? null : 'no concept to plan a tech segment for'),
+
+  async execute(ctx) {
     const c = ctx.state.concept;
-    if (!c.topic) throw new AgentError('tech_segment_planner', 'no concept to plan a tech segment for');
     const llm = getLLM();
 
     // 1) candidates — fast tier; the creative call already happened in research.
@@ -45,8 +46,8 @@ export const techSegmentPlanner: Agent = {
         decision_trace: `best candidate "${top.name}" scored ${top.relevance} < ${MIN_RELEVANCE} → segment disabled for this episode`,
         sponsored: false, disclosure: disclosureFor(false),
       };
-      log.info('tech segment disabled (low relevance)', { top: top.name, relevance: top.relevance });
-      return ok(ctx, { tech_segment }, cand.usage.costUsd, `tech segment: disabled (top ${top.relevance}/10)`);
+      ctx.log.info('tech segment disabled (low relevance)', { top: top.name, relevance: top.relevance });
+      return { writes: { tech_segment }, cost_usd: cand.usage.costUsd, notes: `tech segment: disabled (top ${top.relevance}/10)` };
     }
 
     // 3) signals — the rubric inputs, extracted per pick and schema-validated.
@@ -84,7 +85,7 @@ export const techSegmentPlanner: Agent = {
       disclosure: disclosureFor(sponsored),
     };
     const cost = cand.usage.costUsd + sig.usage.costUsd;
-    log.info('tech segment planned', { topic: top.name, mode, trace });
-    return ok(ctx, { tech_segment }, cost, `tech: ${top.name} → ${mode}`);
+    ctx.log.info('tech segment planned', { topic: top.name, mode, trace });
+    return { writes: { tech_segment }, cost_usd: cost, notes: `tech: ${top.name} → ${mode}` };
   },
-};
+});

@@ -1,49 +1,80 @@
-import type { Agent } from './types.js';
-import { ok } from './types.js';
+import { defineAgent } from './core.js';
 import { getLLM } from '../llm/client.js';
-import { QAReviewSchema } from '../schemas/phase34.js';
+import { checkCompliance, isLicenseAccepted, reviewBrandVoice } from '../skills/brandCompliance.js';
 import { requiredDisclosureLines, techClaimRules, TECH_SECTION_ID } from '../skills/techSegment.js';
-import { createLogger } from '../logger.js';
 
 // Agent 12 — QA / Brand-safety. Gatekeeper for GATE C (qa.passed must be true).
-//   - deterministic checks: every shot has a visual, every sourced asset has a license
-//   - AI-disclosure required iff any generated video was used
-//   - LLM review: claims + brand-voice safety (schema-validated)
-export const qa: Agent = {
+// FAIL-CLOSED on real detected problems, non-blocking on unverifiable-in-mock ones:
+//   - coverage + licensing + banned phrases: deterministic (brand-compliance skill;
+//     'mock'/'pexels'-family licenses accepted so zero-key runs pass)
+//   - fact_check: unsupported claims block; 'uncertain' only surfaces in notes
+//   - render_qc: a checked-and-failed render blocks; unchecked is a note
+//   - captions: narration without cues is a non-blocking brand note
+//   - LLM brand-voice review: a throw is a blocking issue, never a silent pass
+//     (MockLLM never throws, so zero-key runs are unaffected)
+
+export const qa = defineAgent({
   name: 'qa',
-  async run(ctx) {
-    const log = createLogger({ agent: 'qa', episode: ctx.episode_id });
-    const llm = getLLM();
+  description: 'Gate C gatekeeper: deterministic coverage/licensing/compliance checks plus fact-check, render-QC, caption, and LLM brand-voice review.',
+  skills: ['brand-compliance', 'tech-segment'],
+  reads: ['script', 'shot_list', 'generated_video', 'avatar_clips', 'sourced_assets', 'music', 'voiceover', 'fact_check', 'render_qc', 'captions', 'tech_segment', 'channel'],
+  writes: ['qa'],
+  requires: (s) => (s.shot_list.length === 0 ? 'no shot list to review' : null),
+
+  async execute(ctx) {
+    const s = ctx.state;
     const blocking: string[] = [];
+    const fact_checks: string[] = [];
+    const brand_checks: string[] = [];
 
-    // coverage: every shot resolved to a clip or an asset
-    const haveGen = new Set(ctx.state.generated_video.map((g) => g.shot_id));
-    const haveAsset = new Set(ctx.state.sourced_assets.map((a) => a.shot_id));
-    const haveAvatar = new Set(ctx.state.avatar_clips.map((a) => a.shot_id));
-    const uncovered = ctx.state.shot_list.filter((s) => !haveGen.has(s.shot_id) && !haveAsset.has(s.shot_id) && !haveAvatar.has(s.shot_id));
-    if (uncovered.length) blocking.push(`${uncovered.length} shots without a visual: ${uncovered.map((s) => s.shot_id).join(', ')}`);
+    // coverage: every shot resolved to a generated clip, avatar clip, or sourced asset
+    const covered = new Set([
+      ...s.generated_video.map((g) => g.shot_id),
+      ...s.avatar_clips.map((a) => a.shot_id),
+      ...s.sourced_assets.map((a) => a.shot_id),
+    ]);
+    const uncovered = s.shot_list.filter((x) => !covered.has(x.shot_id));
+    if (uncovered.length) blocking.push(`${uncovered.length} shots without a visual: ${uncovered.map((x) => x.shot_id).join(', ')}`);
 
-    // licensing: all sourced assets + the music track must be licensed
-    const license_checks: string[] = [];
-    const unlicensed = ctx.state.sourced_assets.filter((a) => !a.license || a.license === 'unknown');
-    if (unlicensed.length) blocking.push(`${unlicensed.length} unlicensed assets`);
-    license_checks.push(`${ctx.state.sourced_assets.length - unlicensed.length}/${ctx.state.sourced_assets.length} assets licensed`);
-    if (!ctx.state.music.license || ctx.state.music.license === 'unknown') blocking.push('music track unlicensed');
+    // licensing + banned phrases + disclosure — deterministic, fail-closed
+    const compliance = checkCompliance(s);
+    blocking.push(...compliance.issues);
+    const licensed = s.sourced_assets.filter((a) => isLicenseAccepted(a.license)).length;
+    const license_checks = [
+      `${licensed}/${s.sourced_assets.length} assets licensed`,
+      s.music.track_uri ? (isLicenseAccepted(s.music.license) ? 'music licensed' : 'music license not recognized') : 'no music track',
+    ];
+    const ai_disclosure_required = compliance.disclosure_required;
 
-    const ai_disclosure_required = ctx.state.generated_video.length > 0 || ctx.state.avatar_clips.length > 0;
+    // fact check (verified at Gate B): unsupported claims block; uncertain is informational
+    if (s.fact_check.checked) {
+      if (s.fact_check.unsupported_count > 0) {
+        const bad = s.fact_check.claims.filter((c) => c.verdict === 'unsupported');
+        blocking.push(`${s.fact_check.unsupported_count} unsupported claims: ${bad.map((c) => c.claim).join('; ')}`);
+      }
+      fact_checks.push(...s.fact_check.claims.map((c) => `${c.verdict}: ${c.claim}`));
+      if (s.fact_check.claims.length === 0) fact_checks.push('no checkable claims');
+    } else fact_checks.push('fact check not run');
+
+    // render QC: only a real probed failure blocks; unchecked = mock/no-ffprobe run
+    if (s.render_qc.checked && !s.render_qc.passed) blocking.push(`render failed QC: ${s.render_qc.issues.join('; ')}`);
+    else if (!s.render_qc.checked) brand_checks.push('render unverified');
+
+    // captions: narration without a caption track hurts reach — flag, don't block
+    if (s.voiceover.clips.length > 0 && s.captions.cue_count === 0) brand_checks.push('narration present but no caption cues');
 
     // Tech-slot compliance (deterministic — disclosure is law/brand, not style):
     //   - the slot must exist in the script (it's a format promise)
     //   - the right disclosure copy for the sponsorship status must appear verbatim
     //     (sponsored → paid-partnership disclosure is a LEGAL requirement)
     //   - spotlight/hybrid: no generative render of the real product slipped through
-    const ts = ctx.state.tech_segment;
+    const ts = s.tech_segment;
     if (ts?.enabled) {
-      const techSec = ctx.state.script.sections.find((x) => x.id === TECH_SECTION_ID);
+      const techSec = s.script.sections.find((x) => x.id === TECH_SECTION_ID);
       if (!techSec) {
         blocking.push('tech segment enabled but missing from script');
       } else {
-        const lines = requiredDisclosureLines(ts, ctx.state.channel.languages);
+        const lines = requiredDisclosureLines(ts, s.channel.languages);
         if (!lines.some((l) => techSec.vo_text.includes(l))) {
           blocking.push(ts.sponsored
             ? 'sponsored tech segment without paid-partnership disclosure (legal requirement)'
@@ -51,35 +82,38 @@ export const qa: Agent = {
         }
       }
       if (ts.mode !== 'explainer') {
-        const techShotIds = new Set(ctx.state.shot_list.filter((sh) => sh.section_id === TECH_SECTION_ID).map((sh) => sh.shot_id));
-        const genProduct = ctx.state.generated_video.filter((g) => techShotIds.has(g.shot_id));
+        const techShotIds = new Set(s.shot_list.filter((sh) => sh.section_id === TECH_SECTION_ID).map((sh) => sh.shot_id));
+        const genProduct = s.generated_video.filter((g) => techShotIds.has(g.shot_id));
         if (genProduct.length) blocking.push(`${genProduct.length} generative render(s) of a real product in the tech segment`);
       }
     }
 
-    // LLM claim + brand review
-    const review = await llm.complete({
-      tier: 'fast', temperature: 0.2, schema: QAReviewSchema,
-      system: 'You are a QA reviewer for YouTube content. Flag unverifiable factual claims and brand-safety/voice issues. Be specific and conservative.',
-      prompt: `Hook: ${ctx.state.script.hook}\nNarration:\n${ctx.state.script.sections.map((s) => s.vo_text).join('\n')}${ts?.enabled ? `\n\nThe section with id "${TECH_SECTION_ID}" is a ${ts.mode}-mode tech segment. ${techClaimRules(ts.mode)}` : ''}\n\nReturn JSON {claims_ok:boolean, brand_ok:boolean, issues:string[]}.`,
-      mock: JSON.stringify({ claims_ok: true, brand_ok: true, issues: [] }),
-    });
-    const r = review.data!;
-    const issues = r.issues ?? [];
-    if (!r.claims_ok) blocking.push('unverified factual claims flagged');
-    if (!r.brand_ok) blocking.push('brand-safety issue flagged');
+    // LLM brand-voice review, skipped when deterministic checks already hold the
+    // episode — the verdict is a hold either way, and the post-fix re-run pays once.
+    let cost = 0;
+    if (blocking.length === 0) {
+      try {
+        const techRules = ts?.enabled
+          ? `The section with id "${TECH_SECTION_ID}" is a ${ts.mode}-mode tech segment. ${techClaimRules(ts.mode)}`
+          : undefined;
+        const { review, cost_usd } = await reviewBrandVoice(s.script, getLLM(), techRules);
+        cost = cost_usd;
+        if (!review.claims_ok) blocking.push('unverifiable-as-phrased claims flagged');
+        if (!review.brand_ok) blocking.push('brand-voice issue flagged');
+        brand_checks.push(review.brand_ok && review.claims_ok ? 'brand voice ok' : 'brand review flagged issues', ...review.issues);
+      } catch (err) {
+        // the safety gate must not pass while its reviewer is down — fail closed
+        ctx.log.error('LLM brand review threw — failing closed', { err: String(err).slice(0, 200) });
+        blocking.push('LLM review unavailable');
+      }
+    } else brand_checks.push('LLM review skipped (already blocking)');
 
     const passed = blocking.length === 0;
-    log.info('qa complete', { passed, blocking: blocking.length, aiDisclosure: ai_disclosure_required, provider: llm.live ? 'llm' : 'mock' });
-    return ok(ctx, {
-      qa: {
-        fact_checks: issues.length ? issues : ['no claim issues'],
-        license_checks,
-        brand_checks: [r.brand_ok ? 'brand voice ok' : 'brand issue', ...issues],
-        ai_disclosure_required,
-        passed,
-        blocking_issues: blocking,
-      },
-    }, review.usage.costUsd, passed ? 'QA pass' : `QA hold: ${blocking.length} issues`);
+    ctx.log.info('qa complete', { passed, blocking: blocking.length, aiDisclosure: ai_disclosure_required });
+    return {
+      writes: { qa: { fact_checks, license_checks, brand_checks, ai_disclosure_required, passed, blocking_issues: blocking } },
+      cost_usd: cost,
+      notes: passed ? 'QA pass' : `QA hold: ${blocking.length} issues`,
+    };
   },
-};
+});

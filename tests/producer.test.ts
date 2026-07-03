@@ -22,6 +22,9 @@ describe('producer', () => {
     expect(f.qa.passed).toBe(true);
     expect(f.packaging.titles.length).toBeGreaterThanOrEqual(3);
     expect(f.publish.chapters.length).toBe(f.script.sections.length);
+    expect(f.publish.uploaded).toBe(false);        // mock provider — authoritative flag, not id sniffing
+    expect(f.publish.shorts_posted).toEqual([]);   // shorts stayed plan:// refs (no real render) — never "posted"
+    expect(f.shorts.length).toBeGreaterThan(0);    // …but they were planned
   });
   it('holds at the first gate when not auto-approving', async () => {
     const s = newEpisodeState('ep_hold', { niche: 'test niche' });

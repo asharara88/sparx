@@ -1,0 +1,118 @@
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { config, isTruthy } from '../config.js';
+import { createLogger } from '../logger.js';
+import { defineSkill } from './registry.js';
+
+// Content-keyed artifact cache: (kind, hash-of-inputs) → { uri, cost }. Media
+// providers write deterministic outputs for identical inputs, so a Producer
+// retry of 'generating' — or a re-run after a crash — must not re-bill every
+// section, shot, and track.
+//
+// Concurrency: four agents in the 'generating' stage put entries in parallel.
+// The manifest lives in memory (loaded once) and every persist goes through a
+// serialized queue + tmp-file rename, so concurrent puts can't drop each
+// other's entries or leave a torn file for a parallel reader.
+//
+// Durability: local files are verified with existsSync. Remote https:// URIs
+// from generation providers (Runway/HeyGen) are SIGNED and expire — reusing a
+// dead link would silently degrade every shot to a placeholder slate — so
+// remote entries are only served within REMOTE_TTL_MS of creation. mock://
+// artifacts are never cached: they're free to regenerate, and a cached mock
+// must never shadow a newly-keyed real provider.
+
+const log = createLogger({ mod: 'artifact-cache' });
+const REMOTE_TTL_MS = 12 * 60 * 60 * 1000; // signed provider URLs typically live ~24h; stay well inside
+
+interface CacheEntry { uri: string; cost_usd: number; at: string; duration_s?: number }
+type Manifest = Record<string, CacheEntry>;
+
+let manifest: Manifest | null = null;
+let persistQueue: Promise<void> = Promise.resolve();
+
+function manifestPath(): string {
+  return join(config().CACHE_DIR, 'artifacts.json');
+}
+
+function loadManifest(): Manifest {
+  if (manifest) return manifest;
+  try {
+    const p = manifestPath();
+    manifest = existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as Manifest) : {};
+  } catch (e) {
+    log.warn('cache manifest unreadable; starting empty', { err: String(e).slice(0, 120) });
+    manifest = {};
+  }
+  return manifest;
+}
+
+function persistManifest() {
+  const snapshot = JSON.stringify(manifest, null, 2);
+  persistQueue = persistQueue.then(() => {
+    try {
+      const p = manifestPath();
+      mkdirSync(dirname(p), { recursive: true });
+      const tmp = `${p}.tmp`;
+      writeFileSync(tmp, snapshot);
+      renameSync(tmp, p); // atomic on POSIX — readers never see a torn file
+    } catch (e) {
+      log.warn('cache manifest not persisted', { err: String(e).slice(0, 120) });
+    }
+  });
+}
+
+/** Stable content key from the inputs that determine an artifact's bytes. */
+export function contentKey(kind: string, ...parts: (string | number | undefined)[]): string {
+  const h = createHash('sha256').update(parts.map((p) => String(p ?? '')).join(' ')).digest('hex').slice(0, 24);
+  return `${kind}:${h}`;
+}
+
+function artifactUsable(entry: CacheEntry): boolean {
+  if (entry.uri.startsWith('mock://')) return false;
+  if (/^https?:\/\//.test(entry.uri)) {
+    return Date.now() - Date.parse(entry.at) < REMOTE_TTL_MS; // signed URLs expire
+  }
+  return existsSync(entry.uri);
+}
+
+export function getCached(key: string): CacheEntry | null {
+  if (!isTruthy(config().ARTIFACT_CACHE)) return null;
+  const entry = loadManifest()[key];
+  if (!entry || !artifactUsable(entry)) return null;
+  return entry;
+}
+
+export function putCached(key: string, uri: string, costUsd: number, durationS?: number) {
+  if (!isTruthy(config().ARTIFACT_CACHE)) return;
+  if (uri.startsWith('mock://')) return; // free to regenerate; caching only risks staleness
+  const m = loadManifest();
+  m[key] = { uri, cost_usd: costUsd, at: new Date().toISOString(), ...(durationS !== undefined ? { duration_s: durationS } : {}) };
+  persistManifest();
+}
+
+/**
+ * Memoize a paid production step: return the cached artifact when the inputs
+ * hash to a known key, otherwise produce, record, and return it. The returned
+ * cost is 0 on a hit — nothing was re-billed. Producers may report durationS
+ * so hits keep the measured duration instead of falling back to a guess.
+ */
+export async function cachedArtifact(key: string, produce: () => Promise<{ uri: string; costUsd: number; durationS?: number }>): Promise<{ uri: string; costUsd: number; durationS?: number; cached: boolean }> {
+  const hit = getCached(key);
+  if (hit) {
+    log.debug('artifact cache hit', { key });
+    return { uri: hit.uri, costUsd: 0, durationS: hit.duration_s, cached: true };
+  }
+  const made = await produce();
+  putCached(key, made.uri, made.costUsd, made.durationS);
+  return { ...made, cached: false };
+}
+
+// test seam: drop the in-memory manifest so a test with a fresh CACHE_DIR starts clean
+export function __resetArtifactCache() { manifest = null; persistQueue = Promise.resolve(); }
+
+export const artifactCacheSkill = defineSkill<{ key: string }, { uri: string; cost_usd: number } | null>({
+  name: 'artifact-cache',
+  description: 'Content-keyed cache of paid media artifacts (voice/video/music/images) so retries and re-runs never re-bill identical inputs; remote signed URLs expire from the cache.',
+  run: async ({ key }) => getCached(key),
+});

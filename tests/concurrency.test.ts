@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapLimit } from '../src/producer/concurrency.js';
+import { mapLimit } from '../src/util/concurrency.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

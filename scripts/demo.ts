@@ -6,7 +6,7 @@ import { getVideo } from '../src/media/video.js';
 import { renderEpisode, type RenderShot } from '../src/media/render.js';
 import { getMusic } from '../src/media/music.js';
 import { SCRIPT_SYSTEM, buildDemoPrompt, DemoScriptSchema, refineTopic } from '../src/skills/scriptPrompt.js';
-import { mapLimit } from '../src/producer/concurrency.js';
+import { mapLimit } from '../src/util/concurrency.js';
 import { config } from '../src/config.js';
 
 // Quick demo renderer: write a short script with the LLM, then either

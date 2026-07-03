@@ -1,14 +1,31 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { decideMode, disclosureFor, requiredDisclosureLines, buildTechBrief, TECH_SECTION_ID } from '../src/skills/techSegment.js';
 import { techSegmentPlanner } from '../src/agents/techSegmentPlanner.js';
 import { scriptwriter } from '../src/agents/scriptwriter.js';
 import { visualDirector } from '../src/agents/visualDirector.js';
 import { qa } from '../src/agents/qa.js';
 import { newEpisodeState, type TechSegment } from '../src/types/episode.js';
-import { __setLLM } from '../src/llm/client.js';
+import { __setLLM, type LLM, type CompleteArgs, type CompleteResult } from '../src/llm/client.js';
 import { ctxFor } from './helpers.js';
 
 beforeEach(() => __setLLM(null));
+afterEach(() => __setLLM(null));
+
+// Scripted fake (same pattern as scriptwriter.test.ts): canned JSON in call order,
+// parsed through each call's own schema.
+function scriptedLLM(responses: string[]): LLM {
+  let i = 0;
+  return {
+    live: true,
+    totalUsage: () => ({ inputTokens: 0, outputTokens: 0, costUsd: 0 }),
+    async complete<T>(args: CompleteArgs<T>): Promise<CompleteResult<T>> {
+      const raw = responses[i++];
+      if (raw === undefined) throw new Error(`unexpected extra LLM call #${i}`);
+      const data = args.schema ? args.schema.parse(JSON.parse(raw)) : undefined;
+      return { text: raw, data: data as T, usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 }, live: true };
+    },
+  };
+}
 
 const sig = (over: Partial<Parameters<typeof decideMode>[0]> = {}) => ({
   specific_product_exists: false, gulf_available: false, claims_testable: false,
@@ -76,7 +93,9 @@ describe('tech_segment_planner (auto-run)', () => {
     expect(ts.disclosure.en).toMatch(/nobody paid/i);
   });
   it('refuses to run without a concept', async () => {
-    await expect(techSegmentPlanner.run(ctxFor(newEpisodeState('t2')))).rejects.toThrow(/no concept/);
+    const r = await techSegmentPlanner.run(ctxFor(newEpisodeState('t2')));
+    expect(r.status).toBe('failed');       // runtime maps a `requires` violation to the status channel
+    expect(r.notes).toMatch(/no concept/);
   });
 });
 
@@ -90,6 +109,31 @@ describe('scriptwriter tech-slot guarantee', () => {
     expect(tech).toBeTruthy();
     expect(tech!.vo_text).toContain(disclosureFor(false).en);
   });
+  it('never hijacks a section whose beat merely CONTAINS "tech" (e.g. "technique")', async () => {
+    // A draft can legitimately carry both a 'technique' beat AND the real tech
+    // section; the normalization must target only the latter — the old bare /tech/i
+    // match renamed the 'technique' beat and minted a duplicate 'tech' id.
+    const sec = (id: string, beat: string) => ({ id, beat, vo_text: `${beat}: spoken narration with enough words to pass.`, shot_note: 'n', on_screen: 'o', retention_device: 'pi' });
+    const draft = {
+      hook: 'a hook long enough to pass',
+      sections: [sec('s1', 'open'), sec('s2', 'The one technique everyone gets wrong'), sec('s3', 'mid payoff'), { ...sec('tech', 'tech spotlight'), vo_text: `specs and evidence. ${disclosureFor(false).en}` }],
+      cta: 'subscribe for more',
+    };
+    __setLLM(scriptedLLM([
+      JSON.stringify({ hook_variants: ['a hook long enough to pass', 'second distinct hook'], beat_sheet: ['beat one', 'beat two', 'beat three', 'beat four'] }),
+      JSON.stringify(draft),
+      JSON.stringify({ passes: true, critique: 'fine' }),
+    ]));
+    const s = newEpisodeState('t3b');
+    s.concept.topic = 'sleep tracking'; s.concept.angle = 'a'.repeat(10); s.concept.audience = 'x';
+    s.tech_segment = techSeg();
+    const r = await scriptwriter.run(ctxFor(s));
+    const sections = r.writes.script!.sections;
+    expect(sections.filter((x) => x.id === TECH_SECTION_ID)).toHaveLength(1);
+    expect(sections.find((x) => x.id === 's2')?.beat).toBe('The one technique everyone gets wrong'); // untouched
+    expect(sections.find((x) => x.id === 's2')?.vo_text).not.toContain(disclosureFor(false).en);     // no disclosure appended to it
+  });
+
   it('leaves scripts untouched when the segment is disabled', async () => {
     const s = newEpisodeState('t4');
     s.concept.topic = 'sleep in summer heat'; s.concept.angle = 'a'.repeat(10); s.concept.audience = 'x';
@@ -141,6 +185,16 @@ describe('qa tech enforcement', () => {
   it('blocks a sponsored segment without the PAID disclosure, even if the independence line is present', async () => {
     const s = qaBase();
     s.tech_segment = techSeg({ sponsored: true, disclosure: disclosureFor(true) });
+    s.script.sections = [{ id: TECH_SECTION_ID, beat: 'tech spotlight', vo_text: `specs. ${disclosureFor(false).en}`, shot_note: 'n', on_screen: 'o', retention_device: 'pi' }];
+    const r = await qa.run(ctxFor(s));
+    expect(r.writes.qa?.passed).toBe(false);
+    expect(r.writes.qa?.blocking_issues.join(' ')).toMatch(/legal requirement/);
+  });
+  it('blocks when only the sponsored FLAG was flipped and the stored disclosure is the stale independence copy', async () => {
+    // The planner always writes the independence copy; a human flipping `sponsored`
+    // pre-script must not leave "Nobody paid us…" satisfying a paid segment.
+    const s = qaBase();
+    s.tech_segment = techSeg({ sponsored: true }); // disclosure stays disclosureFor(false)
     s.script.sections = [{ id: TECH_SECTION_ID, beat: 'tech spotlight', vo_text: `specs. ${disclosureFor(false).en}`, shot_note: 'n', on_screen: 'o', retention_device: 'pi' }];
     const r = await qa.run(ctxFor(s));
     expect(r.writes.qa?.passed).toBe(false);
