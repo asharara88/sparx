@@ -7,7 +7,7 @@ import { GENERATED_DIR } from '@/lib/paths';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const hasVideo = (id: string) => existsSync(join(GENERATED_DIR, id, 'cut.mp4'));
+const hasLocalVideo = (id: string) => existsSync(join(GENERATED_DIR, id, 'cut.mp4'));
 
 // List recent episodes from Supabase. Empty (not an error) when unconfigured.
 export async function GET() {
@@ -16,11 +16,15 @@ export async function GET() {
 
   const { data, error } = await sb
     .from('episodes')
-    .select('episode_id,status,niche,host_mode,spent_usd,created_at,updated_at')
+    .select('episode_id,status,niche,host_mode,spent_usd,created_at,updated_at,video_path')
     .order('updated_at', { ascending: false })
     .limit(50);
 
   if (error) return NextResponse.json({ configured: true, episodes: [], error: error.message }, { status: 500 });
-  const episodes = ((data ?? []) as EpisodeRow[]).map((e) => ({ ...e, hasVideo: hasVideo(e.episode_id) }));
+  // A cut lives in Storage (deployed, video_path set) or on local disk (dev).
+  const episodes = ((data ?? []) as (EpisodeRow & { video_path: string | null })[]).map(({ video_path, ...e }) => ({
+    ...e,
+    hasVideo: !!video_path || hasLocalVideo(e.episode_id),
+  }));
   return NextResponse.json({ configured: true, episodes });
 }

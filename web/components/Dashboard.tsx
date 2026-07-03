@@ -75,8 +75,11 @@ export default function Dashboard() {
   const [videoBust, setVideoBust] = useState<number>(0);
   const [busy, setBusy] = useState(false);
 
-  // live run progress
+  // live run progress. A run is polled by EITHER a cloud job id (deployed: the
+  // Railway worker drains a Supabase queue) OR a local log filename (dev: the API
+  // spawns the pipeline directly). Exactly one is set per run.
   const [runLog, setRunLog] = useState<string | null>(null);
+  const [runJob, setRunJob] = useState<string | null>(null);
   const [runTail, setRunTail] = useState('');
   const [runState, setRunState] = useState<RunState>('idle');
   // The mode the ACTIVE run was started with — the form's `mode` can be flipped
@@ -152,11 +155,12 @@ export default function Dashboard() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sparx.activeRun') ?? 'null');
-      if (typeof saved?.log !== 'string') return;
+      if (typeof saved?.log !== 'string' && typeof saved?.job !== 'string') return;
       setRunMode(saved.mode === 'pipeline' ? 'pipeline' : 'demo');
       setRunStartedAt(typeof saved.startedAt === 'number' ? saved.startedAt : Date.now());
       setResultSeen(false);
-      setRunLog(saved.log);
+      if (typeof saved.job === 'string') setRunJob(saved.job);
+      else setRunLog(saved.log);
       setRunState('running');
     } catch { /* corrupt or blocked storage — nothing to restore */ }
   }, []);
@@ -166,25 +170,28 @@ export default function Dashboard() {
     if (view === 'runs' && (runState === 'done' || runState === 'failed')) setResultSeen(true);
   }, [view, runState]);
 
-  // Poll the active run's log for live progress + completion.
+  // Poll the active run for live progress + completion (by job id or local log).
   useEffect(() => {
-    if (!runLog || runState === 'done' || runState === 'failed') return;
+    if ((!runLog && !runJob) || runState === 'done' || runState === 'failed') return;
+    const query = runJob ? `job=${encodeURIComponent(runJob)}` : `log=${encodeURIComponent(runLog!)}`;
     let stop = false;
     const tick = async () => {
       if (document.visibilityState === 'hidden') return; // resume on the first visible tick
       try {
-        const r = await fetch(`/api/run-status?log=${encodeURIComponent(runLog)}`, { cache: 'no-store' });
+        const r = await fetch(`/api/run-status?${query}`, { cache: 'no-store' });
         const j = await r.json();
         if (stop) return;
         setRunTail(j.tail || '');
         if (j.done) {
           setRunState(j.ok ? 'done' : 'failed');
           try { localStorage.removeItem('sparx.activeRun'); } catch { /* ignore */ }
-          if (j.ok && runMode === 'demo' && j.videoMtime) {
-            setVideoBust(j.videoMtime);
-            // Load/refresh the demo preview — but never hijack an episode the
-            // user is currently watching (that would remount their video).
-            setPreview((p) => (p === null || p === 'demo' ? 'demo' : p));
+          if (j.ok && runMode === 'demo') {
+            // Bust the player so a fresh cut reloads, then load the preview — but
+            // never hijack an episode the user is currently watching. Cloud runs
+            // return the storage-served videoId; local runs return an mtime + 'demo'.
+            const vid: string = j.videoId ?? 'demo';
+            setVideoBust(j.videoMtime ?? Date.now());
+            setPreview((p) => (p === null || p === 'demo' || p === vid ? vid : p));
           }
           loadEpisodes();
         }
@@ -193,7 +200,7 @@ export default function Dashboard() {
     tick();
     const t = setInterval(tick, 2000);
     return () => { stop = true; clearInterval(t); };
-  }, [runLog, runState, runMode, loadEpisodes]);
+  }, [runLog, runJob, runState, runMode, loadEpisodes]);
 
   // Elapsed-time ticker for the live progress card (freezes on done/failed).
   useEffect(() => {
@@ -219,6 +226,7 @@ export default function Dashboard() {
     setRunTail('');
     setRunState('idle');
     setRunLog(null);
+    setRunJob(null);
     try { localStorage.removeItem('sparx.activeRun'); } catch { /* ignore */ }
     try {
       // Which engines actually consume each control:
@@ -235,18 +243,19 @@ export default function Dashboard() {
         : { mode, autoApprove, avatarId, hostMode, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) };
       const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
-      if (j.started && j.log) {
+      if (j.started && (j.jobId || j.log)) {
         const startedAt = Date.now();
         setRunMode(mode);
         setRunStartedAt(startedAt);
         setResultSeen(false);
         pinnedRef.current = true;
-        setRunLog(j.log);
+        if (j.jobId) setRunJob(j.jobId); else setRunLog(j.log);
         setRunState('running');
-        try { localStorage.setItem('sparx.activeRun', JSON.stringify({ log: j.log, mode, startedAt })); } catch { /* ignore */ }
+        const handle = j.jobId ? { job: j.jobId } : { log: j.log };
+        try { localStorage.setItem('sparx.activeRun', JSON.stringify({ ...handle, mode, startedAt })); } catch { /* ignore */ }
       } else {
         setRunState('failed');
-        setRunTail('Failed to start run.');
+        setRunTail(j.error ? `Failed to start run: ${j.error}` : 'Failed to start run.');
       }
     } catch (e) {
       setRunState('failed');
@@ -256,7 +265,9 @@ export default function Dashboard() {
     }
   }
 
-  const videoSrc = (id: string) => `/api/video/${encodeURIComponent(id)}${id === 'demo' && videoBust ? `?t=${videoBust}` : ''}`;
+  // A completed run sets videoBust so the player reloads the fresh cut; the query is
+  // inert for the storage redirect (signed URL) and ignored by the local file route.
+  const videoSrc = (id: string) => `/api/video/${encodeURIComponent(id)}${videoBust ? `?t=${videoBust}` : ''}`;
 
   // Open an episode (or the demo) in the Preview view.
   const openPreview = useCallback((id: string, bust = 0) => {
@@ -324,7 +335,13 @@ export default function Dashboard() {
             {...{ mode, setMode, topic, setTopic, sections, setSections, demoMode, setDemoMode, hostMode, setHostMode, autoApprove, setAutoApprove, avatars, avatarId, setAvatarId, voices, voiceId, setVoiceId, avatarVoice, setAvatarVoice, runwayTakes, setRunwayTakes, music, setMusic, busy, runState, runMode, runLog, runTail, elapsed, tailRef, onLogScroll, startRun }}
             onViewResult={() => {
               if (runMode === 'pipeline') window.location.hash = 'library';
-              else { setPreview('demo'); window.location.hash = 'preview=demo'; }
+              else {
+                // The poll set `preview` to the finished run's video id (cloud jobId
+                // or 'demo' locally); open exactly that.
+                const id = preview ?? 'demo';
+                setPreview(id);
+                window.location.hash = `preview=${encodeURIComponent(id)}`;
+              }
             }}
           />
         )}

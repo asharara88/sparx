@@ -1,9 +1,30 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { GENERATED_DIR } from '@/lib/paths';
+import { getSupabase } from '@/lib/supabase';
+import { signedVideoUrl } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Deployed: the cut lives in Supabase Storage, not on Vercel's ephemeral disk.
+// Resolve id (episode slug or job uuid) → object path → short-lived signed URL,
+// which the browser streams directly (range requests included). Returns null when
+// there's no stored render, so the caller falls through to the local-disk path.
+async function storageRedirect(id: string): Promise<Response | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  const byEpisode = await sb.from('episodes').select('video_path').eq('episode_id', id).maybeSingle();
+  let path = (byEpisode.data?.video_path as string | undefined) ?? undefined;
+  if (!path) {
+    const byJob = await sb.from('render_jobs').select('video_path').eq('id', id).maybeSingle();
+    path = (byJob.data?.video_path as string | undefined) ?? undefined;
+  }
+  if (!path) return null;
+  const url = await signedVideoUrl(sb, path);
+  if (!url) return null;
+  return new Response(null, { status: 307, headers: { Location: url, 'Cache-Control': 'private, no-cache' } });
+}
 
 // Wrap a Node read stream as a web ReadableStream with safe teardown: browsers
 // cancel video requests constantly (seeking, closing), which otherwise throws
@@ -27,8 +48,12 @@ function fileToWebStream(file: string, start: number, end: number): ReadableStre
 // Stream generated/<id>/cut.mp4 with HTTP range support (so the browser can seek).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // Guard against path traversal: episode ids are simple slugs.
+  // Guard against path traversal: episode ids are simple slugs / job uuids.
   if (!/^[A-Za-z0-9._-]+$/.test(id)) return new Response('bad id', { status: 400 });
+
+  // Prefer the stored render (deployed); fall through to local disk (dev).
+  const redirect = await storageRedirect(id).catch(() => null);
+  if (redirect) return redirect;
 
   const file = join(GENERATED_DIR, id, 'cut.mp4');
   if (!existsSync(file)) return new Response('not found', { status: 404 });
