@@ -69,8 +69,12 @@ class AnthropicLLM implements LLM {
     return c.LLM_MODEL;
   }
 
-  private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage; truncated: boolean }> {
+  private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number, structured: boolean): Promise<{ text: string; usage: Usage; truncated: boolean }> {
     const c = config();
+    // Fable's always-on thinking is billed against max_tokens. A JSON call at high/max
+    // effort can spend the whole budget thinking and truncate the output, so schema
+    // calls run at the lower LLM_SCHEMA_EFFORT; prose uses LLM_EFFORT.
+    const effort = structured ? c.LLM_SCHEMA_EFFORT : c.LLM_EFFORT;
     let lastErr: unknown;
     for (let attempt = 0; attempt <= c.LLM_MAX_RETRIES; attempt++) {
       const ctrl = new AbortController();
@@ -81,7 +85,7 @@ class AnthropicLLM implements LLM {
         if (modelSupportsTemperature(model)) reqBody.temperature = temperature;
         const headers: Record<string, string> = { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
         if (isFable(model)) {
-          reqBody.output_config = { effort: 'max' };
+          reqBody.output_config = { effort };
           reqBody.fallbacks = [{ model: 'claude-opus-4-8' }];
           headers['anthropic-beta'] = 'server-side-fallback-2026-06-01';
         } else if (/opus-4-8/i.test(model)) {
@@ -146,7 +150,8 @@ class AnthropicLLM implements LLM {
     // output, so give thinking-active models room on top (still < ~16K, the safe
     // ceiling for non-streaming requests).
     const budget = (args.maxTokens ?? 2000) + (hasThinking(model) ? 8000 : 0);
-    const { text, usage, truncated } = await this.call(model, sys, args.prompt, budget, args.temperature ?? 0.7);
+    const structured = !!args.schema;
+    const { text, usage, truncated } = await this.call(model, sys, args.prompt, budget, args.temperature ?? 0.7, structured);
 
     if (!args.schema) return { text, data: undefined, usage, live: true };
 
@@ -161,7 +166,7 @@ class AnthropicLLM implements LLM {
     const repairPrompt = truncated
       ? `${args.prompt}\n\nYour previous reply was cut off before the JSON closed. Return the COMPLETE, valid JSON only — be more concise so it fits.`
       : `${args.prompt}\n\nYour previous reply was invalid: ${first.error}\nReturn corrected JSON only.`;
-    const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0);
+    const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0, true);
     const second = tryValidate(repaired.text, args.schema);
     const usage2: Usage = { inputTokens: usage.inputTokens + repaired.usage.inputTokens, outputTokens: usage.outputTokens + repaired.usage.outputTokens, costUsd: usage.costUsd + repaired.usage.costUsd };
     if (second.ok) return { text: repaired.text, data: second.data, usage: usage2, live: true };
@@ -210,3 +215,4 @@ export function getLLM(): LLM {
 
 // test seam
 export function __setLLM(l: LLM | null) { singleton = l; }
+export { AnthropicLLM };

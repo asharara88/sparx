@@ -16,7 +16,14 @@ const Schema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().default('claude-opus-4-8'),        // 'main' tier — quality-first for non-creative agents (qa/shorts/etc.)
   LLM_FAST_MODEL: z.string().default('claude-sonnet-5'),   // 'fast' tier — grading/critique/topic refinement; near-Opus quality, still quick
-  LLM_PRO_MODEL: z.string().default('claude-fable-5'),     // 'pro' tier — Fable 5 at max effort, for the creative spine (angle, script, packaging)
+  LLM_PRO_MODEL: z.string().default('claude-fable-5'),     // 'pro' tier — Fable 5, for the creative spine (angle, script, packaging)
+  // Effort for reasoning models (Fable 5 etc.): thinking counts against max_tokens, so
+  // JSON/schema calls run at LLM_SCHEMA_EFFORT ('low' — reliable + leaves room for the
+  // output; per Anthropic, low effort on Fable still beats prior models' max). Free-form
+  // prose runs at LLM_EFFORT. 'max' effort on a schema call devours the token budget on
+  // thinking and truncates the JSON mid-object.
+  LLM_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('high'),
+  LLM_SCHEMA_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('low'),
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000), // Fable 5 turns at high effort can run minutes; 60s would abort every hard call
 
