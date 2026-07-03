@@ -69,7 +69,7 @@ class AnthropicLLM implements LLM {
     return c.LLM_MODEL;
   }
 
-  private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number): Promise<{ text: string; usage: Usage; truncated: boolean }> {
+  private async call(model: string, system: string, prompt: string, maxTokens: number, temperature: number, effort: 'max' | 'high' = 'max'): Promise<{ text: string; usage: Usage; truncated: boolean }> {
     const c = config();
     // Long system prompts (house style, shared rubrics) are re-sent verbatim across
     // chained calls — mark them cacheable so Anthropic prompt caching cuts input cost.
@@ -86,7 +86,7 @@ class AnthropicLLM implements LLM {
         if (modelSupportsTemperature(model)) reqBody.temperature = temperature;
         const headers: Record<string, string> = { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
         if (isFable(model)) {
-          reqBody.output_config = { effort: 'max' };
+          reqBody.output_config = { effort };
           reqBody.fallbacks = [{ model: 'claude-opus-4-8' }];
           headers['anthropic-beta'] = 'server-side-fallback-2026-06-01';
         } else if (/opus-4-8/i.test(model)) {
@@ -177,7 +177,10 @@ class AnthropicLLM implements LLM {
     const repairPrompt = truncated
       ? `${args.prompt}\n\nYour previous reply was cut off before the JSON closed. Return the COMPLETE, valid JSON only — be more concise so it fits.`
       : `${args.prompt}\n\nYour previous reply was:\n${previous}\n\nIt was invalid: ${first.error}\nReturn corrected JSON only.`;
-    const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0);
+    // A truncation on Fable usually means max-effort THINKING ate the budget, not the
+    // visible JSON — asking for concision alone can't fix that. The repair retries at
+    // effort 'high' (same model, far less thinking) so the answer actually fits.
+    const repaired = await this.call(model, sys, repairPrompt, repairBudget, 0, truncated ? 'high' : 'max');
     const second = tryValidate(repaired.text, args.schema);
     const usage2: Usage = { inputTokens: usage.inputTokens + repaired.usage.inputTokens, outputTokens: usage.outputTokens + repaired.usage.outputTokens, costUsd: usage.costUsd + repaired.usage.costUsd };
     if (second.ok) return { text: repaired.text, data: second.data, usage: usage2, live: true };
