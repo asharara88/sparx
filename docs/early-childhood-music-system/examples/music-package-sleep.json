@@ -1,0 +1,223 @@
+{
+  "package_id": "PKG-SLP-M46-000142",
+  "policy_version": "ecms-policy/1.0.0",
+  "created_at": "2026-07-05T09:30:00Z",
+  "age_band": "m4_6",
+  "lane": "sleep_calm",
+  "session_intent": {
+    "goal_text": "5-month-old fights the evening wind-down; parent wants a consistent pre-sleep song for the rocking-and-feeding routine",
+    "structured_goal": "sleep_calm",
+    "languages": ["en"],
+    "cultural_music_preferences": ["gentle acoustic"],
+    "sensory_sensitivities": [],
+    "household_context": "shared bedroom, evening routine at 19:00",
+    "parent_restrictions": {},
+    "consent": { "guardian_confirmed": true, "terms_version": "tos-3.2", "personalization_optin": false }
+  },
+  "age_stage_profile": {
+    "age_band": "m4_6",
+    "basis": "birth_date",
+    "chronological_age_days": 158,
+    "stage_descriptors": {
+      "auditory": "Prefers infant-directed melody; sensitive to loudness and harsh spectra; soothed by repetition and caregiver-like timbre",
+      "attention": "Short; carried by predictable repetition, not novelty",
+      "language": "Pre-verbal; vowel sounds and contour matter, words do not",
+      "motor": "Not mobile; held/rocked during routine"
+    }
+  },
+  "modality_policy": {
+    "age_band": "m4_6",
+    "allowed": [
+      { "modality": "audio", "audience": "child" },
+      { "modality": "static_visual", "audience": "parent", "parent_controlled": true }
+    ],
+    "lane_overrides": { "sleep_calm": "audio_only_enforced" },
+    "autoplay": false,
+    "policy_refs": [
+      { "policy_version": "ecms-policy/1.0.0", "table": "modality_matrix", "key": "m4_6" },
+      { "policy_version": "ecms-policy/1.0.0", "table": "lane_overrides", "key": "sleep_calm" }
+    ]
+  },
+  "goal_route": {
+    "lane": "sleep_calm",
+    "archetype": "sleep_guardian",
+    "acoustic_profile_id": "ACP-SLEEP-INFANT-01",
+    "interaction_pattern": "caregiver_prompts",
+    "routing_rationale": "Explicit wind-down goal for an infant; sleep lane; Sleep Guardian cast"
+  },
+  "character_id": "CHR-LUMA-001",
+  "music_spec": {
+    "lane": "sleep_calm",
+    "age_band": "m4_6",
+    "tempo_bpm": { "target": 60, "min": 56, "max": 62, "automation": "ritardando 60 -> 55 across final third" },
+    "meter": "6/8",
+    "key": "F major",
+    "melodic_contour": { "bias": "descending", "max_leap": "P4", "range": "one octave" },
+    "structure": {
+      "sections": [
+        { "tag": "intro", "seconds": 20, "notes": "hummed motif alone over felt piano pedal tone" },
+        { "tag": "A", "seconds": 32, "notes": "lull cycle 1: motif + harp arpeggio" },
+        { "tag": "A'", "seconds": 32, "notes": "lull cycle 2: identical melody, hum replaces half the words" },
+        { "tag": "B", "seconds": 24, "notes": "contrast kept minimal: same rhythm, subdominant color" },
+        { "tag": "A''", "seconds": 32, "notes": "lull cycle 3: all hum, dynamics one step softer" },
+        { "tag": "A''", "seconds": 32, "notes": "lull cycle 4: repeat verbatim" },
+        { "tag": "outro", "seconds": 30, "notes": ">= 15 s fade resolving to tonic; hum only" }
+      ],
+      "repetition_ratio_min": 0.65,
+      "phrase_seconds": [4, 8],
+      "pause_seconds": [1, 2]
+    },
+    "dynamics": {
+      "integrated_lufs": -20,
+      "lra_max_lu": 3,
+      "true_peak_dbtp_max": -3,
+      "transient_ceiling_db_over_3s_avg": 6
+    },
+    "timbre_palette": {
+      "allow": ["hummed voice", "felt piano", "harp", "warm pad"],
+      "block": ["percussion", "brass", "bells", "synth leads", "risers"]
+    },
+    "spectrum": { "high_shelf_rolloff_hz": 8000, "avoid_resonance_hz": [2000, 5000] },
+    "spatial": { "mono_compatible": true, "moving_panning": false, "binaural_motion_effects": false },
+    "ending": { "type": "long_fade_to_tonic", "fade_seconds_min": 15 },
+    "interaction": { "pattern": "caregiver_prompts", "response_gap_seconds": [1, 2] },
+    "composition_brief": "A 3.5-minute lullaby in Luma's signature: descending sol-mi-do 'loo' motif in F major, 6/8 rocking feel at 60 BPM matching a gentle rocking pace. Felt piano holds a soft pedal; harp arpeggios enter in lull cycles; voice is hum-forward with sparse comfort words that dissolve into pure hum by the final cycles. Everything crossfades; no transient events anywhere; the last 30 seconds are a slow fade that lands and stays on the tonic.",
+    "policy_refs": [
+      { "policy_version": "ecms-policy/1.0.0", "table": "music_envelopes", "key": "sleep_calm" }
+    ]
+  },
+  "voice_spec": {
+    "character_id": "CHR-LUMA-001",
+    "provider": "elevenlabs",
+    "voice_ref": "voice_luma_v1",
+    "age_variant": "infant",
+    "language": "en",
+    "settings": { "stability": 0.85, "similarity_boost": 0.8, "style": 0.1, "use_speaker_boost": false },
+    "fallback_chain": ["internal:tts_warm_female_low", "suno:persona_luma_hum"]
+  },
+  "prosody_spec": {
+    "rate": { "spoken_wpm_max": 85, "sung_syllables_per_second_max": 1.8, "vowel_elongation": true },
+    "pitch": { "center_hz": 190, "range_semitones": 5, "contour_style": "infant_directed_smooth" },
+    "pauses": { "aligned_to_music_phrases": true, "min_seconds": 1, "max_seconds": 2 },
+    "breath_sounds": "natural_soft",
+    "forbidden_styles": ["shouting", "sarcasm", "whisper_asmr", "vocal_fry_effect", "theatrical"],
+    "canonical_cues_used": [],
+    "delivery_markup": "<section tag='A'><line rate='slow' pitch='soft-fall'>Moon is soft <pause s='1.5'/> loo loo loo</line><line rate='slow' pitch='soft-fall'>So are you <pause s='1.5'/> loo loo loo</line></section><section tag='A2'><line hum='true'>mmm — loo loo loo</line></section>"
+  },
+  "lyrics_spec": {
+    "language": "en",
+    "lines": [
+      { "section": "A", "text": "Moon is soft, loo loo loo" },
+      { "section": "A", "text": "So are you, loo loo loo" },
+      { "section": "A'", "text": "Moon is soft, mmm mmm mmm" },
+      { "section": "B", "text": "Warm and slow, low and low" },
+      { "section": "A''", "text": "(hum only)" }
+    ],
+    "lexicon_tier": "vowel_hum",
+    "syllable_density_per_second": 1.6,
+    "repetition_ratio": 0.72,
+    "rhyme_scheme": "AA",
+    "content_flags_checked": true
+  },
+  "tool_jobs": [
+    {
+      "job_id": "JOB-SUNO-8841",
+      "provider": "suno",
+      "model_version": "v4.5",
+      "task": "music_generation",
+      "payload": { "prompt_ref": "see examples/suno-udio-prompt.md", "instrumental_first_pass": true },
+      "seed": 774421,
+      "budget_usd_max": 1.5,
+      "status": "succeeded",
+      "asset_refs": ["AST-AUD-001"],
+      "provenance": { "prompt_hash": "sha256:6f0c…", "content_credentials": "c2pa:claim-9931" }
+    },
+    {
+      "job_id": "JOB-11L-3120",
+      "provider": "elevenlabs",
+      "model_version": "eleven_multilingual_v2",
+      "task": "vocal_stem",
+      "payload": { "voice_ref": "voice_luma_v1", "markup_ref": "prosody_spec.delivery_markup" },
+      "seed": "n/a",
+      "budget_usd_max": 0.6,
+      "status": "succeeded",
+      "asset_refs": ["AST-VOX-001"],
+      "provenance": { "prompt_hash": "sha256:a2d9…", "content_credentials": "c2pa:claim-9932" }
+    },
+    {
+      "job_id": "JOB-MIX-0007",
+      "provider": "internal",
+      "model_version": "mixdown-1.2",
+      "task": "mixdown_master",
+      "payload": { "stems": ["AST-AUD-001", "AST-VOX-001"], "target_lufs": -20, "true_peak_max": -3, "fade_out_seconds": 20 },
+      "seed": "n/a",
+      "budget_usd_max": 0.1,
+      "status": "succeeded",
+      "asset_refs": ["AST-MST-001"],
+      "provenance": { "prompt_hash": "sha256:c8b1…", "content_credentials": "c2pa:claim-9933" }
+    }
+  ],
+  "assets": [
+    {
+      "asset_id": "AST-MST-001",
+      "kind": "audio_master",
+      "uri": "s3://ecms-assets/PKG-SLP-M46-000142/master.wav",
+      "duration_seconds": 202,
+      "measured": {
+        "integrated_lufs": -20.3,
+        "lra_lu": 2.4,
+        "true_peak_dbtp": -3.6,
+        "max_transient_db_over_3s_avg": 3.1
+      },
+      "provenance": { "chain": ["JOB-SUNO-8841", "JOB-11L-3120", "JOB-MIX-0007"] }
+    },
+    {
+      "asset_id": "AST-IMG-001",
+      "kind": "image",
+      "uri": "s3://ecms-assets/PKG-SLP-M46-000142/luma-parent-card.png",
+      "provenance": { "source": "approved still assets/luma/still_night_v2.png" }
+    }
+  ],
+  "parent_guidance": {
+    "device_placement": "Place the speaker out of reach and at least 2 meters from the crib or sleep surface. Never put a speaker in or on the crib, and never use headphones on your baby.",
+    "volume": "Keep the volume at a quiet-conversation level or lower — if you have to raise your voice to talk over it, it's too loud. For sleep, quieter is better.",
+    "overstimulation_signs": ["looking away or turning the head", "back arching", "fussing or crying that builds", "splayed fingers or stiffening"],
+    "stop_instruction": "If you see these signs, stop the audio and soothe your baby — your voice and your arms come first.",
+    "sleep_routine_note": "This song is designed to support your wind-down routine. You settle your baby — the music is just the backdrop. It ends with a long fade so there is no sudden silence.",
+    "session_limits": "One play per wind-down is enough; repetition across nights, not within the night, is what builds the routine.",
+    "caregiver_interaction_prompts": [
+      "Rock or hold your baby in rhythm with the song — the 6/8 sway is paced for gentle rocking.",
+      "Hum along if it feels natural; your voice matters more than ours."
+    ],
+    "coviewing_instructions": "The included character card is for you, not for your baby — no screen is part of this routine."
+  },
+  "claim_audit": {
+    "status": "pass",
+    "claims_used": ["CLM-A02", "CLM-A03", "CLM-A04"],
+    "violations": [],
+    "rewrites": []
+  },
+  "compliance_report": {
+    "verdict": "pass",
+    "policy_version": "ecms-policy/1.0.0",
+    "checks": [
+      { "check_id": "AUD-LUFS", "result": "pass", "measured": -20.3, "limit": -20, "notes": "within tolerance band" },
+      { "check_id": "AUD-LRA", "result": "pass", "measured": 2.4, "limit": 3 },
+      { "check_id": "AUD-TP", "result": "pass", "measured": -3.6, "limit": -3 },
+      { "check_id": "AUD-TRANSIENT", "result": "pass", "measured": 3.1, "limit": 6 },
+      { "check_id": "AUD-ENDING-FADE", "result": "pass", "measured": 20, "limit": 15 },
+      { "check_id": "AUD-TEMPO", "result": "pass", "measured": 60, "limit": "50-70" },
+      { "check_id": "VIS-PRESENT", "result": "pass", "notes": "parent-facing static image only; permitted by modality policy" },
+      { "check_id": "CLAIMS-FINAL", "result": "pass" },
+      { "check_id": "GUIDANCE-PRESENT", "result": "pass" },
+      { "check_id": "AUTOPLAY-FALSE", "result": "pass" },
+      { "check_id": "SLEEP-NO-VIDEO", "result": "pass" },
+      { "check_id": "PROVENANCE", "result": "pass" }
+    ],
+    "failures": [],
+    "human_review_required": false,
+    "reviewer_summary": "Sleep package for m4_6 within all envelopes; audio-only child experience with a parent-facing card; guidance complete."
+  },
+  "autoplay": false,
+  "audit_log_ref": "audit://sessions/SES-2026-07-05-0091"
+}

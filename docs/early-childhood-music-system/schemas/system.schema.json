@@ -1,0 +1,663 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ecms.example/schemas/system.schema.json",
+  "title": "ECMS System Schema",
+  "description": "Every object the ECMS pipeline passes between agents. The root object is a ContentPackage: the sealed, auditable unit of delivery.",
+  "$ref": "#/$defs/ContentPackage",
+  "$defs": {
+    "AgeBand": {
+      "type": "string",
+      "enum": ["prenatal_t3", "m0_3", "m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"]
+    },
+    "Lane": {
+      "type": "string",
+      "enum": ["sleep_calm", "play_movement", "language_exposure", "routine_support", "bonding", "parent_education"]
+    },
+    "Archetype": {
+      "type": "string",
+      "enum": ["sleep_guardian", "play_companion", "language_friend", "routine_buddy", "parent_guide"]
+    },
+    "Modality": {
+      "type": "string",
+      "enum": ["audio", "static_visual", "micro_visual", "micro_video", "short_video", "routine_video", "full_experience"]
+    },
+    "Audience": {
+      "type": "string",
+      "enum": ["child", "parent"]
+    },
+    "Provider": {
+      "type": "string",
+      "enum": ["suno", "udio", "elevenlabs", "runway", "heygen", "claude", "openai", "internal"]
+    },
+    "PolicyRef": {
+      "type": "object",
+      "required": ["policy_version", "table", "key"],
+      "properties": {
+        "policy_version": { "type": "string", "description": "semver of the policy bundle, e.g. ecms-policy/1.0.0" },
+        "table": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
+
+    "SessionIntent": {
+      "type": "object",
+      "required": ["goal_text", "languages", "consent"],
+      "properties": {
+        "goal_text": { "type": "string", "description": "Parent's goal, structured from free text" },
+        "structured_goal": { "$ref": "#/$defs/Lane" },
+        "languages": { "type": "array", "items": { "type": "string", "description": "BCP-47" }, "minItems": 1 },
+        "cultural_music_preferences": { "type": "array", "items": { "type": "string" } },
+        "sensory_sensitivities": { "type": "array", "items": { "type": "string" } },
+        "household_context": { "type": "string" },
+        "parent_restrictions": {
+          "type": "object",
+          "description": "Parent overrides; may only restrict, never expand",
+          "properties": {
+            "disable_visuals": { "type": "boolean" },
+            "max_session_minutes": { "type": "number" }
+          }
+        },
+        "consent": {
+          "type": "object",
+          "required": ["guardian_confirmed", "terms_version"],
+          "properties": {
+            "guardian_confirmed": { "type": "boolean", "const": true },
+            "terms_version": { "type": "string" },
+            "personalization_optin": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+
+    "AgeStageProfile": {
+      "type": "object",
+      "required": ["age_band", "basis"],
+      "properties": {
+        "age_band": { "$ref": "#/$defs/AgeBand" },
+        "basis": { "type": "string", "enum": ["birth_date", "due_date"] },
+        "chronological_age_days": { "type": "integer", "minimum": -120 },
+        "corrected_age_days": { "type": "integer", "description": "Present for preterm infants until 24 months corrected" },
+        "stage_descriptors": {
+          "type": "object",
+          "properties": {
+            "auditory": { "type": "string" },
+            "attention": { "type": "string" },
+            "language": { "type": "string" },
+            "motor": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "ModalityPolicy": {
+      "type": "object",
+      "required": ["age_band", "allowed", "autoplay", "policy_refs"],
+      "properties": {
+        "age_band": { "$ref": "#/$defs/AgeBand" },
+        "allowed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["modality", "audience"],
+            "properties": {
+              "modality": { "$ref": "#/$defs/Modality" },
+              "audience": { "$ref": "#/$defs/Audience" },
+              "co_view_required": { "type": "boolean", "default": false },
+              "parent_gate_required": { "type": "boolean", "default": false },
+              "parent_controlled": { "type": "boolean", "default": false },
+              "max_session_minutes": { "type": "number" },
+              "max_daily_sessions": { "type": "integer" }
+            }
+          },
+          "minItems": 1
+        },
+        "lane_overrides": {
+          "type": "object",
+          "description": "e.g. sleep_calm forces audio-only",
+          "additionalProperties": { "type": "string" }
+        },
+        "autoplay": { "type": "boolean", "const": false },
+        "policy_refs": { "type": "array", "items": { "$ref": "#/$defs/PolicyRef" } }
+      }
+    },
+
+    "GoalRoute": {
+      "type": "object",
+      "required": ["lane", "archetype", "acoustic_profile_id"],
+      "properties": {
+        "lane": { "$ref": "#/$defs/Lane" },
+        "archetype": { "$ref": "#/$defs/Archetype" },
+        "acoustic_profile_id": { "type": "string" },
+        "interaction_pattern": { "type": "string", "enum": ["none", "call_and_response", "echo_song", "movement_cues", "routine_steps", "caregiver_prompts"] },
+        "split_recommendation": { "type": "array", "items": { "$ref": "#/$defs/Lane" } },
+        "routing_rationale": { "type": "string" }
+      }
+    },
+
+    "MusicSpec": {
+      "type": "object",
+      "required": ["lane", "age_band", "tempo_bpm", "meter", "key", "structure", "dynamics", "timbre_palette", "ending"],
+      "properties": {
+        "lane": { "$ref": "#/$defs/Lane" },
+        "age_band": { "$ref": "#/$defs/AgeBand" },
+        "tempo_bpm": {
+          "type": "object",
+          "required": ["target"],
+          "properties": {
+            "target": { "type": "number" },
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "automation": { "type": "string", "description": "e.g. ritardando 60→54 over final third" }
+          }
+        },
+        "meter": { "type": "string", "examples": ["6/8", "3/4", "4/4"] },
+        "key": { "type": "string", "examples": ["F major", "D minor"] },
+        "melodic_contour": {
+          "type": "object",
+          "properties": {
+            "bias": { "type": "string", "enum": ["descending", "arch", "wave", "level"] },
+            "max_leap": { "type": "string", "examples": ["P5"] },
+            "range": { "type": "string", "examples": ["one octave"] }
+          }
+        },
+        "structure": {
+          "type": "object",
+          "required": ["sections"],
+          "properties": {
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["tag", "seconds"],
+                "properties": {
+                  "tag": { "type": "string", "examples": ["intro", "A", "A'", "B", "outro"] },
+                  "seconds": { "type": "number" },
+                  "notes": { "type": "string" }
+                }
+              }
+            },
+            "repetition_ratio_min": { "type": "number", "minimum": 0, "maximum": 1 },
+            "phrase_seconds": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "pause_seconds": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+          }
+        },
+        "dynamics": {
+          "type": "object",
+          "required": ["integrated_lufs", "lra_max_lu", "true_peak_dbtp_max"],
+          "properties": {
+            "integrated_lufs": { "type": "number" },
+            "lra_max_lu": { "type": "number" },
+            "true_peak_dbtp_max": { "type": "number" },
+            "transient_ceiling_db_over_3s_avg": { "type": "number" }
+          }
+        },
+        "timbre_palette": {
+          "type": "object",
+          "required": ["allow"],
+          "properties": {
+            "allow": { "type": "array", "items": { "type": "string" } },
+            "block": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "spectrum": {
+          "type": "object",
+          "properties": {
+            "high_shelf_rolloff_hz": { "type": "number" },
+            "avoid_resonance_hz": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+          }
+        },
+        "spatial": {
+          "type": "object",
+          "properties": {
+            "mono_compatible": { "type": "boolean", "default": true },
+            "moving_panning": { "type": "boolean", "const": false },
+            "binaural_motion_effects": { "type": "boolean", "const": false }
+          }
+        },
+        "ending": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["long_fade_to_tonic", "wind_down_close", "routine_completion_close"] },
+            "fade_seconds_min": { "type": "number" }
+          }
+        },
+        "interaction": {
+          "type": "object",
+          "properties": {
+            "pattern": { "type": "string" },
+            "response_gap_seconds": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+          }
+        },
+        "composition_brief": { "type": "string", "description": "Prose brief for the Tool Adapter prompt compiler" },
+        "policy_refs": { "type": "array", "items": { "$ref": "#/$defs/PolicyRef" } }
+      }
+    },
+
+    "Character": {
+      "type": "object",
+      "description": "A character bible entry. All fields required by product rule.",
+      "required": [
+        "id", "name", "role", "age_band_suitability", "personality", "forbidden_traits",
+        "voice_identity", "music_signature", "visual_identity", "motion_rules",
+        "tool_stack_compatibility", "safety_boundaries", "usage_restrictions_by_age"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^CHR-[A-Z0-9]+-[0-9]{3}$" },
+        "name": { "type": "string" },
+        "role": { "$ref": "#/$defs/Archetype" },
+        "species_or_form": { "type": "string" },
+        "age_band_suitability": {
+          "type": "object",
+          "description": "Per modality, the bands in which this character may appear",
+          "properties": {
+            "audio": { "type": "array", "items": { "$ref": "#/$defs/AgeBand" } },
+            "static_visual": { "type": "array", "items": { "$ref": "#/$defs/AgeBand" } },
+            "micro_visual": { "type": "array", "items": { "$ref": "#/$defs/AgeBand" } },
+            "video": { "type": "array", "items": { "$ref": "#/$defs/AgeBand" } }
+          }
+        },
+        "personality": {
+          "type": "object",
+          "required": ["traits", "energy"],
+          "properties": {
+            "traits": { "type": "array", "items": { "type": "string" }, "minItems": 3 },
+            "energy": { "type": "string", "enum": ["hushed", "gentle", "warm", "bright_capped"] },
+            "speech_habits": { "type": "array", "items": { "type": "string" } },
+            "catchphrases": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "forbidden_traits": { "type": "array", "items": { "type": "string" }, "minItems": 3 },
+        "voice_identity": {
+          "type": "object",
+          "required": ["provider", "voice_ref", "delivery_defaults"],
+          "properties": {
+            "provider": { "$ref": "#/$defs/Provider" },
+            "voice_ref": { "type": "string", "description": "Provider voice ID or internal registry key" },
+            "provenance": { "type": "string", "description": "How the voice was made; consent record ref" },
+            "language_variants": { "type": "object", "additionalProperties": { "type": "string" } },
+            "delivery_defaults": {
+              "type": "object",
+              "properties": {
+                "pitch_center_hz": { "type": "number" },
+                "pitch_range_semitones": { "type": "number" },
+                "spoken_wpm_max": { "type": "number" },
+                "character_notes": { "type": "string" }
+              }
+            },
+            "age_variants": {
+              "type": "object",
+              "description": "Per band-group delivery overrides, e.g. infant variant is softer/slower",
+              "additionalProperties": { "type": "object" }
+            },
+            "fallback_chain": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "music_signature": {
+          "type": "object",
+          "required": ["keys", "tempo_bpm_range", "instrument_palette", "motif"],
+          "properties": {
+            "keys": { "type": "array", "items": { "type": "string" } },
+            "tempo_bpm_range": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "meters": { "type": "array", "items": { "type": "string" } },
+            "instrument_palette": { "type": "array", "items": { "type": "string" } },
+            "motif": { "type": "string", "description": "The character's recurring musical idea" },
+            "sound_design_rules": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "visual_identity": {
+          "type": "object",
+          "required": ["description", "palette"],
+          "properties": {
+            "description": { "type": "string" },
+            "palette": { "type": "array", "items": { "type": "string" } },
+            "texture": { "type": "string" },
+            "reference_assets": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "motion_rules": {
+          "type": "object",
+          "required": ["max_motion", "transitions"],
+          "properties": {
+            "max_motion": { "type": "string" },
+            "transitions": { "type": "string", "description": "e.g. fades >= 2s, never pops in" },
+            "forbidden_motion": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "tool_stack_compatibility": {
+          "type": "object",
+          "properties": {
+            "music": { "type": "array", "items": { "$ref": "#/$defs/Provider" } },
+            "voice": { "type": "array", "items": { "$ref": "#/$defs/Provider" } },
+            "video": { "type": "array", "items": { "$ref": "#/$defs/Provider" } },
+            "notes": { "type": "string" }
+          }
+        },
+        "safety_boundaries": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "usage_restrictions_by_age": {
+          "type": "object",
+          "description": "Band -> restriction notes; must be consistent with age_band_suitability",
+          "propertyNames": { "$ref": "#/$defs/AgeBand" },
+          "additionalProperties": { "type": "string" }
+        },
+        "status": { "type": "string", "enum": ["draft", "in_review", "approved", "retired"], "default": "draft" },
+        "approved_by": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "VoiceSpec": {
+      "type": "object",
+      "required": ["character_id", "provider", "voice_ref", "age_variant", "settings"],
+      "properties": {
+        "character_id": { "type": "string" },
+        "provider": { "$ref": "#/$defs/Provider" },
+        "voice_ref": { "type": "string" },
+        "age_variant": { "type": "string", "examples": ["infant", "toddler", "preschool", "adult_parent"] },
+        "language": { "type": "string" },
+        "settings": { "type": "object", "description": "Locked provider settings for this variant" },
+        "fallback_chain": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "ProsodySpec": {
+      "type": "object",
+      "required": ["rate", "pitch", "pauses"],
+      "properties": {
+        "rate": {
+          "type": "object",
+          "properties": {
+            "spoken_wpm_max": { "type": "number" },
+            "sung_syllables_per_second_max": { "type": "number" },
+            "vowel_elongation": { "type": "boolean" }
+          }
+        },
+        "pitch": {
+          "type": "object",
+          "properties": {
+            "center_hz": { "type": "number" },
+            "range_semitones": { "type": "number" },
+            "contour_style": { "type": "string", "examples": ["infant_directed_smooth"] }
+          }
+        },
+        "pauses": {
+          "type": "object",
+          "properties": {
+            "aligned_to_music_phrases": { "type": "boolean", "default": true },
+            "min_seconds": { "type": "number" },
+            "max_seconds": { "type": "number" }
+          }
+        },
+        "breath_sounds": { "type": "string", "enum": ["natural_soft", "none"] },
+        "forbidden_styles": { "type": "array", "items": { "type": "string" } },
+        "canonical_cues_used": { "type": "array", "items": { "type": "string" }, "description": "Exact cue-library strings, e.g. 'breathe in deep, breathe out slow'" },
+        "delivery_markup": { "type": "string", "description": "SSML-like rendering of lines with pacing/pause/pitch annotations" }
+      }
+    },
+
+    "LyricsSpec": {
+      "type": "object",
+      "required": ["language", "lines", "syllable_density_per_second", "repetition_ratio"],
+      "properties": {
+        "language": { "type": "string" },
+        "secondary_language": { "type": "string" },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["section", "text"],
+            "properties": {
+              "section": { "type": "string" },
+              "text": { "type": "string" },
+              "translation": { "type": "string" },
+              "echo_slot": { "type": "boolean", "default": false }
+            }
+          }
+        },
+        "lexicon_tier": { "type": "string", "enum": ["vowel_hum", "first_words", "two_word", "simple_lines", "narrative_rhyme"] },
+        "syllable_density_per_second": { "type": "number" },
+        "repetition_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rhyme_scheme": { "type": "string" },
+        "content_flags_checked": { "type": "boolean", "const": true }
+      }
+    },
+
+    "VisualSafetySpec": {
+      "type": "object",
+      "required": ["age_band", "max_duration_seconds", "flash_policy", "min_shot_seconds", "motion_limits"],
+      "properties": {
+        "age_band": { "$ref": "#/$defs/AgeBand" },
+        "max_duration_seconds": { "type": "number" },
+        "flash_policy": {
+          "type": "object",
+          "required": ["flashing_allowed"],
+          "properties": {
+            "flashing_allowed": { "type": "boolean", "const": false },
+            "max_luminance_transitions_per_second": { "type": "number", "maximum": 3 },
+            "max_fullscreen_luminance_step_pct": { "type": "number" }
+          }
+        },
+        "min_shot_seconds": { "type": "number" },
+        "cuts_on_phrase_boundaries_only": { "type": "boolean" },
+        "camera": { "type": "string", "examples": ["locked", "pan<=3pct_frame_width_per_s"] },
+        "motion_limits": {
+          "type": "object",
+          "properties": {
+            "median_optical_flow_pct_frame_per_s_max": { "type": "number" },
+            "character_motion": { "type": "string" },
+            "appearance_transition": { "type": "string" }
+          }
+        },
+        "palette_limits": {
+          "type": "object",
+          "properties": {
+            "max_hues": { "type": "integer" },
+            "saturation_cap": { "type": "string" }
+          }
+        },
+        "max_focal_elements": { "type": "integer" },
+        "onscreen_text": { "type": "string", "enum": ["none", "parent_facing_only", "single_words", "short_labels"] }
+      }
+    },
+
+    "ScenePlan": {
+      "type": "object",
+      "required": ["total_seconds", "shots", "opening_ritual", "closing_ritual"],
+      "properties": {
+        "total_seconds": { "type": "number" },
+        "shots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "seconds", "description", "visual_prompt"],
+            "properties": {
+              "index": { "type": "integer" },
+              "seconds": { "type": "number" },
+              "description": { "type": "string" },
+              "character_action": { "type": "string" },
+              "visual_prompt": { "type": "string" },
+              "music_section": { "type": "string" }
+            }
+          }
+        },
+        "opening_ritual": { "type": "string" },
+        "closing_ritual": { "type": "string" },
+        "coviewing_prompts": { "type": "array", "items": { "type": "string" } },
+        "guidance_card_refs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "ToolJob": {
+      "type": "object",
+      "required": ["job_id", "provider", "task", "payload", "status"],
+      "properties": {
+        "job_id": { "type": "string" },
+        "provider": { "$ref": "#/$defs/Provider" },
+        "model_version": { "type": "string" },
+        "task": { "type": "string", "examples": ["music_generation", "vocal_stem", "tts", "image_to_video", "avatar_video"] },
+        "payload": { "type": "object", "description": "Provider-shaped request compiled from specs" },
+        "seed": { "type": ["integer", "string"] },
+        "budget_usd_max": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "running", "succeeded", "failed", "fallback_used"] },
+        "asset_refs": { "type": "array", "items": { "type": "string" } },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "prompt_hash": { "type": "string" },
+            "content_credentials": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "Asset": {
+      "type": "object",
+      "required": ["asset_id", "kind", "uri"],
+      "properties": {
+        "asset_id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["audio_master", "audio_stem", "vocal_stem", "image", "video", "guidance_card"] },
+        "uri": { "type": "string" },
+        "duration_seconds": { "type": "number" },
+        "measured": {
+          "type": "object",
+          "description": "Post-render measurements used by compliance",
+          "properties": {
+            "integrated_lufs": { "type": "number" },
+            "lra_lu": { "type": "number" },
+            "true_peak_dbtp": { "type": "number" },
+            "max_transient_db_over_3s_avg": { "type": "number" },
+            "flicker_violations": { "type": "integer" },
+            "min_shot_seconds": { "type": "number" },
+            "median_optical_flow_pct": { "type": "number" }
+          }
+        },
+        "provenance": { "type": "object" }
+      }
+    },
+
+    "ClaimAudit": {
+      "type": "object",
+      "required": ["status", "claims_used"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "rewritten", "blocked", "needs_review"] },
+        "claims_used": { "type": "array", "items": { "type": "string", "pattern": "^CLM-A[0-9]{2}$" } },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "matched_block_id": { "type": "string" },
+              "match_kind": { "type": "string", "enum": ["lexical", "semantic"] }
+            }
+          }
+        },
+        "rewrites": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+
+    "ParentGuidance": {
+      "type": "object",
+      "description": "Required in every package; extra sections required when visuals are present",
+      "required": ["device_placement", "volume", "overstimulation_signs", "stop_instruction"],
+      "properties": {
+        "device_placement": { "type": "string" },
+        "volume": { "type": "string" },
+        "overstimulation_signs": { "type": "array", "items": { "type": "string" }, "minItems": 3 },
+        "stop_instruction": { "type": "string" },
+        "sleep_routine_note": { "type": "string" },
+        "coviewing_instructions": { "type": "string", "description": "Required when any visual asset is present" },
+        "session_limits": { "type": "string" },
+        "caregiver_interaction_prompts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "ComplianceReport": {
+      "type": "object",
+      "required": ["verdict", "checks", "policy_version"],
+      "properties": {
+        "verdict": { "type": "string", "enum": ["pass", "fail"] },
+        "policy_version": { "type": "string" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["check_id", "result"],
+            "properties": {
+              "check_id": { "type": "string" },
+              "result": { "type": "string", "enum": ["pass", "fail", "n/a"] },
+              "measured": {},
+              "limit": {},
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "failures": { "type": "array", "items": { "type": "string" } },
+        "human_review_required": { "type": "boolean", "default": false },
+        "reviewer_summary": { "type": "string", "description": "Generative, advisory only — never part of the verdict" }
+      }
+    },
+
+    "ContentPackage": {
+      "type": "object",
+      "required": [
+        "package_id", "policy_version", "age_band", "lane", "modality_policy",
+        "character_id", "music_spec", "voice_spec", "prosody_spec",
+        "assets", "parent_guidance", "claim_audit", "compliance_report",
+        "autoplay", "audit_log_ref"
+      ],
+      "properties": {
+        "package_id": { "type": "string" },
+        "policy_version": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "age_band": { "$ref": "#/$defs/AgeBand" },
+        "lane": { "$ref": "#/$defs/Lane" },
+        "session_intent": { "$ref": "#/$defs/SessionIntent" },
+        "age_stage_profile": { "$ref": "#/$defs/AgeStageProfile" },
+        "modality_policy": { "$ref": "#/$defs/ModalityPolicy" },
+        "goal_route": { "$ref": "#/$defs/GoalRoute" },
+        "character_id": { "type": "string" },
+        "music_spec": { "$ref": "#/$defs/MusicSpec" },
+        "voice_spec": { "$ref": "#/$defs/VoiceSpec" },
+        "prosody_spec": { "$ref": "#/$defs/ProsodySpec" },
+        "lyrics_spec": { "$ref": "#/$defs/LyricsSpec" },
+        "visual_safety_spec": { "$ref": "#/$defs/VisualSafetySpec" },
+        "scene_plan": { "$ref": "#/$defs/ScenePlan" },
+        "tool_jobs": { "type": "array", "items": { "$ref": "#/$defs/ToolJob" } },
+        "assets": { "type": "array", "items": { "$ref": "#/$defs/Asset" }, "minItems": 1 },
+        "parent_guidance": { "$ref": "#/$defs/ParentGuidance" },
+        "claim_audit": { "$ref": "#/$defs/ClaimAudit" },
+        "compliance_report": { "$ref": "#/$defs/ComplianceReport" },
+        "autoplay": { "type": "boolean", "const": false },
+        "audit_log_ref": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "description": "If any asset is visual, co-viewing instructions are required in parent guidance",
+          "if": {
+            "properties": {
+              "assets": {
+                "contains": { "properties": { "kind": { "enum": ["image", "video"] } }, "required": ["kind"] }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parent_guidance": { "required": ["coviewing_instructions", "session_limits"] }
+            }
+          }
+        },
+        {
+          "description": "Sleep lane packages may not contain video assets",
+          "if": { "properties": { "lane": { "const": "sleep_calm" } } },
+          "then": {
+            "properties": {
+              "assets": {
+                "items": { "properties": { "kind": { "not": { "const": "video" } } } }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
