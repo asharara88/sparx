@@ -74,18 +74,30 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-/** Split total length across N sections, each within the chunk bounds. */
+/** Partition total length across N sections so the chunks SUM to totalMs, each
+ *  within the chunk bounds. The remainder rides on the last chunk. Callers must
+ *  pass a totalMs that already fits N chunks at the floor (see planLength). */
 function chunkDurations(totalMs: number, n: number): number[] {
   if (n <= 0) return [];
-  const each = clamp(Math.round(totalMs / n), CHUNK_MIN_MS, CHUNK_MAX_MS);
-  return Array.from({ length: n }, () => each);
+  const each = clamp(Math.floor(totalMs / n), CHUNK_MIN_MS, CHUNK_MAX_MS);
+  const durs = Array.from({ length: n }, () => each);
+  const remainder = totalMs - each * n;
+  if (remainder > 0) durs[n - 1] = clamp(each + remainder, CHUNK_MIN_MS, CHUNK_MAX_MS);
+  return durs;
+}
+
+/** The length the composition plan will actually declare: the requested length,
+ *  grown so N chunks fit at the 3s floor (otherwise floored chunks would sum to
+ *  2–3× the requested length), capped at the provider ceiling. */
+function planLength(requestedMs: number, n: number): number {
+  return clamp(Math.max(requestedMs, n * CHUNK_MIN_MS), EL_MIN_MS, EL_MAX_MS);
 }
 
 // ── ElevenLabs ───────────────────────────────────────────────────────────────
 
 export function toElevenLabs(input: { goal: Goal; plan: ParameterPlan; lyrics: LyricPlan; lengthMs: number }): ElevenLabsPrompt {
   const { goal, plan, lyrics } = input;
-  const musicLengthMs = clamp(Math.round(input.lengthMs), EL_MIN_MS, EL_MAX_MS);
+  const requestedMs = clamp(Math.round(input.lengthMs), EL_MIN_MS, EL_MAX_MS);
   const { positive, negative } = collectStyles(goal, plan);
 
   const vocalPhrase = lyrics.instrumental
@@ -103,14 +115,18 @@ export function toElevenLabs(input: { goal: Goal; plan: ParameterPlan; lyrics: L
   const base: ElevenLabsPrompt = {
     tool: 'elevenlabs',
     prompt,
-    musicLengthMs,
+    musicLengthMs: requestedMs,
     forceInstrumental: lyrics.instrumental,
     modelId: 'music_v2',
   };
 
   if (lyrics.instrumental || !lyrics.sections.length) return base;
 
-  const durs = chunkDurations(musicLengthMs, lyrics.sections.length);
+  // Grow the declared length so the chunks partition it exactly (no 3s-floor
+  // inflation) and keep the top-level length consistent with the plan.
+  const planLen = planLength(requestedMs, lyrics.sections.length);
+  base.musicLengthMs = planLen;
+  const durs = chunkDurations(planLen, lyrics.sections.length);
   base.compositionPlan = {
     chunks: lyrics.sections.map((s, i) => ({
       // Section label + lyric text goes in `text`; broad style stays in styles.

@@ -49,6 +49,17 @@ describe('goal router', () => {
     const r = routeGoal({ text: 'calm my baby down to sleep' });
     expect(r.goal).toBe('sleep');
   });
+
+  it('does not misroute "nursery rhyme" to the feeding protocol', () => {
+    const r = routeGoal({ text: 'a fun nursery rhyme' });
+    expect(r.goal).toBe('entertain');
+    expect(r.intent).toBe('entertainment');
+  });
+
+  it('recognizes canonical sleep vocabulary (lullaby / goodnight)', () => {
+    expect(routeGoal({ text: 'a gentle lullaby' }).goal).toBe('sleep');
+    expect(routeGoal({ text: 'a goodnight song' }).goal).toBe('sleep');
+  });
 });
 
 describe('stage profiler', () => {
@@ -74,6 +85,18 @@ describe('stage profiler', () => {
   it('surfaces the mode→emotion window only at 4–6 yr', () => {
     expect(profileStage({ ageMonths: 60 }).windows).toContain('mode-emotion-emerging');
     expect(profileStage({ ageMonths: 24 }).windows).not.toContain('mode-emotion-emerging');
+  });
+
+  it('handles exact stage boundaries with half-open intervals', () => {
+    expect(profileStage({ ageMonths: 3 }).stage).toBe('3-6mo');
+    expect(profileStage({ ageMonths: 12 }).stage).toBe('12-18mo');
+    expect(profileStage({ ageMonths: 24 }).stage).toBe('2-3yr');
+    expect(profileStage({ ageMonths: 72 }).stage).toBe('4-6yr'); // clamps at the ceiling
+  });
+
+  it('fails a NaN age CLOSED to a conservative infant band, not the oldest one', () => {
+    // Number('not a number') => NaN must not resolve to the 170-BPM 4-6yr band.
+    expect(profileStage({ ageMonths: Number('oops') }).stage).toBe('3-6mo');
   });
 });
 
@@ -178,8 +201,19 @@ describe('evidence grounder', () => {
     expect(groundClaim('helps your baby’s brain develop faster').allowed).toBe(false);
   });
 
+  it('catches "smart baby" and IQ claims with non-standard verbs', () => {
+    expect(groundClaim('music to make your baby smart').allowed).toBe(false); // not just "smarter"
+    expect(groundClaim('smart baby music for newborns').allowed).toBe(false);
+    expect(groundClaim("build your baby's IQ").allowed).toBe(false); // "build" not a listed verb → caught by baby+IQ pairing
+    expect(groundClaim("support your child's IQ development").allowed).toBe(false);
+  });
+
   it('does not block legitimate bilingual EXPOSURE claims (only acceleration)', () => {
     expect(groundClaim('increase bilingual exposure at home with songs').allowed).toBe(true);
+    expect(groundClaim("boost your child's bilingual exposure").allowed).toBe(true);
+    // but acceleration of ACQUISITION is still blocked
+    expect(groundClaim('boost bilingual acquisition with these songs').allowed).toBe(false);
+    expect(groundClaim('songs that accelerate bilingual learning').allowed).toBe(false);
   });
 
   it('builds the graded claim set for a brief and always carries the recorded-ceiling caveat', () => {
@@ -211,6 +245,16 @@ describe('tool adapters', () => {
     expect(el.compositionPlan!.chunks[0]!.positiveStyles.length).toBeLessThanOrEqual(7);
     expect(el.compositionPlan!.chunks.every((c) => c.durationMs >= 3000)).toBe(true);
     expect(el.musicLengthMs).toBeLessThanOrEqual(600_000);
+  });
+
+  it('ElevenLabs composition-plan chunks sum to the declared length even for a short clip', () => {
+    // 8 s requested across 4 sleep sections would floor each chunk to 3 s and
+    // sum to 12 s — the declared length must grow to match, not contradict.
+    const el = toElevenLabs({ goal: 'sleep', plan, lyrics, lengthMs: 8_000 });
+    const sum = el.compositionPlan!.chunks.reduce((n, c) => n + c.durationMs, 0);
+    expect(sum).toBe(el.musicLengthMs);
+    expect(el.compositionPlan!.chunks.every((c) => c.durationMs >= 3000 && c.durationMs <= 120000)).toBe(true);
+    expect(el.musicLengthMs).toBeGreaterThanOrEqual(lyrics.sections.length * 3000);
   });
 
   it('ElevenLabs drops the plan and forces instrumental when lyrics are instrumental', () => {

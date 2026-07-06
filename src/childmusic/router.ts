@@ -12,8 +12,10 @@ import { PROTOCOL_FOR_GOAL } from './knowledge.js';
 // Whole-word/substring cue terms per goal. Kept lowercase; matched against the
 // lowercased request text. Ordered loosely by specificity within each list.
 const GOAL_CUES: Record<Goal, string[]> = {
-  feeding: ['feed', 'feeding', 'nurs', 'bottle', 'suck', 'mealtime', 'latch'],
-  sleep: ['sleep', 'asleep', 'nap', 'bedtime', 'bed time', 'drowsy', 'night night', 'wind down', 'wind-down', 'settle'],
+  // NB: 'nurse'/'nurs' would substring-match "nursery" (rhyme) and misroute to
+  // feeding — use the non-colliding 'nursing'/'breastfeed' forms instead.
+  feeding: ['feeding', 'breastfeed', 'breast feed', 'nursing', 'bottle', 'suckle', 'mealtime', 'latch', 'feed'],
+  sleep: ['sleep', 'asleep', 'nap', 'bedtime', 'bed time', 'lullaby', 'goodnight', 'good night', 'night', 'drowsy', 'wind down', 'wind-down', 'settle'],
   calm: ['calm', 'sooth', 'fuss', 'cry', 'crying', 'distress', 'upset', 'self-regulat', 'self regulat', 'relax', 'quiet down', 'colic'],
   focus: ['focus', 'learn', 'teach', 'vocab', 'word', 'language', 'phonic', 'count', 'letter', 'attention', 'lesson', 'practice', 'alphabet', 'number'],
   play: ['play', 'dance', 'move', 'movement', 'active', 'energetic', 'wiggle', 'bounce', 'alert', 'wake', 'stimulate', 'tummy time'],

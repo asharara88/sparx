@@ -381,6 +381,7 @@ export const STAGES_BY_ID: Record<StageId, StageInfo> = Object.fromEntries(
 
 /** Map an age in months to a stage id (prenatal handled by the caller's flag). */
 export function stageForAgeMonths(ageMonths: number): StageId {
+  if (!Number.isFinite(ageMonths)) return '3-6mo'; // conservative default for a garbage age
   if (ageMonths < 0) return 'prenatal';
   for (const s of STAGES) {
     if (s.id === 'prenatal') continue;

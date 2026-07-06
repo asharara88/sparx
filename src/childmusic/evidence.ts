@@ -30,7 +30,7 @@ interface OverclaimPattern {
 // "improve bilingual exposure" claims aren't blocked — only acceleration is.
 const OVERCLAIM_PATTERNS: OverclaimPattern[] = [
   {
-    test: /mozart effect|baby einstein|\bgenius\b|\bbrainier\b|\b(?:boost|rais\w*|increas\w*|improv\w*|higher|enhanc\w*|maximi[sz]\w*|develop\w*|supercharg\w*)\b[\s\S]{0,30}\b(?:iq|intelligence|cognit\w*)\b|\b(?:iq|intelligence|cognit\w*)\b[\s\S]{0,30}\b(?:boost|rais\w*|increas\w*|improv\w*|higher|gains?|enhanc\w*)\b|\bsmarter?\b[\s\S]{0,20}\b(?:baby|babies|child|children|kid|kids|toddler|infant|newborn)\b|\b(?:baby|babies|child|children|kid|kids|toddler|infant|newborn)\b[\s\S]{0,20}\bsmarter?\b/i,
+    test: /mozart effect|baby einstein|\bgenius\b|\bbrainier\b|\b(?:boost|rais\w*|increas\w*|improv\w*|higher|enhanc\w*|maximi[sz]\w*|develop\w*|supercharg\w*|build\w*|support\w*|help\w*|promot\w*|nurtur\w*|foster\w*|unlock\w*|grow\w*|bigger)\b[\s\S]{0,30}\b(?:iq|intelligence|cognit\w*)\b|\b(?:iq|intelligence|cognit\w*)\b[\s\S]{0,30}\b(?:boost|rais\w*|increas\w*|improv\w*|higher|gains?|enhanc\w*|bigger)\b|\bsmart(?:er)?\b[\s\S]{0,20}\b(?:baby|babies|child|children|kid|kids|toddler|infant|newborn)\b|\b(?:baby|babies|child|children|kid|kids|toddler|infant|newborn)\b[\s\S]{0,20}\bsmart(?:er)?\b|\b(?:baby|babies|child|children|kid|kids|toddler|infant|newborn)(?:['’]s)?\b[\s\S]{0,20}\b(?:iq|intelligence)\b|\b(?:iq|intelligence)\b[\s\S]{0,20}\b(?:baby|babies|child|children|kid|kids|toddler|infant|newborn)\b/i,
     claimId: 'mozart-effect',
     rewrite:
       'Music reliably supports infant arousal regulation, calming, and bonding — it does NOT raise IQ or general intelligence (the "Mozart effect" is Debunked).',
@@ -48,7 +48,10 @@ const OVERCLAIM_PATTERNS: OverclaimPattern[] = [
       'Rigorous Arabic–English early-childhood music evidence is essentially absent. Exposure to both languages helps (Strong); do not claim songs specifically accelerate Arabic/English acquisition.',
   },
   {
-    test: /(?:acceler\w*|faster|quicker|sooner|speed\w*|jump[- ]?start\w*|fast[- ]?track\w*|boost\w*)[\s\S]{0,30}(?:bilingual|second[- ]language|\bl2\b|dual[- ]language|language acquisition|language learning)|(?:bilingual|second[- ]language|\bl2\b|language acquisition)[\s\S]{0,30}(?:acceler\w*|faster|quicker|sooner|speed\w*|boost\w*)|(?:songs?|music)[\s\S]{0,30}(?:teach\w*|make\w*)[\s\S]{0,20}(?:bilingual|fluent)/i,
+    // Pure-acceleration verbs block bare "bilingual"; generic verbs (boost/
+    // increase/improve) only block when the OBJECT is acquisition/fluency — so
+    // "boost bilingual EXPOSURE" (a Strong, legitimate claim) is left allowed.
+    test: /(?:acceler\w*|faster|quicker|sooner|speed\w*|jump[- ]?start\w*|fast[- ]?track\w*)[\s\S]{0,30}(?:bilingual|second[- ]language|\bl2\b|dual[- ]language|language acquisition|language learning)|(?:bilingual|second[- ]language|\bl2\b|language acquisition)[\s\S]{0,30}(?:acceler\w*|faster|quicker|sooner|speed\w*)|(?:boost\w*|increas\w*|improv\w*|enhanc\w*)[\s\S]{0,25}(?:bilingual|second[- ]language|\bl2\b|dual[- ]language)[\s\S]{0,25}(?:acquisition|acquir\w*|learning|fluen\w*|proficien\w*)|(?:songs?|music)[\s\S]{0,30}(?:teach\w*|make\w*)[\s\S]{0,20}(?:bilingual|fluent)/i,
     claimId: 'music-accelerates-bilingual',
     rewrite:
       'Bilingual EXPOSURE benefits are well established (Strong), but songs are NOT proven to accelerate second-language acquisition (Contested; the best-controlled preschool study found songs inferior to stories). Use songs as an engagement vehicle, not an accelerator.',
@@ -60,7 +63,7 @@ const OVERCLAIM_PATTERNS: OverclaimPattern[] = [
       'Broad cognitive/academic transfer from music training is Contested (near-null in the best-controlled meta-analyses; small inhibitory-control effects survive) and pertains to active music-making ages 3–12, not infant listening.',
   },
   {
-    test: /(?:long[- ]term|24[- ]month|permanent\w*|lasting|durable|lifelong)[\s\S]{0,30}(?:language|vocabulary|reading|literacy|cognit\w*|academic|development|outcomes?)/i,
+    test: /(?:long[- ]term|24[- ]month|permanent\w*|lasting|durable|lifelong)[\s\S]{0,30}(?:language|vocabulary|reading|literacy|cognit\w*|academic|development|outcomes?)|(?:language|vocabulary|reading|literacy|cognit\w*|academic|outcomes?)[\s\S]{0,25}(?:long[- ]term|lasting|permanent\w*|lifelong)/i,
     claimId: 'long-term-language-transfer',
     rewrite:
       'The large LongSTEP RCT found infant-directed singing did NOT significantly improve 24-month language outcomes — do not claim long-term language gains.',

@@ -17,7 +17,10 @@ export function resolveStage(input: { ageMonths?: number; stage?: StageId; prena
 } {
   if (input.prenatal) return { stage: 'prenatal', ageMonths: input.ageMonths ?? null };
   if (input.stage) return { stage: input.stage, ageMonths: input.ageMonths ?? null };
-  if (typeof input.ageMonths === 'number') {
+  // Require a FINITE number — a NaN age (e.g. Number('') from a bad input) must
+  // NOT fall through to the oldest, least-conservative band; it drops to the
+  // "nothing specified" conservative default below.
+  if (typeof input.ageMonths === 'number' && Number.isFinite(input.ageMonths)) {
     if (input.ageMonths < 0) return { stage: 'prenatal', ageMonths: input.ageMonths };
     return { stage: stageForAgeMonths(input.ageMonths), ageMonths: input.ageMonths };
   }
