@@ -77,6 +77,7 @@ configured to list episodes; demo renders work regardless and appear in the prev
 |---------|---------|
 | `npm run dev` | run the full pipeline |
 | `npm run demo:video -- "topic"` | render a short captioned demo from a generated script |
+| `npm run childmusic -- "<request>"` | evidence-graded AI-music brief for prenatal–6 yr (ElevenLabs/Suno/Udio) — see [docs/Child-Music-Specialist.md](docs/Child-Music-Specialist.md) |
 | `npm test` / `npm run typecheck` | tests / type check |
 | `npx tsx scripts/db-check.ts` | Supabase connectivity probe |
 | `npm run inspect` | inspect a generated episode |
@@ -97,7 +98,8 @@ publish, `npm run analytics -- <episode_id>` folds performance into a cross-epis
 channel memory that research and packaging read next time.
 
 Framework guide: [docs/Agent-Framework.md](docs/Agent-Framework.md) ·
-Full design: [docs/YouTube-Studio-Build-Spec.md](docs/YouTube-Studio-Build-Spec.md).
+Full design: [docs/YouTube-Studio-Build-Spec.md](docs/YouTube-Studio-Build-Spec.md) ·
+Music & early-childhood specialist: [docs/Child-Music-Specialist.md](docs/Child-Music-Specialist.md).
 
 ## Requirements
 
