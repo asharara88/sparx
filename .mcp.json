@@ -10,6 +10,21 @@
       "type": "extension",
       "provider": "anthropic",
       "$note": "Interactive/supervised browser control via the Claude in Chrome extension."
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+      "$note": "Deliberately scoped to this project directory ('.', resolved from the repo root) rather than the whole home directory — a narrow sandbox keeps tool output small and avoids exposing unrelated files. Claude Desktop needs an absolute path instead; see docs/MCP-Setup.md."
+    },
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "$note": "The token is expanded from the GITHUB_PERSONAL_ACCESS_TOKEN environment variable at launch. Never paste a real token into this file — it is committed to the repo."
     }
   }
 }
