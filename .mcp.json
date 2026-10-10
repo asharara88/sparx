@@ -1,5 +1,5 @@
 {
-  "$comment": "MCP servers for this project. Supabase points at the family app's project 'Lan' (asharara88 org, ref qjqekazawirrpwnwgbhd). The old 'sparx studio' pipeline project was nmazktgrwachwjfewxdn. Claude-in-Chrome drives a real browser for supervised steps.",
+  "$comment": "MCP servers for this project. Supabase points at the family app's project 'home' (organization 'Lan', ref qjqekazawirrpwnwgbhd). The old 'sparx studio' pipeline project was nmazktgrwachwjfewxdn. Claude-in-Chrome drives a real browser for supervised steps.",
   "mcpServers": {
     "supabase": {
       "type": "http",

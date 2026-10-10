@@ -22,7 +22,7 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 
 ## 1. Database (Supabase)
 
-The household's project is **Lan** (Supabase organization `asharara88`). Two ways to get the
+The household's project is **home** (Supabase organization **Lan**, project ref `qjqekazawirrpwnwgbhd`). Two ways to get the
 schema in; use one.
 
 **A. GitHub integration (connected to this repo).** In the Supabase dashboard open the
@@ -40,7 +40,7 @@ project → Integrations → GitHub and set:
 cd family
 npm install
 npx supabase login                      # once
-npx supabase link --project-ref qjqekazawirrpwnwgbhd   # Lan
+npx supabase link --project-ref qjqekazawirrpwnwgbhd   # project "home" in org Lan
 npx supabase db push                    # applies supabase/migrations/* in order
 ```
 
