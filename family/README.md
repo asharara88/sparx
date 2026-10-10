@@ -40,7 +40,7 @@ project → Integrations → GitHub and set:
 cd family
 npm install
 npx supabase login                      # once
-npx supabase link --project-ref <ref>   # the project ref from the Supabase dashboard URL
+npx supabase link --project-ref qjqekazawirrpwnwgbhd   # Lan
 npx supabase db push                    # applies supabase/migrations/* in order
 ```
 
@@ -82,7 +82,7 @@ The Vercel project builds this folder (`rootDirectory = family`). Set two enviro
 variables in Vercel (Production and Preview) and redeploy:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://qjqekazawirrpwnwgbhd.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon / publishable key>
 ```
 
