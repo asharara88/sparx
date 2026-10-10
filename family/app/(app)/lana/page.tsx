@@ -1,0 +1,115 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import type { EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
+import { can } from "@/lib/types";
+import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
+
+export const dynamic = "force-dynamic";
+
+export default async function LanaDayPage({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
+  const supabase = await createClient();
+  const { data: meData } = await supabase.rpc("me");
+  const me = meData as Me;
+  if (!can(me, "lana", "view")) redirect("/");
+  const tz = me.household.timezone;
+  const today = todayYmd(tz);
+  const { d } = await searchParams;
+  const day = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : today;
+
+  const { data: sumData } = await supabase.rpc("home_summary");
+  const summary = sumData as HomeSummary | RpcError;
+  if (!summary.ok) redirect("/");
+  const { from, to } = dayRange(day, tz);
+  const { data: listData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: to });
+  const entries = ((listData as { ok: boolean; entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
+
+  const counts = new Map<string, number>();
+  let feedMl = 0;
+  let sleepMin = 0;
+  for (const e of entries) {
+    counts.set(e.type_label, (counts.get(e.type_label) ?? 0) + 1);
+    if (e.type_id === "lana.feed" && typeof e.payload.amount_ml === "number") feedMl += e.payload.amount_ml;
+    if (e.type_id === "lana.sleep" && e.ended_at) sleepMin += minutesBetween(e.occurred_at, e.ended_at);
+  }
+  const label = day === today ? "Today" : day === addDays(today, -1) ? "Yesterday" : day;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <header className="flex items-center justify-between gap-2 pt-2">
+        <Link href={`/lana?d=${addDays(day, -1)}`} className="btn" aria-label="Previous day">
+          ‹
+        </Link>
+        <h1 className="text-center text-2xl font-bold">
+          {summary.subject.name} · {label}
+        </h1>
+        <Link
+          href={`/lana?d=${addDays(day, 1)}`}
+          className="btn"
+          aria-label="Next day"
+          aria-disabled={day >= today}
+          style={day >= today ? { visibility: "hidden" } : undefined}
+        >
+          ›
+        </Link>
+      </header>
+
+      <div className="card">
+        <p className="flex flex-wrap gap-x-4 gap-y-1">
+          {[...counts.entries()].map(([k, v]) => (
+            <span key={k}>
+              <b>{v}</b> {k.toLowerCase()}
+              {v === 1 ? "" : "s"}
+            </span>
+          ))}
+          {feedMl > 0 && (
+            <span>
+              <b>{feedMl} ml</b> bottle
+            </span>
+          )}
+          {sleepMin > 0 && (
+            <span>
+              <b>{fmtDuration(sleepMin)}</b> sleep
+            </span>
+          )}
+          {entries.length === 0 && <span className="muted">Nothing logged on this day.</span>}
+        </p>
+      </div>
+
+      <ul className="flex flex-col gap-2">
+        {entries.map((e) => (
+          <li key={e.id}>
+            <Link href={`/lana/entry/${e.id}`} className="card flex items-center gap-3 no-underline">
+              <span aria-hidden className="text-3xl">
+                {e.icon}
+              </span>
+              <span className="flex-1">
+                <span className="block text-lg font-semibold">
+                  {fmtTime(e.occurred_at, tz)}
+                  {e.ended_at ? ` – ${fmtTime(e.ended_at, tz)}` : e.type_id === "lana.sleep" ? " – still sleeping" : ""}
+                  {"  "}
+                  <span className="font-normal">{e.type_label}</span>
+                </span>
+                <span className="muted block">
+                  {[describePayload(e.payload), e.note].filter(Boolean).join(" · ")}
+                </span>
+                <span className="muted block text-sm">{e.attributed_name ?? e.logged_by_name}</span>
+              </span>
+              <span aria-hidden className="muted">
+                ›
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <div className="grid grid-cols-2 gap-3">
+        {summary.types.map((t) => (
+          <Link key={t.id} href={`/lana/log/${t.key}`} className="btn btn-primary min-h-[64px] text-lg">
+            <span aria-hidden>{t.icon}</span> {t.label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}

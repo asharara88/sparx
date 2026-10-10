@@ -1,10 +1,10 @@
 {
-  "$comment": "MCP servers for this project. Supabase points at the 'sparx studio' project (asharara88 org). Claude-in-Chrome drives a real browser for supervised steps. The pipeline uses Playwright for automated browser runs.",
+  "$comment": "MCP servers for this project. Supabase points at the family app's project 'home' (organization 'Lan', ref qjqekazawirrpwnwgbhd). The old 'sparx studio' pipeline project was nmazktgrwachwjfewxdn. Claude-in-Chrome drives a real browser for supervised steps.",
   "mcpServers": {
     "supabase": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=nmazktgrwachwjfewxdn",
-      "$note": "Authenticate after adding: run `claude /mcp`, select supabase, Authenticate. Equivalent CLI: claude mcp add --scope project --transport http supabase \"https://mcp.supabase.com/mcp?project_ref=nmazktgrwachwjfewxdn\""
+      "url": "https://mcp.supabase.com/mcp?project_ref=qjqekazawirrpwnwgbhd&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
+      "$note": "Authenticate after adding: run `claude /mcp`, select supabase, Authenticate. Equivalent CLI: claude mcp add --scope project --transport http supabase \"https://mcp.supabase.com/mcp?project_ref=qjqekazawirrpwnwgbhd&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching\""
     },
     "claude-in-chrome": {
       "type": "extension",

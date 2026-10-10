@@ -1,0 +1,259 @@
+"use client";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { EntryType, FieldDef, Subject } from "@/lib/types";
+import { fromLocalInput, toLocalInput } from "@/lib/time";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import { newClientId, sendOrQueue } from "@/lib/offline";
+
+interface Initial {
+  payload: Record<string, unknown>;
+  occurred_at: string;
+  ended_at: string | null;
+  note: string;
+}
+
+export function EntryForm(props: {
+  mode: "create" | "edit";
+  entryId?: string;
+  subject: Subject;
+  entryType: EntryType;
+  timezone: string;
+  initial: Initial;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}) {
+  const { mode, subject, entryType: t, timezone: tz, initial } = props;
+  const router = useRouter();
+  const readOnly = mode === "edit" && !props.canEdit;
+  const [payload, setPayload] = useState<Record<string, unknown>>(() => {
+    // In create mode, only carry over choice answers (how / where), not amounts.
+    if (mode === "create") {
+      const keep: Record<string, unknown> = {};
+      for (const f of t.fields) if (f.type === "choice" && initial.payload[f.key] != null) keep[f.key] = initial.payload[f.key];
+      return keep;
+    }
+    return initial.payload;
+  });
+  const [occurred, setOccurred] = useState(toLocalInput(initial.occurred_at, tz));
+  const [ended, setEnded] = useState(initial.ended_at ? toLocalInput(initial.ended_at, tz) : "");
+  const [stillGoing, setStillGoing] = useState(t.has_end && mode === "create" ? true : !initial.ended_at && t.has_end);
+  const [note, setNote] = useState(initial.note);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const visible = useMemo(() => t.fields.filter((f) => showField(f, payload)), [t.fields, payload]);
+  const missing = visible.filter((f) => f.required && (payload[f.key] === undefined || payload[f.key] === "" || payload[f.key] === null));
+
+  function set(key: string, value: unknown) {
+    setPayload((p) => ({ ...p, [key]: value }));
+  }
+
+  async function save(extra: Record<string, unknown> = {}) {
+    const finalPayload = cleanPayload({ ...payload, ...extra }, visible);
+    const occurredIso = fromLocalInput(occurred, tz);
+    const endedIso = t.has_end && !stillGoing && ended ? fromLocalInput(ended, tz) : null;
+    if (endedIso && new Date(endedIso) < new Date(occurredIso)) {
+      setMsg("The end time is before the start time.");
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    const supabase = supabaseBrowser();
+    if (mode === "create") {
+      const r = await sendOrQueue(supabase, {
+        client_id: newClientId(),
+        subject_id: subject.id,
+        type_id: t.id,
+        occurred_at: occurredIso,
+        ended_at: endedIso,
+        payload: finalPayload,
+        note: note.trim() || null,
+      });
+      setBusy(false);
+      if (r.status === "error") return setMsg(r.message);
+      router.push("/");
+      router.refresh();
+      return;
+    }
+    const { data, error } = await supabase.rpc("care_entry_update", {
+      p_id: props.entryId,
+      p_occurred_at: occurredIso,
+      p_ended_at: endedIso,
+      p_payload: finalPayload,
+      p_note: note.trim() || null,
+    });
+    setBusy(false);
+    const res = data as { ok: boolean; message?: string } | null;
+    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
+    router.push("/lana");
+    router.refresh();
+  }
+
+  async function remove() {
+    if (!confirm("Delete this entry?")) return;
+    setBusy(true);
+    const { data } = await supabaseBrowser().rpc("care_entry_delete", { p_id: props.entryId });
+    setBusy(false);
+    const res = data as { ok: boolean; message?: string } | null;
+    if (!res?.ok) return setMsg(res?.message ?? "Could not delete.");
+    router.push("/lana");
+    router.refresh();
+  }
+
+  // One-tap quick save: when the only thing left to pick is a number with quick values.
+  const quickField = visible.find((f) => f.type === "number" && f.quick?.length);
+  const canQuickSave = mode === "create" && quickField && missing.every((f) => f.key === quickField.key);
+
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (missing.length) return setMsg(`Please choose: ${missing.map((f) => f.label).join(", ")}.`);
+        save();
+      }}
+    >
+      <header className="flex items-center gap-3 pt-2">
+        <Link href={mode === "create" ? "/" : "/lana"} className="btn" aria-label="Back">
+          ‹
+        </Link>
+        <h1 className="text-2xl font-bold">
+          <span aria-hidden>{t.icon} </span>
+          {mode === "create" ? t.label : `Edit ${t.label.toLowerCase()}`}
+        </h1>
+      </header>
+
+      {visible.map((f) => (
+        <fieldset key={f.key} className="card" disabled={readOnly}>
+          <legend className="px-1 font-semibold">{f.label}</legend>
+          {f.type === "choice" && (
+            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={f.label}>
+              {f.options?.map((o) => (
+                <button key={o} type="button" className="chip" aria-pressed={payload[f.key] === o} onClick={() => set(f.key, o)}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          )}
+          {f.type === "number" && (
+            <div className="mt-2">
+              {f.quick && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {f.quick.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className="chip"
+                      aria-pressed={payload[f.key] === q}
+                      onClick={() => (canQuickSave ? save({ [f.key]: q }) : set(f.key, q))}
+                      disabled={busy}
+                    >
+                      {q}
+                      {canQuickSave ? " ✓" : ""}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                className="input"
+                type="number"
+                inputMode="decimal"
+                step={f.step ?? 1}
+                value={payload[f.key] === undefined || payload[f.key] === null ? "" : String(payload[f.key])}
+                onChange={(e) => set(f.key, e.target.value === "" ? null : Number(e.target.value))}
+                aria-label={`${f.label} (type a number)`}
+              />
+              {canQuickSave && <p className="muted mt-1 text-sm">Tap a number to save straight away.</p>}
+            </div>
+          )}
+          {f.type === "text" && (
+            <input
+              className="input mt-2"
+              type="text"
+              value={(payload[f.key] as string) ?? ""}
+              onChange={(e) => set(f.key, e.target.value)}
+              aria-label={f.label}
+            />
+          )}
+        </fieldset>
+      ))}
+
+      <fieldset className="card" disabled={readOnly}>
+        <legend className="px-1 font-semibold">{t.has_end ? "Start time" : "Time"}</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" className="chip" onClick={() => setOccurred(toLocalInput(new Date().toISOString(), tz))}>
+            Now
+          </button>
+          {[15, 30, 60].map((m) => (
+            <button
+              key={m}
+              type="button"
+              className="chip"
+              onClick={() => setOccurred(toLocalInput(new Date(Date.now() - m * 60000).toISOString(), tz))}
+            >
+              {m} min ago
+            </button>
+          ))}
+        </div>
+        <input className="input mt-2" type="datetime-local" value={occurred} onChange={(e) => setOccurred(e.target.value)} required />
+        {t.has_end && (
+          <div className="mt-3">
+            <label className="flex items-center gap-3">
+              <input type="checkbox" className="h-7 w-7" checked={stillGoing} onChange={(e) => setStillGoing(e.target.checked)} />
+              <span className="font-semibold">Still going (no end time yet)</span>
+            </label>
+            {!stillGoing && (
+              <>
+                <p className="mt-2 font-semibold">End time</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <button type="button" className="chip" onClick={() => setEnded(toLocalInput(new Date().toISOString(), tz))}>
+                    Now
+                  </button>
+                </div>
+                <input className="input mt-2" type="datetime-local" value={ended} onChange={(e) => setEnded(e.target.value)} />
+              </>
+            )}
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset className="card" disabled={readOnly}>
+        <legend className="px-1 font-semibold">Note {t.key === "note" ? "" : "(optional)"}</legend>
+        <textarea className="input mt-2" rows={3} value={note} onChange={(e) => setNote(e.target.value)} required={t.key === "note"} />
+      </fieldset>
+
+      {msg && (
+        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+          {msg}
+        </p>
+      )}
+
+      {!readOnly && (
+        <button type="submit" className="btn btn-primary min-h-[64px] text-xl" disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      )}
+      {mode === "edit" && props.canDelete && (
+        <button type="button" className="btn btn-danger" onClick={remove} disabled={busy}>
+          Delete
+        </button>
+      )}
+    </form>
+  );
+}
+
+function showField(f: FieldDef, payload: Record<string, unknown>): boolean {
+  if (!f.show_if) return true;
+  return Object.entries(f.show_if).every(([k, v]) => payload[k] === v);
+}
+
+function cleanPayload(p: Record<string, unknown>, visible: FieldDef[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of visible) {
+    const v = p[f.key];
+    if (v !== undefined && v !== null && v !== "") out[f.key] = v;
+  }
+  return out;
+}
