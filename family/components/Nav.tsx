@@ -4,12 +4,21 @@ import { usePathname } from "next/navigation";
 import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 
+/** At most five tabs. Admin screens (Members, Audit) live under Me. */
 export function Nav() {
   const me = useMe();
   const path = usePathname();
-  const items: { href: string; label: string; icon: string }[] = [{ href: "/", label: "Home", icon: "🏠" }];
-  if (can(me, "lana", "view")) items.push({ href: "/lana", label: "Lana", icon: "👶" });
-  if (can(me, "members", "edit")) items.push({ href: "/members", label: "Members", icon: "👪" });
+  const staff = !can(me, "lana", "view") && can(me, "shopping_requests", "add");
+  const items: { href: string; label: string; icon: string }[] = [];
+  if (staff) {
+    items.push({ href: "/send", label: "Send", icon: "📷" });
+    if (can(me, "calendar", "view")) items.push({ href: "/calendar", label: "Calendar", icon: "🗓️" });
+  } else {
+    items.push({ href: "/", label: "Home", icon: "🏠" });
+    if (can(me, "lana", "view")) items.push({ href: "/lana", label: "Lana", icon: "👶" });
+    if (can(me, "calendar", "view")) items.push({ href: "/calendar", label: "Calendar", icon: "🗓️" });
+    if (can(me, "shopping", "view")) items.push({ href: "/shopping", label: "Shopping", icon: "🛒" });
+  }
   items.push({ href: "/me", label: "Me", icon: "🙂" });
 
   return (

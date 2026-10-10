@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import type { HomeSummary } from "@/lib/types";
 import { ago, describePayload, fmtTime } from "@/lib/time";
 import { CustodyToggle } from "./CustodyToggle";
-import { WakeUpButton } from "./WakeUpButton";
+import { TimersCard } from "./TimersCard";
 
 export function LanaCard({ summary }: { summary: HomeSummary }) {
-  const { subject, types, last, today_counts, custody, timezone } = summary;
+  const { subject, types, last, today_counts, custody, timezone, ongoing } = summary;
   // re-render every minute so "x min ago" stays right while the phone sits on the table
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -16,7 +16,8 @@ export function LanaCard({ summary }: { summary: HomeSummary }) {
   }, []);
   const now = new Date();
   const homeTypes = types.filter((t) => t.show_on_home);
-  const sleeping = last["lana.sleep"] && !last["lana.sleep"].ended_at ? last["lana.sleep"] : null;
+  const logTypes = types.filter((t) => !t.settings?.timer || t.id === "lana.feed");
+  const sleeping = ongoing.some((e) => e.type_id === "lana.sleep");
 
   return (
     <section className="card" aria-labelledby="lana-h">
@@ -27,15 +28,9 @@ export function LanaCard({ summary }: { summary: HomeSummary }) {
         <CustodyToggle subjectId={subject.id} custody={custody} />
       </div>
 
-      {sleeping && (
-        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border-2 border-purple-700 bg-purple-50 p-3">
-          <div>
-            <p className="font-semibold">😴 Sleeping since {fmtTime(sleeping.occurred_at, timezone)}</p>
-            <p className="muted text-sm">{ago(sleeping.occurred_at, now).replace(" ago", "")} so far</p>
-          </div>
-          <WakeUpButton entryId={sleeping.id} />
-        </div>
-      )}
+      <div className="mt-3">
+        <TimersCard subjectId={subject.id} types={types} ongoing={ongoing} timezone={timezone} />
+      </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-3">
         {homeTypes.map((t) => {
@@ -75,7 +70,7 @@ export function LanaCard({ summary }: { summary: HomeSummary }) {
       </dl>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        {types.map((t) => (
+        {logTypes.map((t) => (
           <Link key={t.id} href={`/lana/log/${t.key}`} className="btn btn-primary min-h-[64px] text-lg">
             <span aria-hidden>{t.icon}</span> {t.label}
           </Link>

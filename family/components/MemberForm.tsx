@@ -12,6 +12,7 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
   const [relationship, setRelationship] = useState(member?.relationship ?? "");
   const [birth, setBirth] = useState(member?.birth_date ?? "");
   const [active, setActive] = useState(member?.is_active ?? true);
+  const [breastfeeds, setBreastfeeds] = useState(member?.breastfeeds ?? false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -28,6 +29,9 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       p_relationship: relationship || null,
       p_is_active: active,
     });
+    if (!error && (data as { ok: boolean })?.ok && member && breastfeeds !== member.breastfeeds) {
+      await supabaseBrowser().from("members").update({ breastfeeds }).eq("id", member.id);
+    }
     setBusy(false);
     const res = data as { ok: boolean; id?: string; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
@@ -67,6 +71,12 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
         <span className="font-semibold">Date of birth (optional)</span>
         <input className="input" type="date" value={birth} onChange={(e) => setBirth(e.target.value)} />
       </label>
+      {member && (
+        <label className="flex items-center gap-3">
+          <input type="checkbox" className="h-7 w-7" checked={breastfeeds} onChange={(e) => setBreastfeeds(e.target.checked)} />
+          <span className="font-semibold">Breastfeeds Lana (shows the breast timer and left/right)</span>
+        </label>
+      )}
       {member && !isSelf && (
         <label className="flex items-center gap-3">
           <input type="checkbox" className="h-7 w-7" checked={active} onChange={(e) => setActive(e.target.checked)} />

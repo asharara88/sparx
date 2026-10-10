@@ -2,8 +2,13 @@
 
 Not built. Each line is a candidate for the step named, or for a decision.
 
-## Step 2
+## Step 2 (remaining after the Step 2 build)
+- Push notifications for calendar reminders and Lilly's requests: needs VAPID keys, a
+  `push_subscriptions` table, an Edge Function and a schedule. Decide push vs. WhatsApp first.
 - Handover card: "what's in the bag" checklist (needs a small `bag_items` table).
+- Calendar: monthly repeat, per-event edit of a single occurrence, "visitor mode" prompt that
+  pre-fills a shopping list from a template.
+- Shopping: reorder interval learned from purchase history (today it is typed), receipt capture (Step 5).
 - Settings screen to add / rename / deactivate Lana entry types and edit their `fields`
   JSON and `due_after_min` (today: a row in `care_entry_types`).
 - Magic link sign-in: add 6-digit code entry as an alternative so sign-in can finish inside

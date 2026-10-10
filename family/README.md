@@ -1,4 +1,4 @@
-# Family app — Step 1 + Lana log
+# Family app — Steps 1 and 2
 
 Private family-operations app for one household. This folder is the whole app:
 a Next.js PWA on Vercel talking to the household's own Supabase project.
@@ -19,6 +19,22 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 - Offline: an entry made with no signal is kept on the phone and sent when back online
   (idempotent on `client_id`). Installable PWA with a small app-shell service worker.
 - Plain English copy, 18px base text (21px for carers and staff), 56px tap targets.
+
+**Step 2 (this release)**
+
+- Lana timers: one tap to start and stop Sleep, Night wake-up, and Breastfeed left/right
+  (the breast option and timer appear only for a member flagged *Breastfeeds Lana* in
+  Members). Bottle feeds record which milk: morning pumped, night pumped, freezer, formula.
+- Shared calendar: events, plans, reminders, routines (daily/weekly), guests, deliveries,
+  contractor visits, appointments. Per-event visibility: *whole household* or *family only*
+  (hidden from staff). A guest day blocks contractor bookings and links to the shopping list.
+  Each day shows who is in the house and who is working, from presence and work days.
+- Shopping: one list across groceries, Lana, Fanta, home and supplements, with owner, usual
+  shop, product link, quantity left, size (with last-changed date), last bought, last price
+  and a "buy again every N days" reminder. Tick an item off and it remembers the date.
+- Lilly's screen (`/send`): a shelf of usual items to tap, or a photo with a note. Requests
+  wait in a review queue; an admin adds them to the list or marks them not needed.
+- Private `photos` bucket for request photos.
 
 ## 1. Database (Supabase)
 
@@ -107,8 +123,9 @@ New kind of Lana entry (solids, teething…): insert a row in `care_entry_types`
 supabase/migrations/   20261010000100_foundation.sql   members, roles, permissions, presence, audit, RLS
                        20261010000200_care_log.sql     subjects, entry types, entries, custody, RPCs
                        20261010000300_seed_household.sql
+                       20261010000400_step2.sql        timers, calendar, shopping, requests, photos bucket
 supabase/tests/        rls_test.sql (Step 1 checks as SQL), run-local.sh, local auth stub
-app/(app)/             home, lana/, members/, audit, me   (server components, redirect if not allowed)
+app/(app)/             home, lana/, calendar, shopping/, send, members/, audit, me
 components/            EntryForm (renders `fields`), LanaCard, CustodyToggle, PermissionGrid…
 lib/                   supabase clients, offline queue, time helpers, types
 scripts/               seed-accounts.mjs, make-icons.mjs
@@ -123,5 +140,5 @@ scripts/               seed-accounts.mjs, make-icons.mjs
   written to `audit_log` by the database itself (Postgres runs GET requests read-only and
   rolls back a denied write). Everything the app does goes through the RPC functions, which
   do audit denials. Supabase's own API logs record the raw request.
-- Push notifications, calendar, Lilly's shopping queue, Fanta's log, photos, the assistant:
-  later steps, per PLAN.md.
+- Push notifications are not in yet (they need web-push keys and a scheduler; see LATER.md).
+  Fanta's log, maintenance, receipts, the assistant: later steps, per PLAN.md.
