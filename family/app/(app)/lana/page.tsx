@@ -60,6 +60,11 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
       </header>
 
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={day === today ? new Date().toISOString() : undefined} />
+      <p className="text-right text-sm">
+        <Link href="/lana/trends" className="underline">
+          Trends and growth ›
+        </Link>
+      </p>
 
       <div className="card">
         <p className="flex flex-wrap gap-x-4 gap-y-1">

@@ -43,12 +43,15 @@ export function LanaCard({ summary, recent, lastMilk }: { summary: HomeSummary; 
 
       <DayStrip entries={recent} day={today} timezone={timezone} nowIso={now.toISOString()} title="Lana's day so far" />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         <Link href="/lana" className="btn">
           Day by day
         </Link>
+        <Link href="/lana/trends" className="btn">
+          Trends
+        </Link>
         <Link href="/lana/handover" className="btn">
-          Handover card
+          Handover
         </Link>
       </div>
       <p className="muted text-sm">

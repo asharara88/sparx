@@ -324,3 +324,35 @@ export interface ShoppingRequest {
   reviewed_at: string | null;
   item_id: string | null;
 }
+
+// ---- trends (care_daily_stats)
+export interface DayStats {
+  day: string;
+  breast_count: number;
+  breast_min: number;
+  left_count: number;
+  right_count: number;
+  bottle_count: number;
+  bottle_ml: number;
+  pump_ml: number;
+  sleep_min: number;
+  nap_count: number;
+  night_sleep_min: number;
+  longest_stretch_min: number;
+  night_wakes: number;
+  night_feeds: number;
+  diapers_wet: number;
+  diapers_dirty: number;
+  diapers: number;
+  weight_kg: number | null;
+  length_cm: number | null;
+  head_cm: number | null;
+  milestones: string[];
+}
+export interface DailyStats {
+  ok: true;
+  timezone: string;
+  night_from: string;
+  night_to: string;
+  days: DayStats[];
+}
