@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { CalendarData, HomeSummary, HouseholdToday, Me, RpcError, ShoppingData } from "@/lib/types";
+import type { CalendarData, EntryRow, HomeSummary, HouseholdToday, Me, RpcError, ShoppingData } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, fmtDate, fmtTime, todayYmd } from "@/lib/time";
 import { LanaCard } from "@/components/LanaCard";
@@ -36,6 +36,17 @@ export default async function HomePage() {
   const tomorrows = calendar && calendar.ok ? calendar.events.filter((e) => e.date === addDays(today, 1)) : [];
   const pending = shopping && shopping.ok ? shopping.pending_requests : 0;
 
+  // Entries from yesterday noon until now: the night and today, for Lana's strip and her current state.
+  let recent: EntryRow[] = [];
+  let lastMilk: string | null = null;
+  if (summary && summary.ok) {
+    const from = new Date(new Date(today + "T12:00:00Z").getTime() - 24 * 3600 * 1000).toISOString();
+    const { data: listData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: new Date(Date.now() + 3600 * 1000).toISOString() });
+    recent = ((listData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
+    const lastBottle = recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle" && typeof e.payload.milk === "string");
+    lastMilk = (lastBottle?.payload.milk as string | undefined) ?? null;
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <header className="pt-2">
@@ -51,7 +62,7 @@ export default async function HomePage() {
         </Link>
       )}
 
-      {summary && summary.ok && <LanaCard summary={summary} />}
+      {summary && summary.ok && <LanaCard summary={summary} recent={recent} lastMilk={lastMilk} />}
       {summary && !summary.ok && (
         <div className="card">
           <p>{summary.message}</p>

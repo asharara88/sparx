@@ -646,3 +646,8 @@ select v.name, v.category, v.owner, v.store, v.reorder, false, v.note from (valu
   ('Probiotics',            'adult', '00000000-0000-4000-8000-000000000002'::uuid, 'amazon_ae', null, null)
 ) as v(name, category, owner, store, reorder, note)
 where not exists (select 1 from public.shopping_items i where lower(i.name) = lower(v.name) and i.deleted_at is null);
+
+-- Lana's night window (drives "Woke up (night)" vs "Up for the day"); editable data.
+update public.care_subjects
+   set settings = settings || '{"night_from": "19:00", "night_to": "07:00"}'::jsonb
+ where id = '00000000-0000-4000-8000-00000000a001' and not (settings ? 'night_from');

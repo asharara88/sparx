@@ -120,7 +120,7 @@ export interface Subject {
   name: string;
   birth_date: string | null;
   profile: Record<string, unknown>;
-  settings: Record<string, unknown>;
+  settings: Record<string, unknown> & { night_from?: string; night_to?: string };
 }
 
 export interface LastEntry {

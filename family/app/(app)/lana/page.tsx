@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
+import { DayStrip } from "@/components/DayStrip";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,12 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/");
   const { from, to } = dayRange(day, tz);
-  const { data: listData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: to });
+  const [{ data: listData }, { data: stripData }] = await Promise.all([
+    supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: to }),
+    supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(new Date(from).getTime() - 12 * 3600 * 1000).toISOString(), p_to: to }),
+  ]);
   const entries = ((listData as { ok: boolean; entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
+  const stripEntries = ((stripData as { ok: boolean; entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
 
   const counts = new Map<string, number>();
   let feedMl = 0;
@@ -53,6 +58,8 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
           ›
         </Link>
       </header>
+
+      <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={day === today ? new Date().toISOString() : undefined} />
 
       <div className="card">
         <p className="flex flex-wrap gap-x-4 gap-y-1">
