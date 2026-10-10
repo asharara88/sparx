@@ -1,0 +1,41 @@
+import { createClient } from "@/lib/supabase/server";
+import type { Me, Presence, PresenceState } from "@/lib/types";
+import { WEEKDAYS } from "@/lib/types";
+import { PresenceForm } from "@/components/PresenceForm";
+import { SignOutButton } from "@/components/SignOutButton";
+
+export const dynamic = "force-dynamic";
+
+export default async function MePage() {
+  const supabase = await createClient();
+  const { data: meData } = await supabase.rpc("me");
+  const me = meData as Me;
+  const [{ data: states }, { data: history }] = await Promise.all([
+    supabase.from("presence_states").select("*").order("sort"),
+    supabase.from("presence").select("*").eq("member_id", me.member.id).order("starts_on", { ascending: false }).limit(5),
+  ]);
+  return (
+    <div className="flex flex-col gap-4">
+      <header className="pt-2">
+        <h1 className="text-2xl font-bold">{me.member.display_name}</h1>
+        <p className="muted">
+          {me.role.label} · {me.member.email}
+        </p>
+      </header>
+      {me.work_days.length > 0 && (
+        <div className="card">
+          <h2 className="text-xl font-semibold">Your work days</h2>
+          <p className="mt-1">{me.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>
+          <p className="muted text-sm">Ask Mido or Dana to change these.</p>
+        </div>
+      )}
+      <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
+      <div className="card">
+        <h2 className="text-xl font-semibold">Add this app to your phone</h2>
+        <p className="mt-1">iPhone: in Safari tap Share, then “Add to Home Screen”.</p>
+        <p>Android: in Chrome tap the menu (⋮), then “Install app” or “Add to Home screen”.</p>
+      </div>
+      <SignOutButton />
+    </div>
+  );
+}
