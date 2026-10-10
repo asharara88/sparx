@@ -83,7 +83,7 @@ variables in Vercel (Production and Preview) and redeploy:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://qjqekazawirrpwnwgbhd.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon / publishable key>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_USKFwTlyUZFxansVpZHWFQ_eBjVjJt6
 ```
 
 Until they are set the app shows a "Not connected yet" screen.
