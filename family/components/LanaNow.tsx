@@ -7,6 +7,7 @@ import { can } from "@/lib/types";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId } from "@/lib/offline";
+import { Boobs } from "./Boobs";
 
 /**
  * Lana's screen follows her state: asleep, awake, feeding, awake at night.
@@ -17,8 +18,6 @@ type State =
   | { kind: "feeding"; entry: OngoingEntry; side: string }
   | { kind: "night_awake"; entry: OngoingEntry }
   | { kind: "awake"; since: string | null };
-
-const SIDES = ["Left", "Right"] as const;
 
 export function LanaNow({
   subject,
@@ -63,6 +62,16 @@ export function LanaNow({
   const openFeed = ongoing.find((e) => e.type_id === feedType?.id);
   const openWake = ongoing.find((e) => e.type_id === wakeType?.id);
   const lastSleep = recent.find((e) => e.type_id === sleepType?.id && e.ended_at);
+  const breastFeeds = recent.filter((e) => e.type_id === feedType?.id && e.payload.method === "Breast");
+  const lastSide = (breastFeeds[0]?.payload.side as "Left" | "Right" | undefined) ?? null;
+  const suggestedSide: "Left" | "Right" | null = lastSide === "Left" ? "Right" : lastSide === "Right" ? "Left" : null;
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now);
+  const sideCounts = { Left: 0, Right: 0 };
+  for (const f of breastFeeds) {
+    if (new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date(f.occurred_at)) !== todayKey) continue;
+    if (f.payload.side === "Left") sideCounts.Left += 1;
+    if (f.payload.side === "Right") sideCounts.Right += 1;
+  }
   const state: State = openFeed
     ? { kind: "feeding", entry: openFeed, side: String(openFeed.payload.side ?? "") }
     : openSleep
@@ -156,7 +165,7 @@ export function LanaNow({
     <section className="flex flex-col gap-3" aria-live="polite">
       <div className={`rounded-2xl border-2 p-4 ${tone}`}>
         <p className="text-xl font-bold">{status}</p>
-        {state.kind === "feeding" && (
+        {state.kind === "feeding" && !breastfeeds && (
           <p className="mt-1 text-4xl font-bold tabular-nums">{fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, nowIso)))}</p>
         )}
       </div>
@@ -169,24 +178,26 @@ export function LanaNow({
 
       {/* ---- feeding: switch side or finish */}
       {state.kind === "feeding" && (
-        <div className="grid grid-cols-2 gap-3">
-          {breastfeeds &&
-            SIDES.filter((s) => s !== state.side).map((s) => (
-              <Big
-                key={s}
-                primary={false}
-                onClick={() =>
-                  run(`Switched to ${s.toLowerCase()}.`, async () => {
-                    await end(state.entry);
-                    await start(feedType, { method: "Breast", side: s });
-                  })
-                }
-              >
-                Switch to {s.toLowerCase()}
-              </Big>
-            ))}
+        <>
+          {breastfeeds && (
+            <Boobs
+              active={state.side === "Left" || state.side === "Right" ? state.side : null}
+              elapsed={fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, nowIso)))}
+              suggested={null}
+              counts={sideCounts}
+              disabled={busy || !canAdd}
+              onTap={(s) =>
+                s === state.side
+                  ? run("Feed saved.", () => end(state.entry))
+                  : run(`Switched to ${s.toLowerCase()}.`, async () => {
+                      await end(state.entry);
+                      await start(feedType, { method: "Breast", side: s });
+                    })
+              }
+            />
+          )}
           <Big onClick={() => run("Feed saved.", () => end(state.entry))}>Done feeding</Big>
-        </div>
+        </>
       )}
 
       {/* ---- asleep: wake up (night wake if it is night) */}
@@ -221,13 +232,14 @@ export function LanaNow({
       {(state.kind === "awake" || state.kind === "night_awake") && (
         <>
           {breastfeeds && (
-            <div className="grid grid-cols-2 gap-3">
-              {SIDES.map((s) => (
-                <Big key={s} onClick={() => run(`${s} started.`, () => start(feedType, { method: "Breast", side: s }))}>
-                  🤱 {s}
-                </Big>
-              ))}
-            </div>
+            <Boobs
+              active={null}
+              elapsed={null}
+              suggested={suggestedSide}
+              counts={sideCounts}
+              disabled={busy || !canAdd}
+              onTap={(s) => run(`${s} started.`, () => start(feedType, { method: "Breast", side: s }))}
+            />
           )}
           <div className="card">
             <p className="font-semibold">
