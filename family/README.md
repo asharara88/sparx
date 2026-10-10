@@ -22,7 +22,19 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 
 ## 1. Database (Supabase)
 
-You need a Supabase project. Use a fresh one for the household; the data stays there.
+The household's project is **Lan** (Supabase organization `asharara88`). Two ways to get the
+schema in; use one.
+
+**A. GitHub integration (connected to this repo).** In the Supabase dashboard open the
+project → Integrations → GitHub and set:
+
+- *Supabase directory path*: `family/supabase` — **not** the default `supabase`, which holds the
+  old sparx pipeline schema and would create the wrong tables.
+- *Production branch*: `main`. Migrations in `family/supabase/migrations` are applied when a
+  change lands on `main`, so merge PR #10 (or whatever branch carries them). With Branching on,
+  each PR also gets a preview database.
+
+**B. From your machine.**
 
 ```bash
 cd family
