@@ -25,3 +25,15 @@ Not built. Each line is a candidate for the step named, or for a decision.
 - Passkeys: Supabase Auth offers WebAuthn as an MFA factor, not as the first factor.
   Keep magic link, add passkey as second factor later, or move to another auth provider?
 - Separate Supabase project for the household vs. reusing the connected "sparx studio" project.
+
+## Step 3 (remaining after the Step 3 build)
+- Reminders that *fire*: today a due vaccination/deworming shows on the home screen and the
+  profile card from its due date (and in amber when overdue). Pushing it to a phone needs the
+  same push plumbing as Step 2's reminders. Decide push vs. WhatsApp.
+- Due items on the calendar (`calendar_list` could merge `care_due_list`).
+- Receipt capture for shopping (Step 5) can reuse the attachment + on-phone OCR path.
+- Assets: warranty-expiry nudge, service history per asset (today: its tickets).
+- Fanta: feeding amounts per day summary and a weight curve like Lana's trends.
+- Lilly's Send screen: a third section for "I used the last of X" could reuse the shelf.
+- Text-reading on the phone loads tesseract.js from a CDN the first time (a few MB); consider
+  bundling it, or an edge function, if that is slow on the house wifi.

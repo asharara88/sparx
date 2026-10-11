@@ -65,7 +65,7 @@ export interface RpcError {
   message?: string;
 }
 
-export type FieldType = "choice" | "number" | "text";
+export type FieldType = "choice" | "number" | "text" | "date";
 export interface FieldDef {
   key: string;
   label: string;
@@ -355,4 +355,127 @@ export interface DailyStats {
   night_from: string;
   night_to: string;
   days: DayStats[];
+}
+
+// ---- Step 3: Fanta, attachments, the house ---------------------------------
+export interface DueItem {
+  subject_id: string;
+  subject: string;
+  module_id: string;
+  kind: "treatment" | "interval";
+  label: string;
+  icon: string | null;
+  type_id?: string;
+  due_on?: string;
+  due_at: string;
+  last_at?: string;
+  overdue: boolean;
+  entry_id?: string;
+}
+export interface Attachment {
+  id: string;
+  path: string;
+  caption: string | null;
+  ocr_text: string | null;
+  created_at: string;
+  created_by_name: string | null;
+}
+export type TicketStatus = "open" | "in_progress" | "waiting" | "done";
+export const TICKET_STATUS: { id: TicketStatus; label: string; icon: string }[] = [
+  { id: "open", label: "Open", icon: "🔴" },
+  { id: "in_progress", label: "In progress", icon: "🟠" },
+  { id: "waiting", label: "Waiting", icon: "🟡" },
+  { id: "done", label: "Done", icon: "✅" },
+];
+export interface Ticket {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  status: TicketStatus;
+  priority: "low" | "normal" | "urgent";
+  asset_id: string | null;
+  asset_name: string | null;
+  contractor_id: string | null;
+  contractor_name: string | null;
+  contractor_phone?: string | null;
+  opened_by: string | null;
+  opened_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  photo_path?: string | null;
+  updates?: number;
+  cost_total?: number | null;
+}
+export interface TicketUpdate {
+  id: string;
+  note: string | null;
+  status: TicketStatus | null;
+  photo_path: string | null;
+  created_at: string;
+  by_name: string | null;
+}
+export interface TicketCost {
+  id: string;
+  amount: number;
+  currency: string;
+  paid_on: string | null;
+  note: string | null;
+  paid_by_name: string | null;
+}
+export interface TicketDetail {
+  ok: true;
+  costs_visible: boolean;
+  ticket: Ticket;
+  updates: TicketUpdate[];
+  costs: TicketCost[] | null;
+}
+export const ASSET_CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: "appliance", label: "Appliance", icon: "🔌" },
+  { id: "ac", label: "AC", icon: "❄️" },
+  { id: "plumbing", label: "Plumbing", icon: "🚰" },
+  { id: "electrical", label: "Electrical", icon: "💡" },
+  { id: "furniture", label: "Furniture", icon: "🛋️" },
+  { id: "electronics", label: "Electronics", icon: "📺" },
+  { id: "vehicle", label: "Vehicle", icon: "🚗" },
+  { id: "other", label: "Other", icon: "📦" },
+];
+export interface Asset {
+  id: string;
+  name: string;
+  category: string;
+  location: string | null;
+  brand: string | null;
+  model: string | null;
+  serial: string | null;
+  purchased_on: string | null;
+  warranty_until: string | null;
+  supplier: string | null;
+  notes: string | null;
+  label_path: string | null;
+  is_active: boolean;
+  open_tickets: number;
+}
+export interface Contractor {
+  id: string;
+  name: string;
+  trade: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  company: string | null;
+  notes: string | null;
+  rating: number | null;
+  is_active: boolean;
+  jobs: number;
+  last_job: string | null;
+}
+export interface MaintenanceOverview {
+  ok: true;
+  open: number;
+  urgent: number;
+  assets: number;
+  contractors: number;
+  costs_visible: boolean;
+  recent: Pick<Ticket, "id" | "title" | "status" | "priority" | "location" | "created_at">[];
 }

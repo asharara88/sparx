@@ -7,6 +7,9 @@ import { fromLocalInput, toLocalInput } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
 import { useMe } from "@/lib/me-context";
+import { uploadPhoto } from "@/lib/photos";
+import { PhotoPicker } from "./PhotoPicker";
+import { Attachments } from "./Attachments";
 
 interface Initial {
   payload: Record<string, unknown>;
@@ -52,6 +55,10 @@ export function EntryForm(props: {
   const [note, setNote] = useState(initial.note);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoText, setPhotoText] = useState("");
+  const home = subject.module_id === "lana" ? "/" : `/${subject.module_id}`;
+  const list = `/${subject.module_id}`;
 
   const visible = useMemo(() => t.fields.filter((f) => showField(f, payload)), [t.fields, payload]);
   const missing = visible.filter((f) => f.required && (payload[f.key] === undefined || payload[f.key] === "" || payload[f.key] === null));
@@ -81,9 +88,22 @@ export function EntryForm(props: {
         payload: finalPayload,
         note: note.trim() || null,
       });
+      if (r.status === "error") {
+        setBusy(false);
+        return setMsg(r.message);
+      }
+      if (photo && r.status === "saved") {
+        try {
+          const path = await uploadPhoto(photo, "entries");
+          await supabase.rpc("attachment_add", { p_module: subject.module_id, p_table: "care_entries", p_entity_id: r.id, p_path: path, p_caption: null, p_ocr_text: photoText || null });
+        } catch {
+          setMsg("Saved, but the photo did not upload. Open the entry to add it again.");
+        }
+      } else if (photo && r.status === "queued") {
+        setMsg("Saved on this phone; the photo can be added once you are back online.");
+      }
       setBusy(false);
-      if (r.status === "error") return setMsg(r.message);
-      router.push("/");
+      router.push(home);
       router.refresh();
       return;
     }
@@ -97,7 +117,7 @@ export function EntryForm(props: {
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    router.push("/lana");
+    router.push(list);
     router.refresh();
   }
 
@@ -108,7 +128,7 @@ export function EntryForm(props: {
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (!res?.ok) return setMsg(res?.message ?? "Could not delete.");
-    router.push("/lana");
+    router.push(list);
     router.refresh();
   }
 
@@ -126,7 +146,7 @@ export function EntryForm(props: {
       }}
     >
       <header className="flex items-center gap-3 pt-2">
-        <Link href={mode === "create" ? "/" : "/lana"} className="btn" aria-label="Back">
+        <Link href={mode === "create" ? home : list} className="btn" aria-label="Back">
           ‹
         </Link>
         <h1 className="text-2xl font-bold">
@@ -176,6 +196,32 @@ export function EntryForm(props: {
                 aria-label={`${f.label} (type a number)`}
               />
               {canQuickSave && <p className="muted mt-1 text-sm">Tap a number to save straight away.</p>}
+            </div>
+          )}
+          {f.type === "date" && (
+            <div className="mt-2">
+              <div className="mb-2 flex flex-wrap gap-2">
+                {[
+                  ["In 1 month", 1],
+                  ["In 3 months", 3],
+                  ["In 6 months", 6],
+                  ["In 1 year", 12],
+                ].map(([label, months]) => (
+                  <button
+                    key={String(label)}
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      const d = new Date(occurred || Date.now());
+                      d.setMonth(d.getMonth() + Number(months));
+                      set(f.key, d.toISOString().slice(0, 10));
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <input className="input" type="date" value={(payload[f.key] as string) ?? ""} onChange={(e) => set(f.key, e.target.value || null)} aria-label={f.label} />
             </div>
           )}
           {f.type === "text" && (
@@ -228,6 +274,19 @@ export function EntryForm(props: {
           </div>
         )}
       </fieldset>
+
+      {mode === "create" && (
+        <fieldset className="card" disabled={readOnly}>
+          <legend className="px-1 font-semibold">Photo (optional)</legend>
+          <div className="mt-2">
+            <PhotoPicker file={photo} onFile={setPhoto} withText onText={setPhotoText} disabled={busy} />
+            {photoText && <p className="muted mt-2 max-h-24 overflow-auto whitespace-pre-wrap text-sm">{photoText}</p>}
+          </div>
+        </fieldset>
+      )}
+      {mode === "edit" && props.entryId && (
+        <Attachments module={subject.module_id} table="care_entries" entityId={props.entryId} folder="entries" canAdd={!readOnly} />
+      )}
 
       <fieldset className="card" disabled={readOnly}>
         <legend className="px-1 font-semibold">Note {t.key === "note" ? "" : "(optional)"}</legend>

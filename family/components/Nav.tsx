@@ -12,6 +12,7 @@ export function Nav() {
   const items: { href: string; label: string; icon: string }[] = [];
   if (staff) {
     items.push({ href: "/send", label: "Send", icon: "📷" });
+    if (can(me, "maintenance", "view")) items.push({ href: "/house", label: "House", icon: "🏠" });
     if (can(me, "calendar", "view")) items.push({ href: "/calendar", label: "Calendar", icon: "🗓️" });
   } else {
     items.push({ href: "/", label: "Home", icon: "🏠" });
