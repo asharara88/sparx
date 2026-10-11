@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Me, Presence, PresenceState } from "@/lib/types";
-import { WEEKDAYS } from "@/lib/types";
+import { WEEKDAYS, can } from "@/lib/types";
 import { PresenceForm } from "@/components/PresenceForm";
 import { SignOutButton } from "@/components/SignOutButton";
 
@@ -27,6 +28,20 @@ export default async function MePage() {
           <h2 className="text-xl font-semibold">Your work days</h2>
           <p className="mt-1">{me.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>
           <p className="muted text-sm">Ask Mido or Dana to change these.</p>
+        </div>
+      )}
+      {(can(me, "members", "edit") || can(me, "audit", "view")) && (
+        <div className="grid grid-cols-2 gap-3">
+          {can(me, "members", "edit") && (
+            <Link href="/members" className="btn">
+              👪 Members
+            </Link>
+          )}
+          {can(me, "audit", "view") && (
+            <Link href="/audit" className="btn">
+              📋 Audit log
+            </Link>
+          )}
         </div>
       )}
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />

@@ -136,7 +136,90 @@ select pg_temp.assert(
   (select count(*) from public.audit_log where target_table = 'permissions') = 2,
   'audit log holds the permission changes');
 
+
+-- ================================================================ Step 2
+-- ---------------------------------------------------------------- timers + milk source (Dana breastfeeds)
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.me())#>>'{member,breastfeeds}' = 'true', 'Dana is flagged as breastfeeding (data, not code)');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '20 minutes', null, '{"method":"Breast","side":"Left"}', null, null))->>'ok' = 'true', 'Dana starts a breastfeed timer (open entry)');
+select pg_temp.assert(jsonb_array_length((public.home_summary())->'ongoing') >= 1, 'home summary lists the running timer');
+select pg_temp.assert((public.care_entry_end((select (e->>'id')::uuid from jsonb_array_elements((public.home_summary())->'ongoing') e where e->>'type_id' = 'lana.feed' limit 1), now()))->>'ok' = 'true', 'Dana stops the timer');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now(), null, '{"method":"Bottle","milk":"Night pumped","amount_ml":90}', null, null))->>'ok' = 'true', 'a bottle feed carries the milk source');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.wake', now() - interval '10 minutes', null, '{}', null, null))->>'ok' = 'true', 'night wake-up timer starts');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.me())#>>'{member,breastfeeds}' = 'false', 'Wafa does not breastfeed: no breast option for her');
+select pg_temp.assert((public.care_entry_end((select (e->>'id')::uuid from jsonb_array_elements((public.home_summary())->'ongoing') e where e->>'type_id' = 'lana.wake' limit 1), now()))->>'ok' = 'true', 'Wafa (editor) can end the wake-up timer Dana started');
+reset role;
+
+-- ---------------------------------------------------------------- calendar
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.calendar_save(null, 'Guests for dinner', 'guest', current_date + interval '2 days' + interval '19 hours', null, false, 'household', null, 'Four people', 'none', null))->>'ok' = 'true', 'Mido adds a guest day');
+select pg_temp.assert((public.calendar_save(null, 'AC repair', 'contractor', current_date + interval '2 days' + interval '10 hours', null, false, 'household', null, null, 'none', null))->>'error' = 'guest_day', 'a contractor cannot be booked on a guest day');
+select pg_temp.assert((public.calendar_save(null, 'AC repair', 'contractor', current_date + interval '3 days' + interval '10 hours', null, false, 'household', null, null, 'none', null))->>'ok' = 'true', 'contractor booked on another day');
+select pg_temp.assert((public.calendar_save(null, 'Date night', 'plan', current_date + interval '4 days' + interval '20 hours', null, false, 'family', null, null, 'none', null))->>'ok' = 'true', 'Mido adds a family-only plan');
+select pg_temp.assert((public.calendar_save(null, 'Bath time', 'routine', current_date + interval '18 hours', null, false, 'household', null, null, 'daily', (current_date + 30)))->>'ok' = 'true', 'a daily routine');
+select pg_temp.assert(jsonb_array_length((public.calendar_list(current_date, current_date + 7))->'events') = 11, 'Mido sees 3 one-offs + 8 routine days in the next week');
+select pg_temp.assert(((public.calendar_list(current_date, current_date))->'days'->0->'working') @> '["Lilly"]'::jsonb = (extract(dow from current_date)::int in (0,2,3,5,6)), 'calendar days show who works, from the schedule');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.calendar_list(current_date, current_date + 7))->'events') e where e->>'visibility' = 'family') = 0, 'Lilly never sees family-only events');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.calendar_list(current_date, current_date + 7))->'events') e where e->>'kind' in ('guest','contractor')) = 2, 'Lilly sees the guest day and the contractor visit');
+select pg_temp.assert((public.calendar_save(null, 'x', 'event', now(), null, false, 'household', null, null, 'none', null))->>'error' = 'not_allowed', 'Lilly cannot add events');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.calendar_save(null, 'Luda visits', 'event', current_date + interval '1 day' + interval '12 hours', null, false, 'household', :luda, null, 'none', null))->>'ok' = 'true', 'Wafa adds an event');
+select pg_temp.assert((public.calendar_remove((select (e->>'id')::uuid from jsonb_array_elements((public.calendar_list(current_date, current_date + 7))->'events') e where e->>'title' = 'Guests for dinner'))) ->>'error' = 'not_allowed', 'Wafa cannot remove Mido''s event');
+reset role;
+
+-- ---------------------------------------------------------------- shopping: Lilly's requests and the review queue
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert(not public.has_permission('shopping','add') and public.has_permission('shopping_requests','add'), 'Lilly requests, she does not add to the list directly');
+select pg_temp.assert(jsonb_array_length((public.shopping_list())->'shelf') >= 10, 'Lilly sees the shelf of usual items');
+select pg_temp.assert((public.shopping_request_create((select id from public.shelf_items where name = 'Wipes'), null, null, null))->>'item_name' = 'Wipes', 'Lilly taps Wipes on the shelf');
+select pg_temp.assert((public.shopping_request_create(null, null, 'The blue bottle under the sink', 'requests/abc.jpg'))->>'ok' = 'true', 'Lilly sends a photo with a note');
+select pg_temp.assert((public.shopping_request_create(null, null, null, null))->>'error' = 'empty', 'an empty request is refused');
+select pg_temp.assert((public.shopping_request_review((select id from public.shopping_requests limit 1), true, null))->>'error' = 'not_allowed', 'Lilly cannot approve her own request');
+select pg_temp.assert((select count(*) from public.shopping_items) = 0, 'Lilly sees no list items directly');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.shopping_requests_list('pending'))->>'error' = 'not_allowed', 'Wafa cannot see the review queue');
+select pg_temp.assert((public.shopping_item_save(null, 'Bananas', 'groceries', null, 'carrefour', null, null, null, null, null, null, true, null))->>'ok' = 'true', 'Wafa adds bananas straight to the list');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(((public.shopping_list())->>'pending_requests')::int = 2, 'Mido sees 2 pending requests');
+select pg_temp.assert((public.shopping_request_review((select id from public.shopping_requests where item_name = 'Wipes'), true, null))->>'ok' = 'true', 'Mido approves Wipes');
+select pg_temp.assert(exists (select 1 from public.shopping_items where name = 'Wipes' and needed and category = 'baby'), 'Wipes is now on the list as a baby item');
+select pg_temp.assert((public.shopping_request_review((select id from public.shopping_requests where item_name = 'See photo'), false, null))->>'ok' = 'true', 'Mido rejects the photo request');
+select pg_temp.assert(((public.shopping_list())->>'pending_requests')::int = 0, 'queue is empty');
+select pg_temp.assert((public.shopping_item_needed((select id from public.shopping_items where name = 'Wipes'), false, 24.50, 'Carrefour'))->>'ok' = 'true', 'Mido ticks Wipes off as bought');
+select pg_temp.assert((select last_bought_on = current_date and last_price = 24.50 and not needed from public.shopping_items where name = 'Wipes'), 'bought today, price remembered');
+select pg_temp.assert((select count(*) from public.shopping_items where category = 'adult' and owner_member = :mido) = 3, 'Mido''s three consumables are seeded');
+select pg_temp.assert((select reorder_days = 30 from public.shopping_items where name = 'Royal Canin cat food'), 'Royal Canin is a recurring item');
+reset role;
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.shopping_item_needed((select id from public.shopping_items where name = 'Collagen'), true))->>'ok' = 'true', 'Dana puts her own collagen on the list');
+select pg_temp.assert((public.shopping_item_needed((select id from public.shopping_items where name = 'Creatine monohydrate'), true))->>'ok' = 'true', 'Dana (admin) can also edit Mido''s');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.shopping_item_remove((select id from public.shopping_items where name = 'Bananas')))->>'error' = 'not_allowed', 'Wafa cannot delete items');
+reset role;
+
+select pg_temp.assert(
+  (select count(*) from public.audit_log where module_id in ('calendar','shopping','shopping_requests','shopping_review') and not allowed) >= 5,
+  'Step 2 denials are in the audit log');
+
 \o
 \echo
-\echo 'All Step 1 database checks passed.'
+\echo 'All Step 1 and Step 2 database checks passed.'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

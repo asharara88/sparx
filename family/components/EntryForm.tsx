@@ -6,6 +6,7 @@ import type { EntryType, FieldDef, Subject } from "@/lib/types";
 import { fromLocalInput, toLocalInput } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
+import { useMe } from "@/lib/me-context";
 
 interface Initial {
   payload: Record<string, unknown>;
@@ -26,12 +27,19 @@ export function EntryForm(props: {
 }) {
   const { mode, subject, entryType: t, timezone: tz, initial } = props;
   const router = useRouter();
+  const me = useMe();
+  const flags = me.member as unknown as Record<string, unknown>;
+  const optionAllowed = (f: FieldDef, o: string) => !f.option_flags?.[o] || !!flags[f.option_flags[o]];
   const readOnly = mode === "edit" && !props.canEdit;
   const [payload, setPayload] = useState<Record<string, unknown>>(() => {
     // In create mode, only carry over choice answers (how / where), not amounts.
     if (mode === "create") {
       const keep: Record<string, unknown> = {};
-      for (const f of t.fields) if (f.type === "choice" && initial.payload[f.key] != null) keep[f.key] = initial.payload[f.key];
+      for (const f of t.fields) {
+        if (f.default !== undefined) keep[f.key] = f.default;
+        const prev = initial.payload[f.key];
+        if (f.type === "choice" && prev != null && (!f.option_flags?.[String(prev)] || flags[f.option_flags[String(prev)]])) keep[f.key] = prev;
+      }
       return keep;
     }
     return initial.payload;
@@ -39,6 +47,8 @@ export function EntryForm(props: {
   const [occurred, setOccurred] = useState(toLocalInput(initial.occurred_at, tz));
   const [ended, setEnded] = useState(initial.ended_at ? toLocalInput(initial.ended_at, tz) : "");
   const [stillGoing, setStillGoing] = useState(t.has_end && mode === "create" ? true : !initial.ended_at && t.has_end);
+  // Some types only have an end time for certain answers (e.g. a breastfeed, not a bottle).
+  const endApplies = t.has_end && (!t.settings?.end_if || Object.entries(t.settings.end_if).every(([k, v]) => payload[k] === v));
   const [note, setNote] = useState(initial.note);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -53,7 +63,7 @@ export function EntryForm(props: {
   async function save(extra: Record<string, unknown> = {}) {
     const finalPayload = cleanPayload({ ...payload, ...extra }, visible);
     const occurredIso = fromLocalInput(occurred, tz);
-    const endedIso = t.has_end && !stillGoing && ended ? fromLocalInput(ended, tz) : null;
+    const endedIso = endApplies && !stillGoing && ended ? fromLocalInput(ended, tz) : null;
     if (endedIso && new Date(endedIso) < new Date(occurredIso)) {
       setMsg("The end time is before the start time.");
       return;
@@ -130,7 +140,7 @@ export function EntryForm(props: {
           <legend className="px-1 font-semibold">{f.label}</legend>
           {f.type === "choice" && (
             <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={f.label}>
-              {f.options?.map((o) => (
+              {f.options?.filter((o) => optionAllowed(f, o)).map((o) => (
                 <button key={o} type="button" className="chip" aria-pressed={payload[f.key] === o} onClick={() => set(f.key, o)}>
                   {o}
                 </button>
@@ -181,7 +191,7 @@ export function EntryForm(props: {
       ))}
 
       <fieldset className="card" disabled={readOnly}>
-        <legend className="px-1 font-semibold">{t.has_end ? "Start time" : "Time"}</legend>
+        <legend className="px-1 font-semibold">{endApplies ? "Start time" : "Time"}</legend>
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" className="chip" onClick={() => setOccurred(toLocalInput(new Date().toISOString(), tz))}>
             Now
@@ -198,7 +208,7 @@ export function EntryForm(props: {
           ))}
         </div>
         <input className="input mt-2" type="datetime-local" value={occurred} onChange={(e) => setOccurred(e.target.value)} required />
-        {t.has_end && (
+        {endApplies && (
           <div className="mt-3">
             <label className="flex items-center gap-3">
               <input type="checkbox" className="h-7 w-7" checked={stillGoing} onChange={(e) => setStillGoing(e.target.checked)} />
