@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.133.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
+    "@vercel/connect": "^2.4.1",
     "jose": "^6.2.12",
     "next": "16.4.0",
     "react": "19.3.0",
