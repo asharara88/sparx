@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, ReactElement, ReactNode, SetStateAction } from 'react';
 
+/** Where this app is mounted (empty locally, "/studio" on Vercel, see next.config.mjs). */
+const API = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
 interface Provider { key: string; env: string; configured: boolean }
 interface AvatarOption { id: string; label: string }
 interface VoiceOption { id: string; label: string }
@@ -107,7 +110,7 @@ export default function Dashboard() {
   const loadEpisodes = useCallback(async () => {
     if (document.visibilityState === 'hidden') return; // don't poll a tab nobody is looking at
     try {
-      const r = await fetch('/api/episodes', { cache: 'no-store' });
+      const r = await fetch(`${API}/api/episodes`, { cache: 'no-store' });
       const j = await r.json();
       setConfigured(j.configured);
       setEpisodes(j.episodes ?? []);
@@ -116,9 +119,9 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/providers').then((r) => r.json()).then((j) => setProviders(j.providers ?? [])).catch(() => {});
-    fetch('/api/avatars').then((r) => r.json()).then((j) => { setAvatars(j.avatars ?? []); setAvatarId(j.defaultId ?? (j.avatars?.[0]?.id ?? '')); }).catch(() => {});
-    fetch('/api/voices').then((r) => r.json()).then((j) => { setVoices(j.voices ?? []); setVoiceId(j.defaultId ?? (j.voices?.[0]?.id ?? '')); }).catch(() => {});
+    fetch(`${API}/api/providers`).then((r) => r.json()).then((j) => setProviders(j.providers ?? [])).catch(() => {});
+    fetch(`${API}/api/avatars`).then((r) => r.json()).then((j) => { setAvatars(j.avatars ?? []); setAvatarId(j.defaultId ?? (j.avatars?.[0]?.id ?? '')); }).catch(() => {});
+    fetch(`${API}/api/voices`).then((r) => r.json()).then((j) => { setVoices(j.voices ?? []); setVoiceId(j.defaultId ?? (j.voices?.[0]?.id ?? '')); }).catch(() => {});
     loadEpisodes();
     const t = setInterval(loadEpisodes, 5000);
     // Refresh the moment the tab becomes visible again so the skipped ticks never show stale data.
@@ -182,7 +185,7 @@ export default function Dashboard() {
     const tick = async () => {
       if (document.visibilityState === 'hidden') return; // resume on the first visible tick
       try {
-        const r = await fetch(`/api/run-status?log=${encodeURIComponent(runLog)}`, { cache: 'no-store' });
+        const r = await fetch(`${API}/api/run-status?log=${encodeURIComponent(runLog)}`, { cache: 'no-store' });
         const j = await r.json();
         if (stop) return;
         setRunTail(j.tail || '');
@@ -242,7 +245,7 @@ export default function Dashboard() {
       const body = mode === 'demo'
         ? { mode, topic, sections, demoMode: demoMode === 'auto' ? undefined : demoMode, avatarId, music, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) }
         : { mode, autoApprove, avatarId, hostMode, ...avatarOpts, ...(usesVoice ? { voiceId } : {}), ...(usesRunway ? { runwayTakes } : {}) };
-      const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(`${API}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
       if (j.started && j.log) {
         const startedAt = Date.now();
@@ -265,7 +268,7 @@ export default function Dashboard() {
     }
   }
 
-  const videoSrc = (id: string) => `/api/video/${encodeURIComponent(id)}${id === 'demo' && videoBust ? `?t=${videoBust}` : ''}`;
+  const videoSrc = (id: string) => `${API}/api/video/${encodeURIComponent(id)}${id === 'demo' && videoBust ? `?t=${videoBust}` : ''}`;
 
   // Open an episode (or the demo) in the Preview view.
   const openPreview = useCallback((id: string, bust = 0) => {

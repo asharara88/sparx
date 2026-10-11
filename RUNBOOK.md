@@ -70,3 +70,27 @@ stay under budget, and Video/Avatar agents skip generation they can't afford.
 - `render skipped: mock assets` → expected without media keys; add Runway/HeyGen/Pexels/ElevenLabs.
 - Review CLI shows nothing → set Supabase env (in-memory store doesn't persist across commands).
 - `npm test` runs the 36-test suite; `npm run inspect` prints generated concept/script/prompts.
+
+## Vercel: one project, two services
+
+`vercel.json` at the repo root deploys this repository as one Vercel project with two
+services (https://vercel.com/docs/services):
+
+| Service  | Root     | Public path        | What it is                                  |
+|----------|----------|--------------------|---------------------------------------------|
+| `family` | `family` | `/` (catch-all)    | The private family app (PWA, Supabase `home`)|
+| `web`    | `web`    | `/studio`, `/studio/*` | The sparx studio dashboard                |
+
+- The family app owns the domain root because its service worker, manifest, auth callback
+  and offline shell are all pinned to `/`. The dashboard runs with `basePath` `/studio`,
+  set from `NEXT_PUBLIC_BASE_PATH` (so `next dev` in `web/` still serves at `/`).
+- Neither service calls the other, so there are no service bindings.
+- Environment variables are shared by the project: the family app reads
+  `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Supabase project
+  `home`); the dashboard reads `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and the
+  provider keys from `.env.example`. Set `NEXT_PUBLIC_BASE_PATH=/studio` on the project.
+- Supabase Auth → URL configuration → Redirect URLs must include
+  `https://<your-domain>/auth/callback` and `https://*.vercel.app/auth/callback` for previews.
+- Known limit: the dashboard's `/api/run` spawns the pipeline with `npx` against the repo
+  root and reads log files from local disk. That works with `vercel dev` and locally, not on
+  Vercel's serverless functions. The dashboard pages and read-only API routes do work.
