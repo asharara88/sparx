@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { HouseholdToday, Me, Role } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
+import { HouseholdForm } from "@/components/HouseholdForm";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export default async function MembersPage() {
       <Link href="/members/roles" className="btn">
         Roles and permissions
       </Link>
+      <HouseholdForm household={me.household} />
     </div>
   );
 }

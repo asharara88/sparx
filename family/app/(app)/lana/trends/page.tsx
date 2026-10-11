@@ -26,9 +26,14 @@ export default async function LanaTrendsPage() {
     <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between gap-2 pt-2">
         <h1 className="text-2xl font-bold">{summary.subject.name} · Trends</h1>
-        <Link href="/lana" className="btn">
-          Day by day
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/lana/export" className="btn">
+            🖨️ For the doctor
+          </Link>
+          <Link href="/lana" className="btn">
+            Day by day
+          </Link>
+        </div>
       </header>
       {stats.ok ? (
         <Trends stats={stats} today={today} birthDate={summary.subject.birth_date} />

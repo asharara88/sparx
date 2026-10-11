@@ -11,6 +11,8 @@ export interface Member {
   relationship: string | null;
   is_active: boolean;
   breastfeeds: boolean;
+  /** Free text the assistant reads: "works 9 to 5, out by 8:30, pumps before leaving". */
+  routine?: string | null;
 }
 
 export interface Role {
@@ -47,6 +49,10 @@ export interface Household {
   name: string;
   timezone: string;
   currency: string;
+  /** Things the family knows that the log does not show. The assistant reads them. */
+  notes?: string | null;
+  /** How much pumped milk the family wants in the fridge for the day. */
+  milk_target_ml?: number;
 }
 
 export interface Me {
@@ -694,4 +700,48 @@ export interface CartRunRow {
   found: number;
   substituted: number;
   missing: number;
+}
+
+// ---- Step 6: the proactive layer -------------------------------------------
+export type SuggestionKind = "reorder" | "due" | "plan" | "request" | "ticket";
+export interface PlanEntry {
+  title: string;
+  kind: EventKind;
+  date: string;
+  time: string | null;
+  note: string | null;
+}
+export interface Suggestion {
+  id: string;
+  kind: SuggestionKind;
+  key: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  action: { type: "item_needed"; item_id: string } | { type: "open"; subject_id?: string; module_id?: string } | { type: "plan"; entries: PlanEntry[]; summary?: string } | null;
+  status: "open" | "approved" | "dismissed" | "done";
+  created_at: string;
+}
+
+export interface PushStatus {
+  ok: true;
+  phones: number;
+  recent: { kind: string; title: string; sent_at: string }[];
+}
+
+export interface HubEntity {
+  entity_id: string;
+  label: string;
+  kind: "sensor" | "binary" | "camera" | "other";
+  sort: number;
+  is_active: boolean;
+}
+export interface HubState {
+  entity_id: string;
+  label: string;
+  kind: HubEntity["kind"];
+  state: string;
+  unit: string | null;
+  last_changed: string | null;
+  attributes?: Record<string, unknown>;
 }

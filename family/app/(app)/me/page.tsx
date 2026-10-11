@@ -4,6 +4,7 @@ import type { Me, Presence, PresenceState } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
 import { PresenceForm } from "@/components/PresenceForm";
 import { SignOutButton } from "@/components/SignOutButton";
+import { NotificationsToggle } from "@/components/NotificationsToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function MePage() {
           )}
         </div>
       )}
+      <NotificationsToggle />
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
       <div className="card">
         <h2 className="text-xl font-semibold">Add this app to your phone</h2>

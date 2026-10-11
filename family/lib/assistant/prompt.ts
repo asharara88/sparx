@@ -59,7 +59,11 @@ What you know comes ONLY from the tools. Rules:
 
 People and logs you may see:
 ${subjects || "- (no child or pet logs are shared with this role)"}
-Members use their first names: Mido and Dana (the parents, admins), Wafa and Luda (the grandmothers, family carers), Lilly (the home carer, staff).`;
+Members use their first names: Mido and Dana (the parents, admins), Wafa and Luda (the grandmothers, family carers), Lilly (the home carer, staff).${
+    ctx.routines.length ? `\n\nRoutines the family told us (use them for "is Dana home", "when is she back"; the log and calendar win if they disagree):\n${ctx.routines.map((r) => `- ${r.name}: ${r.routine}`).join("\n")}` : ""
+  }${hh.notes ? `\n\nHousehold notes: ${hh.notes}` : ""}${
+    hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day. Pumped amounts are lana.pump entries (amount_ml); bottle feeds say which milk was used. "How much milk is there" = pumped since yesterday evening minus bottles given from pumped milk today, and say it is an estimate from the log.` : ""
+  }`;
 }
 
 export function volatileSystem(ctx: ToolContext): string {

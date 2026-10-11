@@ -27,6 +27,8 @@ export interface ToolContext {
   now: Date;
   subjects: SubjectInfo[];
   types: EntryType[];
+  /** Members with a written routine ("works 9 to 5"), for the prompt. */
+  routines: { name: string; routine: string }[];
   /** Every id the tools returned, so the answer's citations become links. */
   refs: Record<string, AssistantRef>;
   /** Writes the assistant asked for. The member confirms them in the UI. */
@@ -537,9 +539,10 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
 
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date()): Promise<ToolContext> {
-  const [{ data: subjects }, { data: types }] = await Promise.all([
+  const [{ data: subjects }, { data: types }, { data: members }] = await Promise.all([
     supabase.from("care_subjects").select("id,name,module_id,kind,birth_date").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
+    supabase.from("members").select("display_name,routine").eq("is_active", true).not("routine", "is", null).order("display_name"),
   ]);
   return {
     supabase,
@@ -548,6 +551,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     now,
     subjects: (subjects as SubjectInfo[]) ?? [],
     types: (types as EntryType[]) ?? [],
+    routines: (((members as { display_name: string; routine: string | null }[] | null) ?? []).filter((m) => m.routine) as { display_name: string; routine: string }[]).map((m) => ({ name: m.display_name, routine: m.routine })),
     refs: {},
     proposals: [],
   };

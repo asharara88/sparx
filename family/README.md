@@ -59,6 +59,28 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   cached for an hour and server-side refusal fallback on. Needs `ANTHROPIC_API_KEY` on the
   server (Vercel project env). Cost is roughly a cent or two per question.
 
+**Step 6 — the proactive layer and the hub (this release)**
+
+- **Cards on the home screen** that need a decision, not a screen: "Pepsi is probably running
+  out" (approve → back on the list), "Fanta: flea drops is overdue", "3 running-low requests to
+  check", "🔥 urgent ticket still open". Approve or dismiss; dismiss snoozes it a week. Cards are
+  per member and only cover what that member may see. They refresh when the home screen opens.
+- **Plan the week** (calendar → "Draft the week"): the model reads who is home, what is due,
+  what is low, what is open, and proposes up to six calendar entries with a reason each. Tick
+  the ones you want, approve: only those go on the calendar. Sundays the cron drafts it for you.
+- **Push notifications** (Me → Notifications, iPhone: add to Home Screen first): the morning
+  brief at 06:55, new cards, an event starting within the hour, Lilly's requests and urgent
+  tickets. Sent by a Vercel cron that runs *as each member* (a short-lived member JWT), so the
+  same RLS applies to what is pushed. Opt in per phone; nothing is sent to anyone who did not.
+- **The hub** (House → hub card): read-only Home Assistant. Admins pick which entities to show
+  (temperatures, doors, motion, camera stills). The app never switches anything.
+- **For the doctor / for the vet**: `/lana/export` (2 weeks, 4 weeks, 3 months: averages per
+  day, growth, firsts, day-by-day table, every entry when 14 days or less) and `/fanta/export`
+  (profile card, treatments with next due, weights, 90 days of notes). Print → Save as PDF.
+- **Household facts** (Members → Household, and a Routine box per member): "Dana works 9 to 5,
+  out by 8:30, pumps before leaving", "we aim for 400 ml in the fridge". The assistant, the
+  brief and the plan read them; the home screen shows the day's pumped milk against the target.
+
 **Step 5 — the shopping loop (this release)**
 
 - **Receipts** (`/shopping/receipts`): photograph a receipt; it is read line by line by the

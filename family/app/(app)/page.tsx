@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, MaintenanceOverview, Me, RpcError, ShoppingData } from "@/lib/types";
+import type { CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, MaintenanceOverview, Me, RpcError, ShoppingData, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
-import { addDays, fmtDate, fmtTime, todayYmd } from "@/lib/time";
+import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
 import { LanaCard } from "@/components/LanaCard";
 import { HouseholdCard } from "@/components/HouseholdCard";
 import { FantaCard } from "@/components/FantaCard";
 import { HouseCard } from "@/components/HouseCard";
 import { BriefCard } from "@/components/BriefCard";
+import { SuggestionCards } from "@/components/SuggestionCards";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function HomePage() {
     ? await supabase.from("care_subjects").select("id").eq("module_id", "fanta").eq("is_active", true).order("sort").limit(1).maybeSingle()
     : { data: null };
   const fantaId = (fantaSubj as { id: string } | null)?.id ?? null;
-  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: fantaData }, { data: dueData }, { data: houseData }] = await Promise.all([
+  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: fantaData }, { data: dueData }, { data: houseData }, { data: sugData }] = await Promise.all([
     supabase.rpc("household_today"),
     can(me, "lana", "view") ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
     can(me, "calendar", "view") ? supabase.rpc("calendar_list", { p_from: today, p_to: addDays(today, 1) }) : Promise.resolve({ data: null }),
@@ -37,7 +38,9 @@ export default async function HomePage() {
     fantaId ? supabase.rpc("home_summary", { p_subject_id: fantaId }) : Promise.resolve({ data: null }),
     can(me, "fanta", "view") || can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
     can(me, "maintenance", "view") ? supabase.rpc("maintenance_overview") : Promise.resolve({ data: null }),
+    supabase.rpc("suggestions_refresh"),
   ]);
+  const suggestions = ((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[];
   const fanta = fantaData as HomeSummary | RpcError | null;
   const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];
   const house = houseData as MaintenanceOverview | RpcError | null;
@@ -52,12 +55,23 @@ export default async function HomePage() {
   // Entries from yesterday noon until now: the night and today, for Lana's strip and her current state.
   let recent: EntryRow[] = [];
   let lastMilk: string | null = null;
+  let milk: { pumped: number; given: number; target: number; any: boolean } | null = null;
   if (summary && summary.ok) {
     const from = new Date(new Date(today + "T12:00:00Z").getTime() - 24 * 3600 * 1000).toISOString();
     const { data: listData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: new Date(Date.now() + 3600 * 1000).toISOString() });
     recent = ((listData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
     const lastBottle = recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle" && typeof e.payload.milk === "string");
     lastMilk = (lastBottle?.payload.milk as string | undefined) ?? null;
+    // Milk for the day: pumped since yesterday evening, minus what went into bottles today.
+    const evening = new Date(new Date(dayRange(addDays(today, -1), tz).from).getTime() + 18 * 3600 * 1000).toISOString();
+    const startToday = dayRange(today, tz).from;
+    const ml = (e: EntryRow) => Number(e.payload.amount_ml) || 0;
+    milk = {
+      pumped: recent.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening).reduce((a, e) => a + ml(e), 0),
+      given: recent.filter((e) => e.type_id === "lana.feed" && e.occurred_at >= startToday && e.payload.method === "Bottle" && /pumped/i.test(String(e.payload.milk ?? ""))).reduce((a, e) => a + ml(e), 0),
+      target: me.household.milk_target_ml ?? 400,
+      any: recent.some((e) => e.type_id === "lana.pump" || (e.type_id === "lana.feed" && e.payload.method === "Bottle")),
+    };
   }
 
   return (
@@ -71,13 +85,15 @@ export default async function HomePage() {
 
       {can(me, "assistant", "view") && <BriefCard hour={hour} />}
 
+      <SuggestionCards suggestions={suggestions} />
+
       {pending > 0 && can(me, "shopping_review", "edit") && (
         <Link href="/shopping/requests" className="rounded-2xl border-2 border-amber-700 bg-amber-50 p-4 font-semibold text-amber-900">
           {pending} running-low {pending === 1 ? "request" : "requests"} from Lilly to check ›
         </Link>
       )}
 
-      {summary && summary.ok && <LanaCard summary={summary} recent={recent} lastMilk={lastMilk} />}
+      {summary && summary.ok && <LanaCard summary={summary} recent={recent} lastMilk={lastMilk} milk={milk} />}
       {summary && !summary.ok && (
         <div className="card">
           <p>{summary.message}</p>

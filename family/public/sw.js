@@ -1,6 +1,6 @@
 /* Minimal app-shell cache so the installed app opens offline and queued
    entries can be made. Data always comes from the network. */
-const CACHE = "family-shell-v2";
+const CACHE = "family-shell-v3";
 const SHELL = ["/", "/lana", "/calendar", "/shopping", "/send", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -36,5 +36,42 @@ self.addEventListener("fetch", (event) => {
         if (req.mode === "navigate") return (await caches.match("/")) || Response.error();
         return Response.error();
       }),
+  );
+});
+
+/* ---- push (Step 6): the server sends {title, body, url, tag}; tapping opens the url. */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Our home", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Our home";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag || data.url || "family",
+      renotify: false,
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ("focus" in c) {
+          c.navigate(url);
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
   );
 });
