@@ -86,6 +86,16 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
         </Link>
       )}
 
+      {canAdd && (
+        <div className="grid grid-cols-2 gap-2">
+          <Link href="/shopping/receipts" className="btn">
+            📷 Receipt{data.receipts_to_check ? ` (${data.receipts_to_check})` : ""}
+          </Link>
+          <Link href="/shopping/cart" className="btn">
+            🛒 Fill a cart{data.open_carts ? ` (${data.open_carts})` : ""}
+          </Link>
+        </div>
+      )}
       {canAdd && !adding && (
         <button className="btn btn-primary min-h-[64px] text-lg" onClick={() => setAdding(true)}>
           + Add an item
@@ -99,7 +109,7 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
       {dueSoon.length > 0 && (
         <section className="card">
           <h2 className="text-lg font-bold">Probably running out</h2>
-          <p className="muted text-sm">Based on how often these were bought.</p>
+          <p className="muted text-sm">From how often they were bought: receipts first, the typed interval otherwise.</p>
           <ul className="mt-2 flex flex-col gap-2">
             {dueSoon.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-3">

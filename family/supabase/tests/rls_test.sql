@@ -336,7 +336,84 @@ set role authenticated;
 select pg_temp.assert((public.permission_set('home_carer', 'assistant', 'view', true))->>'ok' = 'true', 'and back on');
 reset role;
 
+
+-- ============================================================================
+-- Step 5: receipts → purchases → learned interval; cart runs
+-- ============================================================================
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.receipt_create('receipts/x.jpg', null))->>'error' = 'not_allowed', 'Lilly cannot add receipts');
+select pg_temp.assert((public.receipts_list())->>'error' = 'not_allowed', 'Lilly cannot see receipts');
+select pg_temp.assert((public.cart_run_create('amazon_ae', array[(select id from public.shopping_items where name = 'Royal Canin cat food')], null))->>'error' = 'not_allowed', 'Lilly cannot prepare a cart');
+reset role;
+
+-- Wafa (family carer: shopping add, not edit) photographs a receipt; the reading comes back with one model match, one alias/name match, one unknown line.
+select pg_temp.act_as(:wafa);
+set role authenticated;
+\set receipt1 `echo "'$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo 11111111-1111-4111-8111-111111111111)'"`
+select pg_temp.assert((public.receipt_create('receipts/r1.jpg', null))->>'ok' = 'true', 'Wafa adds a receipt');
+select pg_temp.assert((select count(*) from public.receipts where photo_path = 'receipts/r1.jpg') = 1, 'the receipt row is hers to see');
+select pg_temp.assert((public.receipt_set_lines((select id from public.receipts where photo_path = 'receipts/r1.jpg'),
+  jsonb_build_object('store', 'Carrefour City', 'date', '2026-09-01', 'currency', 'AED', 'total', 161.25, 'lines', jsonb_build_array(
+    jsonb_build_object('text', 'ROYAL CANIN KITTEN 2KG', 'qty', 1, 'unit_price', 95.00, 'line_total', 95.00, 'item_id', (select id from public.shopping_items where name = 'Royal Canin cat food')),
+    jsonb_build_object('text', 'CREATINE MONOHYDRATE 300G', 'qty', 1, 'unit_price', 60.00, 'line_total', 60.00, 'item_id', null),
+    jsonb_build_object('text', 'CARRIER BAG', 'qty', 1, 'unit_price', 0.25, 'line_total', 0.25, 'item_id', null),
+    jsonb_build_object('text', 'CHOCO BISCUITS 200G', 'qty', 2, 'unit_price', 3.00, 'line_total', 6.00, 'item_id', null)
+  ))))->>'matched' = '2', 'two of four lines matched (one by the model, creatine by name similarity)');
+select pg_temp.assert((select store_id from public.receipts where photo_path = 'receipts/r1.jpg') = 'carrefour', 'the shop was recognised from its name');
+select pg_temp.assert((select match from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text like 'CREATINE%') = 'auto', 'creatine matched by name');
+select pg_temp.assert((select match from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text = 'CARRIER BAG') = 'unmatched', 'the bag is flagged, not dropped');
+-- Wafa fixes the flagged lines: biscuits become a new item, the bag is skipped
+select pg_temp.assert((public.receipt_line_set((select l.id from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text like 'CHOCO%'), 'added', null, 'Choco biscuits', 'groceries'))->>'ok' = 'true', 'Wafa adds the biscuits as a new item');
+select pg_temp.assert((public.receipt_line_set((select l.id from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text = 'CARRIER BAG'), 'skipped'))->>'ok' = 'true', 'and skips the bag');
+select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r1.jpg')))->>'error' = 'not_allowed', 'Wafa cannot apply it (shopping edit)');
+reset role;
+
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r1.jpg')))->>'applied' = '3', 'Mido applies it: three purchases');
+select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 95.00 and (select last_bought_on from public.shopping_items where name = 'Royal Canin cat food') = date '2026-09-01', 'Royal Canin: last price and date from the receipt');
+select pg_temp.assert(exists (select 1 from public.shopping_item_aliases a join public.shopping_items i on i.id = a.item_id where i.name = 'Royal Canin cat food' and a.alias = 'ROYAL CANIN KITTEN 2KG'), 'the printed name is remembered as an alias');
+select pg_temp.assert((select reorder_days_learned from public.shopping_items where name = 'Royal Canin cat food') is null, 'one receipt is not enough to learn an interval');
+select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r1.jpg')))->>'error' = 'applied', 'applying twice is refused');
+
+-- Second receipt, 28 days later: the alias matches instantly, and the interval is learned.
+select pg_temp.assert((public.receipt_create('receipts/r2.jpg', null))->>'ok' = 'true', 'second receipt');
+select pg_temp.assert((public.receipt_set_lines((select id from public.receipts where photo_path = 'receipts/r2.jpg'),
+  jsonb_build_object('store', 'CARREFOUR', 'date', '2026-09-29', 'currency', 'AED', 'total', 98.00, 'lines', jsonb_build_array(
+    jsonb_build_object('text', 'ROYAL CANIN KITTEN 2KG', 'qty', 1, 'unit_price', 98.00, 'line_total', 98.00, 'item_id', null)
+  ))))->>'matched' = '1', 'the alias matches without the model');
+select pg_temp.assert((select confidence from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r2.jpg') = 1.0, 'with full confidence');
+select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r2.jpg')))->>'applied' = '1', 'applied');
+select pg_temp.assert((select reorder_days_learned from public.shopping_items where name = 'Royal Canin cat food') = 28, 'reorder interval learned from two receipts: 28 days (typed was 30)');
+select pg_temp.assert((select (i->>'due')::date from jsonb_array_elements((public.shopping_list())->'items') i where i->>'name' = 'Royal Canin cat food') = date '2026-10-27', 'the list uses the learned interval for "probably running out"');
+select pg_temp.assert((select (i->>'purchases')::int from jsonb_array_elements((public.shopping_list())->'items') i where i->>'name' = 'Royal Canin cat food') = 2, 'two purchases on the item');
+select pg_temp.assert(jsonb_array_length((public.purchases_for_item((select id from public.shopping_items where name = 'Royal Canin cat food')))->'purchases') = 2, 'purchase history reads back');
+
+-- Cart run: manifest, report, paid.
+select pg_temp.assert((public.shopping_item_substitution((select id from public.shopping_items where name = 'Collagen'), 'any_brand'))->>'ok' = 'true', 'substitution rule set on an item');
+select pg_temp.assert((public.shopping_item_substitution((select id from public.shopping_items where name = 'Collagen'), 'maybe'))->>'error' = 'bad_rule', 'unknown rule refused');
+select pg_temp.assert((public.cart_run_create('amazon_ae', array[(select id from public.shopping_items where name = 'Royal Canin cat food'), (select id from public.shopping_items where name = 'Collagen')], 'before Friday'))->>'ok' = 'true', 'Mido prepares an Amazon cart');
+select pg_temp.assert((select (manifest->'rules'->>'stop_at_checkout')::boolean and (manifest->'rules'->>'never_pay')::boolean from public.cart_runs order by created_at desc limit 1), 'the manifest says stop at checkout, never pay');
+select pg_temp.assert((select jsonb_array_length(manifest->'items') from public.cart_runs order by created_at desc limit 1) = 2, 'two items in the manifest');
+select pg_temp.assert((select x->>'aliases' from public.cart_runs c, jsonb_array_elements(c.manifest->'items') x where x->>'name' = 'Royal Canin cat food' order by c.created_at desc limit 1) like '%ROYAL CANIN KITTEN 2KG%', 'the manifest carries the printed names as hints');
+select pg_temp.assert((public.cart_run_close((select id from public.cart_runs order by created_at desc limit 1), true))->>'bought' = '0', 'closing before a report buys nothing');
+select pg_temp.assert((public.cart_run_create('amazon_ae', array[(select id from public.shopping_items where name = 'Royal Canin cat food'), (select id from public.shopping_items where name = 'Collagen')], null))->>'ok' = 'true', 'another cart');
+select pg_temp.assert((public.cart_run_report((select id from public.cart_runs order by created_at desc limit 1), jsonb_build_object('summary', 'Cart total 185', 'items', jsonb_build_array(
+  jsonb_build_object('item_id', (select id from public.shopping_items where name = 'Royal Canin cat food'), 'result', 'found', 'price', 97.5),
+  jsonb_build_object('item_id', (select id from public.shopping_items where name = 'Collagen'), 'result', 'missing', 'note', 'out of stock')))))->>'ok' = 'true', 'the agent''s report is saved');
+select pg_temp.assert((select status from public.cart_runs order by created_at desc limit 1) = 'reported', 'status reported');
+select pg_temp.assert((public.cart_run_close((select id from public.cart_runs order by created_at desc limit 1), true))->>'bought' = '1', 'I paid: the found item is bought, the missing one is not');
+select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 97.5 and not (select needed from public.shopping_items where name = 'Royal Canin cat food'), 'Royal Canin updated from the cart');
+select pg_temp.assert((select count(*) from public.purchases p join public.shopping_items i on i.id = p.item_id where i.name = 'Royal Canin cat food') = 3, 'three purchases now');
+select pg_temp.assert((public.cart_runs_list())->'runs'->0->>'status' = 'done', 'cart list shows it done');
+reset role;
+
+select pg_temp.assert(
+  (select count(*) from public.audit_log where target_table in ('receipts', 'receipt_lines', 'cart_runs') and not allowed) >= 3,
+  'Step 5 denials are in the audit log');
+
 \o
 \echo
-\echo 'All Step 1, 2, 3 and 4 database checks passed.'
+\echo 'All Step 1 to 5 database checks passed.'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
