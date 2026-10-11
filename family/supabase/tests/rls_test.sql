@@ -422,7 +422,76 @@ select pg_temp.assert(
   (select count(*) from public.audit_log where target_table in ('receipts', 'receipt_lines', 'cart_runs') and not allowed) >= 3,
   'Step 5 denials are in the audit log');
 
+-- ============================================================================
+-- Step 6: suggestions, push, hub, household facts
+-- ============================================================================
+select pg_temp.act_as(:mido);
+set role authenticated;
+-- An item bought 40 days ago with a 30-day interval and not on the list: a reorder suggestion.
+update public.shopping_items set last_bought_on = current_date - 40, reorder_days = 30, needed = false where name = 'Collagen';
+select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true', 'refresh runs');
+select pg_temp.assert(exists (select 1 from public.suggestions where member_id = :mido and kind = 'reorder' and status = 'open' and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')), 'Collagen is suggested for reorder');
+select pg_temp.assert((select count(*) from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')) = 1 and (public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')) = 1, 'refreshing twice does not duplicate');
+select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')), 'approve', 7, null))->>'status' = 'approved', 'approve a reorder');
+select pg_temp.assert((select needed from public.shopping_items where name = 'Collagen'), 'approving puts Collagen on the list');
+select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')), 'approve', 7, null))->>'error' = 'decided', 'cannot decide twice');
+-- A plan draft: dismiss snoozes it, a fresh draft reopens it, approving chosen entries writes the calendar.
+select pg_temp.assert((public.suggestion_put('reorder', 'x', 'x', null, null, '{}'))->>'error' = 'bad_kind', 'only plans can be put by the app');
+select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the week', 'Two things', '/calendar', jsonb_build_object('type', 'plan', 'entries', jsonb_build_array(
+  jsonb_build_object('title', 'Vet for Fanta', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
+  jsonb_build_object('title', 'Big shop', 'kind', 'plan', 'date', (current_date + 4)::text, 'time', null, 'note', null)))))->>'ok' = 'true', 'plan put');
+select pg_temp.assert((select count(*) from public.suggestions where member_id = :mido and key = 'plan:test' and status = 'open') = 1, 'plan is open');
+select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'dismiss', 3, null))->>'status' = 'dismissed', 'dismiss a plan');
+select pg_temp.assert((select snooze_until from public.suggestions where member_id = :mido and key = 'plan:test') = (now() at time zone (select timezone from public.household limit 1))::date + 3, 'dismissed plans snooze');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.suggestions_list())->'suggestions') x where x->>'key' = 'plan:test') = 0, 'a snoozed plan is not listed');
+select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the week', 'Two things', '/calendar', jsonb_build_object('type', 'plan', 'entries', jsonb_build_array(
+  jsonb_build_object('title', 'Vet for Fanta', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
+  jsonb_build_object('title', 'Big shop', 'kind', 'plan', 'date', (current_date + 4)::text, 'time', null, 'note', null)))))->>'ok' = 'true', 'a new draft reopens it');
+select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'approve', 7, '{"entries":[0]}'))->>'entries' = '1', 'approving with one entry ticked writes one');
+select pg_temp.assert(exists (select 1 from public.calendar_events where title = 'Vet for Fanta' and kind = 'appointment'), 'the ticked entry is on the calendar');
+select pg_temp.assert(not exists (select 1 from public.calendar_events where title = 'Big shop'), 'the unticked one is not');
+-- Push: subscribe, status, unsubscribe; notifications are unique per key.
+select pg_temp.assert((public.push_subscribe('https://push.example/abc', 'p256', 'auth', 'iPhone'))->>'ok' = 'true', 'subscribe a phone');
+select pg_temp.assert((public.push_subscribe('https://push.example/abc', 'p256b', 'authb', 'iPhone'))->>'ok' = 'true' and (select count(*) from public.push_subscriptions where endpoint = 'https://push.example/abc') = 1, 'resubscribing the same endpoint updates it');
+select pg_temp.assert((public.push_status())->>'phones' = '1', 'status shows one phone');
+select pg_temp.assert((public.push_subscribe('', 'x', 'y', null))->>'error' = 'bad_subscription', 'empty subscription rejected');
+select pg_temp.assert((public.push_unsubscribe('https://push.example/abc'))->>'ok' = 'true', 'unsubscribe');
+select pg_temp.assert((public.push_status())->>'phones' = '0', 'no phones after unsubscribe');
+reset role;
+insert into public.notifications (member_id, kind, key, title) values (:mido, 'brief', 'brief:morning:2026-10-12', 'Morning');
+select pg_temp.assert((select count(*) from public.notifications where member_id = :mido and key = 'brief:morning:2026-10-12') = 1, 'notification recorded');
+do $$ begin
+  insert into public.notifications (member_id, kind, key, title) values ('00000000-0000-4000-8000-000000000001', 'brief', 'brief:morning:2026-10-12', 'Morning again');
+  raise exception 'duplicate notification was allowed';
+exception when unique_violation then null; end $$;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.push_subscriptions) = 0 and (select count(*) from public.notifications) = 0, 'Lilly sees no one else''s subscriptions or notifications');
+select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :lilly and kind = 'reorder') = 0, 'Lilly gets no reorder suggestions (no shopping view)');
+select pg_temp.assert((select count(*) from public.suggestions where member_id <> :lilly) = 0, 'suggestions are private');
+-- Hub: admins only, entity ids checked.
+select pg_temp.assert((public.hub_entity_save('sensor.living_room_temperature', 'Living room', 'sensor', 10, true))->>'error' = 'not_allowed', 'Lilly cannot change the hub');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.hub_entity_save('DROP TABLE x', 'bad', 'sensor', 10, true))->>'error' = 'bad_entity', 'bad entity id rejected');
+select pg_temp.assert((public.hub_entity_save('sensor.living_room_temperature', 'Living room', 'sensor', 10, true))->>'ok' = 'true', 'admin adds a hub entity');
+select pg_temp.assert((public.hub_entity_save('sensor.living_room_temperature', 'Lounge', 'sensor', 5, true))->>'ok' = 'true', 'saving again');
+select pg_temp.assert((select label from public.hub_entities where entity_id = 'sensor.living_room_temperature') = 'Lounge', 'saving again renames');
+-- Household facts and routines.
+select pg_temp.assert((public.household_save('Our home', 'Aim for 400 ml in the fridge.', 450))->>'ok' = 'true', 'admin saves household facts');
+select pg_temp.assert(((public.me())->'household'->>'milk_target_ml')::int = 450 and (public.me())->'household'->>'notes' like 'Aim for%', 'me() carries the facts');
+select pg_temp.assert((public.member_save(:dana, 'Dana', null, (select role_id from public.members where id = :dana), null, null, true, 'Works 9 to 5.'))->>'ok' = 'true', 'routine saved through member_save');
+select pg_temp.assert((select routine from public.members where id = :dana) = 'Works 9 to 5.', 'routine stored');
+select pg_temp.assert((public.member_save(:dana, 'Dana', null, (select role_id from public.members where id = :dana), null, null, true))->>'ok' = 'true', 'the seven-argument save still works');
+select pg_temp.assert((select routine from public.members where id = :dana) = 'Works 9 to 5.', 'and keeps the routine');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.household_save('Hacked', null, 0))->>'error' = 'not_allowed', 'Lilly cannot change the household');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 5 database checks passed.'
+\echo 'All Step 1 to 6 database checks passed.'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

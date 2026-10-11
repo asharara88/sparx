@@ -10,6 +10,9 @@
       "framework": "nextjs"
     }
   },
+  "crons": [
+    { "path": "/api/cron/daily", "schedule": "55 2 * * *" }
+  ],
   "rewrites": [
     { "source": "/studio", "destination": { "service": "web" } },
     { "source": "/studio/(.*)", "destination": { "service": "web" } },

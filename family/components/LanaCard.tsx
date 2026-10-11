@@ -7,7 +7,7 @@ import { CustodyToggle } from "./CustodyToggle";
 import { LanaNow } from "./LanaNow";
 import { DayStrip } from "./DayStrip";
 
-export function LanaCard({ summary, recent, lastMilk }: { summary: HomeSummary; recent: EntryRow[]; lastMilk: string | null }) {
+export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSummary; recent: EntryRow[]; lastMilk: string | null; milk?: { pumped: number; given: number; target: number; any: boolean } | null }) {
   const { subject, types, last, custody, timezone, ongoing, today } = summary;
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -41,6 +41,14 @@ export function LanaCard({ summary, recent, lastMilk }: { summary: HomeSummary; 
         {diaper ? ` · last diaper ${ago(diaper.occurred_at, now)}` : ""}
       </p>
 
+      {milk && milk.any && (
+        <p className="muted text-sm">
+          🫙 Milk for today: {milk.pumped} ml pumped since last evening
+          {milk.pumped < milk.target ? <span className="font-semibold text-[var(--warn)]"> (aim {milk.target})</span> : ` (aim ${milk.target})`}
+          {milk.given > 0 ? ` · ${milk.given} ml given from the fridge` : ""}
+          {milk.pumped > 0 ? ` · about ${Math.max(0, milk.pumped - milk.given)} ml left` : ""}
+        </p>
+      )}
       <DayStrip entries={recent} day={today} timezone={timezone} nowIso={now.toISOString()} title="Lana's day so far" />
 
       <div className="grid grid-cols-3 gap-2">

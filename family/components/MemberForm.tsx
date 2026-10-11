@@ -13,6 +13,7 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
   const [birth, setBirth] = useState(member?.birth_date ?? "");
   const [active, setActive] = useState(member?.is_active ?? true);
   const [breastfeeds, setBreastfeeds] = useState(member?.breastfeeds ?? false);
+  const [routine, setRoutine] = useState(member?.routine ?? "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -28,6 +29,7 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       p_birth_date: birth || null,
       p_relationship: relationship || null,
       p_is_active: active,
+      p_routine: routine || null,
     });
     if (!error && (data as { ok: boolean })?.ok && member && breastfeeds !== member.breastfeeds) {
       await supabaseBrowser().from("members").update({ breastfeeds }).eq("id", member.id);
@@ -70,6 +72,11 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Date of birth (optional)</span>
         <input className="input" type="date" value={birth} onChange={(e) => setBirth(e.target.value)} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">Routine (the assistant reads this)</span>
+        <textarea className="input" rows={4} value={routine} onChange={(e) => setRoutine(e.target.value)} placeholder="e.g. Works 9 to 5 on weekdays, 30 minutes each way. Up at 7, out by 8:30. Pumps before leaving." />
+        <span className="muted text-sm">Plain words. Used for “is Dana home?”, the morning brief and the weekly plan.</span>
       </label>
       {member && (
         <label className="flex items-center gap-3">

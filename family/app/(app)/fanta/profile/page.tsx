@@ -22,7 +22,10 @@ export default async function FantaProfilePage() {
         <Link href="/fanta" className="btn" aria-label="Back">
           ‹
         </Link>
-        <span className="muted">Profile card</span>
+        <span className="muted flex-1">Profile card</span>
+        <Link href="/fanta/export" className="btn">
+          🖨️ For the vet
+        </Link>
       </header>
       <ProfileCard subject={subject as Subject} due={due} timezone={me.household.timezone} />
     </div>

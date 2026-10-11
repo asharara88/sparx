@@ -5,6 +5,7 @@ import type { Me, RpcError, Ticket } from "@/lib/types";
 import { TICKET_STATUS, can } from "@/lib/types";
 import { ago } from "@/lib/time";
 import { Photo } from "@/components/Photo";
+import { HubCard } from "@/components/HubCard";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function HousePage({ searchParams }: { searchParams: Promis
           📞 Who to call
         </Link>
       </div>
+      <HubCard />
       <section className="card">
         <div className="flex items-baseline justify-between">
           <h2 className="text-xl font-semibold">{all ? "All tickets" : "Open tickets"}</h2>

@@ -91,6 +91,15 @@ services (https://vercel.com/docs/services):
   provider keys from `.env.example`. Set `NEXT_PUBLIC_BASE_PATH=/studio` on the project.
   The family app's assistant (Step 4) reads `ANTHROPIC_API_KEY` (server only; the dashboard's
   pipeline uses the same variable, so one key serves both).
+- Step 6 (push, cron, hub) adds server-only variables, listed with comments in
+  `family/.env.example`: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+  `VAPID_SUBJECT`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `CRON_SECRET`, and
+  optionally `HOME_ASSISTANT_URL` / `HOME_ASSISTANT_TOKEN` and `PLAN_EVERY_DAY`. Without them
+  the app works as before: the Notifications toggle says "not set up", the hub card is hidden.
+  `vercel.json` schedules `/api/cron/daily` at 02:55 UTC (06:55 Dubai). Vercel sends
+  `Authorization: Bearer $CRON_SECRET`; set `CRON_SECRET` before the first run or the route
+  answers 401. On a Pro plan you can add `{ "path": "/api/cron/often", "schedule": "*/15 * * * *" }`
+  for "event in an hour" and request pushes; Hobby allows one daily cron.
 - Supabase Auth → URL configuration → Redirect URLs must include
   `https://<your-domain>/auth/callback` and `https://*.vercel.app/auth/callback` for previews.
 - Known limit: the dashboard's `/api/run` spawns the pipeline with `npx` against the repo

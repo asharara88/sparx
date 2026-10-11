@@ -65,3 +65,22 @@ Not built. Each line is a candidate for the step named, or for a decision.
   in the app; a report with a high price is shown as is.
 - Learned interval uses purchase *dates*, not quantities; buying two packs at once still
   counts as one purchase date.
+
+## Step 6 (remaining after the Step 6 build)
+- WhatsApp: not built. Push on the phone covers the morning brief, cards, events and requests;
+  if Wafa or Luda do not keep the app on the home screen, WhatsApp (Cloud API, template
+  messages) is the fallback. Decide after two weeks of push.
+- The 15-minute cron (`/api/cron/often`: event in an hour, Lilly's requests, urgent tickets)
+  needs a Vercel Pro plan; on Hobby only the daily 06:55 run exists.
+- The hub is read-only on purpose and stays that way: no switches, no locks, no thermostats
+  from this app. Camera stills only (no streams).
+- Suggestions refresh when a home screen opens and in the daily cron; there is no row-level
+  trigger, so a card can lag an action by a screen refresh.
+- The weekly plan draft proposes calendar entries only; it does not move or cancel anything,
+  and it does not create tickets or shopping items.
+- Routines are free text read by the model. "Is Dana home at 3 pm" relies on the text; a
+  structured work-hours field could replace the weekday-only work schedule later.
+- Milk for the day is an estimate from the log (pumped since last evening minus bottles given
+  from pumped milk today); freezer stock is not tracked.
+- Export pages print through the phone's Share → Print → Save as PDF; there is no server-side
+  PDF, so the layout is the browser's.
