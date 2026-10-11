@@ -295,6 +295,10 @@ export interface ShoppingItem {
   last_price: number | null;
   last_price_store: string | null;
   reorder_days: number | null;
+  reorder_days_learned: number | null;
+  substitution: Substitution;
+  purchases: number;
+  aliases: string[];
   note: string | null;
   photo_path: string | null;
   due: string | null;
@@ -306,6 +310,8 @@ export interface ShoppingData {
   shelf: ShelfItem[];
   stores: Store[];
   pending_requests: number;
+  receipts_to_check: number;
+  open_carts: number;
 }
 
 export interface ShoppingRequest {
@@ -560,4 +566,132 @@ export interface Brief {
   created_at: string;
   model: string | null;
   refs?: Record<string, AssistantRef>;
+}
+
+// ---- Step 5: the shopping loop ---------------------------------------------
+export type Substitution = "none" | "same_brand" | "any_brand";
+export const SUBSTITUTIONS: { id: Substitution; label: string; hint: string }[] = [
+  { id: "same_brand", label: "Same brand only", hint: "Another size of the same brand is fine; no other brand." },
+  { id: "any_brand", label: "Any brand", hint: "Same thing, any brand, same size or close." },
+  { id: "none", label: "Exactly this", hint: "Only this product. Otherwise leave it out." },
+];
+
+export type ReceiptStatus = "new" | "read" | "applied" | "discarded";
+export type LineMatch = "auto" | "confirmed" | "added" | "skipped" | "unmatched";
+
+export interface Receipt {
+  id: string;
+  store_id: string | null;
+  store_name: string | null;
+  store_label: string | null;
+  bought_on: string | null;
+  total: number | null;
+  currency: string | null;
+  photo_path: string;
+  status: ReceiptStatus;
+  note: string | null;
+  created_at: string;
+  created_by_name: string | null;
+  applied_at: string | null;
+}
+
+export interface ReceiptLine {
+  id: string;
+  line_no: number;
+  text: string;
+  qty: number | null;
+  unit_price: number | null;
+  line_total: number | null;
+  item_id: string | null;
+  item_name: string | null;
+  match: LineMatch;
+  confidence: number | null;
+}
+
+export interface ReceiptDetail {
+  ok: true;
+  receipt: Receipt;
+  lines: ReceiptLine[];
+}
+
+export interface ReceiptRow {
+  id: string;
+  store: string | null;
+  bought_on: string | null;
+  total: number | null;
+  currency: string | null;
+  status: ReceiptStatus;
+  created_at: string;
+  photo_path: string;
+  lines: number;
+  unmatched: number;
+}
+
+export interface Purchase {
+  id: string;
+  bought_on: string;
+  store: string | null;
+  qty: number | null;
+  price: number | null;
+  receipt_id: string | null;
+  line: string | null;
+}
+
+export interface CartManifestItem {
+  item_id: string;
+  name: string;
+  size: string | null;
+  quantity: number;
+  product_url: string | null;
+  last_price: number | null;
+  substitution: Substitution;
+  note: string | null;
+  aliases: string[];
+}
+
+export interface CartManifest {
+  store: { id: string; label: string; url: string | null };
+  currency: string;
+  rules: { stop_at_checkout: true; never_pay: true; report: string };
+  items: CartManifestItem[];
+}
+
+export type CartResult = "found" | "substituted" | "missing";
+export interface CartReportItem {
+  item_id: string;
+  result: CartResult;
+  product?: string | null;
+  price?: number | null;
+  note?: string | null;
+}
+export interface CartReport {
+  summary: string | null;
+  items: CartReportItem[];
+}
+
+export type CartStatus = "prepared" | "reported" | "done" | "cancelled";
+export interface CartRun {
+  id: string;
+  store_id: string;
+  store_label: string;
+  store_url: string | null;
+  status: CartStatus;
+  manifest: CartManifest;
+  report: CartReport | null;
+  note: string | null;
+  created_at: string;
+  created_by_name: string | null;
+  reported_at: string | null;
+  done_at: string | null;
+}
+
+export interface CartRunRow {
+  id: string;
+  store_label: string;
+  status: CartStatus;
+  created_at: string;
+  items: number;
+  found: number;
+  substituted: number;
+  missing: number;
 }

@@ -10,6 +10,7 @@ export function PhotoPicker({
   withText = false,
   onText,
   disabled,
+  library = false,
 }: {
   label?: string;
   file: File | null;
@@ -17,6 +18,8 @@ export function PhotoPicker({
   withText?: boolean;
   onText?: (text: string) => void;
   disabled?: boolean;
+  /** Also allow picking from the photo library (a screenshot of an order), not only the camera. */
+  library?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState<number | null>(null);
@@ -47,7 +50,7 @@ export function PhotoPicker({
     <div className="flex flex-col gap-2">
       <label className={`btn min-h-[64px] text-lg ${disabled ? "opacity-50" : ""}`}>
         📷 {file ? "Change photo" : label}
-        <input ref={ref} type="file" accept="image/*" capture="environment" className="sr-only" disabled={disabled} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+        <input ref={ref} type="file" accept="image/*" capture={library ? undefined : "environment"} className="sr-only" disabled={disabled} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
       </label>
       {preview && (
         <div className="flex items-start gap-3">

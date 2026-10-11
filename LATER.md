@@ -51,3 +51,17 @@ Not built. Each line is a candidate for the step named, or for a decision.
 - The assistant does not read photos or OCR text yet (attachments_search exists).
 - Conversation memory is per phone and per session (session storage); nothing is stored
   server-side except the audit row.
+
+## Step 5 (remaining after the Step 5 build)
+- The cart agent is hand-driven: copy the instructions, run Claude in Chrome on the shop, paste
+  its report back. A direct handoff (the app opening the agent with the manifest) needs the
+  agent to expose an entry point; revisit when Claude in Chrome has one.
+- Receipt reading uses the model on the server; the on-phone OCR path (tesseract) is not used
+  for receipts because it mis-reads columns. A fallback for "no API key" would need it.
+- Quantity on hand is not updated from receipts (we do not know what was used up).
+- Store detection is by name only; a receipt from an unknown shop gets no `store_id` (pick it
+  on the review screen). Stores are a table; add Spinneys, Waitrose… from SQL for now.
+- Price alerts ("more than 50% above last paid") are in the agent's instructions, not enforced
+  in the app; a report with a high price is shown as is.
+- Learned interval uses purchase *dates*, not quantities; buying two packs at once still
+  counts as one purchase date.

@@ -1,4 +1,4 @@
-# Family app — Steps 1 to 4
+# Family app — Steps 1 to 5
 
 Private family-operations app for one household. This folder is the whole app:
 a Next.js PWA on Vercel talking to the household's own Supabase project.
@@ -58,6 +58,26 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 - Model: Claude Opus 5.5 through the Anthropic API, with the stable part of the system prompt
   cached for an hour and server-side refusal fallback on. Needs `ANTHROPIC_API_KEY` on the
   server (Vercel project env). Cost is roughly a cent or two per question.
+
+**Step 5 — the shopping loop (this release)**
+
+- **Receipts** (`/shopping/receipts`): photograph a receipt; it is read line by line by the
+  model (structured output, never a guessed line) and each line is matched to a list item —
+  first by a remembered printed name, then by name similarity (pg_trgm). Lines it is not sure
+  about are flagged, never dropped: match them, add them as a new item, or skip them. *Apply*
+  records a purchase per line and updates last bought, last price and the shop; the printed
+  name becomes an alias so the next receipt matches without help. Only Mido or Dana can apply.
+- **Learned reorder interval**: after two purchases of an item, the median gap between purchase
+  dates becomes its interval and "probably running out" uses it instead of the typed number.
+  The item page shows both, and the purchase history.
+- **Fill a cart** (`/shopping/cart`): pick the shop and the items (needed ones are preselected),
+  set the substitution rule per item (same brand only / any brand / exactly this), and the app
+  prepares a cart run: a manifest and the instructions for the cart agent (Claude in Chrome, or
+  whoever drives the browser). The instructions say stop at checkout, never pay, and report
+  found / substituted / missing with prices. Paste the report back; the model turns it into
+  per-item results you can correct; "I paid" marks found and substituted items bought today at
+  the reported price. The app never reaches a payment page.
+- Photos are shrunk on the phone before upload (longest side 1600 px), for every photo type.
 
 ## 1. Database (Supabase)
 
