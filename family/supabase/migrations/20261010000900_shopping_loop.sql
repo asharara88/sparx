@@ -370,7 +370,8 @@ begin
     perform private.audit_write('shopping', 'edit', false, 'receipts', p_id::text);
     return private.denied('Only Mido or Dana can apply a receipt to the list.');
   end if;
-  select * into v_r from public.receipts where id = p_id;
+  -- Lock the receipt: a double tap or a retry waits here, then sees 'applied' and is refused.
+  select * into v_r from public.receipts where id = p_id for update;
   if v_r.id is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
   if v_r.status = 'applied' then return jsonb_build_object('ok', false, 'error', 'applied', 'message', 'Already applied.'); end if;
   if v_r.bought_on is null then return jsonb_build_object('ok', false, 'error', 'no_date', 'message', 'Set the receipt date first.'); end if;
@@ -380,10 +381,12 @@ begin
       v_price := coalesce(v_l.unit_price, case when coalesce(v_l.qty, 0) > 0 then round(v_l.line_total / v_l.qty, 2) end);
       insert into public.purchases (item_id, receipt_id, line_id, bought_on, store_id, qty, price)
       values (v_l.item_id, p_id, v_l.id, v_r.bought_on, v_r.store_id, v_l.qty, v_price);
+      -- An older receipt entered later adds history but must not overwrite a newer price, shop or "needed".
       update public.shopping_items
          set last_bought_on = greatest(coalesce(last_bought_on, v_r.bought_on), v_r.bought_on),
-             last_price = coalesce(v_price, last_price),
-             last_price_store = case when v_price is not null then coalesce(v_r.store_id, v_r.store_name, last_price_store) else last_price_store end,
+             last_price = case when v_price is not null and v_r.bought_on >= coalesce(last_bought_on, v_r.bought_on) then v_price else last_price end,
+             last_price_store = case when v_price is not null and v_r.bought_on >= coalesce(last_bought_on, v_r.bought_on)
+                                     then coalesce(v_r.store_id, v_r.store_name, last_price_store) else last_price_store end,
              needed = case when v_r.bought_on >= coalesce(last_bought_on, v_r.bought_on) then false else needed end
        where id = v_l.item_id;
       insert into public.shopping_item_aliases (item_id, alias) values (v_l.item_id, btrim(v_l.text)) on conflict do nothing;
@@ -465,22 +468,24 @@ end $$;
 -- Done = you checked out yourself. Found and substituted items are bought today at the reported price.
 create or replace function public.cart_run_close(p_id uuid, p_paid boolean) returns jsonb
 language plpgsql security invoker set search_path = public as $$
-declare v_run public.cart_runs; v_it jsonb; v_n integer := 0; v_price numeric;
+declare
+  v_run public.cart_runs; v_it jsonb; v_n integer := 0; v_price numeric;
+  v_today date := (now() at time zone coalesce((select timezone from public.household limit 1), 'UTC'))::date;
 begin
   if not public.has_permission('shopping', 'edit') then
     perform private.audit_write('shopping', 'edit', false, 'cart_runs', p_id::text);
     return private.denied('Only Mido or Dana can close a cart.');
   end if;
-  select * into v_run from public.cart_runs where id = p_id;
+  select * into v_run from public.cart_runs where id = p_id for update;
   if v_run.id is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
   if v_run.status in ('done', 'cancelled') then return jsonb_build_object('ok', false, 'error', 'closed'); end if;
   if p_paid then
     for v_it in select * from jsonb_array_elements(coalesce(v_run.report->'items', '[]'::jsonb)) loop
       if (v_it->>'result') in ('found', 'substituted') and (v_it->>'item_id') ~ '^[0-9a-f-]{36}$' then
         v_price := case when (v_it->>'price') ~ '^\d+(\.\d+)?$' then (v_it->>'price')::numeric end;
-        insert into public.purchases (item_id, bought_on, store_id, qty, price) values ((v_it->>'item_id')::uuid, current_date, v_run.store_id, 1, v_price);
+        insert into public.purchases (item_id, bought_on, store_id, qty, price) values ((v_it->>'item_id')::uuid, v_today, v_run.store_id, 1, v_price);
         update public.shopping_items
-           set needed = false, last_bought_on = current_date, last_price = coalesce(v_price, last_price),
+           set needed = false, last_bought_on = v_today, last_price = coalesce(v_price, last_price),
                last_price_store = case when v_price is not null then v_run.store_id else last_price_store end
          where id = (v_it->>'item_id')::uuid;
         perform private.learn_reorder((v_it->>'item_id')::uuid);
