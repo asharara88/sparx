@@ -405,7 +405,16 @@ select pg_temp.assert((public.cart_run_report((select id from public.cart_runs o
 select pg_temp.assert((select status from public.cart_runs order by created_at desc limit 1) = 'reported', 'status reported');
 select pg_temp.assert((public.cart_run_close((select id from public.cart_runs order by created_at desc limit 1), true))->>'bought' = '1', 'I paid: the found item is bought, the missing one is not');
 select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 97.5 and not (select needed from public.shopping_items where name = 'Royal Canin cat food'), 'Royal Canin updated from the cart');
-select pg_temp.assert((select count(*) from public.purchases p join public.shopping_items i on i.id = p.item_id where i.name = 'Royal Canin cat food') = 3, 'three purchases now');
+select pg_temp.assert((select bought_on from public.purchases p join public.shopping_items i on i.id = p.item_id where i.name = 'Royal Canin cat food' order by p.created_at desc limit 1) = (now() at time zone (select timezone from public.household limit 1))::date, 'the cart purchase is dated in the household''s day, not the server''s');
+-- An old receipt found later: history yes, but the newer price, shop and "needed" stay.
+select pg_temp.assert((public.receipt_create('receipts/r0.jpg', null))->>'ok' = 'true', 'an older receipt turns up');
+select pg_temp.assert((public.receipt_set_lines((select id from public.receipts where photo_path = 'receipts/r0.jpg'),
+  jsonb_build_object('store', 'Carrefour', 'date', '2026-08-01', 'currency', 'AED', 'total', 90.00, 'lines', jsonb_build_array(
+    jsonb_build_object('text', 'ROYAL CANIN KITTEN 2KG', 'qty', 1, 'unit_price', 90.00, 'line_total', 90.00, 'item_id', null)
+  ))))->>'matched' = '1', 'matched by alias');
+select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r0.jpg')))->>'applied' = '1', 'applied');
+select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 97.5 and (select last_price_store from public.shopping_items where name = 'Royal Canin cat food') = 'amazon_ae', 'the older receipt did not overwrite the newer price or shop');
+select pg_temp.assert((select count(*) from public.purchases p join public.shopping_items i on i.id = p.item_id where i.name = 'Royal Canin cat food') = 4, 'but its purchase is in the history');
 select pg_temp.assert((public.cart_runs_list())->'runs'->0->>'status' = 'done', 'cart list shows it done');
 reset role;
 
