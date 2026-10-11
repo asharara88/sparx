@@ -116,6 +116,8 @@ export function describePayload(payload: Record<string, unknown>): string {
       if (k === "duration_min") return `${v} min`;
       if (k === "weight_kg") return `${v} kg`;
       if (k === "length_cm") return `${v} cm`;
+      if (k === "amount_g") return `${v} g`;
+      if (k === "next_due") return `next ${v}`;
       return String(v);
     })
     .join(" · ");

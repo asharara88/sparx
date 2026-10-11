@@ -4,6 +4,8 @@ import type { CalendarData, Me, RpcError, ShoppingData, ShoppingRequest } from "
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { SendRequest } from "@/components/SendRequest";
+import { TicketForm } from "@/components/TicketForm";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +25,24 @@ export default async function SendPage() {
   const requests = ((mine as { requests?: ShoppingRequest[] })?.requests ?? []).slice(0, 10);
   const calendar = cal as CalendarData | RpcError | null;
   return (
-    <SendRequest
-      shelf={shelf}
-      recent={requests}
-      events={calendar && calendar.ok ? calendar.events : []}
-      timezone={me.household.timezone}
-      today={today}
-    />
+    <div className="flex flex-col gap-4">
+      <SendRequest
+        shelf={shelf}
+        recent={requests}
+        events={calendar && calendar.ok ? calendar.events : []}
+        timezone={me.household.timezone}
+        today={today}
+      />
+      {can(me, "maintenance", "add") && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-2xl font-bold">Something broken?</h2>
+          <p className="muted">Take a photo, say what it is, send.</p>
+          <TicketForm assets={[]} simple />
+          <Link href="/house" className="text-sm font-semibold text-[var(--accent)]">
+            Open tickets ›
+          </Link>
+        </section>
+      )}
+    </div>
   );
 }

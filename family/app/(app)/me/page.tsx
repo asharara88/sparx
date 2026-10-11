@@ -30,8 +30,18 @@ export default async function MePage() {
           <p className="muted text-sm">Ask Mido or Dana to change these.</p>
         </div>
       )}
-      {(can(me, "members", "edit") || can(me, "audit", "view")) && (
+      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "maintenance", "view")) && (
         <div className="grid grid-cols-2 gap-3">
+          {can(me, "maintenance", "view") && (
+            <Link href="/house" className="btn">
+              🏠 The house
+            </Link>
+          )}
+          {can(me, "fanta", "view") && (
+            <Link href="/fanta" className="btn">
+              🐈 Fanta
+            </Link>
+          )}
           {can(me, "members", "edit") && (
             <Link href="/members" className="btn">
               👪 Members

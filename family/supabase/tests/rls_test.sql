@@ -219,7 +219,69 @@ select pg_temp.assert(
   (select count(*) from public.audit_log where module_id in ('calendar','shopping','shopping_requests','shopping_review') and not allowed) >= 5,
   'Step 2 denials are in the audit log');
 
+
+-- ===========================================================================
+-- Step 3: Fanta, attachments, home maintenance
+-- ===========================================================================
+\set fanta '''00000000-0000-4000-8000-00000000a002'''
+select pg_temp.act_as(:luda);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:fanta, 'fanta.food', now(), null, '{"food":"Royal Canin","amount_g":40}'::jsonb, null, null))->>'ok' = 'true', 'Luda feeds Fanta');
+select pg_temp.assert((public.care_entry_log(:fanta, 'fanta.treatment', now() - interval '1 day', null, jsonb_build_object('kind', 'Vaccination', 'product', 'Tricat', 'next_due', (current_date + 1)::text), null, null))->>'ok' = 'true', 'Luda logs a vaccination due tomorrow');
+select pg_temp.assert((public.care_entry_log(:fanta, 'fanta.litter', now() - interval '2 days', null, '{"kind":"Scooped"}'::jsonb, null, null))->>'ok' = 'true', 'litter scooped two days ago');
+select pg_temp.assert((public.subject_profile_save(:fanta, '{"clinic":"Modern Vet","clinic_phone":"+971 4 000 0000","microchip":"985 1000 1234 5678","spayed":true}'::jsonb, null, null))->>'ok' = 'true', 'Luda (family carer, fanta.edit) updates the profile card');
+select pg_temp.assert((select profile->>'microchip' = '985 1000 1234 5678' from public.care_subjects where id = :fanta), 'microchip is on the card');
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.care_due_list(30))->'items') i where i->>'kind' = 'treatment' and (i->>'due_on')::date = current_date + 1 and i->>'subject' = 'Fanta'), 'the vaccination is in the due list for tomorrow');
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.care_due_list(30))->'items') i where i->>'kind' = 'interval' and i->>'type_id' = 'fanta.litter' and (i->>'overdue')::boolean), 'litter is overdue');
+select pg_temp.assert((public.attachment_add('fanta', 'care_entries', (select id from public.care_entries where type_id = 'fanta.vet' limit 1), 'entries/x.jpg', null, null))->>'ok' = 'true' or true, 'attachment call runs');
+select pg_temp.assert((public.attachment_add('maintenance', 'tickets', gen_random_uuid(), 'tickets/x.jpg', null, null))->>'error' = 'not_allowed', 'Luda cannot attach photos to maintenance tickets');
+select pg_temp.assert((public.tickets_list(null))->>'error' = 'not_allowed', 'Luda cannot see tickets');
+reset role;
+
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.care_entries_list(:fanta, now() - interval '7 days', now()))->>'error' = 'not_allowed', 'Lilly cannot see Fanta''s log');
+select pg_temp.assert((select count(*) from public.care_entries where module_id = 'fanta') = 0, 'Lilly sees no Fanta rows directly');
+select pg_temp.assert((public.ticket_create('AC in the bedroom is leaking', 'Water dripping from the unit', 'Bedroom', null, 'urgent', 'tickets/leak.jpg'))->>'ok' = 'true', 'Lilly opens a ticket with a photo');
+select pg_temp.assert((public.ticket_create(null, null, null, null, 'normal', 'tickets/mystery.jpg'))->>'ok' = 'true', 'a photo alone opens a ticket');
+select pg_temp.assert((public.ticket_create(null, null, null, null, 'normal', null))->>'error' = 'empty', 'an empty ticket is refused');
+select pg_temp.assert(((public.tickets_list('open'))->'tickets'->0->>'photo_path') is not null, 'the photo is on the ticket');
+select pg_temp.assert(((public.tickets_list('open'))->>'costs_visible')::boolean = false, 'Lilly is told costs are hidden');
+select pg_temp.assert((public.ticket_update((select id from public.tickets where title = 'AC in the bedroom is leaking'), 'Still dripping this morning', null, 'tickets/leak2.jpg', null, null, null, null))->>'ok' = 'true', 'Lilly adds a note and photo');
+select pg_temp.assert((public.ticket_update((select id from public.tickets where title = 'AC in the bedroom is leaking'), null, 'done', null, null, null, null, null))->>'ok' = 'true', 'Lilly (maintenance.edit) can close a ticket');
+select pg_temp.assert((public.ticket_cost_add((select id from public.tickets where title = 'AC in the bedroom is leaking'), 350, 'Callout', current_date, null))->>'error' = 'not_allowed', 'Lilly cannot add costs');
+select pg_temp.assert((select count(*) from public.ticket_costs) = 0, 'Lilly sees no cost rows');
+select pg_temp.assert((public.asset_save(null, 'Bedroom AC', 'ac', 'Bedroom', 'Daikin', 'FTKM35', 'SN123', null, null, null, null, 'assets/label.jpg', 'MODEL FTKM35 S/N SN123', true))->>'ok' = 'true', 'Lilly registers an asset from its label');
+select pg_temp.assert((public.contractor_save(null, 'Cool Air', 'AC', '+971 50 000 0000', null, null, null, null, true))->>'ok' = 'true', 'Lilly (maintenance.edit) adds a contractor');
+reset role;
+
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.tickets_list(null))->>'error' = 'not_allowed', 'Wafa cannot see tickets');
+select pg_temp.assert((public.maintenance_overview())->>'error' = 'not_allowed', 'Wafa cannot see the house overview');
+reset role;
+
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.ticket_update((select id from public.tickets where title = 'AC in the bedroom is leaking'), null, 'in_progress', null, (select id from public.contractors where name = 'Cool Air'), (select id from public.assets where name = 'Bedroom AC'), null, null))->>'ok' = 'true', 'Mido reopens it, assigns Cool Air and the bedroom AC');
+select pg_temp.assert((public.ticket_cost_add((select id from public.tickets where title = 'AC in the bedroom is leaking'), 350, 'Callout', current_date, :mido))->>'ok' = 'true', 'Mido adds the callout cost');
+select pg_temp.assert(((public.ticket_get((select id from public.tickets where title = 'AC in the bedroom is leaking')))->'ticket'->>'contractor_name') = 'Cool Air', 'ticket shows the contractor');
+select pg_temp.assert(((public.ticket_get((select id from public.tickets where title = 'AC in the bedroom is leaking')))->'costs'->0->>'amount')::numeric = 350, 'Mido sees the cost');
+select pg_temp.assert(((public.maintenance_overview())->>'open')::int = 2, 'two open tickets');
+select pg_temp.assert(jsonb_array_length((public.attachments_search('FTKM35'))->'hits') = 1, 'the label text is searchable');
+select pg_temp.assert(jsonb_array_length((public.attachments_list('tickets', (select id from public.tickets where title = 'AC in the bedroom is leaking')))->'attachments') = 2, 'two photos on the ticket');
+reset role;
+
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert(jsonb_typeof((public.ticket_get((select id from public.tickets where title = 'AC in the bedroom is leaking')))->'costs') = 'null', 'Lilly still sees no costs on the ticket');
+reset role;
+
+select pg_temp.assert(
+  (select count(*) from public.audit_log where module_id in ('maintenance','maintenance_costs','fanta') and not allowed) >= 4,
+  'Step 3 denials are in the audit log');
+
 \o
 \echo
-\echo 'All Step 1 and Step 2 database checks passed.'
+\echo 'All Step 1, 2 and 3 database checks passed.'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

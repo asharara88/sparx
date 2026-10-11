@@ -4,7 +4,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 const BUCKET = "photos";
 
 /** Upload a photo from a file input. Returns the storage path to keep on the row. */
-export async function uploadPhoto(file: File, folder: "requests" | "items" | "entries"): Promise<string> {
+export async function uploadPhoto(file: File, folder: "requests" | "items" | "entries" | "tickets" | "assets" | "subjects"): Promise<string> {
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
   const path = `${folder}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabaseBrowser().storage.from(BUCKET).upload(path, file, {

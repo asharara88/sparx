@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { CalendarData, EntryRow, HomeSummary, HouseholdToday, Me, RpcError, ShoppingData } from "@/lib/types";
+import type { CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, MaintenanceOverview, Me, RpcError, ShoppingData } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, fmtDate, fmtTime, todayYmd } from "@/lib/time";
 import { LanaCard } from "@/components/LanaCard";
 import { HouseholdCard } from "@/components/HouseholdCard";
+import { FantaCard } from "@/components/FantaCard";
+import { HouseCard } from "@/components/HouseCard";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +24,22 @@ export default async function HomePage() {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }] = await Promise.all([
+  const { data: fantaSubj } = can(me, "fanta", "view")
+    ? await supabase.from("care_subjects").select("id").eq("module_id", "fanta").eq("is_active", true).order("sort").limit(1).maybeSingle()
+    : { data: null };
+  const fantaId = (fantaSubj as { id: string } | null)?.id ?? null;
+  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: fantaData }, { data: dueData }, { data: houseData }] = await Promise.all([
     supabase.rpc("household_today"),
     can(me, "lana", "view") ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
     can(me, "calendar", "view") ? supabase.rpc("calendar_list", { p_from: today, p_to: addDays(today, 1) }) : Promise.resolve({ data: null }),
     can(me, "shopping_review", "view") ? supabase.rpc("shopping_list") : Promise.resolve({ data: null }),
+    fantaId ? supabase.rpc("home_summary", { p_subject_id: fantaId }) : Promise.resolve({ data: null }),
+    can(me, "fanta", "view") || can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
+    can(me, "maintenance", "view") ? supabase.rpc("maintenance_overview") : Promise.resolve({ data: null }),
   ]);
+  const fanta = fantaData as HomeSummary | RpcError | null;
+  const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];
+  const house = houseData as MaintenanceOverview | RpcError | null;
   const household = hhData as HouseholdToday | RpcError;
   const summary = sumData as HomeSummary | RpcError | null;
   const calendar = calData as CalendarData | RpcError | null;
@@ -70,6 +82,10 @@ export default async function HomePage() {
       )}
 
       {household.ok && <HouseholdCard data={household} me={me} />}
+
+      {fanta && fanta.ok && <FantaCard summary={fanta} due={due} compact />}
+
+      {house && house.ok && <HouseCard data={house} />}
 
       {calendar && calendar.ok && (
         <section className="card" aria-labelledby="today-h">
