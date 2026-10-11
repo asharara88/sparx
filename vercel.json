@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "family": {
+      "root": "family",
+      "framework": "nextjs"
+    },
+    "web": {
+      "root": "web",
+      "framework": "nextjs"
+    }
+  },
+  "rewrites": [
+    { "source": "/studio", "destination": { "service": "web" } },
+    { "source": "/studio/(.*)", "destination": { "service": "web" } },
+    { "source": "/(.*)", "destination": { "service": "family" } }
+  ]
+}
