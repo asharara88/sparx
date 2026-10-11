@@ -479,3 +479,85 @@ export interface MaintenanceOverview {
   costs_visible: boolean;
   recent: Pick<Ticket, "id" | "title" | "status" | "priority" | "location" | "created_at">[];
 }
+
+// ---- Step 4: the assistant ------------------------------------------------
+export type ProposalKind = "care_entry" | "calendar_event" | "shopping";
+
+export interface CareEntryProposal {
+  subject_id: string;
+  subject_name: string;
+  module_id: string;
+  type_id: string;
+  type_label: string;
+  occurred_at: string;
+  ended_at: string | null;
+  payload: Record<string, unknown>;
+  note: string | null;
+}
+
+export interface CalendarEventProposal {
+  title: string;
+  kind: EventKind;
+  starts_at: string;
+  ends_at: string | null;
+  all_day: boolean;
+  note: string | null;
+}
+
+export interface ShoppingProposal {
+  /** An existing list item to mark as needed, or null to add / request a new one. */
+  item_id: string | null;
+  item_name: string;
+  note: string | null;
+  /** needed: tick an existing item · new: add to the list · request: Lilly's queue */
+  via: "needed" | "new" | "request";
+}
+
+/** Something the assistant wants to save. Nothing is written until the member taps Confirm. */
+export interface AssistantProposal {
+  id: string;
+  kind: ProposalKind;
+  summary: string;
+  care_entry?: CareEntryProposal;
+  calendar_event?: CalendarEventProposal;
+  shopping?: ShoppingProposal;
+}
+
+/** A citation target: the tool result the answer came from, as a link. */
+export interface AssistantRef {
+  href: string;
+  label: string;
+}
+
+export interface AssistantTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+export interface AssistantUsage {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read: number;
+  cache_write: number;
+  ms: number;
+  tool_calls: number;
+}
+
+export interface AssistantReply {
+  ok: true;
+  answer: string;
+  proposals: AssistantProposal[];
+  refs: Record<string, AssistantRef>;
+  usage: AssistantUsage;
+}
+
+export interface Brief {
+  id: string;
+  day: string;
+  kind: "morning" | "evening";
+  content: string;
+  created_at: string;
+  model: string | null;
+  refs?: Record<string, AssistantRef>;
+}

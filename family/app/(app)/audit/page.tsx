@@ -34,7 +34,7 @@ export default async function AuditPage() {
               <span className="muted">{fmtDateTime(r.at, tz)}</span>
             </div>
             <div>
-              {r.allowed ? "✅" : "⛔"} {r.action} {r.module_id}
+              {r.allowed ? "✅" : "⛔"} {r.source === "agent" ? "🤖 " : ""}{r.action} {r.module_id}
               {r.target_table ? ` · ${r.target_table}` : ""}
               {r.target_id ? ` · ${r.target_id.slice(0, 8)}` : ""}
               {r.detail ? ` · ${JSON.stringify(r.detail)}` : ""}

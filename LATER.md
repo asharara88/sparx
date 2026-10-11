@@ -37,3 +37,17 @@ Not built. Each line is a candidate for the step named, or for a decision.
 - Lilly's Send screen: a third section for "I used the last of X" could reuse the shelf.
 - Text-reading on the phone loads tesseract.js from a CDN the first time (a few MB); consider
   bundling it, or an edge function, if that is slow on the house wifi.
+
+## Step 4 (remaining after the Step 4 build)
+- The brief is written when the home screen is first opened after 06:00 / 17:00, not pushed
+  at 07:00: a 7 am delivery needs the push plumbing (Step 2 note) or WhatsApp. A cron on Vercel
+  could pre-write every member's brief at 06:50 if we sign a per-member JWT with the project's
+  JWT secret (keeps RLS); decide push first.
+- Streaming the answer word by word (today the whole answer arrives after a few seconds).
+- Proposals cover care entries, calendar entries and shopping; not presence, tickets, custody
+  or edits of existing entries ("change that feed to 90 ml").
+- Voice: uses the phone's built-in speech recognition (Chrome, Safari); no server transcription,
+  no wake word. Arabic/Russian for Wafa and Luda would need `lang` per member.
+- The assistant does not read photos or OCR text yet (attachments_search exists).
+- Conversation memory is per phone and per session (session storage); nothing is stored
+  server-side except the audit row.

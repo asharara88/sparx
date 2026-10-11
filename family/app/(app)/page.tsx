@@ -8,6 +8,7 @@ import { LanaCard } from "@/components/LanaCard";
 import { HouseholdCard } from "@/components/HouseholdCard";
 import { FantaCard } from "@/components/FantaCard";
 import { HouseCard } from "@/components/HouseCard";
+import { BriefCard } from "@/components/BriefCard";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,8 @@ export default async function HomePage() {
           {greeting}, {me.member.display_name}
         </h1>
       </header>
+
+      {can(me, "assistant", "view") && <BriefCard hour={hour} />}
 
       {pending > 0 && can(me, "shopping_review", "edit") && (
         <Link href="/shopping/requests" className="rounded-2xl border-2 border-amber-700 bg-amber-50 p-4 font-semibold text-amber-900">
