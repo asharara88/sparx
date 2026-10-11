@@ -89,6 +89,8 @@ services (https://vercel.com/docs/services):
   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Supabase project
   `home`); the dashboard reads `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and the
   provider keys from `.env.example`. Set `NEXT_PUBLIC_BASE_PATH=/studio` on the project.
+  The family app's assistant (Step 4) reads `ANTHROPIC_API_KEY` (server only; the dashboard's
+  pipeline uses the same variable, so one key serves both).
 - Supabase Auth → URL configuration → Redirect URLs must include
   `https://<your-domain>/auth/callback` and `https://*.vercel.app/auth/callback` for previews.
 - Known limit: the dashboard's `/api/run` spawns the pipeline with `npx` against the repo

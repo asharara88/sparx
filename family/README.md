@@ -1,4 +1,4 @@
-# Family app — Steps 1 and 2
+# Family app — Steps 1 to 4
 
 Private family-operations app for one household. This folder is the whole app:
 a Next.js PWA on Vercel talking to the household's own Supabase project.
@@ -35,6 +35,29 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 - Lilly's screen (`/send`): a shelf of usual items to tap, or a photo with a note. Requests
   wait in a review queue; an admin adds them to the list or marks them not needed.
 - Private `photos` bucket for request photos.
+
+**Step 4 — the assistant (this release)**
+
+- **Ask** (`/ask`, and the 💬 button on every screen): type or speak a question — "when did Lana
+  last feed", "who's home Thursday", "what's due for Fanta", "how did she sleep this week".
+  The answer cites the entries it came from; each citation is a link to that entry, event,
+  ticket or item. If the data does not say, it says "I don't know".
+- **It only sees what you see.** The assistant runs on the server *with your own session*; its
+  tools are the same RPCs the screens use, under the same Row Level Security, and a tool is only
+  offered when your role has that screen's permission. Lilly's assistant has no Lana tool at
+  all, and is told to say plainly that Lana's log is not shared with her role.
+- **Logging by chat and voice, one tap to confirm.** "Log a 120 ml formula bottle" prepares a
+  card; nothing is written until you tap **Confirm**, and then it goes through the normal
+  entry path (offline queue included). Also calendar entries and running-low items.
+- **Morning brief / evening digest** on the home screen: written once per member per day the
+  first time the screen is opened (from 06:00, and from 17:00 for "today, in short"), then kept.
+- **Night** button on Ask: a dark screen for 3 am.
+- **Audit:** every agent call is a row in `audit_log` (source `agent`) with the question, the
+  tools used, the answer, any proposals, and token usage. Admins see them under Me → Audit log
+  with a 🤖.
+- Model: Claude Opus 5.5 through the Anthropic API, with the stable part of the system prompt
+  cached for an hour and server-side refusal fallback on. Needs `ANTHROPIC_API_KEY` on the
+  server (Vercel project env). Cost is roughly a cent or two per question.
 
 ## 1. Database (Supabase)
 

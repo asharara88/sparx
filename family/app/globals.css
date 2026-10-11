@@ -217,3 +217,60 @@ textarea:focus-visible {
     animation: none;
   }
 }
+
+/* ---- the Ask screen (components/Assistant.tsx) */
+.bubble {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: var(--card);
+}
+.bubble-me {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.bubble-err {
+  border-color: var(--danger);
+}
+.cite {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.8em;
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: baseline;
+  min-height: 0;
+}
+.mic {
+  width: 64px;
+  font-size: 1.6rem;
+}
+.mic-on {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% { opacity: 0.6; }
+}
+/* Night: a dark screen you can read at 3 am without waking anyone (set by the Ask screen). */
+html[data-theme="night"] {
+  --bg: #0b0b10;
+  --fg: #ececec;
+  --muted: #a8a8b3;
+  --card: #17171f;
+  --line: #2c2c38;
+  --accent: #7aa2ff;
+  --accent-fg: #0b0b10;
+  --ok: #6fd38a;
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic-on { animation: none; }
+}
