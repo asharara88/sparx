@@ -7,6 +7,7 @@ import { useMe } from "@/lib/me-context";
 import { fmtDate } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Attachments } from "./Attachments";
+import { Icon } from "@/components/Icon";
 
 /**
  * The card you pull up at the vet: readable in five seconds, phone numbers tap to call.
@@ -90,9 +91,9 @@ export function ProfileCard({ subject, due, timezone }: { subject: Subject; due:
   return (
     <div className="flex flex-col gap-4">
       <section className="card">
-        <h1 className="text-3xl font-bold">
+        <h1 className="page-title">
           {subject.name}
-          {subject.kind === "pet" ? " 🐈" : ""}
+          
         </h1>
         <p className="muted">
           {[p.sex, p.colour, p.age_note ?? (subject.birth_date ? `born ${fmtDate(subject.birth_date, timezone)}` : null), p.spayed ? "spayed" : null, p.indoor ? "indoor" : null].filter(Boolean).join(" · ")}
@@ -130,7 +131,7 @@ export function ProfileCard({ subject, due, timezone }: { subject: Subject; due:
               .filter((d) => d.kind === "treatment")
               .map((d) => (
                 <li key={d.label + d.due_at} className={d.overdue ? "font-semibold text-[var(--warn)]" : ""}>
-                  💉 {d.label} · {d.overdue ? "was due" : "due"} {fmtDate(d.due_at, timezone)}
+                  <Icon name="syringe" size={18} className="inline" /> {d.label} · {d.overdue ? "was due" : "due"} {fmtDate(d.due_at, timezone)}
                 </li>
               ))}
           </ul>

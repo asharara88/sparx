@@ -5,6 +5,7 @@ import type { Contractor } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Icon } from "@/components/Icon";
 
 const EMPTY = { name: "", trade: "", phone: "", whatsapp: "", company: "", notes: "", rating: "" };
 
@@ -113,12 +114,12 @@ export function ContractorBook({ contractors }: { contractors: Contractor[] }) {
             <div className="mt-2 flex flex-wrap gap-2">
               {c.phone && (
                 <a className="btn" href={`tel:${tel(c.phone)}`}>
-                  📞 Call
+                  <Icon name="phone" size={18} /> Call
                 </a>
               )}
               {(c.whatsapp || c.phone) && (
                 <a className="btn" href={`https://wa.me/${tel(c.whatsapp || c.phone!).replace(/^\+/, "").replace(/^00/, "")}`} target="_blank" rel="noreferrer">
-                  💬 WhatsApp
+                  <Icon name="whatsapp" size={18} /> WhatsApp
                 </a>
               )}
             </div>

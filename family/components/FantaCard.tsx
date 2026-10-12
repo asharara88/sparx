@@ -52,7 +52,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
     <section className="flex flex-col gap-3" aria-labelledby="fanta-h">
       <div className="flex items-start justify-between gap-3">
         <h2 id="fanta-h" className="text-2xl font-bold">
-          🐈 {subject.name}
+          {subject.name}
         </h2>
         <Link href="/fanta/profile" className="btn">
           Profile card
@@ -79,7 +79,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
         <>
           <div className="card">
             <p className="font-semibold">
-              <span aria-hidden>🍗 </span>Fed
+              Fed
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {amounts.map((g) => (
@@ -94,16 +94,16 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" className="btn min-h-[64px] text-lg" disabled={busy} onClick={() => log(litter?.id, { kind: "Scooped" }, "Litter scooped.")}>
-              🧹 Scooped
+              Scooped
             </button>
             <button type="button" className="btn min-h-[64px] text-lg" disabled={busy} onClick={() => log(litter?.id, { kind: "Full change" }, "Litter changed.")}>
-              🧹 Full change
+              Full change
             </button>
             <button type="button" className="btn min-h-[64px] text-lg" disabled={busy} onClick={() => log(treat?.id, {}, "Treat given.")}>
-              🐟 Treat
+              Treat
             </button>
             <Link href="/fanta/log/treatment" className="btn min-h-[64px] text-lg">
-              💉 Treatment
+              Treatment
             </Link>
           </div>
         </>

@@ -7,6 +7,7 @@ import { CATEGORIES, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Photo } from "./Photo";
+import { Icon } from "@/components/Icon";
 
 /**
  * One receipt: the lines it was read into, each matched to a list item or
@@ -73,12 +74,12 @@ export function ReceiptReview({ detail, items, stores }: { detail: ReceiptDetail
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/shopping/receipts" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header flex items-center gap-2">
+        <Link href="/shopping/receipts" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Receipt</h1>
+          <h1 className="page-title">Receipt</h1>
           <p className="muted text-sm">{stateText}</p>
         </div>
       </header>

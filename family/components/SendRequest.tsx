@@ -6,6 +6,7 @@ import { EVENT_KINDS } from "@/lib/types";
 import { fmtTime } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { uploadPhoto } from "@/lib/photos";
+import { Icon } from "@/components/Icon";
 
 export function SendRequest({
   shelf,
@@ -76,8 +77,8 @@ export function SendRequest({
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="pt-2">
-        <h1 className="text-3xl font-bold">Running low?</h1>
+      <header className="page-header page-header-large">
+        <h1 className="page-title">Running low?</h1>
         <p className="muted">Tap the item. Or take a photo.</p>
       </header>
 
@@ -124,7 +125,7 @@ export function SendRequest({
       <form onSubmit={sendPhoto} className="card flex flex-col gap-3">
         <h2 className="text-xl font-bold">Something else</h2>
         <label className="btn min-h-[72px] text-lg">
-          📷 {file ? file.name : "Take a photo"}
+          <Icon name="camera" size={20} /> {file ? file.name : "Take a photo"}
           <input
             ref={fileRef}
             type="file"
@@ -161,7 +162,7 @@ export function SendRequest({
           <ul className="mt-2 flex flex-col gap-1">
             {recent.map((r) => (
               <li key={r.id}>
-                {r.status === "pending" ? "⏳" : r.status === "approved" ? "✅" : "⛔"} {r.item_name}
+                <Icon name={r.status === "pending" ? "clock" : r.status === "approved" ? "check" : "x"} size={16} className="inline" /> {r.item_name}
                 {r.status === "pending" ? " · waiting" : r.status === "approved" ? " · on the list" : " · not needed"}
               </li>
             ))}

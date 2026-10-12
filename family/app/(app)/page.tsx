@@ -76,9 +76,9 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="pt-2">
+      <header className="page-header page-header-large">
         <p className="muted">{fmtDate(now.toISOString(), tz, { weekday: "long", day: "numeric", month: "long" })}</p>
-        <h1 className="text-3xl font-bold">
+        <h1 className="page-title">
           {greeting}, {me.member.display_name}
         </h1>
       </header>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MaintenanceOverview } from "@/lib/types";
 import { TICKET_STATUS } from "@/lib/types";
+import { Icon } from "@/components/Icon";
 
 /** The house on the home screen: open tickets at a glance. */
 export function HouseCard({ data }: { data: MaintenanceOverview }) {
@@ -8,7 +9,7 @@ export function HouseCard({ data }: { data: MaintenanceOverview }) {
     <section className="card" aria-labelledby="house-h">
       <div className="flex items-baseline justify-between">
         <h2 id="house-h" className="text-xl font-semibold">
-          🏠 The house
+          The house
         </h2>
         <Link href="/house" className="text-sm font-semibold text-[var(--accent)]">
           All ›
@@ -21,7 +22,7 @@ export function HouseCard({ data }: { data: MaintenanceOverview }) {
           {data.recent.map((t) => (
             <li key={t.id}>
               <Link href={`/house/tickets/${t.id}`} className="block">
-                {TICKET_STATUS.find((s) => s.id === t.status)?.icon} {t.priority === "urgent" ? "🔥 " : ""}
+                <span className={`dot dot-${TICKET_STATUS.find((s) => s.id === t.status)?.tone}`} /> {t.priority === "urgent" ? <Icon name="flame" size={16} className="inline text-[var(--danger)]" /> : null}{" "}
                 <b>{t.title}</b>
                 {t.location ? <span className="muted"> · {t.location}</span> : null}
               </Link>

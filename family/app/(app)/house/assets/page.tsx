@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Asset, Me } from "@/lib/types";
 import { ASSET_CATEGORIES, can } from "@/lib/types";
 import { Photo } from "@/components/Photo";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -17,16 +18,16 @@ export default async function AssetsPage() {
   const rooms = [...new Set(assets.map((a) => a.location ?? "Elsewhere"))];
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-2 pt-2">
+      <header className="page-header flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <Link href="/house" className="btn" aria-label="Back">
-            ‹
-          </Link>
-          <h1 className="text-2xl font-bold">Appliances</h1>
+          <Link href="/house" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
+        </Link>
+          <h1 className="page-title">Appliances</h1>
         </div>
         {can(me, "maintenance", "add") && (
           <Link href="/house/assets/new" className="btn btn-primary">
-            + Add
+            <Icon name="plus" size={18} /> Add
           </Link>
         )}
       </header>

@@ -5,6 +5,7 @@ import type { ShoppingRequest } from "@/lib/types";
 import { fmtDateTime } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Photo } from "./Photo";
+import { Icon } from "@/components/Icon";
 
 export function RequestQueue({ pending, history, timezone }: { pending: ShoppingRequest[]; history: ShoppingRequest[]; timezone: string }) {
   const router = useRouter();
@@ -60,7 +61,7 @@ export function RequestQueue({ pending, history, timezone }: { pending: Shopping
           <ul className="mt-2 flex flex-col gap-1 text-sm">
             {history.map((r) => (
               <li key={r.id}>
-                {r.status === "approved" ? "✅" : "⛔"} {r.item_name} · {r.created_by_name} · {fmtDateTime(r.created_at, timezone)}
+                <Icon name={r.status === "approved" ? "check" : "x"} size={16} className="inline" /> {r.item_name} · {r.created_by_name} · {fmtDateTime(r.created_at, timezone)}
                 {r.reviewed_by_name ? ` · by ${r.reviewed_by_name}` : ""}
               </li>
             ))}

@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { readText } from "@/lib/ocr";
+import { Icon } from "@/components/Icon";
 
 /** Take or choose a photo; optionally read the text off it on the phone. */
 export function PhotoPicker({
@@ -49,7 +50,7 @@ export function PhotoPicker({
   return (
     <div className="flex flex-col gap-2">
       <label className={`btn min-h-[64px] text-lg ${disabled ? "opacity-50" : ""}`}>
-        📷 {file ? "Change photo" : label}
+        <Icon name="camera" size={20} /> {file ? "Change photo" : label}
         <input ref={ref} type="file" accept="image/*" capture={library ? undefined : "environment"} className="sr-only" disabled={disabled} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
       </label>
       {preview && (
@@ -58,7 +59,7 @@ export function PhotoPicker({
           <div className="flex flex-col gap-2">
             {withText && (
               <button type="button" className="btn" onClick={read} disabled={disabled || reading !== null}>
-                {reading === null ? "🔍 Read the label" : `Reading… ${Math.round(reading * 100)}%`}
+                {reading === null ? "Read the label" : `Reading… ${Math.round(reading * 100)}%`}
               </button>
             )}
             <button type="button" className="btn" onClick={() => { pick(null); if (ref.current) ref.current.value = ""; }} disabled={disabled}>

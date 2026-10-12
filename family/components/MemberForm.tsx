@@ -44,7 +44,7 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">Details</h2>
+      <h2 className="text-lg font-semibold">Details</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Name</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />

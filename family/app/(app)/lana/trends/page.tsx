@@ -5,6 +5,7 @@ import type { DailyStats, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { Trends } from "@/components/Trends";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +25,11 @@ export default async function LanaTrendsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-2 pt-2">
-        <h1 className="text-2xl font-bold">{summary.subject.name} · Trends</h1>
+      <header className="page-header flex items-center justify-between gap-2">
+        <h1 className="page-title">{summary.subject.name} · Trends</h1>
         <div className="flex gap-2">
           <Link href="/lana/export" className="btn">
-            🖨️ For the doctor
+            <Icon name="printer" size={20} /> For the doctor
           </Link>
           <Link href="/lana" className="btn">
             Day by day

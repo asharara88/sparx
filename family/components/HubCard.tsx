@@ -51,7 +51,7 @@ export function HubCard() {
     <section className="card" aria-labelledby="hub-h">
       <div className="flex items-baseline justify-between">
         <h2 id="hub-h" className="text-xl font-semibold">
-          📡 Around the house
+          Around the house
         </h2>
         {admin && (
           <Link href="/house/hub" className="text-sm font-semibold text-[var(--accent)]">

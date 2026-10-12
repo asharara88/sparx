@@ -94,7 +94,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
+        <h2 className="text-lg font-semibold">{title}</h2>
         <p className="muted">{hint}</p>
       </div>
       <label className="flex flex-col gap-1">

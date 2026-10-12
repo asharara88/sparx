@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { ago, describePayload, fmtTime } from "@/lib/time";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +50,7 @@ export default async function HandoverPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Handover · {s.subject.name}</h1>
-      </header>
+      <PageHeader back="/" title={<>Handover · {s.subject.name}</>} />
       <section className="card">
         <p className="muted">
           {s.custody?.name ? `${s.custody.name} has ${s.subject.name} right now.` : `Nobody is marked as having ${s.subject.name}.`}

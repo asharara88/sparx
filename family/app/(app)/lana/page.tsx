@@ -5,6 +5,7 @@ import type { EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { DayStrip } from "@/components/DayStrip";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -41,21 +42,19 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-2 pt-2">
-        <Link href={`/lana?d=${addDays(day, -1)}`} className="btn" aria-label="Previous day">
-          ‹
+      <header className="page-header flex items-center justify-between gap-2">
+        <Link href={`/lana?d=${addDays(day, -1)}`} className="icon-btn" aria-label="Previous day">
+          <Icon name="back" size={24} />
         </Link>
-        <h1 className="text-center text-2xl font-bold">
+        <h1 className="page-title text-center">
           {summary.subject.name} · {label}
         </h1>
         <Link
           href={`/lana?d=${addDays(day, 1)}`}
-          className="btn"
-          aria-label="Next day"
+          className="icon-btn" aria-label="Next day"
           aria-disabled={day >= today}
-          style={day >= today ? { visibility: "hidden" } : undefined}
-        >
-          ›
+          style={day >= today ? { visibility: "hidden" } : undefined}>
+          <Icon name="forward" size={24} />
         </Link>
       </header>
 

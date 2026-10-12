@@ -43,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <MeProvider me={me}>
       <div data-size={large ? "large" : undefined} className="mx-auto flex min-h-dvh max-w-2xl flex-col">
         {me.preview && <PreviewBanner name={me.member.display_name} role={me.role.label} />}
-        <main className="flex-1 p-4 pb-28">{children}</main>
+        <main className="flex-1">{children}</main>
         <AskButton />
         <Nav />
         <OfflineFlusher />

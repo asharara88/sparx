@@ -27,7 +27,7 @@ export function HouseholdForm({ household }: { household: Household }) {
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">Household</h2>
+      <h2 className="text-lg font-semibold">Household</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Name</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />

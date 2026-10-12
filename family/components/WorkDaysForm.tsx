@@ -23,7 +23,7 @@ export function WorkDaysForm({ memberId, initial }: { memberId: string; initial:
 
   return (
     <section className="card">
-      <h2 className="text-xl font-semibold">Work days</h2>
+      <h2 className="text-lg font-semibold">Work days</h2>
       <p className="muted">Leave all off for family members.</p>
       <div className="mt-3 grid grid-cols-7 gap-1">
         {order.map((d) => (

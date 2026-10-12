@@ -12,7 +12,7 @@ export default async function AskPage() {
   if (!can(me, "assistant", "view")) {
     return (
       <div className="card mt-4">
-        <h1 className="text-2xl font-bold">Ask</h1>
+        <h1 className="page-title">Ask</h1>
         <p className="mt-2">The assistant is not switched on for your role. Ask Mido or Dana.</p>
       </div>
     );

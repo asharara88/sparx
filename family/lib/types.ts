@@ -395,11 +395,11 @@ export interface Attachment {
   created_by_name: string | null;
 }
 export type TicketStatus = "open" | "in_progress" | "waiting" | "done";
-export const TICKET_STATUS: { id: TicketStatus; label: string; icon: string }[] = [
-  { id: "open", label: "Open", icon: "🔴" },
-  { id: "in_progress", label: "In progress", icon: "🟠" },
-  { id: "waiting", label: "Waiting", icon: "🟡" },
-  { id: "done", label: "Done", icon: "✅" },
+export const TICKET_STATUS: { id: TicketStatus; label: string; icon: string; tone: "danger" | "warn" | "accent" | "ok" }[] = [
+  { id: "open", label: "Open", icon: "🔴", tone: "danger" },
+  { id: "in_progress", label: "In progress", icon: "🟠", tone: "warn" },
+  { id: "waiting", label: "Waiting", icon: "🟡", tone: "accent" },
+  { id: "done", label: "Done", icon: "✅", tone: "ok" },
 ];
 export interface Ticket {
   id: string;

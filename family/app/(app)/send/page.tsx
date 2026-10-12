@@ -35,7 +35,7 @@ export default async function SendPage() {
       />
       {can(me, "maintenance", "add") && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-2xl font-bold">Something broken?</h2>
+          <h2 className="text-xl font-bold">Something broken?</h2>
           <p className="muted">Take a photo, say what it is, send.</p>
           <TicketForm assets={[]} simple />
           <Link href="/house" className="text-sm font-semibold text-[var(--accent)]">

@@ -79,7 +79,7 @@ export function NotificationsToggle() {
 
   return (
     <div className="card">
-      <h2 className="text-xl font-semibold">Notifications</h2>
+      <h2 className="text-lg font-semibold">Notifications</h2>
       <p className="muted mt-1 text-sm">The morning brief at 7, things to approve, a reminder before an appointment{me.role.id === "admin" ? ", Lilly's running-low requests, urgent tickets" : ""}.</p>
       {here === "unsupported" && <p className="mt-2">{KEY ? "This browser cannot receive notifications." : "Notifications are not set up on the server yet."}</p>}
       {here === "blocked" && <p className="mt-2">Notifications are blocked for this site. Allow them in the phone's settings, then come back.</p>}

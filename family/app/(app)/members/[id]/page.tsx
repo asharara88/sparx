@@ -6,6 +6,7 @@ import { can } from "@/lib/types";
 import { MemberForm } from "@/components/MemberForm";
 import { WorkDaysForm } from "@/components/WorkDaysForm";
 import { PresenceForm } from "@/components/PresenceForm";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,7 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/members" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">{isNew ? "Add a member" : m!.display_name}</h1>
-      </header>
+      <PageHeader back="/members" title={<>{isNew ? "Add a member" : m!.display_name}</>} />
       <MemberForm member={m} roles={roles as Role[]} isSelf={m?.id === me.member.id} />
       {!isNew && (
         <>

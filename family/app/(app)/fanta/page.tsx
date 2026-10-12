@@ -5,6 +5,7 @@ import type { DueItem, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtTime, todayYmd } from "@/lib/time";
 import { FantaCard } from "@/components/FantaCard";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -36,13 +37,13 @@ export default async function FantaPage({ searchParams }: { searchParams: Promis
   return (
     <div className="flex flex-col gap-4">
       {day === today && <FantaCard summary={summary} due={due} />}
-      <header className="flex items-center justify-between gap-2 pt-2">
-        <Link href={`/fanta?d=${addDays(day, -1)}`} className="btn" aria-label="Previous day">
-          ‹
+      <header className="page-header flex items-center justify-between gap-2">
+        <Link href={`/fanta?d=${addDays(day, -1)}`} className="icon-btn" aria-label="Previous day">
+          <Icon name="back" size={24} />
         </Link>
-        <h2 className="text-center text-xl font-bold">{label}</h2>
-        <Link href={`/fanta?d=${addDays(day, 1)}`} className="btn" aria-label="Next day" style={day >= today ? { visibility: "hidden" } : undefined}>
-          ›
+        <h2 className="page-title text-center">{label}</h2>
+        <Link href={`/fanta?d=${addDays(day, 1)}`} className="icon-btn" aria-label="Next day" style={day >= today ? { visibility: "hidden" } : undefined}>
+          <Icon name="forward" size={24} />
         </Link>
       </header>
       {entries.length === 0 ? (

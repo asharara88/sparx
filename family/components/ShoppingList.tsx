@@ -7,6 +7,7 @@ import { CATEGORIES, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ItemForm } from "./ItemForm";
+import { Icon } from "@/components/Icon";
 
 export function ShoppingList({ data, members }: { data: ShoppingData; members: { id: string; name: string }[] }) {
   const me = useMe();
@@ -49,7 +50,7 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
                     onClick={() => setNeeded(i, !i.needed)}
                     disabled={busy === i.id || !(can(me, "shopping", "edit") || i.owner_member === me.member.id)}
                   >
-                    {i.needed ? "" : "✓"}
+                    {i.needed ? "" : <Icon name="check" size={18} />}
                   </button>
                   <Link href={`/shopping/${i.id}`} className="flex-1">
                     <span className="block font-semibold">{i.name}</span>
@@ -71,8 +72,8 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between pt-2">
-        <h1 className="text-2xl font-bold">Shopping</h1>
+      <header className="page-header page-header-large flex items-center justify-between">
+        <h1 className="page-title">Shopping</h1>
         {can(me, "shopping_review", "view") && (
           <Link href="/shopping/requests" className="btn">
             Requests{data.pending_requests ? ` (${data.pending_requests})` : ""}
@@ -89,10 +90,10 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
       {canAdd && (
         <div className="grid grid-cols-2 gap-2">
           <Link href="/shopping/receipts" className="btn">
-            📷 Receipt{data.receipts_to_check ? ` (${data.receipts_to_check})` : ""}
+            <Icon name="camera" size={20} /> Receipt{data.receipts_to_check ? ` (${data.receipts_to_check})` : ""}
           </Link>
           <Link href="/shopping/cart" className="btn">
-            🛒 Fill a cart{data.open_carts ? ` (${data.open_carts})` : ""}
+            <Icon name="cart" size={20} /> Fill a cart{data.open_carts ? ` (${data.open_carts})` : ""}
           </Link>
         </div>
       )}

@@ -33,7 +33,7 @@ export function PresenceForm({ memberId, states, history, title = "Presence" }: 
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">{title}</h2>
+      <h2 className="text-lg font-semibold">{title}</h2>
       {current && (
         <p className="muted">
           Now: <b>{states.find((s) => s.id === current.state_id)?.label ?? current.state_id}</b> from {current.starts_on}

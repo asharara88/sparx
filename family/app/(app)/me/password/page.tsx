@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PasswordForm } from "@/components/PasswordForm";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -8,12 +9,7 @@ export default async function PasswordPage({ searchParams }: { searchParams: Pro
   const { reset } = await searchParams;
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/me" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Password</h1>
-      </header>
+      <PageHeader back="/me" title="Password" />
       <PasswordForm afterReset={reset === "1"} />
     </div>
   );

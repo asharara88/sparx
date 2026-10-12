@@ -27,7 +27,7 @@ export function PasswordForm({ afterReset = false }: { afterReset?: boolean }) {
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">{afterReset ? "Choose a new password" : "Change password"}</h2>
+      <h2 className="text-lg font-semibold">{afterReset ? "Choose a new password" : "Change password"}</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">New password</span>
         <input className="input" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />

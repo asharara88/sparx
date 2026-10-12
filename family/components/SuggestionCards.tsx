@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import type { PlanEntry, Suggestion } from "@/lib/types";
 import { EVENT_KINDS } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Icon, type IconName } from "@/components/Icon";
 
 const APPROVE: Record<Suggestion["kind"], string> = { reorder: "Add to the list", due: "Open", request: "Review", ticket: "Open", plan: "Put on the calendar" };
-const ICON: Record<Suggestion["kind"], string> = { reorder: "🛒", due: "💉", request: "📥", ticket: "🔥", plan: "🗓️" };
+const ICON: Record<Suggestion["kind"], IconName> = { reorder: "cart", due: "syringe", request: "inbox", ticket: "flame", plan: "calendar" };
 
 /**
  * Approve / dismiss cards: what the data suggests doing today. Approving performs
@@ -57,7 +58,7 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
         return (
           <article key={s.id} className="card border-2 border-[var(--accent)]">
             <p className="text-lg font-bold">
-              <span aria-hidden>{ICON[s.kind]} </span>
+              <span className="tile-icon" style={{ width: 32, height: 32 }}><Icon name={ICON[s.kind]} size={18} /></span> 
               {s.href && s.kind !== "plan" ? (
                 <Link href={s.href} className="underline decoration-dotted">
                   {s.title}

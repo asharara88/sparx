@@ -55,7 +55,7 @@ export function TicketForm({ assets, simple = false, afterSave = "/house" }: { a
 
   return (
     <form onSubmit={submit} className="card flex flex-col gap-3">
-      {!simple && <h1 className="text-2xl font-bold">Something to fix</h1>}
+      {!simple && <h1 className="page-title">Something to fix</h1>}
       {done && (
         <p role="status" className="rounded-xl border-2 border-green-700 bg-green-50 p-3 font-semibold text-green-900">
           {done}
@@ -81,7 +81,7 @@ export function TicketForm({ assets, simple = false, afterSave = "/house" }: { a
           <div className="flex flex-wrap gap-2" role="group" aria-label="Priority">
             {(["low", "normal", "urgent"] as const).map((p) => (
               <button key={p} type="button" className="chip" aria-pressed={priority === p} onClick={() => setPriority(p)}>
-                {p === "urgent" ? "🔥 " : ""}
+                
                 {p[0].toUpperCase() + p.slice(1)}
               </button>
             ))}

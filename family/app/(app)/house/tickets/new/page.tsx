@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Asset, Me } from "@/lib/types";
 import { can } from "@/lib/types";
 import { TicketForm } from "@/components/TicketForm";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,9 @@ export default async function NewTicketPage() {
   const assets = ((data as { assets?: Asset[] })?.assets ?? []) as Asset[];
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/house" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header flex items-center gap-2">
+        <Link href="/house" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
       </header>
       <TicketForm assets={assets} />

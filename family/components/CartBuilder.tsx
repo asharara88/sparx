@@ -7,6 +7,7 @@ import { SUBSTITUTIONS, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/time";
+import { PageHeader } from "@/components/PageHeader";
 
 /** Pick a shop and the items to put in its cart; the substitution rule sits on each item. */
 export function CartBuilder({ data, runs }: { data: ShoppingData; runs: CartRunRow[] }) {
@@ -51,12 +52,7 @@ export function CartBuilder({ data, runs }: { data: ShoppingData; runs: CartRunR
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/shopping" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Fill a cart</h1>
-      </header>
+      <PageHeader back="/shopping" title="Fill a cart" />
       <p className="muted text-sm">Pick the shop and the items. You get the instructions for the cart agent; it fills the cart and stops at checkout. You pay.</p>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Shop">
