@@ -624,7 +624,35 @@ select pg_temp.assert(public.has_permission('lana', 'view') and public.current_m
 select pg_temp.assert((select count(*) from (select public.has_permission('lana', 'view') from generate_series(1, 2000)) x where has_permission) = 2000, '2000 permission checks in one statement');
 reset role;
 
+-- Family chat (migration 1700): everyone posts, deletes their own; admin deletes any; assistant on for all
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.me())#>>'{permissions,chat,view}' = 'true' and (public.me())#>>'{permissions,chat,add}' = 'true', 'Lilly can read and post in the family chat');
+select pg_temp.assert((public.me())#>>'{permissions,assistant,view}' = 'true', 'the assistant is on for Lilly again');
+select pg_temp.assert((public.me())#>>'{permissions,photos,add}' = 'true', 'and she can add photos');
+select pg_temp.assert((public.chat_send('Lana is asleep, going to the shop', null))->>'ok' = 'true', 'Lilly posts a message');
+select pg_temp.assert((public.chat_send('', 'chat/0d1f7a1e-6b0e-4e21-9d6a-5a0a2b6c7d8e.jpg'))->>'ok' = 'true', 'and a photo on its own');
+select pg_temp.assert((public.chat_send('', null))->>'error' = 'empty', 'but not nothing');
+select pg_temp.assert((public.chat_send('x', '../etc/passwd'))->>'error' = 'bad_photo', 'and not a photo outside the chat folder');
+select pg_temp.assert(jsonb_array_length((public.chat_list())->'messages') = 2, 'she sees both');
+select pg_temp.assert((select bool_and((x->>'mine')::boolean) from jsonb_array_elements((public.chat_list())->'messages') x), 'both are hers');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.chat_send('Thank you Lilly', null))->>'ok' = 'true', 'Wafa replies');
+select pg_temp.assert((public.chat_remove((select id from public.family_messages where body like 'Lana is asleep%')))->>'error' = 'not_allowed', 'Wafa cannot delete Lilly''s message');
+select pg_temp.assert((public.chat_remove((select id from public.family_messages where body = 'Thank you Lilly')))->>'ok' = 'true', 'but can delete her own');
+select pg_temp.assert(jsonb_array_length((public.chat_list())->'messages') = 2, 'two left');
+select pg_temp.assert((select author_name from (select x->>'author_name' as author_name from jsonb_array_elements((public.chat_list())->'messages') x limit 1) y) = 'Lilly', 'with the author''s name');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.chat_remove((select id from public.family_messages where body like 'Lana is asleep%')))->>'ok' = 'true', 'Mido can delete anyone''s message');
+select pg_temp.assert(jsonb_array_length((public.chat_list())->'messages') = 1, 'one left');
+select pg_temp.assert(not exists (select 1 from information_schema.role_table_grants where table_name = 'family_messages' and grantee = 'authenticated' and privilege_type in ('INSERT', 'UPDATE', 'DELETE')), 'chat writes go through the RPCs');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

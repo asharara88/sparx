@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 /**
- * Two breasts you tap. Left starts the left side, right starts the right.
+ * Two boobs you tap, named "Left boob" and "Right boob". Left starts the left side, right the right.
  * While feeding, the active one glows, drips and shows the stopwatch; tapping
  * it finishes, tapping the other one switches side. The side that is "due"
  * (opposite to the last feed) wears a little tag so Dana never has to remember.
@@ -33,7 +33,7 @@ export function Boobs({
       {(["Left", "Right"] as const).map((side) => {
         const isActive = active === side;
         const isOther = active !== null && !isActive;
-        const label = isActive ? `${side} feeding, ${elapsed ?? ""}. Tap to finish.` : isOther ? `Switch to ${side.toLowerCase()}` : `Start ${side.toLowerCase()} side`;
+        const label = isActive ? `${side} boob feeding, ${elapsed ?? ""}. Tap to finish.` : isOther ? `Switch to ${side.toLowerCase()} boob` : `Start ${side.toLowerCase()} boob`;
         return (
           <button
             key={side}
@@ -78,7 +78,7 @@ export function Boobs({
                 <span className="tabular-nums">{elapsed}</span>
               ) : (
                 <>
-                  {side}
+                  {side} boob
                   {counts[side] > 0 && (
                     <span className="boob-count" aria-label={`${counts[side]} today`}>
                       {" "}
