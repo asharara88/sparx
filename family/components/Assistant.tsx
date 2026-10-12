@@ -8,6 +8,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
+import { speechLang, type Lang } from "@/lib/i18n";
+import type { AskChat } from "@/lib/types";
 
 /**
  * The Ask screen. Type or speak a question; the answer cites the log. If you ask
@@ -21,7 +23,10 @@ interface Msg {
   refs?: Record<string, AssistantRef>;
   proposals?: AssistantProposal[];
   error?: boolean;
+  /** Saved with the chat: what happened to each proposal. */
+  states?: Record<string, ProposalState>;
 }
+export type ChatSummary = Pick<AskChat, "id" | "title" | "updated_at">;
 
 type ProposalState = { status: "pending" } | { status: "saving" } | { status: "saved"; href?: string; note: string } | { status: "dropped" } | { status: "error"; message: string };
 
@@ -45,10 +50,15 @@ function recognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function Assistant({ suggestions }: { suggestions: string[] }) {
+export function Assistant({ suggestions, chats = [], initial = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null }) {
   const me = useMe();
   const router = useRouter();
+  const lang = (me.member.lang ?? "en") as Lang;
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [chatId, setChatId] = useState<string | null>(initial?.id ?? null);
+  const [showChats, setShowChats] = useState(false);
+  const [aloud, setAloud] = useState(false);
+  const spokeRef = useRef(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
@@ -60,22 +70,34 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
   const heardRef = useRef("");
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "null") as { msgs: Msg[]; pstate: Record<string, ProposalState> } | null;
-      if (saved?.msgs) {
-        setMsgs(saved.msgs);
-        setPstate(saved.pstate ?? {});
+    if (initial) {
+      // a saved chat: rebuild the messages and what happened to each proposal
+      const ms = (initial.messages as Msg[]).filter((m) => m && (m.role === "user" || m.role === "assistant"));
+      setMsgs(ms);
+      const st: Record<string, ProposalState> = {};
+      for (const m of ms) for (const [k, v] of Object.entries(m.states ?? {})) st[k] = v.status === "saving" ? { status: "pending" } : v;
+      setPstate(st);
+    } else {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "null") as { msgs: Msg[]; pstate: Record<string, ProposalState>; chatId?: string | null } | null;
+        if (saved?.msgs) {
+          setMsgs(saved.msgs);
+          setPstate(saved.pstate ?? {});
+          setChatId(saved.chatId ?? null);
+        }
+      } catch {
+        /* fresh start */
       }
-    } catch {
-      /* fresh start */
     }
     setCanSpeak(!!recognitionCtor());
     try {
       setNight(localStorage.getItem("family.ask.night") === "1");
+      setAloud(localStorage.getItem("family.ask.aloud") === "1");
     } catch {
       /* ignore */
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial?.id]);
   useEffect(() => {
     if (night) document.documentElement.setAttribute("data-theme", "night");
     else document.documentElement.removeAttribute("data-theme");
@@ -83,12 +105,41 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
   }, [night]);
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORE, JSON.stringify({ msgs, pstate }));
+      sessionStorage.setItem(STORE, JSON.stringify({ msgs, pstate, chatId }));
     } catch {
       /* ignore */
     }
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [msgs, pstate]);
+  }, [msgs, pstate, chatId]);
+
+  // Save the thread (title = the first question) after every assistant reply and every proposal outcome.
+  const saveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!msgs.some((m) => m.role === "assistant" && !m.error)) return;
+    if (saveRef.current) clearTimeout(saveRef.current);
+    saveRef.current = setTimeout(async () => {
+      const title = (msgs.find((m) => m.role === "user")?.text ?? "Chat").slice(0, 80);
+      const payload = msgs.map((m) => (m.proposals?.length ? { ...m, states: Object.fromEntries(m.proposals.map((p) => [p.id, pstate[p.id] ?? { status: "pending" }])) } : m));
+      const { data } = await supabaseBrowser().rpc("ask_chat_save", { p_id: chatId, p_title: title, p_messages: payload });
+      const res = data as { ok: boolean; id?: string } | null;
+      if (res?.ok && res.id && res.id !== chatId) setChatId(res.id);
+    }, 800);
+    return () => {
+      if (saveRef.current) clearTimeout(saveRef.current);
+    };
+  }, [msgs, pstate, chatId]);
+
+  // Read the latest answer aloud, in the member's language, when switched on.
+  useEffect(() => {
+    if (!aloud || typeof speechSynthesis === "undefined") return;
+    const lastMsg = msgs[msgs.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant" || lastMsg.error || spokeRef.current) return;
+    spokeRef.current = true;
+    const u = new SpeechSynthesisUtterance(lastMsg.text.replace(/\[[a-z]+:[^\]]+\]/g, ""));
+    u.lang = speechLang(lang);
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }, [msgs, aloud, lang]);
 
   const ask = useCallback(
     async (question: string) => {
@@ -96,6 +147,7 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
       if (!q || busy) return;
       setInput("");
       setBusy(true);
+      spokeRef.current = false;
       const turns: AssistantTurn[] = msgs.filter((m) => !m.error).map((m) => ({ role: m.role, text: m.text }));
       setMsgs((m) => [...m, { role: "user", text: q }]);
       try {
@@ -125,7 +177,7 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
     const Ctor = recognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
-    rec.lang = "en-GB";
+    rec.lang = speechLang(lang);
     rec.interimResults = true;
     rec.continuous = false;
     heardRef.current = "";
@@ -189,11 +241,29 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
   function clear() {
     setMsgs([]);
     setPstate({});
+    setChatId(null);
+    setShowChats(false);
     try {
       sessionStorage.removeItem(STORE);
     } catch {
       /* ignore */
     }
+    if (initial) router.push("/ask");
+  }
+  function toggleAloud() {
+    const v = !aloud;
+    setAloud(v);
+    if (!v && typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    try {
+      localStorage.setItem("family.ask.aloud", v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+  async function removeChat(id: string) {
+    await supabaseBrowser().rpc("ask_chat_remove", { p_id: id });
+    if (id === chatId) clear();
+    router.refresh();
   }
   function toggleNight() {
     const v = !night;
@@ -211,17 +281,45 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
     <div className="ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3">
       <header className="page-header flex items-center justify-between gap-2">
         <h1 className="page-title">Ask</h1>
-        <div className="flex gap-2">
-          <button type="button" className="btn" onClick={toggleNight} aria-pressed={night} title="Dark screen for the night">
-            <Icon name={night ? "sun" : "moon"} size={20} /> {night ? "Day" : "Night"}
+        <div className="flex gap-1">
+          <button type="button" className="icon-btn m-0" onClick={toggleAloud} aria-pressed={aloud} aria-label="Read answers aloud" title="Read answers aloud">
+            <Icon name="volume" size={22} className={aloud ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
+          </button>
+          <button type="button" className="icon-btn m-0" onClick={toggleNight} aria-pressed={night} aria-label={night ? "Day screen" : "Night screen"} title="Dark screen for the night">
+            <Icon name={night ? "sun" : "moon"} size={22} className="text-[var(--muted)]" />
+          </button>
+          <button type="button" className="icon-btn m-0" onClick={() => setShowChats((v) => !v)} aria-pressed={showChats} aria-label="Earlier chats" title="Earlier chats">
+            <Icon name="history" size={22} className={showChats ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
           </button>
           {msgs.length > 0 && (
-            <button type="button" className="btn" onClick={clear}>
-              Clear
+            <button type="button" className="btn" style={{ minHeight: 40 }} onClick={clear}>
+              New
             </button>
           )}
         </div>
       </header>
+      {showChats && (
+        <div className="card">
+          <p className="section-title mb-1">Earlier chats</p>
+          {chats.length === 0 ? (
+            <p className="muted text-sm">Nothing saved yet. Chats save themselves after the first answer.</p>
+          ) : (
+            <ul className="flex flex-col">
+              {chats.map((c) => (
+                <li key={c.id} className="row">
+                  <a href={`/ask?c=${c.id}`} className={`row-link min-w-0 grow ${c.id === chatId ? "font-semibold text-[var(--accent)]" : ""}`}>
+                    <span className="block truncate">{c.title}</span>
+                    <span className="muted block text-xs">{new Date(c.updated_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  </a>
+                  <button type="button" className="icon-btn m-0 text-[var(--muted)]" aria-label="Remove chat" onClick={() => window.confirm("Remove this chat?") && removeChat(c.id)}>
+                    <Icon name="x" size={18} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {msgs.length === 0 && (
         <div className="card">

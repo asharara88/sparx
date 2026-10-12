@@ -15,6 +15,7 @@ import { AttendanceButton } from "@/components/AttendanceButton";
 import { BottleCountdown } from "@/components/BottleCountdown";
 import { RoutineTiles } from "@/components/RoutineTiles";
 import { WORK_FROM, WORK_TO } from "@/lib/household";
+import { SimpleHome } from "@/components/SimpleHome";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,19 @@ export default async function HomePage() {
       target: me.household.milk_target_ml ?? 400,
       any: recent.some((e) => e.type_id === "lana.pump" || (e.type_id === "lana.feed" && e.payload.method === "Bottle")),
     };
+  }
+
+  if (me.member.simple_mode && summary && summary.ok) {
+    const foodType = fanta && fanta.ok ? fanta.types.find((t) => t.key === "food") : null;
+    const foodDefault = (foodType?.fields.find((f) => f.key === "food")?.default as string | undefined) ?? "½ wet pouch";
+    return (
+      <SimpleHome
+        summary={summary}
+        recent={recent}
+        milk={milkStash && milkStash.ok ? milkStash : null}
+        fantaFood={fanta && fanta.ok && foodType ? { subjectId: fanta.subject.id, typeId: foodType.id, food: foodDefault } : null}
+      />
+    );
   }
 
   return (

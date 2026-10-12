@@ -70,7 +70,8 @@ export function volatileSystem(ctx: ToolContext): string {
   const me = ctx.me;
   const nowLocal = local(ctx.now.toISOString(), ctx.tz);
   const weekday = fmtDate(ctx.now.toISOString(), ctx.tz, { weekday: "long" });
-  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). You are talking to ${me.member.display_name} (${me.role.label}).`;
+  const lang = me.member.lang === "ar" ? " Answer in simple Arabic (keep numbers, times and names as they are)." : me.member.lang === "ru" ? " Answer in simple Russian (keep numbers, times and names as they are)." : "";
+  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). You are talking to ${me.member.display_name} (${me.role.label}).${lang}`;
 }
 
 export function systemBlocks(ctx: ToolContext): Anthropic.Beta.BetaTextBlockParam[] {
