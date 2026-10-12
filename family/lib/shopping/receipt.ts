@@ -6,7 +6,7 @@ import type { Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { todayYmd } from "@/lib/time";
 import { assistantConfigured, MODEL } from "@/lib/assistant/run";
-import { anthropicApiKey } from "@/lib/server/anthropic";
+import { anthropicApiKey, anthropicOptions } from "@/lib/server/anthropic";
 
 /**
  * Read a receipt photo into lines. The model does the reading (it is far better
@@ -34,7 +34,7 @@ export type ReceiptReading = z.infer<typeof ReceiptSchema>;
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 90_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic(anthropicOptions({ timeout: 90_000 }));
   return _client;
 }
 

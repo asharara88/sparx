@@ -75,11 +75,11 @@ on conflict (id) do nothing;
 insert into public.presence (member_id, state_id, starts_on, ends_on, note)
 select v.member_id, v.state_id, current_date, v.ends_on, v.note
 from (values
-  ('00000000-0000-4000-8000-000000000001'::uuid, 'lives_here',      null::date, null),
+  ('00000000-0000-4000-8000-000000000001'::uuid, 'lives_here',      null::date, null::text),
   ('00000000-0000-4000-8000-000000000002'::uuid, 'lives_here',      null,       null),
-  ('00000000-0000-4000-8000-000000000003'::uuid, 'staying_with_us', null,       'About a 3-month visit from Egypt. Set the end date when known.'),
-  ('00000000-0000-4000-8000-000000000004'::uuid, 'away',            null,       'Lives in Dubai. Stays over when needed.'),
-  ('00000000-0000-4000-8000-000000000005'::uuid, 'away',            null,       'Staff. See work days.')
+  ('00000000-0000-4000-8000-000000000003'::uuid, 'staying_with_us', null,       null),
+  ('00000000-0000-4000-8000-000000000004'::uuid, 'away',            null,       null),
+  ('00000000-0000-4000-8000-000000000005'::uuid, 'away',            null,       null)
 ) as v(member_id, state_id, ends_on, note)
 where not exists (select 1 from public.presence p where p.member_id = v.member_id);
 
