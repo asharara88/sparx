@@ -4,7 +4,7 @@ import type { AssistantReply, AssistantTurn, AssistantUsage, Me, RpcError } from
 import { can } from "@/lib/types";
 import { buildTools, loadContext, type AssistantTool, type ToolContext } from "./tools";
 import { systemBlocks } from "./prompt";
-import { anthropicApiKey } from "@/lib/server/anthropic";
+import { anthropicApiKey, anthropicOptions } from "@/lib/server/anthropic";
 
 export const MODEL = process.env.ASSISTANT_MODEL ?? "claude-opus-5-5";
 const EFFORT = (process.env.ASSISTANT_EFFORT ?? "medium") as "low" | "medium" | "high";
@@ -17,7 +17,7 @@ export function assistantConfigured(): boolean {
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 90_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic(anthropicOptions({ timeout: 90_000 }));
   return _client;
 }
 

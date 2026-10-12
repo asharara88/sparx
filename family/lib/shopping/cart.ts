@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CartManifest, CartReport, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { assistantConfigured, MODEL } from "@/lib/assistant/run";
-import { anthropicApiKey } from "@/lib/server/anthropic";
+import { anthropicApiKey, anthropicOptions } from "@/lib/server/anthropic";
 
 /** Turn the cart agent's pasted summary into a per-item report. Nothing is saved here. */
 const ReportSchema = z.object({
@@ -23,7 +23,7 @@ const ReportSchema = z.object({
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 60_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic(anthropicOptions({ timeout: 60_000 }));
   return _client;
 }
 

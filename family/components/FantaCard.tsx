@@ -9,7 +9,7 @@ import { ago, fmtDate, fmtTime } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId } from "@/lib/offline";
 
-/** Fanta on the home screen: fed / litter in one tap, what is due, the profile card. */
+/** Fanta: fed / litter in one tap, what is due, the profile card. On the home screen (compact) just the one-line status, anything overdue, and the link. */
 export function FantaCard({ summary, due, compact = false }: { summary: HomeSummary; due: DueItem[]; compact?: boolean }) {
   const me = useMe();
   const router = useRouter();
@@ -24,7 +24,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
   const lastFood = last["fanta.food"];
   const lastLitter = last["fanta.litter"];
   const lastWeight = last["fanta.weight"];
-  const amounts = (food?.fields.find((f) => f.key === "amount_g")?.quick ?? [30, 40, 50]) as number[];
+  const foods = ((food?.fields.find((f) => f.key === "food")?.options ?? ["½ wet pouch", "Dry food"]) as string[]).filter((o) => o !== "Other");
   const mine = due.filter((d) => d.subject_id === subject.id);
   const overdue = mine.filter((d) => d.overdue);
 
@@ -70,21 +70,21 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
       )}
 
       <p className="muted text-sm">
-        {lastFood ? `Fed ${ago(lastFood.occurred_at, now)} (${fmtTime(lastFood.occurred_at, timezone)}${lastFood.payload.amount_g ? `, ${lastFood.payload.amount_g} g` : ""}${lastFood.by ? `, ${lastFood.by}` : ""})` : "Not fed yet today"}
+        {lastFood ? `Fed ${ago(lastFood.occurred_at, now)} (${fmtTime(lastFood.occurred_at, timezone)}${lastFood.payload.food ? `, ${lastFood.payload.food}` : ""}${lastFood.payload.amount_g ? `, ${lastFood.payload.amount_g} g` : ""}${lastFood.by ? `, ${lastFood.by}` : ""})` : "Not fed yet today"}
         {lastLitter ? ` · litter ${ago(lastLitter.occurred_at, now)}` : ""}
         {lastWeight ? ` · ${lastWeight.payload.weight_kg} kg` : ""}
       </p>
 
-      {canAdd && (
+      {canAdd && !compact && (
         <>
           <div className="card">
             <p className="font-semibold">
               <span aria-hidden>🍗 </span>Fed
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {amounts.map((g) => (
-                <button key={g} type="button" className="chip min-h-[56px] text-lg" disabled={busy} onClick={() => log(food?.id, { food: (lastFood?.payload.food as string) ?? "Royal Canin", amount_g: g }, `Fed ${g} g.`)}>
-                  {g} g
+              {foods.map((what) => (
+                <button key={what} type="button" className="chip min-h-[56px] text-lg" disabled={busy} onClick={() => log(food?.id, { food: what }, `Fed: ${what}.`)}>
+                  {what}
                 </button>
               ))}
               <Link href="/fanta/log/food" className="chip min-h-[56px]">
