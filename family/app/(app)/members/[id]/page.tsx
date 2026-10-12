@@ -34,7 +34,7 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
       <MemberForm member={m} roles={roles as Role[]} isSelf={m?.id === me.member.id} />
       {!isNew && (
         <>
-          <WorkDaysForm memberId={m!.id} initial={((workDays as { weekday: number }[]) ?? []).map((w) => w.weekday)} />
+          <WorkDaysForm memberId={m!.id} initial={((workDays as { weekday: number }[]) ?? []).map((w) => w.weekday)} from={m!.work_from ?? ""} to={m!.work_to ?? ""} />
           <PresenceForm memberId={m!.id} states={states as PresenceState[]} history={(presence as Presence[]) ?? []} />
         </>
       )}

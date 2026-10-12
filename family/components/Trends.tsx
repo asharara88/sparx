@@ -215,8 +215,8 @@ function Chart({
           .filter((t) => t <= max)
           .map((t) => (
             <g key={t}>
-              <line x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="#e5e5e5" />
-              <text x={padL - 4} y={y(t) + 4} fontSize="10" textAnchor="end" fill="#666">
+              <line x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
+              <text x={padL - 4} y={y(t) + 4} fontSize="10" textAnchor="end" fill="var(--muted)">
                 {fmt(t)}
               </text>
             </g>
@@ -234,7 +234,7 @@ function Chart({
                 return v > 0 ? <rect key={s.key} x={x + bw * 0.15} y={top} width={bw * 0.7} height={Math.max(1, bottom - top)} fill={s.color} /> : null;
               })}
               {i % labelEvery === 0 && (
-                <text x={x + bw / 2} y={H - 4} fontSize="9" textAnchor="middle" fill="#666">
+                <text x={x + bw / 2} y={H - 4} fontSize="9" textAnchor="middle" fill="var(--muted)">
                   {d.day.slice(5).replace("-", "/")}
                 </text>
               )}
@@ -262,7 +262,7 @@ function Chart({
   );
 }
 
-function WeightChart({ points, ageWeeks }: { points: DayStats[]; ageWeeks: (d: string) => number | null }) {
+export function WeightChart({ points, ageWeeks }: { points: { day: string; weight_kg: number | null }[]; ageWeeks: (d: string) => number | null }) {
   const W = 360;
   const H = 140;
   const padL = 34;
@@ -280,23 +280,23 @@ function WeightChart({ points, ageWeeks }: { points: DayStats[]; ageWeeks: (d: s
     <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label="Weight over time">
       {ticks.map((t) => (
         <g key={t}>
-          <line x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="#e5e5e5" />
-          <text x={padL - 4} y={y(t) + 4} fontSize="10" textAnchor="end" fill="#666">
+          <line x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
+          <text x={padL - 4} y={y(t) + 4} fontSize="10" textAnchor="end" fill="var(--muted)">
             {t.toFixed(1)}
           </text>
         </g>
       ))}
-      <polyline fill="none" stroke="#0891b2" strokeWidth="2" points={points.map((p) => `${x(p.day)},${y(Number(p.weight_kg))}`).join(" ")} />
+      <polyline fill="none" stroke="var(--accent)" strokeWidth="2" points={points.map((p) => `${x(p.day)},${y(Number(p.weight_kg))}`).join(" ")} />
       {points.map((p) => (
         <g key={p.day}>
-          <circle cx={x(p.day)} cy={y(Number(p.weight_kg))} r="3.5" fill="#0891b2" />
+          <circle cx={x(p.day)} cy={y(Number(p.weight_kg))} r="3.5" fill="var(--accent)" />
           <title>{`${p.day}: ${p.weight_kg} kg${ageWeeks(p.day) != null ? ` at ${ageWeeks(p.day)} weeks` : ""}`}</title>
         </g>
       ))}
       {points
         .filter((_, i) => i % Math.ceil(points.length / 6) === 0 || i === points.length - 1)
         .map((p) => (
-          <text key={p.day} x={x(p.day)} y={H - 4} fontSize="9" textAnchor="middle" fill="#666">
+          <text key={p.day} x={x(p.day)} y={H - 4} fontSize="9" textAnchor="middle" fill="var(--muted)">
             {ageWeeks(p.day) != null ? `${ageWeeks(p.day)} wk` : p.day.slice(5)}
           </text>
         ))}

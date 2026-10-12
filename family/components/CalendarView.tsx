@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { CalendarData, CalendarEvent, EventKind } from "@/lib/types";
+import type { CalendarData, CalendarEvent, DueItem, EventKind } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { addDays, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
@@ -24,11 +24,14 @@ export function CalendarView({
   from,
   today,
   members,
+  due = [],
 }: {
   data: CalendarData;
   from: string;
   today: string;
   members: { id: string; name: string }[];
+  /** Treatments with a due date (vaccination, deworming), shown on their day. */
+  due?: DueItem[];
 }) {
   const me = useMe();
   const [editing, setEditing] = useState<CalendarEvent | "new" | null>(null);
@@ -78,6 +81,13 @@ export function CalendarView({
               {day.working.length ? ` · Working: ${day.working.join(", ")}` : ""}
             </p>
             {guestDay && <p className="mt-1 text-sm font-semibold text-[var(--warn)]">Guest day. No contractor visits.</p>}
+            {due
+              .filter((d) => d.due_on === day.date.slice(0, 10))
+              .map((d) => (
+                <Link key={d.label + d.due_at} href={d.module_id === "fanta" ? "/fanta/profile" : "/lana"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
+                  {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
+                </Link>
+              ))}
             {events.length === 0 ? (
               <p className="muted mt-2">Nothing planned.</p>
             ) : (

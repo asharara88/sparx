@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { HomeSummary, Me, RpcError } from "@/lib/types";
+import type { BagItem, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { ago, describePayload, fmtTime } from "@/lib/time";
 import { PageHeader } from "@/components/PageHeader";
+import { BagChecklist } from "@/components/BagChecklist";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,9 @@ export default async function HandoverPage() {
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
-  const { data } = await supabase.rpc("home_summary");
+  const [{ data }, { data: bagData }] = await Promise.all([supabase.rpc("home_summary"), supabase.from("bag_items").select("*").order("sort")]);
   const s = data as HomeSummary | RpcError;
+  const bag = (bagData as BagItem[] | null) ?? [];
   if (!s.ok) redirect("/");
   const tz = s.timezone;
   const now = new Date();
@@ -87,6 +89,7 @@ export default async function HandoverPage() {
         </section>
       )}
       <p className="muted text-sm">What is in the bag comes in the next step.</p>
+      <BagChecklist items={bag} />
     </div>
   );
 }

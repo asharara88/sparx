@@ -14,7 +14,7 @@ import { NotesBoard } from "@/components/NotesBoard";
 import { AttendanceButton } from "@/components/AttendanceButton";
 import { BottleCountdown } from "@/components/BottleCountdown";
 import { RoutineTiles } from "@/components/RoutineTiles";
-import { WORK_FROM, WORK_TO } from "@/lib/household";
+import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { SimpleHome } from "@/components/SimpleHome";
 
 export const dynamic = "force-dynamic";
@@ -58,9 +58,9 @@ export default async function HomePage() {
   const staffToday = hhData && (hhData as HouseholdToday).ok ? (hhData as HouseholdToday).members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
   // Mama is away: the breastfeeding member works today and it is within her hours.
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
-  const { data: mamaRows } = can(me, "lana", "view") ? await supabase.from("members").select("id").eq("breastfeeds", true).eq("is_active", true) : { data: null };
-  const mamaIds = new Set(((mamaRows as { id: string }[] | null) ?? []).map((r) => r.id));
-  const mamaAway = hhData && (hhData as HouseholdToday).ok ? (hhData as HouseholdToday).members.some((m) => mamaIds.has(m.id) && m.works_today) && hhm >= WORK_FROM && hhm <= WORK_TO : false;
+  const mamaAway = hhData && (hhData as HouseholdToday).ok
+    ? (hhData as HouseholdToday).members.some((m) => m.breastfeeds && m.works_today && hhm >= hhmm(m.work_from, WORK_FROM) && hhm <= hhmm(m.work_to, WORK_TO))
+    : false;
   const suggestions = ((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[];
   const fanta = fantaData as HomeSummary | RpcError | null;
   const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];

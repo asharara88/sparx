@@ -102,6 +102,15 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 - **Patterns** (Lana → Trends): one thin 24-hour bar per day for two weeks: sleep dark, night
   wake-ups pale, feeds as ticks, diapers as dots. The long night stretch and nap clusters show
   without a number.
+- **Work hours** (Members → Work days): out from / back by, per member. The bottle countdown
+  uses them; so does the assistant.
+- **Large text** (Me): on by default for carers and staff, now a switch for everyone.
+- **The bag** (Lana → Handover): a checklist that is ticked as it is packed and emptied for
+  the next outing. Admins edit the list.
+- **Entry types** (Members → Entry types): admins add, rename, switch off and reorder what
+  the logs record, set "due again after N minutes", and edit each type's fields.
+- **Due on the calendar**: vaccinations and dewormings with a date show on their day.
+- **Fanta's weight** curve on her profile card. **Audit log** downloads as CSV.
 - **Member photos** (Me → tap the photo): stored in the private photos bucket; shown on
   Members and wherever a member is listed.
 - **Household facts** (Members → Household, and a Routine box per member): "Dana works 9 to 5,

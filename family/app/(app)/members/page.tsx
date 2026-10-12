@@ -69,9 +69,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           Inactive: {(inactive as { id: string; display_name: string }[]).map((m) => <Link key={m.id} href={`/members/${m.id}`} className="underline">{m.display_name}</Link>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}
         </p>
       ) : null}
-      <Link href="/members/roles" className="btn">
-        Roles and permissions
-      </Link>
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/members/roles" className="btn">
+          Roles and permissions
+        </Link>
+        <Link href="/members/types" className="btn">
+          Entry types
+        </Link>
+      </div>
       <HouseholdForm household={me.household} />
     </div>
   );

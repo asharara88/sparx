@@ -588,7 +588,31 @@ select pg_temp.assert((public.household_save(null, null, null, 150))->>'ok' = 't
 select pg_temp.assert((select bottle_interval_min from public.household) = 150, 'household carries it');
 reset role;
 
+-- Finishing (migration 1400): work hours, large text, bag, entry types
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.work_days_set(:dana, '{1,2,3,4,5}'::smallint[], '08:30'::time, '17:30'::time))->>'ok' = 'true', 'Dana''s work days and hours saved');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.household_today())->'members') m where m->>'name' = 'Dana' and m->>'work_from' = '08:30:00') = 1, 'household_today carries her hours');
+select pg_temp.assert((public.entry_type_save(null, 'lana', 'bath', 'Bath', null, null, 90, false, null, '[]'::jsonb, false, true))->>'ok' = 'true', 'an admin adds an entry type');
+select pg_temp.assert((select label from public.care_entry_types where id = 'lana.bath') = 'Bath', 'it exists');
+select pg_temp.assert((public.entry_type_save('lana.bath', 'lana', 'bath', 'Bath time', null, null, 90, false, null, '[]'::jsonb, false, false))->>'ok' = 'true', 'and switches it off');
+select pg_temp.assert((public.entry_type_save(null, 'lana', 'Bad Key', 'x'))->>'error' = 'bad_key', 'bad keys rejected');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.me_large_text_set(true))->>'ok' = 'true', 'Wafa turns on large text');
+select pg_temp.assert((public.bag_toggle('00000000-0000-4000-8000-00000000d001', true))->>'ok' = 'true', 'Wafa ticks the diapers');
+select pg_temp.assert((select checked from public.bag_items where id = '00000000-0000-4000-8000-00000000d001'), 'ticked');
+select pg_temp.assert((public.bag_reset())->>'ok' = 'true', 'and resets the bag');
+select pg_temp.assert((select count(*) from public.bag_items where checked) = 0, 'everything unticked');
+select pg_temp.assert((public.entry_type_save(null, 'lana', 'swim', 'Swim'))->>'error' = 'not_allowed', 'Wafa cannot add entry types');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.bag_items) = 0, 'Lilly does not see the bag');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

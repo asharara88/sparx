@@ -1,5 +1,12 @@
 # LATER — scope noticed while building, parked per PLAN.md "Rules for every step"
 
+Done since: push (Step 6), handover bag checklist, Fanta entry types and profile, photos with
+OCR, entry-type settings screen, per-member large text, due items on the calendar, Arabic and
+Russian for the voice helper and the simple screen, saved chats, freezer stock (milk stash),
+structured work hours, Fanta's weight curve, audit CSV export. Still parked: WhatsApp, monthly
+repeats and per-occurrence edits, 6-digit sign-in codes, feed interval per time of day,
+proposals for presence / tickets / custody, streaming answers, a server-side PDF.
+
 Not built. Each line is a candidate for the step named, or for a decision.
 
 ## Step 2 (remaining after the Step 2 build)
