@@ -4,7 +4,7 @@ import type { AssistantReply, AssistantTurn, AssistantUsage, Me, RpcError } from
 import { can } from "@/lib/types";
 import { buildTools, loadContext, type AssistantTool, type ToolContext } from "./tools";
 import { systemBlocks } from "./prompt";
-import { anthropicApiKey, anthropicOptions } from "@/lib/server/anthropic";
+import { anthropicOptions, modelConfigured } from "@/lib/server/anthropic";
 
 export const MODEL = process.env.ASSISTANT_MODEL ?? "claude-opus-5-5";
 const EFFORT = (process.env.ASSISTANT_EFFORT ?? "medium") as "low" | "medium" | "high";
@@ -12,7 +12,7 @@ const MAX_ROUNDS = 8;
 const MAX_TURNS = 12;
 
 export function assistantConfigured(): boolean {
-  return !!anthropicApiKey();
+  return modelConfigured();
 }
 
 let _client: Anthropic | null = null;
