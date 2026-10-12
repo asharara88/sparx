@@ -597,6 +597,7 @@ select pg_temp.assert((public.entry_type_save(null, 'lana', 'bath', 'Bath', null
 select pg_temp.assert((select label from public.care_entry_types where id = 'lana.bath') = 'Bath', 'it exists');
 select pg_temp.assert((public.entry_type_save('lana.bath', 'lana', 'bath', 'Bath time', null, null, 90, false, null, '[]'::jsonb, false, false))->>'ok' = 'true', 'and switches it off');
 select pg_temp.assert((public.entry_type_save(null, 'lana', 'Bad Key', 'x'))->>'error' = 'bad_key', 'bad keys rejected');
+select pg_temp.assert((public.entry_type_save('lana.feed', 'lana', 'feed', 'Feed', null, null, 10, false, 180, (select fields from public.care_entry_types where id = 'lana.feed'), true, true))->>'ok' = 'true' and (select color from public.care_entry_types where id = 'lana.feed') = '#2563eb', 'editing a type without a colour keeps its colour');
 reset role;
 select pg_temp.act_as(:wafa);
 set role authenticated;

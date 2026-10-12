@@ -22,7 +22,8 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const supabase = await createClient();
   const { data: meData } = await supabase.rpc("me");
-  const me = meData as Me;
+  const me = meData as Me | null;
+  if (!me || !me.ok) redirect("/login");
   // Staff get the simplest screen in the product.
   if (!can(me, "lana", "view") && can(me, "shopping_requests", "add")) redirect("/send");
 

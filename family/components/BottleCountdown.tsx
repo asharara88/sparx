@@ -10,13 +10,15 @@ import { Icon } from "@/components/Icon";
  * next bottle is due (last feed + the household's bottle interval). Ticks every minute.
  */
 export function BottleCountdown({ milk, lastFeedAt, mamaAway, timezone }: { milk: MilkData; lastFeedAt: string | null; mamaAway: boolean; timezone: string }) {
-  const [now, setNow] = useState(() => Date.now());
+  // Set after mount so the server and the phone render the same HTML.
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
   const nextAt = lastFeedAt ? new Date(lastFeedAt).getTime() + milk.bottle_interval_min * 60_000 : null;
-  const minLeft = nextAt ? Math.round((nextAt - now) / 60_000) : null;
+  const minLeft = nextAt && now ? Math.round((nextAt - now) / 60_000) : null;
   const low = milk.fridge_ml < milk.target_ml;
   const next = milk.bottles.find((b) => b.location === "fridge" && !b.expired);
   return (
