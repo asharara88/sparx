@@ -81,6 +81,19 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   member sees it, read only, with a banner and a “Back to me” button. The database treats the
   session as that member and refuses every write, so nothing can be logged in their name;
   denied attempts are audited with who was previewing. Needs `SUPABASE_JWT_SECRET` on the server.
+- **Notes board** (home and `/notes`): short notes for the house. "Just for me" keeps a note
+  private to whoever wrote it (a grandmother's own log); admins can pin.
+- **Lilly's check-in** (top of her Send screen): "I'm here" / "Leaving". The home screen shows
+  "Lilly here since 9:02"; admins can mark her in or out from there.
+- **Milk stash** (`/lana/milk`, and the bottle line on the home screen): every bottle in the
+  fridge or freezer, oldest first, with how long it keeps (fridge 4 days, frozen 6 months,
+  thawed 24 h, warmed 2 h). Thaw, Warmed, Used, Bin are one tap. While Dana is at work the home
+  screen counts down to the next bottle (last feed + the household's bottle interval).
+- **Fanta's routines** (her page, and on the home screen when something is due): "every N
+  days" tiles: litter full change, brushing, flea and tick, deworming, weighing. Done logs the
+  linked entry. Admins edit them at `/fanta/routines`.
+- **Member photos** (Me → tap the photo): stored in the private photos bucket; shown on
+  Members and wherever a member is listed.
 - **Household facts** (Members → Household, and a Routine box per member): "Dana works 9 to 5,
   out by 8:30, pumps before leaving", "we aim for 400 ml in the fridge". The assistant, the
   brief and the plan read them; the home screen shows the day's pumped milk against the target.

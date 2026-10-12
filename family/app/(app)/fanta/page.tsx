@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { DueItem, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
+import type { DueItem, EntryRow, HomeSummary, Me, RoutinesData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtTime, todayYmd } from "@/lib/time";
 import { FantaCard } from "@/components/FantaCard";
 import { Icon } from "@/components/Icon";
+import { RoutineTiles } from "@/components/RoutineTiles";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +24,13 @@ export default async function FantaPage({ searchParams }: { searchParams: Promis
   if (!subj) redirect("/");
   const subjectId = (subj as { id: string }).id;
   const { from, to } = dayRange(day, tz);
-  const [{ data: sumData }, { data: dueData }, { data: listData }] = await Promise.all([
+  const [{ data: sumData }, { data: dueData }, { data: listData }, { data: routData }] = await Promise.all([
     supabase.rpc("home_summary", { p_subject_id: subjectId }),
     supabase.rpc("care_due_list", { p_days_ahead: 60 }),
     supabase.rpc("care_entries_list", { p_subject_id: subjectId, p_from: from, p_to: to }),
+    supabase.rpc("routines_list", { p_subject_id: subjectId }),
   ]);
+  const routines = routData as RoutinesData | RpcError;
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/");
   const due = ((dueData as { items?: DueItem[] })?.items ?? []) as DueItem[];
@@ -37,6 +40,7 @@ export default async function FantaPage({ searchParams }: { searchParams: Promis
   return (
     <div className="flex flex-col gap-4">
       {day === today && <FantaCard summary={summary} due={due} />}
+      {day === today && routines.ok && <RoutineTiles routines={routines.routines} module="fanta" editHref="/fanta/routines" />}
       <header className="page-header flex items-center justify-between gap-2">
         <Link href={`/fanta?d=${addDays(day, -1)}`} className="icon-btn" aria-label="Previous day">
           <Icon name="back" size={24} />

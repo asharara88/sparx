@@ -13,6 +13,12 @@ export interface Member {
   breastfeeds: boolean;
   /** Free text the assistant reads: "works 9 to 5, out by 8:30, pumps before leaving". */
   routine?: string | null;
+  /** Storage path of the member's photo in the photos bucket. */
+  photo_path?: string | null;
+  /** Language for the simple screen and the voice helper. */
+  lang?: "en" | "ar" | "ru";
+  /** The big four-button home screen instead of the full one. */
+  simple_mode?: boolean;
 }
 
 export interface Role {
@@ -53,6 +59,8 @@ export interface Household {
   notes?: string | null;
   /** How much pumped milk the family wants in the fridge for the day. */
   milk_target_ml?: number;
+  /** Minutes between bottles while Mama is at work. */
+  bottle_interval_min?: number;
 }
 
 export interface Me {
@@ -746,4 +754,86 @@ export interface HubState {
   unit: string | null;
   last_changed: string | null;
   attributes?: Record<string, unknown>;
+}
+
+// ---- adopted features (migration 1300) ---------------------------------------------------
+
+export interface Note {
+  id: string;
+  body: string;
+  author: string | null;
+  author_name: string | null;
+  is_private: boolean;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+  mine: boolean;
+}
+export interface NotesData {
+  ok: true;
+  notes: Note[];
+}
+
+export interface AttendanceOpen {
+  member_id: string;
+  name: string;
+  in_at: string;
+}
+export interface AttendanceVisit extends AttendanceOpen {
+  id: string;
+  out_at: string | null;
+}
+export interface AttendanceData {
+  ok: true;
+  open: AttendanceOpen[];
+  today: AttendanceVisit[];
+}
+
+export interface MilkBottle {
+  id: string;
+  amount_ml: number;
+  pumped_at: string;
+  location: "fridge" | "freezer";
+  thawed_at: string | null;
+  warmed_at: string | null;
+  expires_at: string;
+  expired: boolean;
+  note: string | null;
+}
+export interface MilkData {
+  ok: true;
+  bottles: MilkBottle[];
+  fridge_ml: number;
+  freezer_ml: number;
+  fridge_count: number;
+  freezer_count: number;
+  target_ml: number;
+  bottle_interval_min: number;
+}
+
+export interface Routine {
+  id: string;
+  label: string;
+  every_days: number;
+  type_id: string | null;
+  payload: Record<string, unknown>;
+  last_done: string | null;
+  due_on: string | null;
+  days_left: number | null;
+  sort: number;
+  is_active: boolean;
+}
+export interface RoutinesData {
+  ok: true;
+  today: string;
+  routines: Routine[];
+}
+
+export interface AskChat {
+  id: string;
+  member_id: string;
+  title: string;
+  messages: unknown[];
+  created_at: string;
+  updated_at: string;
 }

@@ -44,7 +44,7 @@ export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSum
 
       {milk && milk.any && (
         <p className="muted text-sm">
-          <Icon name="bottle" size={16} className="inline" /> Milk for today: {milk.pumped} ml pumped since last evening
+          <Icon name="droplet" size={16} className="inline" /> {milk.pumped} ml pumped since last evening
           {milk.pumped < milk.target ? <span className="font-semibold text-[var(--warn)]"> (aim {milk.target})</span> : ` (aim ${milk.target})`}
           {milk.given > 0 ? ` · ${milk.given} ml given from the fridge` : ""}
           {milk.pumped > 0 ? ` · about ${Math.max(0, milk.pumped - milk.given)} ml left` : ""}
@@ -52,7 +52,10 @@ export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSum
       )}
       <DayStrip entries={recent} day={today} timezone={timezone} nowIso={now.toISOString()} title="Lana's day so far" />
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
+        <Link href="/lana/milk" className="btn">
+          Milk
+        </Link>
         <Link href="/lana" className="btn">
           Day by day
         </Link>
