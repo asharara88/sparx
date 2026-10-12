@@ -6,6 +6,7 @@ import { PresenceForm } from "@/components/PresenceForm";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationsToggle } from "@/components/NotificationsToggle";
 import { Icon, type IconName } from "@/components/Icon";
+import { AvatarUpload } from "@/components/AvatarUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,14 @@ export default async function MePage() {
   ]);
   return (
     <div className="flex flex-col gap-4">
-      <header className="page-header page-header-large">
-        <h1 className="page-title">{me.member.display_name}</h1>
-        <p className="muted">
-          {me.role.label} · {me.member.email}
-        </p>
+      <header className="page-header page-header-large flex items-center gap-4">
+        <AvatarUpload name={me.member.display_name} path={me.member.photo_path} />
+        <div className="min-w-0">
+          <h1 className="page-title">{me.member.display_name}</h1>
+          <p className="muted truncate">
+            {me.role.label} · {me.member.email}
+          </p>
+        </div>
       </header>
       {me.work_days.length > 0 && (
         <div className="card">
@@ -32,9 +36,11 @@ export default async function MePage() {
           <p className="muted text-sm">Ask Mido or Dana to change these.</p>
         </div>
       )}
-      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "maintenance", "view") || can(me, "assistant", "view") || can(me, "fanta", "view")) && (
+      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "maintenance", "view") || can(me, "assistant", "view") || can(me, "fanta", "view") || can(me, "notes", "view")) && (
         <div className="grid grid-cols-2 gap-3">
           {can(me, "assistant", "view") && <Tile href="/ask" icon="chat" label="Ask" />}
+          {can(me, "notes", "view") && <Tile href="/notes" icon="note" label="Notes" />}
+          {can(me, "lana", "view") && <Tile href="/lana/milk" icon="bottle" label="Milk stash" />}
           {can(me, "maintenance", "view") && <Tile href="/house" icon="house" label="The house" />}
           {can(me, "fanta", "view") && <Tile href="/fanta" icon="cat" label="Fanta" />}
           {can(me, "members", "edit") && <Tile href="/members" icon="users" label="Members" />}

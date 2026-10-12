@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, MaintenanceOverview, Me, RpcError, ShoppingData, Suggestion } from "@/lib/types";
+import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, MaintenanceOverview, Me, MilkData, NotesData, RoutinesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
 import { LanaCard } from "@/components/LanaCard";
@@ -10,6 +10,11 @@ import { FantaCard } from "@/components/FantaCard";
 import { HouseCard } from "@/components/HouseCard";
 import { BriefCard } from "@/components/BriefCard";
 import { SuggestionCards } from "@/components/SuggestionCards";
+import { NotesBoard } from "@/components/NotesBoard";
+import { AttendanceButton } from "@/components/AttendanceButton";
+import { BottleCountdown } from "@/components/BottleCountdown";
+import { RoutineTiles } from "@/components/RoutineTiles";
+import { WORK_FROM, WORK_TO } from "@/lib/household";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +35,7 @@ export default async function HomePage() {
     ? await supabase.from("care_subjects").select("id").eq("module_id", "fanta").eq("is_active", true).order("sort").limit(1).maybeSingle()
     : { data: null };
   const fantaId = (fantaSubj as { id: string } | null)?.id ?? null;
-  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: fantaData }, { data: dueData }, { data: houseData }, { data: sugData }] = await Promise.all([
+  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: fantaData }, { data: dueData }, { data: houseData }, { data: sugData }, { data: notesData }, { data: attData }, { data: milkData }, { data: routData }] = await Promise.all([
     supabase.rpc("household_today"),
     can(me, "lana", "view") ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
     can(me, "calendar", "view") ? supabase.rpc("calendar_list", { p_from: today, p_to: addDays(today, 1) }) : Promise.resolve({ data: null }),
@@ -39,7 +44,22 @@ export default async function HomePage() {
     can(me, "fanta", "view") || can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
     can(me, "maintenance", "view") ? supabase.rpc("maintenance_overview") : Promise.resolve({ data: null }),
     supabase.rpc("suggestions_refresh"),
+    can(me, "notes", "view") ? supabase.rpc("notes_list", { p_limit: 5 }) : Promise.resolve({ data: null }),
+    supabase.rpc("attendance_today"),
+    can(me, "lana", "view") ? supabase.rpc("milk_list") : Promise.resolve({ data: null }),
+    fantaId ? supabase.rpc("routines_list", { p_subject_id: fantaId }) : Promise.resolve({ data: null }),
   ]);
+  const notes = notesData as NotesData | RpcError | null;
+  const attendance = attData as AttendanceData | RpcError | null;
+  const milkStash = milkData as MilkData | RpcError | null;
+  const routines = routData as RoutinesData | RpcError | null;
+  // Staff who are not here now, for the admin's "is here" button (only those with work days).
+  const staffToday = hhData && (hhData as HouseholdToday).ok ? (hhData as HouseholdToday).members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
+  // Mama is away: the breastfeeding member works today and it is within her hours.
+  const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
+  const { data: mamaRows } = can(me, "lana", "view") ? await supabase.from("members").select("id").eq("breastfeeds", true).eq("is_active", true) : { data: null };
+  const mamaIds = new Set(((mamaRows as { id: string }[] | null) ?? []).map((r) => r.id));
+  const mamaAway = hhData && (hhData as HouseholdToday).ok ? (hhData as HouseholdToday).members.some((m) => mamaIds.has(m.id) && m.works_today) && hhm >= WORK_FROM && hhm <= WORK_TO : false;
   const suggestions = ((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[];
   const fanta = fantaData as HomeSummary | RpcError | null;
   const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];
@@ -94,6 +114,23 @@ export default async function HomePage() {
       )}
 
       {summary && summary.ok && <LanaCard summary={summary} recent={recent} lastMilk={lastMilk} milk={milk} />}
+      {summary && summary.ok && milkStash && milkStash.ok && (
+        <BottleCountdown milk={milkStash} lastFeedAt={summary.last["lana.feed"]?.ended_at ?? summary.last["lana.feed"]?.occurred_at ?? null} mamaAway={mamaAway} timezone={tz} />
+      )}
+      {attendance && attendance.ok && (attendance.open.length > 0 || (can(me, "members", "edit") && staffToday.length > 0)) && (
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          {attendance.open.map((o) => (
+            <span key={o.member_id} className="pill pill-ok">
+              {o.name} here since {fmtTime(o.in_at, tz)}
+            </span>
+          ))}
+          {can(me, "members", "edit") &&
+            staffToday.map((m) => (
+              <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={tz} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />
+            ))}
+        </div>
+      )}
+      {notes && notes.ok && <NotesBoard notes={notes.notes} compact />}
       {summary && !summary.ok && (
         <div className="card">
           <p>{summary.message}</p>
@@ -103,6 +140,9 @@ export default async function HomePage() {
       {household.ok && <HouseholdCard data={household} me={me} />}
 
       {fanta && fanta.ok && <FantaCard summary={fanta} due={due} compact />}
+      {routines && routines.ok && routines.routines.some((r) => r.days_left != null && r.days_left <= 0) && (
+        <RoutineTiles routines={routines.routines.filter((r) => r.days_left != null && r.days_left <= 0)} module="fanta" />
+      )}
 
       {house && house.ok && <HouseCard data={house} />}
 

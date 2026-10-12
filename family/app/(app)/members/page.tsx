@@ -5,6 +5,7 @@ import type { HouseholdToday, Me, Role } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
 import { HouseholdForm } from "@/components/HouseholdForm";
 import { Icon } from "@/components/Icon";
+import { Avatar } from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +15,13 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
   const { error } = await searchParams;
-  const [{ data: hh }, { data: roles }, { data: inactive }] = await Promise.all([
+  const [{ data: hh }, { data: roles }, { data: inactive }, { data: photoRows }] = await Promise.all([
     supabase.rpc("household_today"),
     supabase.from("roles").select("*").order("sort"),
     supabase.from("members").select("id, display_name, role_id").eq("is_active", false),
+    supabase.from("members").select("id, photo_path").eq("is_active", true),
   ]);
+  const photos = new Map(((photoRows as { id: string; photo_path: string | null }[] | null) ?? []).map((r) => [r.id, r.photo_path]));
   const data = hh as HouseholdToday;
   const roleLabel = new Map((roles as Role[]).map((r) => [r.id, r.label]));
 
@@ -35,17 +38,20 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
           <li key={m.id} className="card flex flex-col gap-2">
-            <Link href={`/members/${m.id}`} className="block">
-              <div className="flex items-baseline justify-between">
+            <Link href={`/members/${m.id}`} className="flex items-center gap-3">
+              <Avatar name={m.name} path={photos.get(m.id)} size={48} />
+              <span className="min-w-0 grow">
+              <span className="flex items-baseline justify-between">
                 <span className="text-lg font-semibold">{m.name}</span>
                 <span className="muted">{roleLabel.get(m.role_id) ?? m.role_id}</span>
-              </div>
+              </span>
               <p className="muted">
                 {m.relationship ? `${m.relationship} · ` : ""}
                 {m.presence ? m.presence.label : "No presence set"}
                 {m.presence?.ends_on ? ` until ${m.presence.ends_on}` : ""}
               </p>
               {m.work_days.length > 0 && <p className="muted">Works: {m.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>}
+              </span>
             </Link>
             {m.id !== me.member.id && (
               <form action="/api/view-as" method="post">

@@ -10,6 +10,7 @@ export function HouseholdForm({ household }: { household: Household }) {
   const [name, setName] = useState(household.name);
   const [notes, setNotes] = useState(household.notes ?? "");
   const [target, setTarget] = useState(String(household.milk_target_ml ?? 400));
+  const [interval, setIntervalMin] = useState(String(household.bottle_interval_min ?? 120));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -17,7 +18,7 @@ export function HouseholdForm({ household }: { household: Household }) {
     e.preventDefault();
     setBusy(true);
     setMsg(null);
-    const { data, error } = await supabaseBrowser().rpc("household_save", { p_name: name, p_notes: notes || null, p_milk_target_ml: Math.max(0, Math.round(Number(target) || 0)) });
+    const { data, error } = await supabaseBrowser().rpc("household_save", { p_name: name, p_notes: notes || null, p_milk_target_ml: Math.max(0, Math.round(Number(target) || 0)), p_bottle_interval_min: Math.min(600, Math.max(30, Math.round(Number(interval) || 120))) });
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");

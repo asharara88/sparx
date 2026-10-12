@@ -519,7 +519,76 @@ set role authenticated;
 select pg_temp.assert(public.current_member_id() = :mido, 'preview_member without preview_by is ignored');
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Adoptions (migration 1300): prefs, notes, attendance, milk, routines, chats
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.me_prefs_save('ar', true, null, false))->>'ok' = 'true', 'Wafa sets Arabic and simple mode');
+select pg_temp.assert((select lang = 'ar' and simple_mode from public.members where id = :wafa), 'prefs are stored on her row');
+select pg_temp.assert((public.me_prefs_save('xx', null, null, false))->>'error' = 'bad_lang', 'unknown language rejected');
+select pg_temp.assert((public.member_photo_save(:mido, 'members/x.jpg'))->>'error' = 'not_allowed', 'Wafa cannot set Mido''s photo');
+select pg_temp.assert((public.note_save(null, 'Lana liked the pear today'))->>'ok' = 'true', 'Wafa writes a note');
+select pg_temp.assert((public.note_save(null, 'Only for me', true))->>'ok' = 'true', 'Wafa writes a private note');
+select pg_temp.assert(jsonb_array_length((public.notes_list())->'notes') >= 2, 'Wafa sees both of her notes');
+reset role;
+select pg_temp.act_as(:luda);
+set role authenticated;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.notes_list())->'notes') n where n->>'body' = 'Only for me') = 0, 'Luda never sees Wafa''s private note');
+select pg_temp.assert((public.note_save((select id from public.notes where body = 'Lana liked the pear today'), 'edited'))->>'error' = 'not_allowed', 'Luda cannot edit Wafa''s note');
+select pg_temp.assert((public.note_remove((select id from public.notes where body = 'Lana liked the pear today')))->>'error' = 'not_allowed', 'Luda cannot remove Wafa''s note');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.note_save((select id from public.notes where body = 'Lana liked the pear today'), 'Lana liked the pear', false, true))->>'ok' = 'true', 'an admin edits and pins any note');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.notes_list())->'notes') n where n->>'body' = 'Only for me') = 0, 'even an admin does not see a private note');
+reset role;
+
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.attendance_toggle())->>'state' = 'in', 'Lilly checks in');
+select pg_temp.assert(jsonb_array_length((public.attendance_today())->'open') = 1, 'she shows as here');
+select pg_temp.assert((public.attendance_toggle(:mido))->>'error' = 'not_allowed', 'Lilly cannot check Mido in');
+select pg_temp.assert((public.milk_list())->>'error' = 'not_allowed', 'Lilly cannot see the milk stash');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.attendance_toggle())->>'state' = 'out', 'Lilly checks out');
+reset role;
+
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.milk_add(120, 'fridge', now() - interval '5 hours', null))->>'ok' = 'true', 'Dana puts 120 ml in the fridge');
+select pg_temp.assert((public.milk_add(150, 'freezer', now() - interval '20 days', null))->>'ok' = 'true', 'and 150 ml in the freezer');
+select pg_temp.assert((public.milk_add(90, 'fridge', now() - interval '5 days', null))->>'ok' = 'true', 'an old bottle');
+select pg_temp.assert(((public.milk_list())->>'fridge_ml')::int = 120 and ((public.milk_list())->>'freezer_ml')::int = 150, 'totals count only milk still good');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.milk_list())->'bottles') b where (b->>'expired')::boolean) = 1, 'the 5-day-old bottle is flagged expired');
+select pg_temp.assert((public.milk_move((select id from public.milk_bottles where amount_ml = 150), 'fridge'))->>'ok' = 'true', 'thaw the frozen one');
+select pg_temp.assert((public.milk_move((select id from public.milk_bottles where amount_ml = 150), 'freezer'))->>'error' = 'no_refreeze', 'thawed milk cannot go back');
+select pg_temp.assert((public.milk_move((select id from public.milk_bottles where amount_ml = 120), 'used'))->>'ok' = 'true', 'a bottle is used up');
+select pg_temp.assert(((public.milk_list())->>'fridge_ml')::int = 150, 'the thawed bottle is now the fridge total');
+reset role;
+
+select pg_temp.act_as(:luda);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.routines_list(:fanta))->'routines') = 5, 'Luda sees Fanta''s five routines');
+select pg_temp.assert((public.routine_done('00000000-0000-4000-8000-00000000c002'))->>'ok' = 'true', 'Luda brushes Fanta');
+select pg_temp.assert((select days_left from (select (r->>'days_left')::int as days_left from jsonb_array_elements((public.routines_list(:fanta))->'routines') r where r->>'label' = 'Brush') x) = 3, 'brush is due again in 3 days');
+select pg_temp.assert((public.routine_done('00000000-0000-4000-8000-00000000c001'))->>'ok' = 'true', 'litter full change done');
+select pg_temp.assert((select count(*) from public.care_entries where subject_id = :fanta and type_id = 'fanta.litter' and payload->>'kind' = 'Full change' and note = 'Litter full change') = 1, 'and it logged the litter entry');
+select pg_temp.assert((public.routine_save(null, :fanta, 'Nails', 21))->>'error' = 'not_allowed', 'Luda cannot add routines');
+select pg_temp.assert((public.ask_chat_save(null, 'About naps', '[{"role":"user","text":"hi"}]'::jsonb))->>'ok' = 'true', 'Luda saves a chat');
+select pg_temp.assert((select count(*) from public.ask_chats) = 1, 'she sees her own chat');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.ask_chats) = 0, 'Mido does not see Luda''s chat');
+select pg_temp.assert((public.routine_save(null, :fanta, 'Nails', 21))->>'ok' = 'true', 'an admin adds a routine');
+select pg_temp.assert((public.household_save(null, null, null, 150))->>'ok' = 'true', 'bottle interval saved');
+select pg_temp.assert((select bottle_interval_min from public.household) = 150, 'household carries it');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (and view-as).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
