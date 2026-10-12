@@ -56,17 +56,20 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
         const entries: PlanEntry[] = s.kind === "plan" && s.action && s.action.type === "plan" ? s.action.entries : [];
         const chosen = picked[s.id] ?? new Set(entries.map((_, i) => i));
         return (
-          <article key={s.id} className="card ring-2 ring-[var(--accent)]">
-            <p className="text-lg font-bold">
-              <span className="tile-icon" style={{ width: 32, height: 32 }}><Icon name={ICON[s.kind]} size={18} /></span> 
+          <article key={s.id} className="card">
+            <div className="flex items-start gap-3">
+              <span className="tile-icon shrink-0">
+                <Icon name={ICON[s.kind]} size={18} />
+              </span>
               {s.href && s.kind !== "plan" ? (
-                <Link href={s.href} className="underline decoration-dotted">
-                  {s.title}
+                <Link href={s.href} className="row-link flex min-w-0 grow items-center gap-2 text-lg font-bold leading-snug">
+                  <span className="grow">{s.title}</span>
+                  <Icon name="forward" size={18} className="shrink-0 text-[var(--muted)]" />
                 </Link>
               ) : (
-                s.title
+                <p className="grow text-lg font-bold leading-snug">{s.title}</p>
               )}
-            </p>
+            </div>
             {s.body && <p className="muted mt-1 whitespace-pre-wrap text-sm">{s.body}</p>}
             {entries.length > 0 && (
               <ul className="mt-2 flex flex-col gap-2">

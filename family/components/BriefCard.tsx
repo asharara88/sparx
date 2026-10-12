@@ -42,7 +42,7 @@ export function BriefCard({ hour }: { hour: number }) {
   if (!kind) return null;
   if (state === "off") {
     // Not set up (no API key) or not allowed for this role: admins see why, others see nothing.
-    return me.role.id === "admin" ? <p className="muted text-sm">Brief off: {msg}</p> : null;
+    return me.role.id === "admin" ? <p className="muted px-1 text-sm">The brief is off. {msg}</p> : null;
   }
   return (
     <section className="card" aria-labelledby="brief-h">
@@ -55,7 +55,7 @@ export function BriefCard({ hour }: { hour: number }) {
         </button>
       </div>
       {state === "loading" && !brief && <p className="muted mt-2">Reading the night's log…</p>}
-      {state === "error" && <p className="mt-2 text-[var(--danger)]">{msg ?? "Could not write the brief."}</p>}
+      {state === "error" && <p className="mt-2 text-sm text-[var(--warn)]">{(msg ?? "Could not write the brief.").slice(0, 200)}</p>}
       {brief && (
         <div className="mt-2">
           <Cited text={brief.content} refs={brief.refs} />
