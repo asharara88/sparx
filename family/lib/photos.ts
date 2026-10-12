@@ -28,7 +28,7 @@ export async function downscale(file: File, maxSide = 1600): Promise<Blob> {
 }
 
 /** Upload a photo from a file input. Returns the storage path to keep on the row. */
-export async function uploadPhoto(file: File, folder: "requests" | "items" | "entries" | "tickets" | "assets" | "subjects" | "receipts" | "members"): Promise<string> {
+export async function uploadPhoto(file: File, folder: "requests" | "items" | "entries" | "tickets" | "assets" | "subjects" | "receipts" | "members" | "chat"): Promise<string> {
   const blob = await downscale(file);
   const ext = blob === file ? (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg" : "jpg";
   const path = `${folder}/${crypto.randomUUID()}.${ext}`;

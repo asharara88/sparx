@@ -190,7 +190,7 @@ export function LanaNow({
               onTap={(s) =>
                 s === state.side
                   ? run("Feed saved.", () => end(state.entry))
-                  : run(`Switched to ${s.toLowerCase()}.`, async () => {
+                  : run(`Switched to ${s.toLowerCase()} boob.`, async () => {
                       await end(state.entry);
                       await start(feedType, { method: "Breast", side: s });
                     })
@@ -239,7 +239,7 @@ export function LanaNow({
               suggested={suggestedSide}
               counts={sideCounts}
               disabled={busy || !canAdd}
-              onTap={(s) => run(`${s} started.`, () => start(feedType, { method: "Breast", side: s }))}
+              onTap={(s) => run(`${s} boob started.`, () => start(feedType, { method: "Breast", side: s }))}
             />
           )}
           <div className="card">

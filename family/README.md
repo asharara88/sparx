@@ -241,5 +241,7 @@ scripts/               seed-accounts.mjs, make-icons.mjs
   written to `audit_log` by the database itself (Postgres runs GET requests read-only and
   rolls back a denied write). Everything the app does goes through the RPC functions, which
   do audit denials. Supabase's own API logs record the raw request.
+- Family chat: one shared stream of messages and photos for everyone at home (`/chat`); the assistant and photos are on for every role.
+- Lana's day page and Trends compare her feeds, diapers and sleep with typical ranges for her exact age and flag a short day.
 - Push notifications are not in yet (they need web-push keys and a scheduler; see LATER.md).
   Fanta's log, maintenance, receipts, the assistant: later steps, per PLAN.md.

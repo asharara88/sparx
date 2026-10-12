@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
+import type { DailyStats, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
+import { AgeCheck } from "@/components/AgeCheck";
 import { DayStrip } from "@/components/DayStrip";
 import { Icon } from "@/components/Icon";
 
@@ -23,10 +24,13 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/");
   const { from, to } = dayRange(day, tz);
-  const [{ data: listData }, { data: stripData }] = await Promise.all([
+  const [{ data: listData }, { data: stripData }, { data: statsData }] = await Promise.all([
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: to }),
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(new Date(from).getTime() - 12 * 3600 * 1000).toISOString(), p_to: to }),
+    supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: day, p_to: day }),
   ]);
+  const stats = statsData as DailyStats | RpcError | null;
+  const dayStats = stats?.ok ? stats.days.find((x) => x.day === day) ?? stats.days[0] ?? null : null;
   const entries = ((listData as { ok: boolean; entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const stripEntries = ((stripData as { ok: boolean; entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
 
@@ -86,6 +90,17 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
           {entries.length === 0 && <span className="muted">Nothing logged on this day.</span>}
         </p>
       </div>
+
+      {dayStats && summary.subject.kind === "child" && (
+        <AgeCheck
+          totals={dayStats}
+          birthDate={summary.subject.birth_date}
+          day={day}
+          complete={day < today}
+          title={day === today ? "Today against her age" : "Against her age"}
+          subtitle={day === today ? "Counts so far. Nothing is flagged until the day is over." : undefined}
+        />
+      )}
 
       <ul className="flex flex-col gap-2">
         {entries.map((e) => (

@@ -767,6 +767,21 @@ export interface HubState {
 
 // ---- adopted features (migration 1300) ---------------------------------------------------
 
+export interface ChatMessage {
+  id: string;
+  body: string;
+  photo_path: string | null;
+  created_at: string;
+  author: string | null;
+  author_name: string;
+  author_photo: string | null;
+  mine: boolean;
+}
+export interface ChatData {
+  ok: true;
+  messages: ChatMessage[];
+}
+
 export interface Note {
   id: string;
   body: string;

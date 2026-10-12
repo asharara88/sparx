@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import type { DailyStats, DayStats } from "@/lib/types";
 import { fmtDuration } from "@/lib/time";
+import { AgeCheck } from "./AgeCheck";
 
 /**
  * Lana's trends: sleep, nights, feeds, diapers and weight, one bar per day.
@@ -38,6 +39,15 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
     { label: "Bottle a day", now: `${Math.round(mean(thisWeek, "bottle_ml"))} ml`, delta: mean(thisWeek, "bottle_ml") - mean(lastWeek, "bottle_ml"), unit: "ml" },
     { label: "Diapers a day", now: mean(thisWeek, "diapers").toFixed(1), delta: mean(thisWeek, "diapers") - mean(lastWeek, "diapers"), unit: "" },
   ];
+  const weekTotals = {
+    breast_count: mean(thisWeek, "breast_count"),
+    bottle_count: mean(thisWeek, "bottle_count"),
+    bottle_ml: mean(thisWeek, "bottle_ml"),
+    diapers_wet: mean(thisWeek, "diapers_wet"),
+    diapers_dirty: mean(thisWeek, "diapers_dirty"),
+    sleep_min: mean(thisWeek, "sleep_min"),
+    night_sleep_min: mean(thisWeek, "night_sleep_min"),
+  };
   const weights = all.filter((d) => d.weight_kg != null);
   const milestones = all.filter((d) => d.milestones.length).flatMap((d) => d.milestones.map((m) => ({ day: d.day, what: m })));
 
@@ -61,6 +71,17 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           ))}
         </div>
       </section>
+
+      {thisWeek.length > 0 && (
+        <AgeCheck
+          totals={weekTotals}
+          birthDate={birthDate}
+          day={thisWeek[thisWeek.length - 1].day}
+          complete
+          title="This week against her age"
+          subtitle="Average per day over the last 7 full days."
+        />
+      )}
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Range">
         {RANGES.map((r) => (
