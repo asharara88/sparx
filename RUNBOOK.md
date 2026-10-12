@@ -91,6 +91,10 @@ services (https://vercel.com/docs/services):
   provider keys from `.env.example`. Set `NEXT_PUBLIC_BASE_PATH=/studio` on the project.
   The family app's assistant (Step 4) reads `ANTHROPIC_API_KEY` (server only; the dashboard's
   pipeline uses the same variable, so one key serves both).
+- The live project `sparx` was created with **Root Directory = `family`**, so only the family
+  app deploys and the root `vercel.json` (two services, `/studio` rewrite) is not read. That is
+  fine: the crons therefore also live in `family/vercel.json`. Keep the two cron lists in sync
+  if you ever switch the root directory back to the repository root.
 - Step 6 (push, cron, hub) adds server-only variables, listed with comments in
   `family/.env.example`: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
   `VAPID_SUBJECT`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `CRON_SECRET`, and
