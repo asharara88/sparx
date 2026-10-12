@@ -110,6 +110,15 @@ services (https://vercel.com/docs/services):
   sign up** on, or nobody can create their account. The built-in mailer sends only a few
   messages per hour; set Auth → SMTP Settings → Custom SMTP (Resend works) before the family
   starts, and raise Auth → Rate Limits → e-mails per hour.
+- Supabase Auth → Email Templates: the default links go through Supabase and need the same
+  browser that asked for them (PKCE). So a reset asked for on the laptop and tapped on the
+  phone bounces to the sign-in screen. Point the templates at our callback with the token
+  instead, which works from any device:
+  - Reset password: `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery`
+  - Magic link: `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink`
+  - Confirm signup: `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup`
+  The callback also accepts `?code=` and a `#access_token=` hash, so the defaults keep working
+  in the same browser.
 - Supabase Auth → URL configuration → Site URL is the app's address
   (`https://sparx-tsom.vercel.app`), never the Supabase address; Redirect URLs must include
   `https://<your-domain>/auth/callback` and `https://*.vercel.app/auth/callback` for previews.

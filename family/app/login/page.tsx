@@ -3,6 +3,7 @@ import { isConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { LoginForm } from "./LoginForm";
 import { NotConfigured } from "@/components/NotConfigured";
+import { HashSession } from "@/components/HashSession";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const initialMode = mode === "signup" || mode === "forgot" || mode === "link" ? mode : "signin";
   return (
     <main className="mx-auto max-w-md p-6 pt-16">
+      <HashSession />
       <div className="mb-8 flex items-center gap-3">
         <img src="/icons/icon-192.png" alt="" width={56} height={56} className="rounded-2xl" />
         <h1 className="text-3xl font-bold">Our home</h1>

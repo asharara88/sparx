@@ -10,7 +10,9 @@ export async function GET(request: Request) {
   const type = url.searchParams.get("type") as EmailOtpType | null;
   let next = url.searchParams.get("next") ?? "/";
   if (!next.startsWith("/") || next.startsWith("//")) next = "/";
-  if (type === "recovery" && next === "/me/password") next = "/me/password?reset=1";
+  // A password-reset link always lands on the password page, whatever redirect_to carried:
+  // Supabase only honours redirect URLs that match its allow-list exactly, so no query strings.
+  if (type === "recovery") next = "/me/password?reset=1";
   const supabase = await createClient();
 
   if (code) {

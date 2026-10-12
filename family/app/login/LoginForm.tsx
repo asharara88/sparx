@@ -59,7 +59,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
           setDone(`We sent a message to ${addr()}. Open it and tap the button to confirm, then sign in.`);
         }
       } else if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(addr(), { redirectTo: `${callback()}?next=/me/password` });
+        const { error } = await supabase.auth.resetPasswordForEmail(addr(), { redirectTo: callback() });
         if (error) return setError(friendly(error.message));
         setDone(`We sent a message to ${addr()}. Tap the link in it and choose a new password.`);
       } else {
