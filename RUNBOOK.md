@@ -89,8 +89,8 @@ services (https://vercel.com/docs/services):
   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Supabase project
   `home`); the dashboard reads `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and the
   provider keys from `.env.example`. Set `NEXT_PUBLIC_BASE_PATH=/studio` on the project.
-  The family app's assistant (Step 4) reads `ANTHROPIC_API_KEY` (server only; the dashboard's
-  pipeline uses the same variable, so one key serves both).
+  The family app's assistant (Step 4) reads `ANTHROPIC_API_SECRET_KEY`, falling back to
+  `ANTHROPIC_API_KEY` (server only).
 - The live project `sparx` was created with **Root Directory = `family`**, so only the family
   app deploys and the root `vercel.json` (two services, `/studio` rewrite) is not read. That is
   fine: the crons therefore also live in `family/vercel.json`. Keep the two cron lists in sync

@@ -6,6 +6,7 @@ import type { Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { todayYmd } from "@/lib/time";
 import { assistantConfigured, MODEL } from "@/lib/assistant/run";
+import { anthropicApiKey } from "@/lib/server/anthropic";
 
 /**
  * Read a receipt photo into lines. The model does the reading (it is far better
@@ -33,7 +34,7 @@ export type ReceiptReading = z.infer<typeof ReceiptSchema>;
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ timeout: 90_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 90_000, maxRetries: 2 });
   return _client;
 }
 
@@ -50,7 +51,7 @@ function mediaType(path: string, blobType: string): "image/jpeg" | "image/png" |
 
 export async function readReceipt(supabase: SupabaseClient, me: Me, receiptId: string): Promise<{ ok: true; lines: number; matched: number; is_receipt: boolean } | RpcError> {
   if (!can(me, "shopping", "add")) return { ok: false, error: "not_allowed", message: "You are not allowed to add receipts." };
-  if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "Receipt reading is not set up yet (no ANTHROPIC_API_KEY on the server)." };
+  if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "Receipt reading is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
 
   const { data: got } = await supabase.rpc("receipt_get", { p_id: receiptId });
   const detail = got as { ok: boolean; receipt?: { photo_path: string; status: string } } | null;

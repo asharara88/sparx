@@ -38,7 +38,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
     const got = data as { ok: boolean; brief: Brief | null } | null;
     if (got?.ok && got.brief) return { ok: true, brief: got.brief, fresh: false };
   }
-  if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_KEY on the server)." };
+  if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
 
   const ctx = await loadContext(supabase, me, now);
   const tools = new Map(buildTools(ctx).map((t) => [t.def.name, t]));
