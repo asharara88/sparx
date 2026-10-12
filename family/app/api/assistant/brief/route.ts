@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Me, RpcError } from "@/lib/types";
 import { briefKindNow, getBrief, type BriefKind } from "@/lib/assistant/brief";
+import { friendlyModelError } from "@/lib/server/anthropic";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -23,7 +24,8 @@ export async function GET(req: Request) {
     const res = await getBrief(supabase, me, kind, refresh);
     return NextResponse.json(res, { status: res.ok ? 200 : res.error === "not_allowed" ? 403 : 503 });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "The brief could not be written.";
-    return NextResponse.json({ ok: false, error: "failed", message }, { status: 502 });
+    console.error("brief:", e);
+    const f = friendlyModelError(e);
+    return NextResponse.json({ ok: false, error: f.setup ? "not_configured" : "failed", message: f.message }, { status: f.setup ? 503 : 502 });
   }
 }

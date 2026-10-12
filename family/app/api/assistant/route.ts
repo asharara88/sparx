@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { AssistantTurn, Me, RpcError } from "@/lib/types";
 import { askAssistant } from "@/lib/assistant/run";
+import { friendlyModelError } from "@/lib/server/anthropic";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -33,7 +34,8 @@ export async function POST(req: Request) {
     const reply = await askAssistant({ supabase, me, turns, question });
     return NextResponse.json(reply, { status: reply.ok ? 200 : reply.error === "not_allowed" ? 403 : 503 });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "The assistant could not answer.";
-    return NextResponse.json({ ok: false, error: "failed", message }, { status: 502 });
+    console.error("assistant:", e);
+    const f = friendlyModelError(e);
+    return NextResponse.json({ ok: false, error: f.setup ? "not_configured" : "failed", message: f.message }, { status: f.setup ? 503 : 502 });
   }
 }
