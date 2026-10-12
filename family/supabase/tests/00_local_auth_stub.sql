@@ -20,6 +20,13 @@ $$;
 grant usage on schema auth to authenticated, anon, service_role;
 grant execute on function auth.uid() to authenticated, anon, service_role;
 
+-- Supabase's auth.jwt(): the whole claims object of the request.
+create or replace function auth.jwt() returns jsonb
+language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+$$;
+grant execute on function auth.jwt() to authenticated, anon, service_role;
+
 -- Storage stand-in (bucket + objects tables the photo policies attach to).
 create schema if not exists storage;
 create table if not exists storage.buckets (id text primary key, name text not null, public boolean not null default false);

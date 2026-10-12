@@ -77,6 +77,10 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 - **For the doctor / for the vet**: `/lana/export` (2 weeks, 4 weeks, 3 months: averages per
   day, growth, firsts, day-by-day table, every entry when 14 days or less) and `/fanta/export`
   (profile card, treatments with next due, weights, 90 days of notes). Print → Save as PDF.
+- **View as** (Members → “View the app as Dana”): an admin sees every screen exactly as that
+  member sees it, read only, with a banner and a “Back to me” button. The database treats the
+  session as that member and refuses every write, so nothing can be logged in their name;
+  denied attempts are audited with who was previewing. Needs `SUPABASE_JWT_SECRET` on the server.
 - **Household facts** (Members → Household, and a Routine box per member): "Dana works 9 to 5,
   out by 8:30, pumps before leaving", "we aim for 400 ml in the fridge". The assistant, the
   brief and the plan read them; the home screen shows the day's pumped milk against the target.
