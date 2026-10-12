@@ -9,14 +9,36 @@ export function anthropicApiKey(): string | undefined {
 }
 
 /**
+ * Workload Identity Federation: no key on the server at all. Vercel hands each function run a
+ * short-lived OIDC token (VERCEL_OIDC_TOKEN, once "Secure backend access with OIDC federation"
+ * is on for the project); the SDK exchanges it for Anthropic access when the three federation
+ * ids are set. Set up once in the Claude Console: a federation issuer for Vercel's OIDC, a
+ * service account in the workspace, and a rule that maps this project to it.
+ */
+export function federationConfigured(): boolean {
+  return !!(process.env.ANTHROPIC_FEDERATION_RULE_ID && process.env.ANTHROPIC_ORGANIZATION_ID && process.env.ANTHROPIC_SERVICE_ACCOUNT_ID && (process.env.ANTHROPIC_IDENTITY_TOKEN || process.env.ANTHROPIC_IDENTITY_TOKEN_FILE || process.env.VERCEL_OIDC_TOKEN));
+}
+
+/** True when the model can be called at all: a key, or federation. */
+export function modelConfigured(): boolean {
+  return !!anthropicApiKey() || federationConfigured();
+}
+
+/**
  * Options for every Anthropic client in the app. A key that is not scoped to a workspace
  * must send the workspace id with each request (set ANTHROPIC_WORKSPACE_ID); a key made
  * inside a workspace needs nothing more.
  */
 export function anthropicOptions(extra: ClientOptions = {}): ClientOptions {
   const workspace = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  const key = anthropicApiKey();
+  if (!key && federationConfigured() && !process.env.ANTHROPIC_IDENTITY_TOKEN && !process.env.ANTHROPIC_IDENTITY_TOKEN_FILE && process.env.VERCEL_OIDC_TOKEN) {
+    // Hand Vercel's token to the SDK under the name it reads. Per function run; it refreshes itself.
+    process.env.ANTHROPIC_IDENTITY_TOKEN = process.env.VERCEL_OIDC_TOKEN;
+  }
   return {
-    apiKey: anthropicApiKey(),
+    // With no key the SDK resolves credentials itself (federation env vars).
+    ...(key ? { apiKey: key } : {}),
     maxRetries: 2,
     ...(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {}),
     ...extra,
