@@ -8,6 +8,7 @@ import { addDays, todayYmd } from "@/lib/time";
 import { buildTools, loadContext } from "@/lib/assistant/tools";
 import { stableSystem, volatileSystem } from "@/lib/assistant/prompt";
 import { assistantConfigured, MODEL } from "@/lib/assistant/run";
+import { anthropicApiKey } from "@/lib/server/anthropic";
 
 /**
  * The weekly plan draft: the model looks at the coming week (calendar, who is
@@ -31,13 +32,13 @@ const PlanSchema = z.object({
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ timeout: 90_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 90_000, maxRetries: 2 });
   return _client;
 }
 
 export async function draftPlan(supabase: SupabaseClient, me: Me): Promise<{ ok: true; suggestion: Suggestion | null; summary: string; entries: PlanEntry[] } | RpcError> {
   if (!can(me, "calendar", "add") || !can(me, "assistant", "view")) return { ok: false, error: "not_allowed", message: "Planning needs the calendar and the assistant." };
-  if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_KEY on the server)." };
+  if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
   const tz = me.household.timezone;
   const now = new Date();
   const today = todayYmd(tz, now);

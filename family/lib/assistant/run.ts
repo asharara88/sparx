@@ -4,6 +4,7 @@ import type { AssistantReply, AssistantTurn, AssistantUsage, Me, RpcError } from
 import { can } from "@/lib/types";
 import { buildTools, loadContext, type AssistantTool, type ToolContext } from "./tools";
 import { systemBlocks } from "./prompt";
+import { anthropicApiKey } from "@/lib/server/anthropic";
 
 export const MODEL = process.env.ASSISTANT_MODEL ?? "claude-opus-5-5";
 const EFFORT = (process.env.ASSISTANT_EFFORT ?? "medium") as "low" | "medium" | "high";
@@ -11,12 +12,12 @@ const MAX_ROUNDS = 8;
 const MAX_TURNS = 12;
 
 export function assistantConfigured(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return !!anthropicApiKey();
 }
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ timeout: 90_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 90_000, maxRetries: 2 });
   return _client;
 }
 
@@ -58,7 +59,7 @@ export async function askAssistant({ supabase, me, turns, question }: RunInput):
     return { ok: false, error: "not_allowed", message: "The assistant is not switched on for your role. Ask Mido or Dana." };
   }
   if (!assistantConfigured()) {
-    return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_KEY on the server)." };
+    return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
   }
 
   const ctx = await loadContext(supabase, me);
