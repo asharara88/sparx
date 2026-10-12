@@ -7,11 +7,12 @@ import { HouseholdForm } from "@/components/HouseholdForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function MembersPage() {
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const supabase = await createClient();
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
+  const { error } = await searchParams;
   const [{ data: hh }, { data: roles }, { data: inactive }] = await Promise.all([
     supabase.rpc("household_today"),
     supabase.from("roles").select("*").order("sort"),
@@ -28,10 +29,12 @@ export default async function MembersPage() {
           + Add
         </Link>
       </header>
+      {error === "preview" && <p className="rounded-xl border-2 border-red-700 p-3 text-red-800">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
+      {error === "member" && <p className="rounded-xl border-2 border-red-700 p-3 text-red-800">That member is not active.</p>}
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
-          <li key={m.id}>
-            <Link href={`/members/${m.id}`} className="card block">
+          <li key={m.id} className="card flex flex-col gap-2">
+            <Link href={`/members/${m.id}`} className="block">
               <div className="flex items-baseline justify-between">
                 <span className="text-lg font-semibold">{m.name}</span>
                 <span className="muted">{roleLabel.get(m.role_id) ?? m.role_id}</span>
@@ -43,6 +46,14 @@ export default async function MembersPage() {
               </p>
               {m.work_days.length > 0 && <p className="muted">Works: {m.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>}
             </Link>
+            {m.id !== me.member.id && (
+              <form action="/api/view-as" method="post">
+                <input type="hidden" name="member_id" value={m.id} />
+                <button type="submit" className="btn w-full" style={{ minHeight: 44 }}>
+                  👀 View the app as {m.name}
+                </button>
+              </form>
+            )}
           </li>
         ))}
       </ul>

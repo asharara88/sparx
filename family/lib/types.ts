@@ -57,6 +57,8 @@ export interface Household {
 
 export interface Me {
   ok: true;
+  /** True while an admin is viewing the app as this member (read only). */
+  preview?: boolean;
   member: Member;
   role: Role;
   permissions: PermissionMap;

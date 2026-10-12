@@ -491,7 +491,34 @@ set role authenticated;
 select pg_temp.assert((public.household_save('Hacked', null, 0))->>'error' = 'not_allowed', 'Lilly cannot change the household');
 reset role;
 
+-- ============================================================================
+-- View as: Mido previews Lilly. Identity is Lilly, reads are Lilly's, writes are denied.
+-- ============================================================================
+create or replace function pg_temp.preview_as(p_admin uuid, p_member uuid) returns void language plpgsql as $$
+declare v_user uuid;
+begin
+  select user_id into v_user from public.members where id = p_admin;
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', v_user, 'role', 'authenticated',
+    'preview_member', p_member, 'preview_by', v_user)::text, false);
+end $$;
+select pg_temp.preview_as(:mido, :lilly);
+set role authenticated;
+select pg_temp.assert(public.current_member_id() = :lilly, 'in preview the current member is Lilly');
+select pg_temp.assert((public.me())->'member'->>'display_name' = 'Lilly' and ((public.me())->>'preview')::boolean, 'me() is Lilly and says preview');
+select pg_temp.assert(not public.has_permission('lana', 'view'), 'Lilly cannot see Lana, so neither can the preview');
+select pg_temp.assert(public.has_permission('shopping_requests', 'view') or public.has_permission('maintenance', 'view'), 'a view Lilly has is allowed in preview');
+select pg_temp.assert(not public.has_permission('shopping_requests', 'add'), 'an add Lilly has is still denied in preview');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now(), null, '{"method":"Bottle","amount_ml":60}', null, null))->>'error' = 'not_allowed', 'writes are denied in preview');
+select pg_temp.assert((select count(*) from public.members) = 1 and (select display_name from public.members limit 1) = 'Lilly', 'the members directory is Lilly''s view');
+reset role;
+select pg_temp.assert(exists (select 1 from public.audit_log where actor_member = :lilly and not allowed and detail->>'preview_by' = (select user_id::text from public.members where id = :mido)), 'the denied write is audited as Lilly with preview_by Mido');
+-- A forged preview without preview_by is ignored.
+select set_config('request.jwt.claims', jsonb_build_object('sub', (select user_id from public.members where id = :mido), 'role', 'authenticated', 'preview_member', :lilly)::text, false);
+set role authenticated;
+select pg_temp.assert(public.current_member_id() = :mido, 'preview_member without preview_by is ignored');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed.'
+\echo 'All Step 1 to 6 database checks passed (and view-as).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
