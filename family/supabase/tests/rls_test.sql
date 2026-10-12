@@ -613,7 +613,18 @@ set role authenticated;
 select pg_temp.assert((select count(*) from public.bag_items) = 0, 'Lilly does not see the bag');
 reset role;
 
+-- Perf (migration 1600): cached answers never leak across identities (each statement is its own transaction here)
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert(not public.has_permission('lana', 'view') and public.current_member_id() = :lilly, 'Lilly: no Lana, correct identity');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(public.has_permission('lana', 'view') and public.current_member_id() = :mido, 'Mido right after Lilly: Lana visible, correct identity');
+select pg_temp.assert((select count(*) from (select public.has_permission('lana', 'view') from generate_series(1, 2000)) x where has_permission) = 2000, '2000 permission checks in one statement');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
