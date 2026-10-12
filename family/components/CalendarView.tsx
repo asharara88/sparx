@@ -11,9 +11,10 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function dayLabel(ymd: string, today: string) {
+  ymd = ymd.slice(0, 10);
   if (ymd === today) return "Today";
   if (ymd === addDays(today, 1)) return "Tomorrow";
-  const d = new Date(ymd + "T12:00:00Z");
+  const d = new Date(ymd.slice(0, 10) + "T12:00:00Z");
   return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
 }
 

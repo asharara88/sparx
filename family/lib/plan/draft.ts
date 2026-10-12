@@ -8,7 +8,7 @@ import { addDays, todayYmd } from "@/lib/time";
 import { buildTools, loadContext } from "@/lib/assistant/tools";
 import { stableSystem, volatileSystem } from "@/lib/assistant/prompt";
 import { assistantConfigured, MODEL } from "@/lib/assistant/run";
-import { anthropicApiKey } from "@/lib/server/anthropic";
+import { anthropicApiKey, anthropicOptions } from "@/lib/server/anthropic";
 
 /**
  * The weekly plan draft: the model looks at the coming week (calendar, who is
@@ -32,7 +32,7 @@ const PlanSchema = z.object({
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: anthropicApiKey(), timeout: 90_000, maxRetries: 2 });
+  if (!_client) _client = new Anthropic(anthropicOptions({ timeout: 90_000 }));
   return _client;
 }
 
