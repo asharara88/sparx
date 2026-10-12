@@ -19,6 +19,11 @@ export interface Member {
   lang?: "en" | "ar" | "ru";
   /** The big four-button home screen instead of the full one. */
   simple_mode?: boolean;
+  /** Work hours on work days, "08:30:00"; the bottle countdown and the assistant use them. */
+  work_from?: string | null;
+  work_to?: string | null;
+  /** Bigger text; null means "the role decides" (carers and staff get it). */
+  large_text?: boolean | null;
 }
 
 export interface Role {
@@ -193,6 +198,10 @@ export interface HouseholdMember {
   } | null;
   works_today: boolean;
   work_days: number[];
+  work_from?: string | null;
+  work_to?: string | null;
+  breastfeeds?: boolean;
+  photo_path?: string | null;
 }
 
 export interface HouseholdToday {
@@ -836,4 +845,12 @@ export interface AskChat {
   messages: unknown[];
   created_at: string;
   updated_at: string;
+}
+
+export interface BagItem {
+  id: string;
+  label: string;
+  checked: boolean;
+  sort: number;
+  is_active: boolean;
 }

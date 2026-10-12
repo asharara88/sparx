@@ -48,7 +48,7 @@ export default async function MePage() {
           {can(me, "audit", "view") && <Tile href="/audit" icon="clipboard" label="Audit log" />}
         </div>
       )}
-      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} />
+      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"} />
       <NotificationsToggle />
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
       <div className="card">

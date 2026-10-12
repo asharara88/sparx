@@ -37,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const large = me.role.id !== "admin";
+  const large = me.member.large_text ?? me.role.id !== "admin";
   return (
     <MeProvider me={me}>
       <div data-size={large ? "large" : undefined} className="mx-auto flex min-h-dvh max-w-2xl flex-col">

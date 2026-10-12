@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { CalendarData, Me, Member, RpcError, Suggestion } from "@/lib/types";
+import type { CalendarData, DueItem, Me, Member, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { CalendarView } from "@/components/CalendarView";
@@ -18,11 +18,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const { d } = await searchParams;
   const from = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : today;
   const to = addDays(from, 13);
-  const [{ data: cal }, { data: members }, { data: sugData }] = await Promise.all([
+  const [{ data: cal }, { data: members }, { data: sugData }, { data: dueData }] = await Promise.all([
     supabase.rpc("calendar_list", { p_from: from, p_to: to }),
     supabase.from("members").select("id, display_name").eq("is_active", true).order("display_name"),
     supabase.rpc("suggestions_list"),
+    can(me, "lana", "view") || can(me, "fanta", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 60 }) : Promise.resolve({ data: null }),
   ]);
+  const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []).filter((d) => d.kind === "treatment");
   const plan = (((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).find((s) => s.kind === "plan") ?? null;
   const canPlan = can(me, "calendar", "add") && can(me, "assistant", "view");
   const data = cal as CalendarData | RpcError;
@@ -35,6 +37,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       from={from}
       today={today}
       members={((members as Pick<Member, "id" | "display_name">[]) ?? []).map((m) => ({ id: m.id, name: m.display_name }))}
+      due={due}
     />
     </div>
   );
