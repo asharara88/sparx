@@ -7,6 +7,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationsToggle } from "@/components/NotificationsToggle";
 import { Icon, type IconName } from "@/components/Icon";
 import { AvatarUpload } from "@/components/AvatarUpload";
+import { PrefsForm } from "@/components/PrefsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function MePage() {
           {can(me, "audit", "view") && <Tile href="/audit" icon="clipboard" label="Audit log" />}
         </div>
       )}
+      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} />
       <NotificationsToggle />
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
       <div className="card">

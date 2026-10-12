@@ -92,6 +92,16 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 - **Fanta's routines** (her page, and on the home screen when something is due): "every N
   days" tiles: litter full change, brushing, flea and tick, deworming, weighing. Done logs the
   linked entry. Admins edit them at `/fanta/routines`.
+- **Simple screen** (Me → Simple screen, with a language: English, Arabic or Russian): what
+  Lana is doing and four huge buttons: Bottle (three amounts), Diaper, Asleep / Woke up, Note
+  (spoken or typed), plus Fanta fed and Ask. Arabic reads right to left. "Full screen" at the
+  bottom switches back.
+- **Voice helper** (Ask): the microphone listens in the member's language, the assistant
+  answers in it, and the speaker button reads answers aloud. Chats save themselves after the
+  first answer (the clock icon lists earlier ones; each member sees only their own).
+- **Patterns** (Lana → Trends): one thin 24-hour bar per day for two weeks: sleep dark, night
+  wake-ups pale, feeds as ticks, diapers as dots. The long night stretch and nap clusters show
+  without a number.
 - **Member photos** (Me → tap the photo): stored in the private photos bucket; shown on
   Members and wherever a member is listed.
 - **Household facts** (Members → Household, and a Routine box per member): "Dana works 9 to 5,

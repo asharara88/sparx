@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Me } from "@/lib/types";
+import type { AskChat, Me } from "@/lib/types";
 import { can } from "@/lib/types";
 import { Assistant } from "@/components/Assistant";
 
 export const dynamic = "force-dynamic";
 
-export default async function AskPage() {
+export default async function AskPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   const supabase = await createClient();
+  const { c } = await searchParams;
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
   if (!can(me, "assistant", "view")) {
@@ -25,5 +26,9 @@ export default async function AskPage() {
   if (can(me, "maintenance", "view")) s.push("Is anything broken?");
   if (can(me, "assistant", "add") && can(me, "lana", "add")) s.push("Log a 120 ml bottle now");
   if (can(me, "assistant", "add") && can(me, "fanta", "add")) s.push("Fanta was fed 30 g");
-  return <Assistant suggestions={s} />;
+  const [{ data: chatRows }, { data: current }] = await Promise.all([
+    supabase.from("ask_chats").select("id, title, updated_at").order("updated_at", { ascending: false }).limit(30),
+    c && /^[0-9a-f-]{36}$/.test(c) ? supabase.from("ask_chats").select("*").eq("id", c).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  return <Assistant key={c ?? "new"} suggestions={s} chats={(chatRows as Pick<AskChat, "id" | "title" | "updated_at">[] | null) ?? []} initial={(current as AskChat | null) ?? null} />;
 }
