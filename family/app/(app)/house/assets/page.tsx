@@ -43,7 +43,7 @@ export default async function AssetsPage() {
               .map((a) => (
                 <li key={a.id}>
                   <Link href={`/house/assets/${a.id}`} className="flex items-center gap-3 py-2">
-                    {a.label_path ? <Photo path={a.label_path} alt="" className="h-12 w-12 shrink-0" /> : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-xl">{ASSET_CATEGORIES.find((c) => c.id === a.category)?.icon}</span>}
+                    {a.label_path ? <Photo path={a.label_path} alt="" className="h-12 w-12 shrink-0" /> : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--card-2)] text-xl">{ASSET_CATEGORIES.find((c) => c.id === a.category)?.icon}</span>}
                     <span className="grow">
                       <span className="block font-semibold">{a.name}</span>
                       <span className="muted block text-sm">

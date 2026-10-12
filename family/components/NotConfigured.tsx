@@ -6,7 +6,7 @@ export function NotConfigured() {
         <p className="muted">
           This app is deployed but not yet pointed at its database. Set these two environment variables and redeploy:
         </p>
-        <pre className="mt-4 overflow-x-auto rounded-xl bg-neutral-100 p-3 text-sm">
+        <pre className="mt-4 overflow-x-auto rounded-xl bg-[var(--card-2)] p-3 text-sm">
           NEXT_PUBLIC_SUPABASE_URL{"\n"}NEXT_PUBLIC_SUPABASE_ANON_KEY
         </pre>
         <p className="muted mt-4 text-sm">See family/README.md, section 2 “App (Vercel)”.</p>

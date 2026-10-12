@@ -97,7 +97,7 @@ export function NotificationsToggle() {
         )}
       </div>
       {msg && (
-        <p role="alert" className="mt-2 text-sm text-red-800">
+        <p role="alert" className="mt-2 text-sm text-[var(--danger)]">
           {msg}
         </p>
       )}

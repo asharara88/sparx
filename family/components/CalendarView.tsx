@@ -89,7 +89,7 @@ export function CalendarView({
                   return (
                     <li key={e.id + e.starts_at}>
                       <button
-                        className="w-full rounded-xl border-2 border-[var(--line)] p-3 text-left"
+                        className="card-flat w-full rounded-xl p-3 text-left"
                         onClick={() => editable && setEditing(e)}
                         disabled={!editable}
                       >
@@ -259,7 +259,7 @@ function EventForm({
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

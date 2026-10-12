@@ -57,7 +57,7 @@ export function TicketForm({ assets, simple = false, afterSave = "/house" }: { a
     <form onSubmit={submit} className="card flex flex-col gap-3">
       {!simple && <h1 className="page-title">Something to fix</h1>}
       {done && (
-        <p role="status" className="rounded-xl border-2 border-green-700 bg-green-50 p-3 font-semibold text-green-900">
+        <p role="status" className="notice notice-ok font-semibold">
           {done}
         </p>
       )}
@@ -89,7 +89,7 @@ export function TicketForm({ assets, simple = false, afterSave = "/house" }: { a
         </>
       )}
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

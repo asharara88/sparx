@@ -288,7 +288,7 @@ export function EntryForm(props: {
       </fieldset>
 
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

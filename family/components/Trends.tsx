@@ -48,7 +48,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
         <p className="muted text-sm">Last 7 full days, against the 7 before. Only what was written down counts, so a day with few notes looks like a quiet day.</p>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {tiles.map((t) => (
-            <div key={t.label} className="rounded-xl bg-neutral-100 p-2">
+            <div key={t.label} className="rounded-xl bg-[var(--card-2)] p-2">
               <p className="text-sm">{t.label}</p>
               <p className="text-xl font-bold">{t.now}</p>
               {t.delta != null && lastWeek.length > 0 && (

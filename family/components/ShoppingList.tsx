@@ -45,7 +45,7 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
               {rows.map((i) => (
                 <li key={i.id} className="flex items-center gap-3">
                   <button
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 text-2xl ${i.needed ? "border-[var(--line)]" : "border-green-700 bg-green-50"}`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${i.needed ? "border border-[var(--line)] bg-[var(--card-2)]" : "bg-[var(--ok)] text-white"}`}
                     aria-label={i.needed ? `Mark ${i.name} as bought` : `Put ${i.name} back on the list`}
                     onClick={() => setNeeded(i, !i.needed)}
                     disabled={busy === i.id || !(can(me, "shopping", "edit") || i.owner_member === me.member.id)}
@@ -82,7 +82,7 @@ export function ShoppingList({ data, members }: { data: ShoppingData; members: {
       </header>
 
       {data.pending_requests > 0 && can(me, "shopping_review", "edit") && (
-        <Link href="/shopping/requests" className="rounded-2xl border-2 border-amber-700 bg-amber-50 p-4 font-semibold text-amber-900">
+        <Link href="/shopping/requests" className="notice notice-warn font-semibold">
           {data.pending_requests} running-low {data.pending_requests === 1 ? "request" : "requests"} to check ›
         </Link>
       )}

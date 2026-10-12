@@ -75,7 +75,7 @@ export function ProfileCard({ subject, due, timezone }: { subject: Subject; due:
             </label>
           ),
         )}
-        {msg && <p className="text-red-800">{msg}</p>}
+        {msg && <p className="text-[var(--danger)]">{msg}</p>}
         <div className="grid grid-cols-2 gap-3">
           <button type="button" className="btn" onClick={() => setEditing(false)} disabled={busy}>
             Cancel

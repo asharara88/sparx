@@ -72,7 +72,7 @@ export function ContractorBook({ contractors }: { contractors: Contractor[] }) {
               </button>
             ))}
           </div>
-          {msg && <p className="text-red-800">{msg}</p>}
+          {msg && <p className="text-[var(--danger)]">{msg}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="btn" onClick={() => setEditing(null)} disabled={busy}>
               Cancel
@@ -94,7 +94,7 @@ export function ContractorBook({ contractors }: { contractors: Contractor[] }) {
                   {c.trade ? <span className="muted font-normal"> · {c.trade}</span> : null}
                 </p>
                 {c.company && <p className="muted text-sm">{c.company}</p>}
-                {c.rating ? <p className="text-sm text-amber-600">{"★".repeat(c.rating)}</p> : null}
+                {c.rating ? <p className="text-sm text-[var(--warn)]">{"★".repeat(c.rating)}</p> : null}
                 {c.notes && <p className="mt-1 text-sm">{c.notes}</p>}
                 <p className="muted text-sm">
                   {c.jobs} {c.jobs === 1 ? "job" : "jobs"}

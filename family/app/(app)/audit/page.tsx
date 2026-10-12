@@ -23,7 +23,7 @@ export default async function AuditPage() {
       <p className="muted">Every write, and every attempt that was not allowed. Newest first.</p>
       <ul className="flex flex-col gap-2 text-sm">
         {rows.map((r) => (
-          <li key={r.id} className={`card ${r.allowed ? "" : "border-red-700"}`}>
+          <li key={r.id} className={`card ${r.allowed ? "" : "ring-1 ring-[var(--danger)]"}`}>
             <div className="flex justify-between gap-2">
               <span className="font-semibold">
                 {r.actor ?? "unknown"} <span className="muted">({r.actor_role ?? "-"})</span>

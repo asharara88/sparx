@@ -88,7 +88,7 @@ export default async function HomePage() {
       <SuggestionCards suggestions={suggestions} />
 
       {pending > 0 && can(me, "shopping_review", "edit") && (
-        <Link href="/shopping/requests" className="rounded-2xl border-2 border-amber-700 bg-amber-50 p-4 font-semibold text-amber-900">
+        <Link href="/shopping/requests" className="notice notice-warn font-semibold">
           {pending} running-low {pending === 1 ? "request" : "requests"} from Lilly to check ›
         </Link>
       )}

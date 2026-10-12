@@ -51,7 +51,7 @@ export function PermissionGrid({
   return (
     <div className="flex flex-col gap-4">
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}
@@ -81,7 +81,7 @@ export function PermissionGrid({
                       <td key={a} className="text-center">
                         <button
                           type="button"
-                          className="h-12 w-12 rounded-xl border-2 border-[var(--line)] text-xl"
+                          className="h-12 w-12 rounded-xl border border-[var(--line)] text-xl"
                           style={on ? { background: "var(--accent)", color: "white", borderColor: "var(--accent)" } : undefined}
                           aria-pressed={on}
                           aria-label={`${r.label} ${a} ${m.label}`}

@@ -153,7 +153,7 @@ export function CartRunView({ run }: { run: CartRun }) {
       </section>
 
       {msg && (
-        <p role="status" className={`rounded-xl border-2 p-3 ${/saved|marked|Cancelled/.test(msg) ? "border-green-700 bg-green-50 text-green-900" : "border-red-700 text-red-800"}`}>
+        <p role="status" className={`notice ${/saved|marked|Cancelled/.test(msg) ? "notice-ok" : "notice-danger"}`}>
           {msg}
         </p>
       )}

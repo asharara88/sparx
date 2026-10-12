@@ -42,7 +42,7 @@ export function HouseholdForm({ household }: { household: Household }) {
         <textarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Things the family knows that the log does not show." />
       </label>
       {msg && (
-        <p role="status" className={`rounded-xl border-2 p-3 ${msg === "Saved." ? "border-green-700 text-green-800" : "border-red-700 text-red-800"}`}>
+        <p role="status" className={`notice ${msg === "Saved." ? "notice-ok" : "notice-danger"}`}>
           {msg}
         </p>
       )}

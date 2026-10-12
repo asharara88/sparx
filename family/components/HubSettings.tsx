@@ -43,7 +43,7 @@ export function HubSettings({ configured }: { configured: HubEntity[] }) {
   }
 
   if (state === "off") return <p className="card">No hub connected. Set <code>HOME_ASSISTANT_URL</code> and <code>HOME_ASSISTANT_TOKEN</code> (a long-lived access token from a read-only Home Assistant user) on the Vercel project, redeploy, and come back.</p>;
-  if (state === "error") return <p className="card text-red-800">Could not reach the hub: {msg}</p>;
+  if (state === "error") return <p className="card text-[var(--danger)]">Could not reach the hub: {msg}</p>;
   if (state === "loading" || !all) return <p className="muted">Reading the hub…</p>;
   const q = filter.trim().toLowerCase();
   const rows = all.filter((s) => !q || s.entity_id.includes(q) || s.label.toLowerCase().includes(q)).slice(0, 200);
@@ -51,7 +51,7 @@ export function HubSettings({ configured }: { configured: HubEntity[] }) {
     <div className="flex flex-col gap-3">
       <p className="muted text-sm">Tick what the house screen should show. Sensors, door and motion states, and camera stills. The app never switches anything.</p>
       <input className="input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find an entity (temperature, door, camera…)" aria-label="Find" />
-      {msg && <p className="text-sm text-red-800">{msg}</p>}
+      {msg && <p className="text-sm text-[var(--danger)]">{msg}</p>}
       <ul className="flex flex-col gap-1">
         {rows.map((s) => {
           const on = shown.has(s.entity_id) && shown.get(s.entity_id)!.is_active;

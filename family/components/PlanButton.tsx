@@ -33,7 +33,7 @@ export function PlanButton({ existing }: { existing: Suggestion | null }) {
         {busy ? "Thinking about next week…" : draft ? "Draft it again" : "Draft next week"}
       </button>
       {msg && (
-        <p role="alert" className="text-sm text-red-800">
+        <p role="alert" className="text-sm text-[var(--danger)]">
           {msg}
         </p>
       )}

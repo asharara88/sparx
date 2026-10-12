@@ -60,7 +60,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
       </div>
 
       {overdue.length > 0 && (
-        <div className="rounded-2xl border-2 border-amber-700 bg-amber-50 p-3 text-amber-900">
+        <div className="notice notice-warn">
           {overdue.map((d) => (
             <p key={d.label + d.due_at} className="font-semibold">
               {d.icon} {d.label} · {d.kind === "treatment" ? `was due ${fmtDate(d.due_at, timezone)}` : `last ${ago(d.last_at!, now)}`}

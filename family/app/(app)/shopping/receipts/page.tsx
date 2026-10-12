@@ -33,7 +33,7 @@ export default async function ReceiptsPage() {
                   <b>{r.store ?? "Shop?"}</b> · {r.bought_on ?? fmtDate(r.created_at, tz)}
                   {r.total != null ? ` · ${r.total} ${r.currency ?? me.household.currency}` : ""}
                 </span>
-                <span className={r.status === "read" && r.unmatched > 0 ? "font-semibold text-amber-800" : "muted"}>
+                <span className={r.status === "read" && r.unmatched > 0 ? "font-semibold text-[var(--warn)]" : "muted"}>
                   {r.status === "read" && r.unmatched > 0 ? `${r.unmatched} to check` : label(r.status)}
                 </span>
               </Link>

@@ -246,7 +246,7 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
             {m.proposals?.map((p) => {
               const st = pstate[p.id] ?? { status: "pending" };
               return (
-                <div key={p.id} className="card mt-2 border-2 border-[var(--accent)]">
+                <div key={p.id} className="card mt-2 ring-2 ring-[var(--accent)]">
                   <p className="font-semibold">{p.summary}</p>
                   {st.status === "pending" && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
@@ -271,7 +271,7 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
                   )}
                   {st.status === "dropped" && <p className="muted mt-1">Not saved.</p>}
                   {st.status === "error" && (
-                    <p className="mt-1 text-red-800" role="alert">
+                    <p className="mt-1 text-[var(--danger)]" role="alert">
                       {st.message}{" "}
                       <button type="button" className="underline" onClick={() => void confirm(p)}>
                         Try again

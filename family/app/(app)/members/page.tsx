@@ -30,8 +30,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           <Icon name="plus" size={18} /> Add
         </Link>
       </header>
-      {error === "preview" && <p className="rounded-xl border-2 border-red-700 p-3 text-red-800">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
-      {error === "member" && <p className="rounded-xl border-2 border-red-700 p-3 text-red-800">That member is not active.</p>}
+      {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
+      {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
           <li key={m.id} className="card flex flex-col gap-2">

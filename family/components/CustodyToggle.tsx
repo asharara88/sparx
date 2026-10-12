@@ -47,7 +47,7 @@ export function CustodyToggle({
         {label} ▾
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border-2 border-[var(--line)] bg-[var(--card)] p-2 shadow-lg">
+        <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg">
           <p className="muted px-2 py-1 text-sm">Who has Lana now?</p>
           {members.length === 0 && <p className="px-2 py-2">Loading…</p>}
           {members.map((m) => (
