@@ -67,6 +67,9 @@ export default async function MePage() {
         <p className="mt-1">iPhone: in Safari tap Share, then “Add to Home Screen”.</p>
         <p>Android: in Chrome tap the menu (⋮), then “Install app” or “Add to Home screen”.</p>
       </div>
+      <Link href="/me/password" className="btn">
+        Change password
+      </Link>
       <SignOutButton />
     </div>
   );

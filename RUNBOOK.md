@@ -104,7 +104,14 @@ services (https://vercel.com/docs/services):
   `Authorization: Bearer $CRON_SECRET`; set `CRON_SECRET` before the first run or the route
   answers 401. On a Pro plan you can add `{ "path": "/api/cron/often", "schedule": "*/15 * * * *" }`
   for "event in an hour" and request pushes; Hobby allows one daily cron.
-- Supabase Auth → URL configuration → Redirect URLs must include
+- Supabase Auth → Providers → Email: keep **Enable email provider** on. Turn **Confirm email**
+  off: the household list already decides who gets in, and confirmation e-mails only add a
+  second thing to tap (and count against the mailer's hourly limit). Keep **Allow new users to
+  sign up** on, or nobody can create their account. The built-in mailer sends only a few
+  messages per hour; set Auth → SMTP Settings → Custom SMTP (Resend works) before the family
+  starts, and raise Auth → Rate Limits → e-mails per hour.
+- Supabase Auth → URL configuration → Site URL is the app's address
+  (`https://sparx-tsom.vercel.app`), never the Supabase address; Redirect URLs must include
   `https://<your-domain>/auth/callback` and `https://*.vercel.app/auth/callback` for previews.
 - Known limit: the dashboard's `/api/run` spawns the pipeline with `npx` against the repo
   root and reads log files from local disk. That works with `vercel dev` and locally, not on

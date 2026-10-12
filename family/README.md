@@ -144,8 +144,8 @@ npm run seed:accounts
 ```
 
 Mido's e-mail is already in the seed. The script creates an auth user per member and the
-database trigger links it to the member row by e-mail. Anyone can also just sign in with
-magic link; if their e-mail matches a member row they are linked on first sign-in, if not
+database trigger links it to the member row by e-mail. Anyone can also just create an
+account with e-mail and password; if their e-mail matches a member row they are linked on first sign-in, if not
 they see "Your e-mail is not on the household list yet" and nothing else.
 
 ### Verify the database on its own (optional, any machine with Postgres 16)
@@ -198,7 +198,7 @@ scripts/               seed-accounts.mjs, make-icons.mjs
 
 ## 5. Known limits in this step
 
-- Sign-in is magic link only. Passkeys are not a primary sign-in method in Supabase Auth
+- Sign-in is e-mail and password; "e-mail me a link" remains as a fallback. Passkeys are not a primary sign-in method in Supabase Auth
   today (see *Decisions needed* in the PR). On iPhone the link opens in Safari, not inside
   the installed app; signing in once in Safari before "Add to Home Screen" avoids that.
 - A denied **direct** table read over the Supabase REST API is blocked by RLS but cannot be
