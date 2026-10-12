@@ -7,6 +7,7 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { handoffText } from "@/lib/shopping/handoff";
+import { Icon } from "@/components/Icon";
 
 const RESULTS: { id: CartResult; label: string }[] = [
   { id: "found", label: "Found" },
@@ -76,12 +77,12 @@ export function CartRunView({ run }: { run: CartRun }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/shopping/cart" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header flex items-center gap-2">
+        <Link href="/shopping/cart" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">{run.store_label} cart</h1>
+          <h1 className="page-title">{run.store_label} cart</h1>
           <p className="muted text-sm">
             {run.manifest.items.length} items · {run.status}
             {run.created_by_name ? ` · ${run.created_by_name}` : ""}
@@ -95,7 +96,7 @@ export function CartRunView({ run }: { run: CartRun }) {
         <textarea className="input font-mono text-xs" rows={8} readOnly value={text} aria-label="Instructions for the cart agent" />
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="btn btn-primary" onClick={copy}>
-            {copied ? "Copied ✓" : "Copy the instructions"}
+            {copied ? "Copied" : "Copy the instructions"}
           </button>
           {run.store_url && (
             <a className="btn" href={run.store_url} target="_blank" rel="noreferrer">
@@ -152,7 +153,7 @@ export function CartRunView({ run }: { run: CartRun }) {
       </section>
 
       {msg && (
-        <p role="status" className={`rounded-xl border-2 p-3 ${/saved|marked|Cancelled/.test(msg) ? "border-green-700 bg-green-50 text-green-900" : "border-red-700 text-red-800"}`}>
+        <p role="status" className={`notice ${/saved|marked|Cancelled/.test(msg) ? "notice-ok" : "notice-danger"}`}>
           {msg}
         </p>
       )}
@@ -166,7 +167,7 @@ export function CartRunView({ run }: { run: CartRun }) {
               Cancel this cart
             </button>
             <button type="button" className="btn btn-primary min-h-[64px]" onClick={() => close(true)} disabled={busy !== null || !canClose || run.status === "prepared"} title={run.status === "prepared" ? "Save the report first" : ""}>
-              ✓ I paid
+              I paid
             </button>
           </div>
         </section>

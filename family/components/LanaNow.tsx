@@ -8,6 +8,7 @@ import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId } from "@/lib/offline";
 import { Boobs } from "./Boobs";
+import { Icon } from "@/components/Icon";
 
 /**
  * Lana's screen follows her state: asleep, awake, feeding, awake at night.
@@ -125,32 +126,32 @@ export function LanaNow({
 
   // ---- status line
   let status: React.ReactNode;
-  let tone = "border-[var(--line)]";
+  let tone = "";
   if (state.kind === "asleep") {
     status = (
       <>
-        <span aria-hidden>😴 </span>Asleep since {sinceText(state.entry.occurred_at)}
+        <Icon name="zzz" size={18} className="inline" /> Asleep since {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "border-purple-700 bg-purple-50";
+    tone = "notice-accent";
   } else if (state.kind === "feeding") {
     status = (
       <>
-        <span aria-hidden>🤱 </span>Feeding{state.side ? `, ${state.side.toLowerCase()}` : ""} · {sinceText(state.entry.occurred_at)}
+        <Icon name="bottle" size={18} className="inline" /> Feeding{state.side ? `, ${state.side.toLowerCase()}` : ""} · {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "border-blue-700 bg-blue-50";
+    tone = "notice-ok";
   } else if (state.kind === "night_awake") {
     status = (
       <>
-        <span aria-hidden>🌙 </span>Awake in the night since {sinceText(state.entry.occurred_at)}
+        <Icon name="moon" size={18} className="inline" /> Awake in the night since {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "border-indigo-700 bg-indigo-50";
+    tone = "notice-warn";
   } else {
     status = (
       <>
-        <span aria-hidden>👶 </span>Awake{state.since ? ` since ${sinceText(state.since)}` : ""}
+        <Icon name="sun" size={18} className="inline" /> Awake{state.since ? ` since ${sinceText(state.since)}` : ""}
       </>
     );
   }
@@ -163,7 +164,7 @@ export function LanaNow({
 
   return (
     <section className="flex flex-col gap-3" aria-live="polite">
-      <div className={`rounded-2xl border-2 p-4 ${tone}`}>
+      <div className={`notice ${tone}`}>
         <p className="text-xl font-bold">{status}</p>
         {state.kind === "feeding" && !breastfeeds && (
           <p className="mt-1 text-4xl font-bold tabular-nums">{fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, nowIso)))}</p>
@@ -211,7 +212,7 @@ export function LanaNow({
               })
             }
           >
-            {isNight ? "🌙 Woke up (night)" : "☀️ Woke up"}
+            <Icon name={isNight ? "moon" : "sun"} size={20} /> {isNight ? "Woke up (night)" : "Woke up"}
           </Big>
           {isNight && (
             <Big
@@ -222,7 +223,7 @@ export function LanaNow({
                 })
               }
             >
-              ☀️ Up for the day
+              <Icon name="sun" size={20} /> Up for the day
             </Big>
           )}
         </div>
@@ -243,7 +244,7 @@ export function LanaNow({
           )}
           <div className="card">
             <p className="font-semibold">
-              <span aria-hidden>🍼 </span>Bottle
+              <Icon name="bottle" size={20} /> Bottle
             </p>
             {milkOptions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Which milk">
@@ -270,7 +271,7 @@ export function LanaNow({
           </div>
           <div className="card">
             <p className="font-semibold">
-              <span aria-hidden>🧷 </span>Diaper
+              <Icon name="diaper" size={20} /> Diaper
             </p>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
@@ -294,7 +295,7 @@ export function LanaNow({
               })
             }
           >
-            😴 {state.kind === "night_awake" ? "Back to sleep" : "Fell asleep"}
+            <Icon name="zzz" size={20} /> {state.kind === "night_awake" ? "Back to sleep" : "Fell asleep"}
           </Big>
         </>
       )}

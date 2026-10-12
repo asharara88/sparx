@@ -44,7 +44,7 @@ export function ReceiptCapture() {
       <p className="muted text-sm">A paper receipt flat in good light, or a screenshot of the order page in Talabat, Amazon or Noon. It is read line by line and matched to the list; you check anything it is not sure about.</p>
       <PhotoPicker label="Receipt photo or order screenshot" file={file} onFile={setFile} disabled={step !== "idle"} library />
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

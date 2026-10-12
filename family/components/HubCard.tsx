@@ -42,7 +42,7 @@ export function HubCard() {
 
   if (state === "loading") return null;
   if (state === "off") return admin ? <p className="muted text-sm">No smart-home hub connected. Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN on the server, then pick entities under “Hub”.</p> : null;
-  if (state === "error") return admin ? <p className="text-sm text-red-800">Hub: {msg ?? "could not reach it"}.</p> : null;
+  if (state === "error") return admin ? <p className="text-sm text-[var(--danger)]">Hub: {msg ?? "could not reach it"}.</p> : null;
   const list = states ?? [];
   if (list.length === 0) return admin ? <p className="muted text-sm"><Link href="/house/hub" className="underline">Pick which sensors and cameras to show.</Link></p> : null;
   const cams = list.filter((s) => s.kind === "camera");
@@ -51,7 +51,7 @@ export function HubCard() {
     <section className="card" aria-labelledby="hub-h">
       <div className="flex items-baseline justify-between">
         <h2 id="hub-h" className="text-xl font-semibold">
-          📡 Around the house
+          Around the house
         </h2>
         {admin && (
           <Link href="/house/hub" className="text-sm font-semibold text-[var(--accent)]">

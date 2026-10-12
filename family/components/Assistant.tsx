@@ -7,6 +7,7 @@ import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
+import { Icon } from "@/components/Icon";
 
 /**
  * The Ask screen. Type or speak a question; the answer cites the log. If you ask
@@ -208,11 +209,11 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
 
   return (
     <div className="ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3">
-      <header className="flex items-center justify-between gap-2 pt-2">
-        <h1 className="text-2xl font-bold">Ask</h1>
+      <header className="page-header flex items-center justify-between gap-2">
+        <h1 className="page-title">Ask</h1>
         <div className="flex gap-2">
           <button type="button" className="btn" onClick={toggleNight} aria-pressed={night} title="Dark screen for the night">
-            {night ? "☀️ Day" : "🌙 Night"}
+            <Icon name={night ? "sun" : "moon"} size={20} /> {night ? "Day" : "Night"}
           </button>
           {msgs.length > 0 && (
             <button type="button" className="btn" onClick={clear}>
@@ -245,7 +246,7 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
             {m.proposals?.map((p) => {
               const st = pstate[p.id] ?? { status: "pending" };
               return (
-                <div key={p.id} className="card mt-2 border-2 border-[var(--accent)]">
+                <div key={p.id} className="card mt-2 ring-2 ring-[var(--accent)]">
                   <p className="font-semibold">{p.summary}</p>
                   {st.status === "pending" && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
@@ -253,14 +254,14 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
                         Not this
                       </button>
                       <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={() => void confirm(p)}>
-                        ✓ Confirm
+                        Confirm
                       </button>
                     </div>
                   )}
                   {st.status === "saving" && <p className="muted mt-1">Saving…</p>}
                   {st.status === "saved" && (
                     <p className="mt-1 font-semibold text-[var(--ok)]">
-                      ✓ {st.note}{" "}
+                      {st.note}{" "}
                       {st.href && (
                         <a href={st.href} className="underline">
                           Open
@@ -270,7 +271,7 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
                   )}
                   {st.status === "dropped" && <p className="muted mt-1">Not saved.</p>}
                   {st.status === "error" && (
-                    <p className="mt-1 text-red-800" role="alert">
+                    <p className="mt-1 text-[var(--danger)]" role="alert">
                       {st.message}{" "}
                       <button type="button" className="underline" onClick={() => void confirm(p)}>
                         Try again
@@ -299,12 +300,12 @@ export function Assistant({ suggestions }: { suggestions: string[] }) {
       >
         {canSpeak && (
           <button type="button" className={`btn mic ${listening ? "mic-on" : ""}`} onClick={toggleListening} aria-pressed={listening} aria-label={listening ? "Stop listening" : "Speak"} disabled={busy}>
-            {listening ? "●" : "🎤"}
+            {listening ? <span className="dot dot-danger" /> : <Icon name="mic" />}
           </button>
         )}
         <input className="input flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? "Listening…" : "Ask or tell me something"} aria-label="Your question" autoComplete="off" enterKeyHint="send" />
         <button type="submit" className="btn btn-primary" disabled={busy || !input.trim()} aria-label="Send">
-          ➤
+          <Icon name="send" />
         </button>
       </form>
     </div>

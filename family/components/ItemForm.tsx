@@ -74,7 +74,7 @@ export function ItemForm({
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3 border-[var(--accent)]">
-      <h2 className="text-xl font-semibold">{item ? item.name : "New item"}</h2>
+      <h2 className="text-lg font-semibold">{item ? item.name : "New item"}</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Name</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Nappies size 3" />
@@ -152,7 +152,7 @@ export function ItemForm({
         </>
       )}
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

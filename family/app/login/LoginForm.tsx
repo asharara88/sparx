@@ -74,7 +74,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
 
   if (done) {
     return (
-      <div role="status" className="rounded-xl border-2 border-green-700 p-4">
+      <div role="status" className="notice notice-ok">
         <p className="text-lg font-semibold">Check your e-mail.</p>
         <p className="muted mt-1">{done}</p>
         <button className="btn mt-4 w-full" onClick={() => { setDone(null); setMode("signin"); }}>
@@ -94,7 +94,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
+        <h2 className="text-lg font-semibold">{title}</h2>
         <p className="muted">{hint}</p>
       </div>
       <label className="flex flex-col gap-1">
@@ -114,7 +114,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
         </label>
       )}
       {error && (
-        <p className="rounded-xl border-2 border-red-700 p-3 text-red-800" role="alert">
+        <p className="notice notice-danger" role="alert">
           {error}
         </p>
       )}

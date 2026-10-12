@@ -19,11 +19,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <HashSession />
       <div className="mb-8 flex items-center gap-3">
         <img src="/icons/icon-192.png" alt="" width={56} height={56} className="rounded-2xl" />
-        <h1 className="text-3xl font-bold">Our home</h1>
+        <h1 className="page-title">Our home</h1>
       </div>
       <div className="card">
         {error && (
-          <p className="mb-4 rounded-xl border-2 border-red-700 p-3 text-red-800" role="alert">
+          <p className="notice notice-danger mb-4" role="alert">
             {error === "link" ? "That link did not work. It may be old. Ask for a new one." : error}
           </p>
         )}

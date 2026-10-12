@@ -27,7 +27,7 @@ export function HouseholdForm({ household }: { household: Household }) {
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">Household</h2>
+      <h2 className="text-lg font-semibold">Household</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Name</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -42,7 +42,7 @@ export function HouseholdForm({ household }: { household: Household }) {
         <textarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Things the family knows that the log does not show." />
       </label>
       {msg && (
-        <p role="status" className={`rounded-xl border-2 p-3 ${msg === "Saved." ? "border-green-700 text-green-800" : "border-red-700 text-red-800"}`}>
+        <p role="status" className={`notice ${msg === "Saved." ? "notice-ok" : "notice-danger"}`}>
           {msg}
         </p>
       )}

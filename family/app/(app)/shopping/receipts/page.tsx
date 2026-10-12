@@ -5,6 +5,7 @@ import type { Me, ReceiptRow } from "@/lib/types";
 import { can } from "@/lib/types";
 import { fmtDate } from "@/lib/time";
 import { ReceiptCapture } from "@/components/ReceiptCapture";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +17,10 @@ export default async function ReceiptsPage() {
   const { data } = await supabase.rpc("receipts_list");
   const receipts = ((data as { receipts?: ReceiptRow[] } | null)?.receipts ?? []) as ReceiptRow[];
   const tz = me.household.timezone;
-  const label = (s: ReceiptRow["status"]) => (s === "applied" ? "✓ applied" : s === "read" ? "to check" : s === "new" ? "not read" : s);
+  const label = (s: ReceiptRow["status"]) => (s === "applied" ? "applied" : s === "read" ? "to check" : s === "new" ? "not read" : s);
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/shopping" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Receipts</h1>
-      </header>
+      <PageHeader back="/shopping" title="Receipts" />
       {can(me, "shopping", "add") && <ReceiptCapture />}
       <section className="card">
         <h2 className="text-lg font-bold">Earlier receipts</h2>
@@ -37,7 +33,7 @@ export default async function ReceiptsPage() {
                   <b>{r.store ?? "Shop?"}</b> · {r.bought_on ?? fmtDate(r.created_at, tz)}
                   {r.total != null ? ` · ${r.total} ${r.currency ?? me.household.currency}` : ""}
                 </span>
-                <span className={r.status === "read" && r.unmatched > 0 ? "font-semibold text-amber-800" : "muted"}>
+                <span className={r.status === "read" && r.unmatched > 0 ? "font-semibold text-[var(--warn)]" : "muted"}>
                   {r.status === "read" && r.unmatched > 0 ? `${r.unmatched} to check` : label(r.status)}
                 </span>
               </Link>

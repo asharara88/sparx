@@ -10,6 +10,7 @@ import { useMe } from "@/lib/me-context";
 import { uploadPhoto } from "@/lib/photos";
 import { PhotoPicker } from "./PhotoPicker";
 import { Attachments } from "./Attachments";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Initial {
   payload: Record<string, unknown>;
@@ -145,15 +146,8 @@ export function EntryForm(props: {
         save();
       }}
     >
-      <header className="flex items-center gap-3 pt-2">
-        <Link href={mode === "create" ? home : list} className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">
-          <span aria-hidden>{t.icon} </span>
-          {mode === "create" ? t.label : `Edit ${t.label.toLowerCase()}`}
-        </h1>
-      </header>
+      <PageHeader back={mode === "create" ? home : list} title={<><span aria-hidden>{t.icon} </span>
+          {mode === "create" ? t.label : `Edit ${t.label.toLowerCase()}`}</>} />
 
       {visible.map((f) => (
         <fieldset key={f.key} className="card" disabled={readOnly}>
@@ -181,7 +175,7 @@ export function EntryForm(props: {
                       disabled={busy}
                     >
                       {q}
-                      {canQuickSave ? " ✓" : ""}
+                      
                     </button>
                   ))}
                 </div>
@@ -294,7 +288,7 @@ export function EntryForm(props: {
       </fieldset>
 
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

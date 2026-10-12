@@ -55,7 +55,7 @@ export function BriefCard({ hour }: { hour: number }) {
         </button>
       </div>
       {state === "loading" && !brief && <p className="muted mt-2">Reading the night's log…</p>}
-      {state === "error" && <p className="mt-2 text-red-800">{msg ?? "Could not write the brief."}</p>}
+      {state === "error" && <p className="mt-2 text-[var(--danger)]">{msg ?? "Could not write the brief."}</p>}
       {brief && (
         <div className="mt-2">
           <Cited text={brief.content} refs={brief.refs} />

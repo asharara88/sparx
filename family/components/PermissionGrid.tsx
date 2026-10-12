@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Action, Module, Role } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Icon } from "@/components/Icon";
 
 const ACTIONS: Action[] = ["view", "add", "edit", "delete"];
 
@@ -50,13 +51,13 @@ export function PermissionGrid({
   return (
     <div className="flex flex-col gap-4">
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}
       {roles.map((r) => (
         <section key={r.id} className="card overflow-x-auto">
-          <h2 className="text-xl font-semibold">{r.label}</h2>
+          <h2 className="text-lg font-semibold">{r.label}</h2>
           {r.description && <p className="muted text-sm">{r.description}</p>}
           <table className="mt-2 w-full text-sm">
             <thead>
@@ -80,7 +81,7 @@ export function PermissionGrid({
                       <td key={a} className="text-center">
                         <button
                           type="button"
-                          className="h-12 w-12 rounded-xl border-2 border-[var(--line)] text-xl"
+                          className="h-12 w-12 rounded-xl border border-[var(--line)] text-xl"
                           style={on ? { background: "var(--accent)", color: "white", borderColor: "var(--accent)" } : undefined}
                           aria-pressed={on}
                           aria-label={`${r.label} ${a} ${m.label}`}
@@ -88,7 +89,7 @@ export function PermissionGrid({
                           title={locked ? "Your own role keeps access to Members" : undefined}
                           onClick={() => toggle(r.id, m.id, a)}
                         >
-                          {on ? "✓" : ""}
+                          {on ? <Icon name="check" size={18} /> : ""}
                         </button>
                       </td>
                     );
@@ -100,7 +101,7 @@ export function PermissionGrid({
         </section>
       ))}
       <form onSubmit={addRole} className="card flex flex-col gap-2">
-        <h2 className="text-xl font-semibold">Add a role</h2>
+        <h2 className="text-lg font-semibold">Add a role</h2>
         <input className="input" placeholder="Label, e.g. Night nurse" value={newRole.label} onChange={(e) => setNewRole({ ...newRole, label: e.target.value })} required />
         <input className="input" placeholder="Short id, e.g. night_nurse" value={newRole.id} onChange={(e) => setNewRole({ ...newRole, id: e.target.value })} required />
         <button className="btn" type="submit">

@@ -27,7 +27,7 @@ export function PasswordForm({ afterReset = false }: { afterReset?: boolean }) {
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">{afterReset ? "Choose a new password" : "Change password"}</h2>
+      <h2 className="text-lg font-semibold">{afterReset ? "Choose a new password" : "Change password"}</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">New password</span>
         <input className="input" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -38,7 +38,7 @@ export function PasswordForm({ afterReset = false }: { afterReset?: boolean }) {
         <input className="input" type="password" autoComplete="new-password" required minLength={8} value={password2} onChange={(e) => setPassword2(e.target.value)} />
       </label>
       {msg && (
-        <p role="status" className={`rounded-xl border-2 p-3 ${msg === "Saved." ? "border-green-700 text-green-800" : "border-red-700 text-red-800"}`}>
+        <p role="status" className={`notice ${msg === "Saved." ? "notice-ok" : "notice-danger"}`}>
           {msg}
         </p>
       )}

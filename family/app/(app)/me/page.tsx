@@ -5,6 +5,7 @@ import { WEEKDAYS, can } from "@/lib/types";
 import { PresenceForm } from "@/components/PresenceForm";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationsToggle } from "@/components/NotificationsToggle";
+import { Icon, type IconName } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -18,59 +19,52 @@ export default async function MePage() {
   ]);
   return (
     <div className="flex flex-col gap-4">
-      <header className="pt-2">
-        <h1 className="text-2xl font-bold">{me.member.display_name}</h1>
+      <header className="page-header page-header-large">
+        <h1 className="page-title">{me.member.display_name}</h1>
         <p className="muted">
           {me.role.label} · {me.member.email}
         </p>
       </header>
       {me.work_days.length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-semibold">Your work days</h2>
+          <h2 className="text-lg font-semibold">Your work days</h2>
           <p className="mt-1">{me.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>
           <p className="muted text-sm">Ask Mido or Dana to change these.</p>
         </div>
       )}
-      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "maintenance", "view") || can(me, "assistant", "view")) && (
+      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "maintenance", "view") || can(me, "assistant", "view") || can(me, "fanta", "view")) && (
         <div className="grid grid-cols-2 gap-3">
-          {can(me, "assistant", "view") && (
-            <Link href="/ask" className="btn">
-              💬 Ask
-            </Link>
-          )}
-          {can(me, "maintenance", "view") && (
-            <Link href="/house" className="btn">
-              🏠 The house
-            </Link>
-          )}
-          {can(me, "fanta", "view") && (
-            <Link href="/fanta" className="btn">
-              🐈 Fanta
-            </Link>
-          )}
-          {can(me, "members", "edit") && (
-            <Link href="/members" className="btn">
-              👪 Members
-            </Link>
-          )}
-          {can(me, "audit", "view") && (
-            <Link href="/audit" className="btn">
-              📋 Audit log
-            </Link>
-          )}
+          {can(me, "assistant", "view") && <Tile href="/ask" icon="chat" label="Ask" />}
+          {can(me, "maintenance", "view") && <Tile href="/house" icon="house" label="The house" />}
+          {can(me, "fanta", "view") && <Tile href="/fanta" icon="cat" label="Fanta" />}
+          {can(me, "members", "edit") && <Tile href="/members" icon="users" label="Members" />}
+          {can(me, "audit", "view") && <Tile href="/audit" icon="clipboard" label="Audit log" />}
         </div>
       )}
       <NotificationsToggle />
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
       <div className="card">
-        <h2 className="text-xl font-semibold">Add this app to your phone</h2>
+        <h2 className="text-lg font-semibold">Add this app to your phone</h2>
         <p className="mt-1">iPhone: in Safari tap Share, then “Add to Home Screen”.</p>
         <p>Android: in Chrome tap the menu (⋮), then “Install app” or “Add to Home screen”.</p>
       </div>
-      <Link href="/me/password" className="btn">
-        Change password
-      </Link>
-      <SignOutButton />
+      <div className="card flex flex-col gap-2">
+        <Link href="/me/password" className="btn">
+          <Icon name="key" size={18} /> Change password
+        </Link>
+        <SignOutButton />
+      </div>
     </div>
+  );
+}
+
+function Tile({ href, icon, label }: { href: string; icon: IconName; label: string }) {
+  return (
+    <Link href={href} className="tile">
+      <span className="tile-icon">
+        <Icon name={icon} size={20} />
+      </span>
+      <span className="font-semibold">{label}</span>
+    </Link>
   );
 }

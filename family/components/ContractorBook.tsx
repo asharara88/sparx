@@ -5,6 +5,7 @@ import type { Contractor } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Icon } from "@/components/Icon";
 
 const EMPTY = { name: "", trade: "", phone: "", whatsapp: "", company: "", notes: "", rating: "" };
 
@@ -71,7 +72,7 @@ export function ContractorBook({ contractors }: { contractors: Contractor[] }) {
               </button>
             ))}
           </div>
-          {msg && <p className="text-red-800">{msg}</p>}
+          {msg && <p className="text-[var(--danger)]">{msg}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="btn" onClick={() => setEditing(null)} disabled={busy}>
               Cancel
@@ -93,7 +94,7 @@ export function ContractorBook({ contractors }: { contractors: Contractor[] }) {
                   {c.trade ? <span className="muted font-normal"> · {c.trade}</span> : null}
                 </p>
                 {c.company && <p className="muted text-sm">{c.company}</p>}
-                {c.rating ? <p className="text-sm text-amber-600">{"★".repeat(c.rating)}</p> : null}
+                {c.rating ? <p className="text-sm text-[var(--warn)]">{"★".repeat(c.rating)}</p> : null}
                 {c.notes && <p className="mt-1 text-sm">{c.notes}</p>}
                 <p className="muted text-sm">
                   {c.jobs} {c.jobs === 1 ? "job" : "jobs"}
@@ -113,12 +114,12 @@ export function ContractorBook({ contractors }: { contractors: Contractor[] }) {
             <div className="mt-2 flex flex-wrap gap-2">
               {c.phone && (
                 <a className="btn" href={`tel:${tel(c.phone)}`}>
-                  📞 Call
+                  <Icon name="phone" size={18} /> Call
                 </a>
               )}
               {(c.whatsapp || c.phone) && (
                 <a className="btn" href={`https://wa.me/${tel(c.whatsapp || c.phone!).replace(/^\+/, "").replace(/^00/, "")}`} target="_blank" rel="noreferrer">
-                  💬 WhatsApp
+                  <Icon name="whatsapp" size={18} /> WhatsApp
                 </a>
               )}
             </div>

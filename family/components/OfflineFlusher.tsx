@@ -38,7 +38,7 @@ export function OfflineFlusher() {
   return (
     <div
       role="status"
-      className="fixed inset-x-0 top-0 mx-auto max-w-2xl border-b-2 border-amber-700 bg-amber-50 p-2 text-center text-sm font-semibold text-amber-900"
+      className="fixed inset-x-0 top-0 z-30 mx-auto max-w-2xl bg-[var(--warn-soft)] p-2 text-center text-[var(--warn)] text-sm font-semibold text-amber-900"
     >
       {!online ? "No internet. " : ""}
       {pending > 0 ? `${pending} ${pending === 1 ? "entry" : "entries"} saved on this phone, waiting to send.` : "Back online."}

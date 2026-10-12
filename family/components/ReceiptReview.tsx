@@ -7,6 +7,7 @@ import { CATEGORIES, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Photo } from "./Photo";
+import { Icon } from "@/components/Icon";
 
 /**
  * One receipt: the lines it was read into, each matched to a list item or
@@ -73,12 +74,12 @@ export function ReceiptReview({ detail, items, stores }: { detail: ReceiptDetail
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/shopping/receipts" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header flex items-center gap-2">
+        <Link href="/shopping/receipts" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Receipt</h1>
+          <h1 className="page-title">Receipt</h1>
           <p className="muted text-sm">{stateText}</p>
         </div>
       </header>
@@ -120,7 +121,7 @@ export function ReceiptReview({ detail, items, stores }: { detail: ReceiptDetail
         <ol className="mt-2 flex flex-col gap-3">
           {lines.map((l) => {
             const ok = l.item_id && l.match !== "skipped";
-            const cls = l.match === "skipped" ? "opacity-50" : l.match === "unmatched" ? "border-l-4 border-amber-600 pl-3" : "border-l-4 border-green-700 pl-3";
+            const cls = l.match === "skipped" ? "opacity-50" : l.match === "unmatched" ? "border-l-4 border-[var(--warn)] pl-3" : "border-l-4 border-green-700 pl-3";
             return (
               <li key={l.id} className={cls}>
                 <div className="flex items-start justify-between gap-2">
@@ -140,7 +141,7 @@ export function ReceiptReview({ detail, items, stores }: { detail: ReceiptDetail
                     ) : l.match === "skipped" ? (
                       <p className="muted text-sm">skipped</p>
                     ) : (
-                      <p className="text-sm font-semibold text-amber-800">Not on the list</p>
+                      <p className="text-sm font-semibold text-[var(--warn)]">Not on the list</p>
                     )}
                   </div>
                   {!locked && canAdd && (
@@ -179,7 +180,7 @@ export function ReceiptReview({ detail, items, stores }: { detail: ReceiptDetail
       </section>
 
       {msg && (
-        <p role="status" className={`rounded-xl border-2 p-3 ${msg.startsWith("Applied") ? "border-green-700 bg-green-50 text-green-900" : "border-red-700 text-red-800"}`}>
+        <p role="status" className={`notice ${msg.startsWith("Applied") ? "notice-ok" : "notice-danger"}`}>
           {msg}
         </p>
       )}

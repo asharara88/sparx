@@ -95,7 +95,7 @@ export function Attachments({
               {busy ? "Saving…" : "Save photo"}
             </button>
           )}
-          {msg && <p className="text-sm text-red-800">{msg}</p>}
+          {msg && <p className="text-sm text-[var(--danger)]">{msg}</p>}
         </div>
       )}
     </section>

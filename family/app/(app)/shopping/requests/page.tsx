@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Me, ShoppingRequest } from "@/lib/types";
 import { can } from "@/lib/types";
 import { RequestQueue } from "@/components/RequestQueue";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,7 @@ export default async function RequestsPage() {
   const all = ((recent as { requests?: ShoppingRequest[] })?.requests ?? []) as ShoppingRequest[];
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/shopping" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Running-low requests</h1>
-      </header>
+      <PageHeader back="/shopping" title="Running-low requests" />
       <RequestQueue pending={p} history={all.filter((r) => r.status !== "pending").slice(0, 20)} timezone={me.household.timezone} />
     </div>
   );

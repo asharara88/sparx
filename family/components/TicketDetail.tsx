@@ -10,6 +10,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { uploadPhoto } from "@/lib/photos";
 import { Photo } from "./Photo";
 import { PhotoPicker } from "./PhotoPicker";
+import { PageHeader } from "@/components/PageHeader";
+import { Icon } from "@/components/Icon";
 
 export function TicketDetail({ data, assets, contractors, timezone }: { data: TicketDetailData; assets: Asset[]; contractors: Contractor[]; timezone: string }) {
   const me = useMe();
@@ -70,19 +72,12 @@ export function TicketDetail({ data, assets, contractors, timezone }: { data: Ti
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/house" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">
-          {t.priority === "urgent" ? "🔥 " : ""}
-          {t.title}
-        </h1>
-      </header>
+      <PageHeader back="/house" title={<>{t.priority === "urgent" ? "" : ""}
+          {t.title}</>} />
 
       <section className="card">
         <p className="text-lg">
-          {status.icon} <b>{status.label}</b>
+          <span className={`dot dot-${status.tone}`} /> <b>{status.label}</b>
           {t.location ? ` · ${t.location}` : ""}
           {t.asset_name ? ` · ${t.asset_name}` : ""}
         </p>
@@ -94,7 +89,7 @@ export function TicketDetail({ data, assets, contractors, timezone }: { data: Ti
         {t.description && <p className="mt-2 whitespace-pre-wrap">{t.description}</p>}
         {t.contractor_name && (
           <p className="mt-2">
-            🔧 {t.contractor_name}
+            <Icon name="wrench" size={18} className="inline" /> {t.contractor_name}
             {t.contractor_phone ? (
               <>
                 {" · "}
@@ -110,7 +105,7 @@ export function TicketDetail({ data, assets, contractors, timezone }: { data: Ti
             <div className="flex flex-wrap gap-2" role="group" aria-label="Status">
               {TICKET_STATUS.map((s) => (
                 <button key={s.id} type="button" className="chip" aria-pressed={t.status === s.id} disabled={busy || t.status === s.id} onClick={() => update({ p_status: s.id })}>
-                  {s.icon} {s.label}
+                  <span className={`dot dot-${s.tone}`} /> {s.label}
                 </button>
               ))}
             </div>
@@ -136,7 +131,7 @@ export function TicketDetail({ data, assets, contractors, timezone }: { data: Ti
             </div>
             {t.priority !== "urgent" && (
               <button type="button" className="btn" onClick={() => update({ p_priority: "urgent" })} disabled={busy}>
-                🔥 Mark urgent
+                Mark urgent
               </button>
             )}
           </div>
@@ -207,7 +202,7 @@ export function TicketDetail({ data, assets, contractors, timezone }: { data: Ti
       )}
 
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

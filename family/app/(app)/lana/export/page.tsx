@@ -5,6 +5,7 @@ import type { DailyStats, EntryRow, HomeSummary, Me, RpcError } from "@/lib/type
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDate, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { PrintButton } from "@/components/PrintButton";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +55,9 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
 
   return (
     <div className="flex flex-col gap-4 print:gap-2">
-      <header className="no-print flex items-center justify-between gap-2 pt-2">
-        <Link href="/lana/trends" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header no-print flex items-center justify-between gap-2">
+        <Link href="/lana/trends" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
         <div className="flex flex-wrap gap-2">
           {ranges.map((r) => (
@@ -72,7 +73,7 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
       </div>
 
       <section className="print-page">
-        <h1 className="text-2xl font-bold">
+        <h1 className="page-title">
           {s.name}
           {s.birth_date ? ` · born ${fmtDate(s.birth_date, tz, { day: "numeric", month: "long", year: "numeric" })}` : ""}
           {ageWeeks != null ? ` · ${ageWeeks} weeks` : ""}

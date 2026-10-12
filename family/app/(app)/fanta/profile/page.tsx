@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { DueItem, Me, Subject } from "@/lib/types";
 import { can } from "@/lib/types";
 import { ProfileCard } from "@/components/ProfileCard";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,13 @@ export default async function FantaProfilePage() {
   const due = (((dueData as { items?: DueItem[] })?.items ?? []) as DueItem[]).filter((d) => d.subject_id === (subject as Subject).id);
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/fanta" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header flex items-center gap-2">
+        <Link href="/fanta" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
         <span className="muted flex-1">Profile card</span>
         <Link href="/fanta/export" className="btn">
-          🖨️ For the vet
+          <Icon name="printer" size={20} /> For the vet
         </Link>
       </header>
       <ProfileCard subject={subject as Subject} due={due} timezone={me.household.timezone} />

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Contractor, Me } from "@/lib/types";
 import { can } from "@/lib/types";
 import { ContractorBook } from "@/components/ContractorBook";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,7 @@ export default async function ContractorsPage() {
   const contractors = ((data as { contractors?: Contractor[] })?.contractors ?? []) as Contractor[];
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/house" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Who to call</h1>
-      </header>
+      <PageHeader back="/house" title="Who to call" />
       <ContractorBook contractors={contractors} />
     </div>
   );

@@ -5,6 +5,7 @@ import type { DueItem, EntryRow, Me, Subject } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDate, fmtTime, todayYmd } from "@/lib/time";
 import { PrintButton } from "@/components/PrintButton";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +37,14 @@ export default async function FantaExportPage() {
   ];
   return (
     <div className="flex flex-col gap-4 print:gap-2">
-      <header className="no-print flex items-center gap-3 pt-2">
-        <Link href="/fanta/profile" className="btn" aria-label="Back">
-          ‹
+      <header className="page-header no-print flex items-center gap-2">
+        <Link href="/fanta/profile" className="icon-btn" aria-label="Back">
+          <Icon name="back" size={24} />
         </Link>
         <PrintButton label="Print or save as PDF for the vet" />
       </header>
       <section className="print-page">
-        <h1 className="text-2xl font-bold">{s.name} 🐈</h1>
+        <h1 className="page-title">{s.name}</h1>
         <p className="muted">For the vet · {fmtDate(today, tz, { day: "numeric", month: "long", year: "numeric" })} · {me.household.name}</p>
         <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           {fields.filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => (

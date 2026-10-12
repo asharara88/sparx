@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import type { PlanEntry, Suggestion } from "@/lib/types";
 import { EVENT_KINDS } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Icon, type IconName } from "@/components/Icon";
 
 const APPROVE: Record<Suggestion["kind"], string> = { reorder: "Add to the list", due: "Open", request: "Review", ticket: "Open", plan: "Put on the calendar" };
-const ICON: Record<Suggestion["kind"], string> = { reorder: "🛒", due: "💉", request: "📥", ticket: "🔥", plan: "🗓️" };
+const ICON: Record<Suggestion["kind"], IconName> = { reorder: "cart", due: "syringe", request: "inbox", ticket: "flame", plan: "calendar" };
 
 /**
  * Approve / dismiss cards: what the data suggests doing today. Approving performs
@@ -50,14 +51,14 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
       <h2 id="sugg-h" className="text-xl font-semibold">
         {title}
       </h2>
-      {msg.done && <p className="rounded-xl border-2 border-green-700 bg-green-50 p-3 font-semibold text-green-900">{msg.done}</p>}
+      {msg.done && <p className="notice notice-ok font-semibold">{msg.done}</p>}
       {list.map((s) => {
         const entries: PlanEntry[] = s.kind === "plan" && s.action && s.action.type === "plan" ? s.action.entries : [];
         const chosen = picked[s.id] ?? new Set(entries.map((_, i) => i));
         return (
-          <article key={s.id} className="card border-2 border-[var(--accent)]">
+          <article key={s.id} className="card ring-2 ring-[var(--accent)]">
             <p className="text-lg font-bold">
-              <span aria-hidden>{ICON[s.kind]} </span>
+              <span className="tile-icon" style={{ width: 32, height: 32 }}><Icon name={ICON[s.kind]} size={18} /></span> 
               {s.href && s.kind !== "plan" ? (
                 <Link href={s.href} className="underline decoration-dotted">
                   {s.title}
@@ -86,7 +87,7 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
               </ul>
             )}
             {msg[s.id] && (
-              <p role="alert" className="mt-1 text-sm text-red-800">
+              <p role="alert" className="mt-1 text-sm text-[var(--danger)]">
                 {msg[s.id]}
               </p>
             )}

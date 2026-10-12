@@ -6,6 +6,7 @@ import { TICKET_STATUS, can } from "@/lib/types";
 import { ago } from "@/lib/time";
 import { Photo } from "@/components/Photo";
 import { HubCard } from "@/components/HubCard";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -22,30 +23,32 @@ export default async function HousePage({ searchParams }: { searchParams: Promis
   const now = new Date();
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-2 pt-2">
-        <h1 className="text-2xl font-bold">🏠 The house</h1>
+      <header className="page-header flex items-center justify-between gap-2">
+        <h1 className="page-title">The house</h1>
         <Link href="/house/tickets/new" className="btn btn-primary">
-          + Something to fix
+          <Icon name="plus" size={18} /> Something to fix
         </Link>
       </header>
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/house/assets" className="btn">
-          🔌 Appliances
+        <Link href="/house/assets" className="tile">
+          <span className="tile-icon"><Icon name="plug" size={20} /></span>
+          <span className="font-semibold">Appliances</span>
         </Link>
-        <Link href="/house/contractors" className="btn">
-          📞 Who to call
+        <Link href="/house/contractors" className="tile">
+          <span className="tile-icon"><Icon name="phone" size={20} /></span>
+          <span className="font-semibold">Who to call</span>
         </Link>
       </div>
       <HubCard />
       <section className="card">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-semibold">{all ? "All tickets" : "Open tickets"}</h2>
+          <h2 className="text-lg font-semibold">{all ? "All tickets" : "Open tickets"}</h2>
           <Link href={all ? "/house" : "/house?all=1"} className="text-sm font-semibold text-[var(--accent)]">
             {all ? "Open only" : "Show done"}
           </Link>
         </div>
         {tickets.length === 0 ? (
-          <p className="muted mt-2">Nothing to fix. 🎉</p>
+          <p className="muted mt-2">Nothing to fix.</p>
         ) : (
           <ul className="mt-2 flex flex-col divide-y divide-[var(--line)]">
             {tickets.map((t) => {
@@ -53,10 +56,10 @@ export default async function HousePage({ searchParams }: { searchParams: Promis
               return (
                 <li key={t.id}>
                   <Link href={`/house/tickets/${t.id}`} className="flex items-center gap-3 py-3">
-                    {t.photo_path ? <Photo path={t.photo_path} alt="" className="h-14 w-14 shrink-0" /> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-2xl">{s.icon}</span>}
+                    {t.photo_path ? <Photo path={t.photo_path} alt="" className="h-14 w-14 shrink-0" /> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[var(--card-2)]"><span className={`dot dot-${s.tone}`} /></span>}
                     <span className="grow">
                       <span className="block font-semibold">
-                        {t.priority === "urgent" ? "🔥 " : ""}
+                        {t.priority === "urgent" ? <Icon name="flame" size={16} className="inline text-[var(--danger)]" /> : null}{" "}
                         {t.title}
                       </span>
                       <span className="muted block text-sm">

@@ -6,6 +6,7 @@ import { ago, fmtTime } from "@/lib/time";
 import { CustodyToggle } from "./CustodyToggle";
 import { LanaNow } from "./LanaNow";
 import { DayStrip } from "./DayStrip";
+import { Icon } from "@/components/Icon";
 
 export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSummary; recent: EntryRow[]; lastMilk: string | null; milk?: { pumped: number; given: number; target: number; any: boolean } | null }) {
   const { subject, types, last, custody, timezone, ongoing, today } = summary;
@@ -43,7 +44,7 @@ export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSum
 
       {milk && milk.any && (
         <p className="muted text-sm">
-          🫙 Milk for today: {milk.pumped} ml pumped since last evening
+          <Icon name="bottle" size={16} className="inline" /> Milk for today: {milk.pumped} ml pumped since last evening
           {milk.pumped < milk.target ? <span className="font-semibold text-[var(--warn)]"> (aim {milk.target})</span> : ` (aim ${milk.target})`}
           {milk.given > 0 ? ` · ${milk.given} ml given from the fridge` : ""}
           {milk.pumped > 0 ? ` · about ${Math.max(0, milk.pumped - milk.given)} ml left` : ""}

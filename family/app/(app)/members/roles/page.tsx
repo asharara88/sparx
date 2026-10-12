@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Me, Module, Role } from "@/lib/types";
 import { can } from "@/lib/types";
 import { PermissionGrid } from "@/components/PermissionGrid";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,7 @@ export default async function RolesPage() {
   ]);
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/members" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">Roles and permissions</h1>
-      </header>
+      <PageHeader back="/members" title="Roles and permissions" />
       <p className="muted">Tick what each role may do. Changes apply at once, in the app and in the database.</p>
       <PermissionGrid
         roles={roles as Role[]}

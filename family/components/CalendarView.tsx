@@ -7,6 +7,7 @@ import { EVENT_KINDS, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { addDays, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Icon } from "@/components/Icon";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -38,13 +39,13 @@ export function CalendarView({
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-2 pt-2">
-        <Link href={`/calendar?d=${addDays(from, -14)}`} className="btn" aria-label="Earlier">
-          ‹
+      <header className="page-header flex items-center justify-between gap-2">
+        <Link href={`/calendar?d=${addDays(from, -14)}`} className="icon-btn" aria-label="Earlier">
+          <Icon name="back" size={24} />
         </Link>
-        <h1 className="text-2xl font-bold">Calendar</h1>
-        <Link href={`/calendar?d=${addDays(from, 14)}`} className="btn" aria-label="Later">
-          ›
+        <h1 className="page-title">Calendar</h1>
+        <Link href={`/calendar?d=${addDays(from, 14)}`} className="icon-btn" aria-label="Later">
+          <Icon name="forward" size={24} />
         </Link>
       </header>
 
@@ -88,7 +89,7 @@ export function CalendarView({
                   return (
                     <li key={e.id + e.starts_at}>
                       <button
-                        className="w-full rounded-xl border-2 border-[var(--line)] p-3 text-left"
+                        className="card-flat w-full rounded-xl p-3 text-left"
                         onClick={() => editable && setEditing(e)}
                         disabled={!editable}
                       >
@@ -189,7 +190,7 @@ function EventForm({
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3 border-[var(--accent)]">
-      <h2 className="text-xl font-semibold">{event ? "Change" : "New"} calendar entry</h2>
+      <h2 className="text-lg font-semibold">{event ? "Change" : "New"} calendar entry</h2>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">What</span>
         <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Plumber for the kitchen tap" />
@@ -258,7 +259,7 @@ function EventForm({
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
       {msg && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-3 text-red-800">
+        <p role="alert" className="notice notice-danger">
           {msg}
         </p>
       )}

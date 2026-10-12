@@ -30,10 +30,10 @@ export function PlanButton({ existing }: { existing: Suggestion | null }) {
     <div className="flex flex-col gap-2">
       {draft ? <SuggestionCards suggestions={[draft]} title="Next week" /> : null}
       <button type="button" className="btn" onClick={go} disabled={busy}>
-        {busy ? "Thinking about next week…" : draft ? "Draft it again" : "🗓️ Draft next week"}
+        {busy ? "Thinking about next week…" : draft ? "Draft it again" : "Draft next week"}
       </button>
       {msg && (
-        <p role="alert" className="text-sm text-red-800">
+        <p role="alert" className="text-sm text-[var(--danger)]">
           {msg}
         </p>
       )}

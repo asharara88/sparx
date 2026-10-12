@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { HouseholdToday, Me, Role } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
 import { HouseholdForm } from "@/components/HouseholdForm";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +24,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between pt-2">
-        <h1 className="text-2xl font-bold">Members</h1>
+      <header className="page-header page-header-large flex items-center justify-between">
+        <h1 className="page-title">Members</h1>
         <Link href="/members/new" className="btn btn-primary">
-          + Add
+          <Icon name="plus" size={18} /> Add
         </Link>
       </header>
-      {error === "preview" && <p className="rounded-xl border-2 border-red-700 p-3 text-red-800">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
-      {error === "member" && <p className="rounded-xl border-2 border-red-700 p-3 text-red-800">That member is not active.</p>}
+      {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
+      {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
           <li key={m.id} className="card flex flex-col gap-2">
@@ -50,7 +51,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
               <form action="/api/view-as" method="post">
                 <input type="hidden" name="member_id" value={m.id} />
                 <button type="submit" className="btn w-full" style={{ minHeight: 44 }}>
-                  👀 View the app as {m.name}
+                  <Icon name="eye" size={18} /> View the app as {m.name}
                 </button>
               </form>
             )}

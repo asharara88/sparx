@@ -52,7 +52,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
     <section className="flex flex-col gap-3" aria-labelledby="fanta-h">
       <div className="flex items-start justify-between gap-3">
         <h2 id="fanta-h" className="text-2xl font-bold">
-          🐈 {subject.name}
+          {subject.name}
         </h2>
         <Link href="/fanta/profile" className="btn">
           Profile card
@@ -60,7 +60,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
       </div>
 
       {overdue.length > 0 && (
-        <div className="rounded-2xl border-2 border-amber-700 bg-amber-50 p-3 text-amber-900">
+        <div className="notice notice-warn">
           {overdue.map((d) => (
             <p key={d.label + d.due_at} className="font-semibold">
               {d.icon} {d.label} · {d.kind === "treatment" ? `was due ${fmtDate(d.due_at, timezone)}` : `last ${ago(d.last_at!, now)}`}
@@ -79,7 +79,7 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
         <>
           <div className="card">
             <p className="font-semibold">
-              <span aria-hidden>🍗 </span>Fed
+              Fed
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {foods.map((what) => (
@@ -94,16 +94,16 @@ export function FantaCard({ summary, due, compact = false }: { summary: HomeSumm
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" className="btn min-h-[64px] text-lg" disabled={busy} onClick={() => log(litter?.id, { kind: "Scooped" }, "Litter scooped.")}>
-              🧹 Scooped
+              Scooped
             </button>
             <button type="button" className="btn min-h-[64px] text-lg" disabled={busy} onClick={() => log(litter?.id, { kind: "Full change" }, "Litter changed.")}>
-              🧹 Full change
+              Full change
             </button>
             <button type="button" className="btn min-h-[64px] text-lg" disabled={busy} onClick={() => log(treat?.id, {}, "Treat given.")}>
-              🐟 Treat
+              Treat
             </button>
             <Link href="/fanta/log/treatment" className="btn min-h-[64px] text-lg">
-              💉 Treatment
+              Treatment
             </Link>
           </div>
         </>

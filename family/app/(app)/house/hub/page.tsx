@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { HubEntity, Me } from "@/lib/types";
 import { can } from "@/lib/types";
 import { HubSettings } from "@/components/HubSettings";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,7 @@ export default async function HubPage() {
   const { data } = await supabase.from("hub_entities").select("*").order("sort").order("label");
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/house" className="btn" aria-label="Back">
-          ‹
-        </Link>
-        <h1 className="text-2xl font-bold">📡 The hub</h1>
-      </header>
+      <PageHeader back="/house" title="The hub" />
       <HubSettings configured={((data as HubEntity[] | null) ?? []).filter((e) => e.is_active)} />
     </div>
   );
