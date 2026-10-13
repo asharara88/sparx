@@ -43,6 +43,7 @@ export default async function MePage() {
           {can(me, "notes", "view") && <Tile href="/notes" icon="note" label="Notes" />}
           {can(me, "lana", "view") && <Tile href="/lana/milk" icon="bottle" label="Milk stash" />}
           {can(me, "lana", "view") && <Tile href="/lana/vaccines" icon="syringe" label="Vaccines" />}
+          {can(me, "lana", "view") && <Tile href="/lana/doctor" icon="phone" label="Doctor" />}
           {can(me, "maintenance", "view") && <Tile href="/house" icon="house" label="The house" />}
           {can(me, "fanta", "view") && <Tile href="/fanta" icon="cat" label="Fanta" />}
           {can(me, "members", "edit") && <Tile href="/members" icon="users" label="Members" />}
