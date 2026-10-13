@@ -47,7 +47,7 @@ export default async function FantaProfilePage() {
             {weights[weights.length - 1].weight_kg} kg on {weights[weights.length - 1].day}
             {weights.length > 1 ? `, ${(weights[weights.length - 1].weight_kg - weights[0].weight_kg).toFixed(2)} kg since ${weights[0].day}` : ""}.
           </p>
-          <WeightChart points={weights} ageWeeks={() => null} />
+          <WeightChart points={weights} />
         </section>
       )}
     </div>

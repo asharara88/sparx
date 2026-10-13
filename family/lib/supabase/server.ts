@@ -11,6 +11,12 @@ import { PREVIEW_COOKIE, previewClient, verifyPreviewToken } from "@/lib/server/
  */
 export async function createClient(opts: { ignorePreview?: boolean } = {}) {
   const cookieStore = await cookies();
+  if (process.env.FAMILY_LOCAL_DB) {
+    // Screenshot mode against a local Postgres; the member comes from a cookie.
+    const { localClient } = await import("./local");
+    const as = cookieStore.get("shot_as")?.value ?? "00000000-0000-4000-8000-000000000001";
+    return localClient(process.env.FAMILY_LOCAL_DB, as, `${as.slice(-4)}@local`);
+  }
   if (!opts.ignorePreview) {
     const token = cookieStore.get(PREVIEW_COOKIE)?.value;
     if (token && (await verifyPreviewToken(token))) return previewClient(token);

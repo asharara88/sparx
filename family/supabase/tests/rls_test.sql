@@ -679,7 +679,14 @@ select pg_temp.assert((select count(*) from public.vaccinations) = 0, 'and sees 
 select pg_temp.assert((select count(*) from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine') = 0, 'and no vaccine due items');
 reset role;
 
+-- Ongoing honours end_if (migration 2100): a bottle feed without an end time is not "still feeding"
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '20 minutes', null, '{"method":"Bottle","amount_ml":120}'))->>'ok' = 'true', 'Dana logs a bottle with no end time');
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.home_summary())->'ongoing') x where x->>'type_id' = 'lana.feed' and x->'payload'->>'method' = 'Bottle'), 'the bottle is not an ongoing feed');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
