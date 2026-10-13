@@ -283,7 +283,7 @@ function Chart({
   );
 }
 
-export function WeightChart({ points, ageWeeks }: { points: { day: string; weight_kg: number | null }[]; ageWeeks: (d: string) => number | null }) {
+export function WeightChart({ points, ageWeeks = () => null }: { points: { day: string; weight_kg: number | null }[]; ageWeeks?: (d: string) => number | null }) {
   const W = 360;
   const H = 140;
   const padL = 34;
