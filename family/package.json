@@ -4,6 +4,7 @@
   "private": true,
   "description": "Private family-operations app — Step 1 foundation + Lana log.",
   "scripts": {
+    "test": "node --experimental-strip-types --test lib/*.test.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -52,6 +52,7 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
     byDay.set(d, [...(byDay.get(d) ?? []), e]);
   }
   const ranges = [
+    { label: "7 days", from: addDays(today, -6) },
     { label: "2 weeks", from: addDays(today, -13) },
     { label: "4 weeks", from: addDays(today, -27) },
     { label: "3 months", from: addDays(today, -90) },

@@ -705,7 +705,59 @@ set role authenticated;
 select pg_temp.assert((public.milk_consume(60))->>'error' = 'not_allowed', 'Lilly cannot take milk out (no Lana access)');
 reset role;
 
+-- Parity (migration 2300): medicines with a gap, the helper's memory, the babysitter role, backups
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'true', 'Dana sees Lana''s medicine list');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.medicines_list(:lana))->'items')) >= 2, 'seeded with vitamin D and paracetamol');
+create temp table med as select ((public.medicine_save(null, :lana, 'Test syrup', 6, '2.5 ml', null))->>'id')::uuid as id;
+select pg_temp.assert((select id from med) is not null, 'Dana adds a medicine');
+select pg_temp.assert((public.medicine_save(null, :lana, '', 6, null, null))->>'error' = 'bad_name', 'a name is required');
+select pg_temp.assert((public.medicine_save(null, :lana, 'x', 0, null, null))->>'error' = 'bad_gap', 'a positive gap is required');
+select pg_temp.assert((public.medicine_give((select id from med), null, now() - interval '2 hours', null, false))->>'ok' = 'true', 'first dose goes into the log');
+select pg_temp.assert((select count(*) from public.care_entries where type_id = 'lana.medication' and payload->>'medicine_id' = (select id::text from med)) = 1, 'as a medication entry with the medicine id');
+select pg_temp.assert((public.medicine_give((select id from med), null, now(), null, false))->>'error' = 'too_soon', 'a second dose after 2 h is refused (6 h gap)');
+select pg_temp.assert((select x->>'too_soon' from jsonb_array_elements((public.medicines_list(:lana))->'items') x where x->>'name' = 'Test syrup') = 'true', 'the list says too soon');
+select pg_temp.assert((public.medicine_give((select id from med), '5 ml', now(), 'doctor said', true))->>'ok' = 'true', 'forced (the doctor said so) is allowed');
+select pg_temp.assert((select payload->>'early' from public.care_entries where type_id = 'lana.medication' and payload->>'medicine_id' = (select id::text from med) order by occurred_at desc limit 1) = 'true', 'and marked as early');
+select pg_temp.assert((public.medicine_remove((select id from med)))->>'ok' = 'true', 'Dana removes the test medicine');
+select pg_temp.assert((public.memory_add('Lana takes a bottle better when it is warm.'))->>'ok' = 'true', 'Dana teaches the helper something');
+select pg_temp.assert((public.memory_add('Lana takes a bottle better when it is warm.'))->>'duplicate' = 'true', 'the same fact twice is one memory');
+select pg_temp.assert((public.memory_add('x'))->>'error' = 'bad_body', 'a memory needs at least two characters');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items')) = 1, 'memory_list shows it');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'true', 'Wafa sees the medicine list');
+select pg_temp.assert((public.medicine_remove((select (x->>'id')::uuid from jsonb_array_elements((public.medicines_list(:lana))->'items') x limit 1)))->>'ok' = 'true', 'Wafa can remove one (she edits Lana''s log)');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items')) = 1, 'Wafa sees the shared memory');
+select pg_temp.assert((public.memory_remove((select (x->>'id')::uuid from jsonb_array_elements((public.memory_list())->'items') x limit 1)))->>'error' = 'not_found', 'but cannot remove Dana''s memory');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.medicines_list(:lana))->>'error' = 'not_allowed', 'Lilly cannot see medicine');
+select pg_temp.assert((public.medicine_give((select id from med), null, now(), null, true))->>'error' = 'not_found', 'nor give a removed one');
+select pg_temp.assert((select count(*) from public.backups) = 0, 'Lilly sees no backups');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.roles where id = 'sitter') = 1, 'the babysitter role exists');
+select pg_temp.assert((select count(*) from public.permissions where role_id = 'sitter' and allowed) = 7, 'with Lana view/add, chat view/add, photos view/add, assistant view');
+select pg_temp.assert((public.member_save(null, 'Sitter Sam', 'sam@test.local', 'sitter', null, 'Babysitter', true))->>'ok' = 'true', 'Mido adds a babysitter');
+select pg_temp.assert((public.memory_remove((select (x->>'id')::uuid from jsonb_array_elements((public.memory_list())->'items') x limit 1)))->>'ok' = 'true', 'an admin can remove any memory');
+reset role;
+insert into auth.users (id, email) select m.id, m.email from public.members m where m.email = 'sam@test.local' and m.user_id is null on conflict (email) do nothing;
+select pg_temp.act_as((select id from public.members where email = 'sam@test.local'));
+set role authenticated;
+select pg_temp.assert((public.me())#>>'{role,id}' = 'sitter', 'Sam signs in as the babysitter');
+select pg_temp.assert((public.home_summary())->>'ok' = 'true', 'Sam sees Lana''s log');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.diaper', now(), null, '{"kind":"Wet"}', null, null))->>'ok' = 'true', 'Sam logs a diaper');
+select pg_temp.assert((public.calendar_list(current_date, current_date))->>'error' = 'not_allowed', 'Sam cannot see the calendar');
+select pg_temp.assert((public.shopping_list())->>'error' = 'not_allowed', 'nor the shopping list');
+select pg_temp.assert((public.milk_consume(60))->>'ok' = 'true', 'Sam can give a bottle from the fridge');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

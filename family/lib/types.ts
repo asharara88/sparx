@@ -515,7 +515,7 @@ export interface MaintenanceOverview {
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
-export type ProposalKind = "care_entry" | "calendar_event" | "shopping";
+export type ProposalKind = "care_entry" | "calendar_event" | "shopping" | "memory";
 
 export interface CareEntryProposal {
   subject_id: string;
@@ -555,6 +555,8 @@ export interface AssistantProposal {
   care_entry?: CareEntryProposal;
   calendar_event?: CalendarEventProposal;
   shopping?: ShoppingProposal;
+  /** A fact for the helper to keep ("Lana takes a bottle better when it is warm"). */
+  memory?: { body: string };
 }
 
 /** A citation target: the tool result the answer came from, as a link. */
@@ -898,4 +900,53 @@ export interface BagItem {
   checked: boolean;
   sort: number;
   is_active: boolean;
+}
+
+// ---- Parity: medicines, memory, backups, milk reading, forecast ---------------
+export interface Medicine {
+  id: string;
+  name: string;
+  dose: string | null;
+  min_gap_hours: number;
+  note: string | null;
+  last_at: string | null;
+  last_dose: string | null;
+  last_by: string | null;
+  next_at: string | null;
+  too_soon: boolean;
+}
+export interface MedicinesData {
+  ok: true;
+  items: Medicine[];
+}
+
+export interface MemoryItem {
+  id: string;
+  body: string;
+  created_at: string;
+  by: string | null;
+  mine: boolean;
+}
+export interface MemoryData {
+  ok: true;
+  items: MemoryItem[];
+}
+
+export interface BackupRow {
+  id: string;
+  path: string;
+  size_bytes: number;
+  rows: number;
+  tables: Record<string, number>;
+  photos: number;
+  created_at: string;
+}
+
+/** What the model read off a milk bag label or a bottle's scale. */
+export interface MilkReading {
+  kind: "bag" | "bottle" | "none";
+  date: string | null;
+  source: "morning" | "night" | null;
+  ml: number | null;
+  confidence: "high" | "low";
 }

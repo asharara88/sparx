@@ -64,10 +64,16 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
   const [listening, setListening] = useState(false);
   const [night, setNight] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
+  const [canTalk, setCanTalk] = useState(false);
   const [pstate, setPstate] = useState<Record<string, ProposalState>>({});
   const recRef = useRef<Recognition | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const heardRef = useRef("");
+  // Talk mode: listen, ask, say the answer, listen again, until End.
+  const [talk, setTalk] = useState(false);
+  const talkRef = useRef(false);
+  const silentRef = useRef(0);
+  const startListeningRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (initial) {
@@ -90,6 +96,7 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
       }
     }
     setCanSpeak(!!recognitionCtor());
+    setCanTalk(!!recognitionCtor() && typeof speechSynthesis !== "undefined");
     try {
       setNight(localStorage.getItem("family.ask.night") === "1");
       setAloud(localStorage.getItem("family.ask.aloud") === "1");
@@ -129,17 +136,26 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
     };
   }, [msgs, pstate, chatId]);
 
-  // Read the latest answer aloud, in the member's language, when switched on.
+  // Read the latest answer aloud, in the member's language, when switched on (always in talk mode).
   useEffect(() => {
-    if (!aloud || typeof speechSynthesis === "undefined") return;
+    if ((!aloud && !talk) || typeof speechSynthesis === "undefined") return;
     const lastMsg = msgs[msgs.length - 1];
-    if (!lastMsg || lastMsg.role !== "assistant" || lastMsg.error || spokeRef.current) return;
+    if (!lastMsg || lastMsg.role !== "assistant" || spokeRef.current) return;
     spokeRef.current = true;
+    if (lastMsg.error) {
+      if (talkRef.current) endTalk();
+      return;
+    }
     const u = new SpeechSynthesisUtterance(lastMsg.text.replace(/\[[a-z]+:[^\]]+\]/g, ""));
     u.lang = speechLang(lang);
+    u.onend = () => {
+      // In talk mode the floor goes back to the member once the answer is said.
+      if (talkRef.current && !lastMsg.proposals?.length) startListeningRef.current();
+    };
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
-  }, [msgs, aloud, lang]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msgs, aloud, talk, lang]);
 
   const ask = useCallback(
     async (question: string) => {
@@ -169,11 +185,8 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
   );
 
   // ---- voice
-  function toggleListening() {
-    if (listening) {
-      recRef.current?.stop();
-      return;
-    }
+  function startListening() {
+    if (recRef.current) return;
     const Ctor = recognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
@@ -192,7 +205,15 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
       setListening(false);
       recRef.current = null;
       const heard = heardRef.current.trim();
-      if (heard) void ask(heard); // one-handed: speak, and it sends itself
+      if (heard) {
+        silentRef.current = 0;
+        void ask(heard); // one-handed: speak, and it sends itself
+      } else if (talkRef.current) {
+        // Silence: listen again twice, then end the call rather than loop forever.
+        silentRef.current += 1;
+        if (silentRef.current <= 2) setTimeout(() => talkRef.current && startListening(), 400);
+        else endTalk();
+      }
     };
     recRef.current = rec;
     setListening(true);
@@ -200,7 +221,27 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
       rec.start();
     } catch {
       setListening(false);
+      recRef.current = null;
     }
+  }
+  startListeningRef.current = startListening;
+  function toggleListening() {
+    if (listening) recRef.current?.stop();
+    else startListening();
+  }
+  function startTalk() {
+    talkRef.current = true;
+    silentRef.current = 0;
+    setTalk(true);
+    startListening();
+  }
+  function endTalk() {
+    talkRef.current = false;
+    setTalk(false);
+    recRef.current?.abort?.();
+    recRef.current = null;
+    setListening(false);
+    if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
   }
 
   // ---- proposals: the one tap that writes
@@ -229,9 +270,15 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
         const res = data as { ok: boolean; message?: string; id?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
         setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: c.via === "request" ? "/send" : "/shopping", note: c.via === "request" ? "Sent for approval." : "On the list." } }));
+      } else if (p.kind === "memory" && p.memory) {
+        const { data, error } = await supabase.rpc("memory_add", { p_body: p.memory.body });
+        const res = data as { ok: boolean; message?: string } | null;
+        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
+        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/ask/memory", note: "Remembered." } }));
       } else {
         throw new Error("I do not know how to save that.");
       }
+      if (talkRef.current) startListeningRef.current();
       router.refresh();
     } catch (e) {
       setPstate((s) => ({ ...s, [p.id]: { status: "error", message: e instanceof Error ? e.message : "Could not save." } }));
@@ -282,6 +329,11 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
       <header className="page-header flex items-center justify-between gap-2">
         <h1 className="page-title">Ask</h1>
         <div className="flex gap-1">
+          {canTalk && (
+            <button type="button" className={`btn ${talk ? "btn-primary" : ""}`} style={{ minHeight: 40 }} onClick={talk ? endTalk : startTalk} aria-pressed={talk} aria-label={talk ? "End the call" : "Talk to the helper"} title="Hands-free: it listens, answers out loud, then listens again">
+              <Icon name="phone" size={18} /> {talk ? "End" : "Talk"}
+            </button>
+          )}
           <button type="button" className="icon-btn m-0" onClick={toggleAloud} aria-pressed={aloud} aria-label="Read answers aloud" title="Read answers aloud">
             <Icon name="volume" size={22} className={aloud ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
           </button>
@@ -325,6 +377,7 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
         <div className="card">
           <p className="font-semibold">Ask anything about the house, in your own words.</p>
           <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
+          {canTalk && <p className="muted mt-1 text-sm">Tap Talk for hands-free: it listens, answers out loud, then listens again. Say “remember that…” to teach it something.</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {suggestions.map((s) => (
               <button key={s} type="button" className="chip" onClick={() => void ask(s)}>
@@ -401,7 +454,7 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
             {listening ? <span className="dot dot-danger" /> : <Icon name="mic" />}
           </button>
         )}
-        <input className="input flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? "Listening…" : "Ask or tell me something"} aria-label="Your question" autoComplete="off" enterKeyHint="send" />
+        <input className="input flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? (talk ? "Listening… say something, or tap End" : "Listening…") : talk && busy ? "Thinking…" : "Ask or tell me something"} aria-label="Your question" autoComplete="off" enterKeyHint="send" />
         <button type="submit" className="btn btn-primary" disabled={busy || !input.trim()} aria-label="Send">
           <Icon name="send" />
         </button>

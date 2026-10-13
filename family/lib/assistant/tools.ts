@@ -29,6 +29,8 @@ export interface ToolContext {
   types: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
   routines: { name: string; routine: string }[];
+  /** What the family told the assistant to remember. */
+  memories: string[];
   /** Every id the tools returned, so the answer's citations become links. */
   refs: Record<string, AssistantRef>;
   /** Writes the assistant asked for. The member confirms them in the UI. */
@@ -517,9 +519,28 @@ function proposeShopping(ctx0: ToolContext): AssistantTool {
 }
 
 /** The tools this member may use, in a fixed order (a stable list caches). */
+function remember(): AssistantTool {
+  return {
+    def: {
+      name: "propose_memory",
+      description: "Prepare a short fact for the household helper to keep for everyone, after the member confirms: preferences, what works for Lana, how someone likes answers. Call this when the member says 'remember that…', 'keep in mind…', 'from now on…'. One plain sentence, under 300 characters, no times or amounts that belong in the log.",
+      input_schema: obj({ body: { type: "string", description: "The fact, as one plain sentence." } }, ["body"]),
+    },
+    run: async (input, ctx) => {
+      const body = String(input.body ?? "").trim();
+      if (body.length < 2 || body.length > 300) return { error: "bad_body", message: "One sentence, under 300 characters." };
+      if (ctx.memories.some((m) => m.toLowerCase() === body.toLowerCase())) return { ok: true, already: true, message: "Already remembered." };
+      const p: AssistantProposal = { id: newId(), kind: "memory", summary: `Remember: ${body}`, memory: { body } };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT saved yet." };
+    },
+  };
+}
+
 export function buildTools(ctx: ToolContext): AssistantTool[] {
   const me = ctx.me;
   const list: AssistantTool[] = [whoIsHome()];
+  if (can(me, "assistant", "view")) list.push(remember());
   if (can(me, "calendar", "view")) list.push(calendar(ctx));
   const careSubjects = ctx.subjects.filter((s) => can(me, s.module_id, "view"));
   if (careSubjects.length) {
@@ -539,11 +560,13 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
 
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date()): Promise<ToolContext> {
-  const [{ data: subjects }, { data: types }, { data: members }] = await Promise.all([
+  const [{ data: subjects }, { data: types }, { data: members }, { data: memData }] = await Promise.all([
     supabase.from("care_subjects").select("id,name,module_id,kind,birth_date").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
     supabase.from("members").select("display_name,routine").eq("is_active", true).not("routine", "is", null).order("display_name"),
+    supabase.rpc("memory_list"),
   ]);
+  const memories = (((memData as { ok?: boolean; items?: { body: string }[] } | null)?.items ?? []) as { body: string }[]).map((m) => m.body);
   return {
     supabase,
     me,
@@ -552,6 +575,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     subjects: (subjects as SubjectInfo[]) ?? [],
     types: (types as EntryType[]) ?? [],
     routines: (((members as { display_name: string; routine: string | null }[] | null) ?? []).filter((m) => m.routine) as { display_name: string; routine: string }[]).map((m) => ({ name: m.display_name, routine: m.routine })),
+    memories,
     refs: {},
     proposals: [],
   };

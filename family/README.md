@@ -22,6 +22,14 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 
 **Step 2 (this release)**
 
+- Lana's medicine list with a safe gap between doses: "Given" logs it, and asks twice when it
+  is too early (`/lana/medicine`). Her next 12 hours (feeds, nappies, naps) estimated from the
+  last week, on Lana's Today tab, the Home screen and today's calendar. Her firsts with photos
+  (`/lana/milestones`). A photo of a milk bag label or a bottle fills in the amount and date.
+- The helper remembers what the family tells it ("remember that…", confirmed with a tap), has a
+  hands-free Talk mode (listens, answers out loud, listens again), and there is a Babysitter role
+  that sees Lana, the chat and the helper only. Every night the database is backed up to a
+  private bucket (newest 8 kept), listed under Audit log.
 - Lana timers: one tap to start and stop Sleep, Night wake-up, and Breastfeed left/right
   (the breast option and timer appear only for a member flagged *Breastfeeds Lana* in
   Members). Bottle feeds record which milk: morning pumped, night pumped, freezer, formula.
