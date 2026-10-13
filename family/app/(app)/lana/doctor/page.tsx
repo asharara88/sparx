@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, VaccinesData } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDate, fmtDateTime, todayYmd } from "@/lib/time";
+import { ChildCard } from "@/components/ChildCard";
 import { DoctorCard } from "@/components/DoctorCard";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/PageHeader";
@@ -44,6 +45,7 @@ export default async function DoctorPage() {
         }
       />
       <DoctorCard subject={s} canEdit={can(me, "lana", "edit")} />
+      <ChildCard subject={s} canEdit={can(me, "lana", "edit")} />
 
       <section className="card flex flex-col gap-2">
         <h2 className="section-title">Coming up</h2>
