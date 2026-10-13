@@ -64,6 +64,9 @@ export default async function LanaDayPage({ searchParams }: { searchParams: Prom
 
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={day === today ? new Date().toISOString() : undefined} />
       <p className="flex justify-end gap-4 text-sm">
+        <Link href="/lana/doctor" className="underline">
+          Doctor ›
+        </Link>
         <Link href="/lana/vaccines" className="underline">
           Vaccines ›
         </Link>
