@@ -24,7 +24,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     supabase.rpc("suggestions_list"),
     can(me, "lana", "view") || can(me, "fanta", "view") ? supabase.rpc("care_due_list", { p_days_ahead: Math.max(14, Math.round((new Date(to).getTime() - new Date(today).getTime()) / 86400000) + 1) }) : Promise.resolve({ data: null }),
   ]);
-  const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []).filter((d) => d.kind === "treatment");
+  const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []).filter((d) => d.kind === "treatment" || d.kind === "vaccine");
   const plan = (((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).find((s) => s.kind === "plan") ?? null;
   const canPlan = can(me, "calendar", "add") && can(me, "assistant", "view");
   const data = cal as CalendarData | RpcError;
