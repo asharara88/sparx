@@ -25,6 +25,7 @@ import { PumpTarget } from "@/components/PumpTarget";
 import { HandoverSince } from "@/components/HandoverSince";
 import { FridgePlan } from "@/components/FridgePlan";
 import { DayStrip } from "@/components/DayStrip";
+import { LanaForecast } from "@/components/LanaForecast";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
@@ -115,6 +116,22 @@ export default async function HomePage() {
   }
 
   const lastFeedAt = summary && summary.ok ? (summary.last["lana.feed"]?.ended_at ?? summary.last["lana.feed"]?.occurred_at ?? null) : null;
+  // A week of entries for the forecast; the "recent" list only covers the last day.
+  let week: EntryRow[] = recent;
+  if (summary && summary.ok) {
+    const { data: weekData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() });
+    week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? recent) as EntryRow[];
+  }
+  const awayAt = (at: number) => {
+    if (!mama || !mama.works_today) return false;
+    const d = new Date(at);
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(d);
+    const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parts.find((p) => p.type === "weekday")?.value ?? "");
+    const hm = Number(parts.find((p) => p.type === "hour")?.value ?? 0) * 100 + Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+    return mama.work_days.includes(wd) && hm >= from && hm <= to;
+  };
+  const sitter = me.role.id === "sitter";
+  const aroundTheHouse = suggestions.length > 0 || (pending > 0 && can(me, "shopping_review", "edit")) || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok) || (fanta && fanta.ok) || (house && house.ok) || can(me, "shopping", "view");
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
 
@@ -154,6 +171,29 @@ export default async function HomePage() {
             ))}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
           <RightNow summary={summary} milk={milkOk} timezone={tz} />
+          <LanaForecast entries={week} timezone={tz} away={awayAt} feedIntervalMin={summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180} hours={6} limit={3} compact />
+          {sitter && (
+            <section className="card" aria-labelledby="sit-h">
+              <h2 id="sit-h" className="text-lg font-semibold">
+                While you are with her
+              </h2>
+              <p className="muted mt-1 text-sm">Everything you need is here: what she has had, when to call, and who to call.</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Link href="/lana?tab=handover" className="btn">
+                  Handover
+                </Link>
+                <Link href="/lana/when-to-call" className="btn">
+                  When to call
+                </Link>
+                <Link href="/lana/emergency" className="btn">
+                  Emergency
+                </Link>
+                <Link href="/ask" className="btn">
+                  Ask the helper
+                </Link>
+              </div>
+            </section>
+          )}
           {order.map((k) => blocks[k])}
           <div className="grid grid-cols-4 gap-2">
             <Link href="/lana" className="btn">
@@ -184,9 +224,11 @@ export default async function HomePage() {
         </div>
       )}
 
-      <h2 className="section-title mt-2 flex items-center gap-2">
-        <Icon name="house" size={18} /> Around the house
-      </h2>
+      {aroundTheHouse && !sitter && (
+        <h2 className="section-title mt-2 flex items-center gap-2">
+          <Icon name="house" size={18} /> Around the house
+        </h2>
+      )}
       <SuggestionCards suggestions={suggestions} />
       {pending > 0 && can(me, "shopping_review", "edit") && (
         <Link href="/shopping/requests" className="notice notice-warn font-semibold">
@@ -203,7 +245,7 @@ export default async function HomePage() {
           {can(me, "members", "edit") && staffToday.map((m) => <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={tz} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />)}
         </div>
       )}
-      {household.ok && <HouseholdCard data={household} me={me} />}
+      {household.ok && !sitter && <HouseholdCard data={household} me={me} />}
       {calendar && calendar.ok && (
         <section className="card" aria-labelledby="today-h">
           <div className="flex items-baseline justify-between">

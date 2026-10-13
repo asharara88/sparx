@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { AuditRow, Me } from "@/lib/types";
+import type { AuditRow, BackupRow, Me } from "@/lib/types";
 import { can } from "@/lib/types";
 import { fmtDateTime } from "@/lib/time";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
+import { BackupsCard } from "@/components/BackupsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,12 @@ export default async function AuditPage() {
   if (!can(me, "audit", "view")) redirect("/");
   const { data } = await supabase.rpc("audit_recent", { p_limit: 300 });
   const rows = ((data as { ok: boolean; rows?: AuditRow[] })?.rows ?? []) as AuditRow[];
+  const { data: backups } = await supabase.from("backups").select("*").order("created_at", { ascending: false }).limit(10);
   const tz = me.household.timezone;
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/" title="Audit log" action={<a href="/api/audit/export" className="btn" style={{ minHeight: 40 }}>CSV</a>} />
+      <BackupsCard rows={((backups as BackupRow[] | null) ?? []) as BackupRow[]} />
       <p className="muted">Every write, and every attempt that was not allowed. Newest first.</p>
       <ul className="flex flex-col gap-2 text-sm">
         {rows.map((r) => (

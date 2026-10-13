@@ -5,6 +5,7 @@ import { can } from "@/lib/types";
 import { MilkStash } from "@/components/MilkStash";
 import { PageHeader } from "@/components/PageHeader";
 import { FridgePlan } from "@/components/FridgePlan";
+import { MilkScan } from "@/components/MilkScan";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { dayRange, todayYmd } from "@/lib/time";
@@ -41,6 +42,7 @@ export default async function MilkPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/lana" title="Milk stash" subtitle="What is in the fridge and freezer, oldest first. A bottle feed takes its milk out by itself." />
+      {can(me, "lana", "add") && <MilkScan timezone={tz} />}
       {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} />}
       <MilkStash data={milk} timezone={me.household.timezone} />
     </div>

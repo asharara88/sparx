@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { BagItem, DailyStats, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
+import type { BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { ageDays, ageLabel } from "@/lib/norms";
@@ -12,6 +12,9 @@ import { HandoverPanel } from "@/components/HandoverPanel";
 import { Icon, type IconName } from "@/components/Icon";
 import { LanaTabs, type LanaTab } from "@/components/LanaTabs";
 import { PatternBars } from "@/components/PatternBars";
+import { LanaForecast } from "@/components/LanaForecast";
+import { Medicines } from "@/components/Medicines";
+import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +40,9 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
   const tiles: { href: string; icon: IconName; label: string }[] = [
     { href: "/lana/milk", icon: "droplet", label: "Milk" },
     { href: "/lana/vaccines", icon: "syringe", label: "Vaccines" },
+    { href: "/lana/medicine", icon: "clock", label: "Medicine" },
     { href: "/lana/doctor", icon: "phone", label: "Doctor" },
+    { href: "/lana/milestones", icon: "star", label: "Firsts" },
     { href: "/lana/trends", icon: "trend", label: "Growth" },
     { href: "/lana/emergency", icon: "bell", label: "Emergency" },
     { href: "/lana/when-to-call", icon: "clipboard", label: "When to call" },
@@ -74,11 +79,30 @@ type SB = Awaited<ReturnType<typeof createClient>>;
 
 async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; summary: HomeSummary; day: string; today: string; tz: string }) {
   const { from, to } = dayRange(day, tz);
-  const [{ data: listData }, { data: stripData }, { data: statsData }] = await Promise.all([
+  const isToday = day === today;
+  const [{ data: listData }, { data: stripData }, { data: statsData }, { data: medData }, { data: weekData }, { data: hhData }] = await Promise.all([
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: to }),
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(new Date(from).getTime() - 12 * 3600 * 1000).toISOString(), p_to: to }),
     supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: day, p_to: day }),
+    isToday ? supabase.rpc("medicines_list", { p_subject_id: summary.subject.id }) : Promise.resolve({ data: null }),
+    isToday ? supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : Promise.resolve({ data: null }),
+    isToday ? supabase.rpc("household_today") : Promise.resolve({ data: null }),
   ]);
+  const meds = medData as MedicinesData | RpcError | null;
+  const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
+  const hh = hhData as HouseholdToday | RpcError | null;
+  const mama = hh && hh.ok ? hh.members.find((m) => m.breastfeeds) ?? null : null;
+  const awayFrom = hhmm(mama?.work_from, WORK_FROM);
+  const awayTo = hhmm(mama?.work_to, WORK_TO);
+  const away = (at: number) => {
+    if (!mama || mama.work_days.length === 0) return false;
+    const d = new Date(at);
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(d);
+    const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parts.find((p) => p.type === "weekday")?.value ?? "");
+    const hm = Number(parts.find((p) => p.type === "hour")?.value ?? 0) * 100 + Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+    return mama.work_days.includes(wd) && hm >= awayFrom && hm <= awayTo;
+  };
+  const feedInterval = summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180;
   const entries = ((listData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const stripEntries = ((stripData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const stats = statsData as DailyStats | RpcError | null;
@@ -125,6 +149,8 @@ async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; s
           {entries.length === 0 && <span className="muted">Nothing logged on this day.</span>}
         </p>
       </div>
+      {isToday && meds && meds.ok && <Medicines subjectId={summary.subject.id} items={meds.items} timezone={tz} compact />}
+      {isToday && <LanaForecast entries={week} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />}
       {dayStats && (
         <AgeCheck totals={dayStats} birthDate={summary.subject.birth_date} day={day} complete={day < today} title={day === today ? "Today against her age" : "Against her age"} subtitle={day === today ? "Counts so far. Nothing is flagged until the day is over." : undefined} />
       )}

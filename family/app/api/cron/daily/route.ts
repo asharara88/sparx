@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cronAuthorized, cronConfigured } from "@/lib/server/member";
 import { runDaily } from "@/lib/push/cron";
+import { runBackup } from "@/lib/backup/run";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -12,7 +13,14 @@ export async function GET(req: Request) {
   if (!cfg.ok) return NextResponse.json({ ok: false, error: "not_configured", missing: cfg.missing }, { status: 503 });
   try {
     const report = await runDaily();
-    return NextResponse.json({ ok: true, ...report });
+    // The nightly backup rides the same cron; a failure there must not hide the push report.
+    let backup: unknown;
+    try {
+      backup = await runBackup();
+    } catch (e) {
+      backup = { error: e instanceof Error ? e.message : String(e) };
+    }
+    return NextResponse.json({ ok: true, ...report, backup });
   } catch (e) {
     return NextResponse.json({ ok: false, error: "failed", message: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
