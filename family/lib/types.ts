@@ -393,10 +393,13 @@ export interface DueItem {
   subject_id: string;
   subject: string;
   module_id: string;
-  kind: "treatment" | "interval";
+  kind: "treatment" | "interval" | "vaccine";
   label: string;
   icon: string | null;
   type_id?: string;
+  /** Vaccines: which visit ("4 months") and how many doses are outstanding. */
+  visit?: string;
+  count?: number;
   due_on?: string;
   due_at: string;
   last_at?: string;
@@ -766,6 +769,33 @@ export interface HubState {
 }
 
 // ---- adopted features (migration 1300) ---------------------------------------------------
+
+export interface VaccineGiven {
+  id: string;
+  given_on: string;
+  place: string | null;
+  batch: string | null;
+  note: string | null;
+  recorded_by: string | null;
+}
+export interface VaccineItem {
+  id: string;
+  visit: string;
+  vaccine: string;
+  dose: number;
+  note: string | null;
+  due_age_days: number;
+  window_days: number;
+  due_on: string | null;
+  status: "given" | "due" | "overdue" | "upcoming" | "unknown";
+  given: VaccineGiven | null;
+}
+export interface VaccinesData {
+  ok: true;
+  today: string;
+  birth_date: string | null;
+  items: VaccineItem[];
+}
 
 export interface ChatMessage {
   id: string;

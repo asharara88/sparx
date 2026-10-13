@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { DailyStats, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
+import type { DailyStats, EntryRow, HomeSummary, Me, RpcError, VaccinesData } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDate, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { PrintButton } from "@/components/PrintButton";
@@ -30,10 +30,13 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/lana");
   const s = summary.subject;
-  const [{ data: statsData }, { data: listData }] = await Promise.all([
+  const [{ data: statsData }, { data: listData }, { data: vaxData }] = await Promise.all([
     supabase.rpc("care_daily_stats", { p_subject_id: s.id, p_from: from, p_to: to }),
     days <= 14 ? supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: dayRange(from, tz).from, p_to: dayRange(to, tz).to }) : Promise.resolve({ data: null }),
+    supabase.rpc("vaccines_list", { p_subject_id: s.id }),
   ]);
+  const vax = vaxData as VaccinesData | RpcError | null;
+  const vaccines = vax?.ok ? vax.items.filter((v) => v.status !== "upcoming") : [];
   const stats = statsData as DailyStats | RpcError;
   const rows = stats.ok ? stats.days : [];
   const entries = ((listData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
@@ -110,6 +113,24 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
           <>
             <h2 className="mt-4 text-lg font-bold">Firsts</h2>
             <ul className="mt-1 text-sm">{firsts.map((f, i) => <li key={i}>{f.day} · {f.m}</li>)}</ul>
+          </>
+        )}
+
+        {vaccines.length > 0 && (
+          <>
+            <h2 className="mt-4 text-lg font-bold">Vaccines</h2>
+            <table className="mt-1 w-full text-sm">
+              <thead><tr className="text-left"><th>Visit</th><th>Vaccine</th><th>Given</th><th>Where</th></tr></thead>
+              <tbody>
+                {vaccines.map((v) => (
+                  <tr key={v.id}>
+                    <td>{v.visit}</td><td>{v.vaccine} ({v.dose})</td>
+                    <td>{v.given ? v.given.given_on : v.status === "overdue" ? "overdue" : v.due_on ? `due ${v.due_on}` : ""}</td>
+                    <td>{v.given?.place ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </>
         )}
 

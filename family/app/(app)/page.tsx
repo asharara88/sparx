@@ -13,6 +13,7 @@ import { SuggestionCards } from "@/components/SuggestionCards";
 import { NotesBoard } from "@/components/NotesBoard";
 import { AttendanceButton } from "@/components/AttendanceButton";
 import { BottleCountdown } from "@/components/BottleCountdown";
+import { VaccineNotice } from "@/components/VaccineNotice";
 import { RoutineTiles } from "@/components/RoutineTiles";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { SimpleHome } from "@/components/SimpleHome";
@@ -129,6 +130,12 @@ export default async function HomePage() {
       )}
 
       {summary && summary.ok && <LanaCard summary={summary} recent={recent} lastMilk={lastMilk} milk={milk} />}
+      {summary &&
+        summary.ok &&
+        due
+          .filter((d) => d.kind === "vaccine" && d.subject_id === summary.subject.id)
+          .slice(0, 1)
+          .map((d) => <VaccineNotice key={d.visit} item={d} timezone={tz} />)}
       {summary && summary.ok && milkStash && milkStash.ok && (
         <BottleCountdown milk={milkStash} lastFeedAt={summary.last["lana.feed"]?.ended_at ?? summary.last["lana.feed"]?.occurred_at ?? null} mamaAway={mamaAway} timezone={tz} />
       )}

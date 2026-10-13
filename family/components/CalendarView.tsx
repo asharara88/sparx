@@ -30,7 +30,7 @@ export function CalendarView({
   from: string;
   today: string;
   members: { id: string; name: string }[];
-  /** Treatments with a due date (vaccination, deworming), shown on their day. */
+  /** Treatments and vaccine visits with a due date, shown on their day. */
   due?: DueItem[];
 }) {
   const me = useMe();
@@ -84,7 +84,7 @@ export function CalendarView({
             {due
               .filter((d) => d.due_on === day.date.slice(0, 10))
               .map((d) => (
-                <Link key={d.label + d.due_at} href={d.module_id === "fanta" ? "/fanta/profile" : "/lana"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
+                <Link key={d.label + d.due_at} href={d.module_id === "fanta" ? "/fanta/profile" : d.kind === "vaccine" ? "/lana/vaccines" : "/lana"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
                   {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
                 </Link>
               ))}

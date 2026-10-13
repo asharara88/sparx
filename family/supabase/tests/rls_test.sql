@@ -652,7 +652,34 @@ select pg_temp.assert(jsonb_array_length((public.chat_list())->'messages') = 1, 
 select pg_temp.assert(not exists (select 1 from information_schema.role_table_grants where table_name = 'family_messages' and grantee = 'authenticated' and privilege_type in ('INSERT', 'UPDATE', 'DELETE')), 'chat writes go through the RPCs');
 reset role;
 
+-- Vaccines (migration 1800): UAE schedule from the birth date, record and undo, due list and permissions
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.vaccines_list(:lana))->>'ok' = 'true', 'Wafa sees Lana''s vaccine book');
+select pg_temp.assert(jsonb_array_length((public.vaccines_list(:lana))->'items') = 26, '26 schedule lines');
+select pg_temp.assert((select x->>'due_on' from jsonb_array_elements((public.vaccines_list(:lana))->'items') x where x->>'id' = 'hexa_2') = ((select birth_date from public.care_subjects where id = :lana) + 122)::text, '4-month dose due 122 days after birth');
+select pg_temp.assert((select x->>'status' from jsonb_array_elements((public.vaccines_list(:lana))->'items') x where x->>'id' = 'hpv_1') = 'upcoming', 'HPV is years away');
+select pg_temp.assert((public.vaccine_record(:lana, 'bcg_1', (select birth_date from public.care_subjects where id = :lana), 'Hospital', null, null))->>'ok' = 'true', 'Wafa records BCG at birth');
+select pg_temp.assert((public.vaccine_record(:lana, 'hexa_1', (select birth_date from public.care_subjects where id = :lana) + 60, 'Clinic', 'AB12', null))->>'ok' = 'true', 'and the first 6-in-1');
+select pg_temp.assert((public.vaccine_record(:lana, 'hexa_1', (select birth_date from public.care_subjects where id = :lana) + 61, null, null, 'corrected'))->>'ok' = 'true', 'recording again corrects the date');
+select pg_temp.assert((select count(*) from public.vaccinations where subject_id = :lana and schedule_id = 'hexa_1' and deleted_at is null) = 1, 'still one live row');
+select pg_temp.assert((select x#>>'{given,batch}' from jsonb_array_elements((public.vaccines_list(:lana))->'items') x where x->>'id' = 'hexa_1') = 'AB12', 'batch kept when not resent');
+select pg_temp.assert((public.vaccine_record(:lana, 'hexa_1', current_date + 5, null, null, null))->>'error' = 'bad_date', 'not in the future');
+select pg_temp.assert((public.vaccine_record(:lana, 'nope', current_date, null, null, null))->>'error' = 'bad_schedule', 'not off the schedule');
+select pg_temp.assert((select x->>'status' from jsonb_array_elements((public.vaccines_list(:lana))->'items') x where x->>'id' = 'bcg_1') = 'given', 'BCG shows as given');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine' and x->>'visit' = 'Birth') = 1, 'birth visit still due (hepatitis B not recorded)');
+select pg_temp.assert((select x->>'count' from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine' and x->>'visit' = 'Birth') = '1', 'with one dose outstanding');
+select pg_temp.assert((public.vaccine_unrecord((select id from public.vaccinations where subject_id = :lana and schedule_id = 'bcg_1' and deleted_at is null)))->>'ok' = 'true', 'Wafa can undo (she edits Lana''s log)');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.vaccines_list(:lana))->>'error' = 'not_allowed', 'Lilly cannot see the vaccine book');
+select pg_temp.assert((public.vaccine_record(:lana, 'pcv_1', current_date, null, null, null))->>'error' = 'not_allowed', 'nor record one');
+select pg_temp.assert((select count(*) from public.vaccinations) = 0, 'and sees no rows');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine') = 0, 'and no vaccine due items');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
