@@ -30,6 +30,7 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/lana");
   const s = summary.subject;
+  const pf = (s.profile ?? {}) as Record<string, string | undefined>;
   const [{ data: statsData }, { data: listData }, { data: vaxData }] = await Promise.all([
     supabase.rpc("care_daily_stats", { p_subject_id: s.id, p_from: from, p_to: to }),
     days <= 14 ? supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: dayRange(from, tz).from, p_to: dayRange(to, tz).to }) : Promise.resolve({ data: null }),
@@ -84,6 +85,14 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
         <p className="muted">
           {fmtDate(from, tz, { day: "numeric", month: "long" })} to {fmtDate(to, tz, { day: "numeric", month: "long", year: "numeric" })} · {days} days · from the family's log, {me.household.name}
         </p>
+
+        {(pf.blood_group || pf.allergies || pf.hospital_number) && (
+          <p className="muted text-sm">
+            {[pf.blood_group ? `Blood group ${pf.blood_group}` : null, pf.allergies ? `Allergies: ${pf.allergies}` : null, pf.hospital_number ? `File ${pf.hospital_number}` : null, pf.birth_weight_kg ? `Born ${pf.birth_weight_kg} kg, ${pf.birth_length_cm ?? "?"} cm` : null]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        )}
 
         <h2 className="mt-4 text-lg font-bold">Averages per day</h2>
         <table className="mt-1 w-full text-sm">

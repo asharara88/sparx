@@ -656,7 +656,7 @@ reset role;
 select pg_temp.act_as(:wafa);
 set role authenticated;
 select pg_temp.assert((public.vaccines_list(:lana))->>'ok' = 'true', 'Wafa sees Lana''s vaccine book');
-select pg_temp.assert(jsonb_array_length((public.vaccines_list(:lana))->'items') = 26, '26 schedule lines');
+select pg_temp.assert(jsonb_array_length((public.vaccines_list(:lana))->'items') = 22, '22 schedule lines on the NMC card');
 select pg_temp.assert((select x->>'due_on' from jsonb_array_elements((public.vaccines_list(:lana))->'items') x where x->>'id' = 'hexa_2') = ((select birth_date from public.care_subjects where id = :lana) + 122)::text, '4-month dose due 122 days after birth');
 select pg_temp.assert((select x->>'status' from jsonb_array_elements((public.vaccines_list(:lana))->'items') x where x->>'id' = 'hpv_1') = 'upcoming', 'HPV is years away');
 select pg_temp.assert((public.vaccine_record(:lana, 'bcg_1', (select birth_date from public.care_subjects where id = :lana), 'Hospital', null, null))->>'ok' = 'true', 'Wafa records BCG at birth');
