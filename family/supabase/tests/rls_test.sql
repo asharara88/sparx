@@ -686,7 +686,26 @@ select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interva
 select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.home_summary())->'ongoing') x where x->>'type_id' = 'lana.feed' and x->'payload'->>'method' = 'Bottle'), 'the bottle is not an ongoing feed');
 reset role;
 
+-- Milk consume (migration 2200): a bottle feed takes milk out of the fridge, oldest first
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.milk_add(100, 'fridge', now() - interval '30 hours', 'older'))->>'ok' = 'true', 'Dana adds an older 100 ml');
+select pg_temp.assert((public.milk_add(150, 'fridge', now() - interval '2 hours', 'newer'))->>'ok' = 'true', 'and a newer 150 ml');
+create temp table consumed as select public.milk_consume(120) as r;
+select pg_temp.assert((select r->>'short_ml' from consumed) = '0', 'a 120 ml bottle is covered');
+select pg_temp.assert((select private.milk_expires_at(b) from public.milk_bottles b where b.id = (select (r->'used'->0->>'id')::uuid from consumed))
+                      <= (select min(private.milk_expires_at(b)) from public.milk_bottles b where b.used_at is null and b.deleted_at is null and b.location = 'fridge' and private.milk_expires_at(b) >= now()),
+                      'the bottle closest to expiry went first');
+select pg_temp.assert((select sum((x->>'ml')::int) from consumed, jsonb_array_elements(r->'used') x) = 120, 'exactly 120 ml came out');
+select pg_temp.assert((select count(*) from public.milk_bottles where note = 'newer' and used_at is null) = 1, 'the newest bottle is still open');
+select pg_temp.assert((public.milk_consume(500))->>'short_ml' <> '0', 'a huge bottle reports a shortfall');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.milk_consume(60))->>'error' = 'not_allowed', 'Lilly cannot take milk out (no Lana access)');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

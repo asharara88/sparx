@@ -5,9 +5,9 @@ import { Assistant } from "@/components/Assistant";
 
 export const dynamic = "force-dynamic";
 
-export default async function AskPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
+export default async function AskPage({ searchParams }: { searchParams: Promise<{ c?: string; q?: string }> }) {
   const supabase = await createClient();
-  const { c } = await searchParams;
+  const { c, q } = await searchParams;
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
   if (!can(me, "assistant", "view")) {
@@ -19,6 +19,7 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
     );
   }
   const s: string[] = [];
+  if (q && q.trim()) s.push(q.trim().slice(0, 200));
   if (can(me, "lana", "view")) s.push("When did Lana last feed?", "How did Lana sleep last night?");
   if (can(me, "fanta", "view")) s.push("What's due for Fanta?");
   if (can(me, "calendar", "view")) s.push("Who's home on Thursday?", "What's on tomorrow?");

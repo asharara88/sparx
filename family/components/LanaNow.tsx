@@ -52,6 +52,7 @@ export function LanaNow({
   const sleepType = types.find((t) => t.key === "sleep");
   const wakeType = types.find((t) => t.key === "wake");
   const diaperType = types.find((t) => t.key === "diaper");
+  const pumpType = types.find((t) => t.key === "pump");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
   const bottleQuick = (feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[];
   const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
@@ -262,13 +263,47 @@ export function LanaNow({
                   type="button"
                   className="chip min-h-[56px] text-lg"
                   disabled={busy || !canAdd}
-                  onClick={() => run(`Bottle ${ml} ml saved.`, () => start(feedType, { method: "Bottle", milk, amount_ml: ml }, nowIso))}
+                  onClick={() =>
+                    run(`Bottle ${ml} ml saved.`, async () => {
+                      await start(feedType, { method: "Bottle", milk, amount_ml: ml }, nowIso);
+                      if (!/formula/i.test(milk)) {
+                        const r = await rpc("milk_consume", { p_ml: ml, p_note: null });
+                        const short = Number((r as { short_ml?: number }).short_ml ?? 0);
+                        if (short > 0) setMsg(`Bottle ${ml} ml saved. The fridge was ${short} ml short.`);
+                      }
+                    })
+                  }
                 >
                   {ml} ml
                 </button>
               ))}
             </div>
           </div>
+          {breastfeeds && pumpType && (
+            <div className="card">
+              <p className="font-semibold">
+                <Icon name="droplet" size={20} /> Pump, to the fridge
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[90, 120, 150, 180].map((ml) => (
+                  <button
+                    key={ml}
+                    type="button"
+                    className="chip min-h-[56px] text-lg"
+                    disabled={busy || !canAdd}
+                    onClick={() =>
+                      run(`Pumped ${ml} ml, in the fridge.`, async () => {
+                        await start(pumpType, { amount_ml: ml }, nowIso);
+                        await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
+                      })
+                    }
+                  >
+                    {ml} ml
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="card">
             <p className="font-semibold">
               <Icon name="diaper" size={20} /> Diaper
