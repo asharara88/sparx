@@ -246,5 +246,6 @@ scripts/               seed-accounts.mjs, make-icons.mjs
 - Vaccine book (`/lana/vaccines`): the UAE childhood schedule dated from her birthday, record what was given and where, next visit on the home screen and the calendar, and in the doctor's export.
 - Paediatrician card (`/lana/doctor`): doctor, hospital, call, book, directions, questions for the next visit, upcoming vaccines and appointments, past visits.
 - Screenshot mode: build a local database with `supabase/tests/run-local.sh`, load `supabase/tests/demo_data.sql`, then run the app with `FAMILY_LOCAL_DB=<database>`. Pages read that database through psql as the member named by a `shot_as` cookie (defaults to Mido). Never set in production.
+- Every environment variable, what it powers and where to get it: `VERCEL_ENV.md`.
 - Push notifications are not in yet (they need web-push keys and a scheduler; see LATER.md).
   Fanta's log, maintenance, receipts, the assistant: later steps, per PLAN.md.
