@@ -87,3 +87,63 @@ export function sleepCoach(entries: EntryRow[], ageDays: number, hourOf: (iso: s
   if (bestWindowMin && bestWindowMin > hi + 15) tip = `She naps best after ${bestWindowMin} min awake, longer than usual for her age (${lo} to ${hi}). That is fine if she is content.`;
   return { napMin, bestWindowMin, bedtime, naps: naps.length, tip };
 }
+
+/** Developmental phases by age in days (common paediatric guidance, not a diagnosis). */
+const PHASES: { from: number; to: number; what: string }[] = [
+  { from: 14, to: 21, what: "Growth spurt (2 to 3 weeks): cluster feeding" },
+  { from: 38, to: 46, what: "Growth spurt (6 weeks)" },
+  { from: 84, to: 100, what: "Growth spurt (3 months)" },
+  { from: 90, to: 150, what: "4-month sleep change: more waking and short naps for a few weeks; stop swaddling at the first sign of rolling" },
+  { from: 120, to: 300, what: "Teething window (first tooth usually 4 to 10 months, often about 6)" },
+  { from: 165, to: 195, what: "Solids readiness around 6 months, and a growth spurt" },
+  { from: 180, to: 270, what: "3-to-2 nap change (often 7 to 9 months)" },
+  { from: 240, to: 300, what: "8 to 10 months: crawling and standing, separation anxiety, growth spurt around 9 months" },
+  { from: 355, to: 380, what: "12 months: walking and words" },
+];
+
+export interface AgeOutlook {
+  ageDays: number;
+  ageMonths: number;
+  awakeWindowMin: [number, number];
+  now: string[];
+  next: { what: string; inAboutDays: number }[];
+}
+
+/** Which phases she is in now and which come next. */
+export function ageOutlook(ageDays: number): AgeOutlook {
+  return {
+    ageDays,
+    ageMonths: Math.round((ageDays / 30.44) * 10) / 10,
+    awakeWindowMin: awakeWindow(ageDays),
+    now: PHASES.filter((p) => ageDays >= p.from && ageDays <= p.to).map((p) => p.what),
+    next: PHASES.filter((p) => p.from > ageDays).slice(0, 3).map((p) => ({ what: p.what, inAboutDays: p.from - ageDays })),
+  };
+}
+
+export interface ScheduleLine {
+  at: string;
+  what: string;
+}
+
+/**
+ * A gentle day rhythm from a morning wake time: naps after her awake window
+ * (her best recent one when known, else the age norm), feeds on waking, a
+ * bedtime routine 30 min before a 18:30 to 20:30 bedtime. A guide, not a timetable.
+ */
+export function daySchedule(wakeMinutes: number, ageDays: number, bestWindowMin: number | null): { awakeWindowMin: number; basedOn: "her best recent window" | "age norm"; lines: ScheduleLine[] } {
+  const [lo, hi] = awakeWindow(ageDays);
+  const win = Math.round(Math.min(hi, Math.max(lo, bestWindowMin ?? (lo + hi) / 2)));
+  const nap = ageDays < 150 ? 45 : 75;
+  const hm = (x: number) => `${String(Math.floor(x / 60) % 24).padStart(2, "0")}:${String(Math.round(x % 60)).padStart(2, "0")}`;
+  let t = wakeMinutes;
+  const lines: ScheduleLine[] = [{ at: hm(t), what: "wake and feed" }];
+  while (t + win + nap < 18 * 60 + 30) {
+    t += win;
+    lines.push({ at: hm(t), what: `nap (about ${nap} min)` });
+    t += nap;
+    lines.push({ at: hm(t), what: "wake and feed" });
+  }
+  const bed = Math.min(Math.max(t + win, 18 * 60 + 30), 20 * 60 + 30);
+  lines.push({ at: hm(bed - 30), what: "bedtime routine" }, { at: hm(bed), what: "asleep for the night" });
+  return { awakeWindowMin: win, basedOn: bestWindowMin ? "her best recent window" : "age norm", lines };
+}

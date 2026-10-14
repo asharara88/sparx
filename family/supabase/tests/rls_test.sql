@@ -802,11 +802,15 @@ select pg_temp.act_as(:dana);
 set role authenticated;
 select pg_temp.assert((public.coach_plan_stop((select (x#>>'{plan,id}')::uuid from (select public.coach_plan_active(:lana) as x) y)))->>'ok' = 'true', 'Dana stops the plan');
 select pg_temp.assert((public.coach_plan_active(:lana))->'plan' = 'null'::jsonb, 'no active plan again');
+select pg_temp.assert(jsonb_array_length((public.coach_plan_history(:lana, 8))->'plans') = 2, 'history lists both plans');
+select pg_temp.assert((select x->>'done' from jsonb_array_elements((public.coach_plan_history(:lana, 8))->'plans') x where x->>'goal' = 'Earlier, calmer bedtime') = '1', 'with the ticked day');
+select pg_temp.assert((select x->'notes'->>0 from jsonb_array_elements((public.coach_plan_history(:lana, 8))->'plans') x where x->>'goal' = 'Earlier, calmer bedtime') = 'went well', 'and the note');
 reset role;
 select pg_temp.act_as(:lilly);
 set role authenticated;
 select pg_temp.assert((public.coach_plan_active(:lana))->>'error' = 'not_allowed', 'Lilly cannot see plans');
 select pg_temp.assert((public.coach_plan_start(:lana, 'x', '[{"step":"y"}]'))->>'error' = 'not_allowed', 'nor start one');
+select pg_temp.assert((public.coach_plan_history(:lana, 8))->>'error' = 'not_allowed', 'nor see the history');
 do $$ begin
   perform count(*) from public.coach_plans;
   raise exception 'ASSERT FAILED: Lilly could read coach_plans directly';
@@ -817,5 +821,5 @@ reset role;
 
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

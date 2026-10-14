@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssistantProposal, AssistantRef, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
-import { sleepCoach, awakeWindow } from "@/lib/lana-insights";
+import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/lana-insights";
+import { tipsFor } from "@/lib/lana-guide";
 import type { EntryRow } from "@/lib/types";
 
 /**
@@ -561,6 +562,110 @@ function sleepRhythm(ctx0: ToolContext): AssistantTool {
   };
 }
 
+function ageDaysOf(ctx: ToolContext, s: SubjectInfo): number {
+  return s.birth_date ? Math.floor((ctx.now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : 120;
+}
+
+function ageOutlookTool(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "age_outlook",
+      description: "Which developmental phases a child is in now and which come next (growth spurts, the 4-month sleep change, teething, solids, nap changes), with day counts and the typical awake window. Use for 'is this a regression', 'when do teeth come', 'is she ready for solids'.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || s.kind !== "child") return { error: "unknown_subject" };
+      return { subject: s.name, ...ageOutlook(ageDaysOf(ctx, s)) };
+    },
+  };
+}
+
+function dayScheduleTool(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "day_schedule",
+      description: "A gentle day rhythm (naps, feeds, bedtime) from a morning wake time, using her best recent awake window when the log shows one, else the age norm. A guide, not a timetable. Use when asked 'what should her day look like' or to plan naps around Mama's hours.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0), wake_time: { type: "string", description: "HH:MM household time she woke up or usually wakes." } }, ["wake_time"]),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || s.kind !== "child") return { error: "unknown_subject" };
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(input.wake_time ?? "").trim());
+      if (!m) return { error: "bad_time", message: "wake_time as HH:MM" };
+      const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - 14 * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
+      const entries = r.ok ? (((r.entries as EntryRow[]) ?? []).filter((e) => e.type_id.endsWith(".sleep"))) : [];
+      const hourOf = (iso: string) => {
+        const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ctx.tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
+        return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+      };
+      const ageDays = ageDaysOf(ctx, s);
+      const coach = sleepCoach(entries, ageDays, hourOf);
+      const sched = daySchedule(Number(m[1]) * 60 + Number(m[2]), ageDays, coach?.bestWindowMin ?? null);
+      const away = ctx.routines.length ? "Mama's work hours are in the routines above; bottles every 2 h while she is away." : undefined;
+      return { subject: s.name, ...sched, note: away };
+    },
+  };
+}
+
+function redFlagCheck(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "red_flag_check",
+      description: "Scan the last 1 to 3 days of a child's log for warning signs: few wet nappies, few feeds, long gaps, long awake stretches, little sleep. Returns the same red and yellow flags as the app's guide. Run it whenever the question mentions illness, feeding refusal, fewer nappies or unusual sleepiness. Any red flag means: contact the paediatrician.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0), days: { type: "integer", description: "1 to 3" } }),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || s.kind !== "child") return { error: "unknown_subject" };
+      const d = Math.min(3, Math.max(1, Math.round(Number(input.days) || 1)));
+      const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - (d + 6) * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
+      if (!r.ok) return r;
+      const entries = ((r.entries as EntryRow[]) ?? []);
+      const flags = tipsFor(entries, s.birth_date, ctx.now.getTime(), { timezone: ctx.tz, feedGapMin: ctx.types.find((t) => t.id === `${s.module_id}.feed`)?.due_after_min ?? 180 }).filter((t) => t.level !== "info");
+      const fever = entries.filter((e) => Number(e.payload.temp_c ?? e.payload.temperature) >= 38).map((e) => `temperature ${e.payload.temp_c ?? e.payload.temperature} °C at ${local(e.occurred_at, ctx.tz)}`);
+      return { subject: s.name, days: d, entries: entries.length, flags: [...flags.map((t) => ({ level: t.level, title: t.title, detail: t.body })), ...fever.map((f) => ({ level: "red", title: f }))], ok: flags.length === 0 && fever.length === 0, note: entries.length <= 5 ? "Too little logged to judge." : undefined };
+    },
+  };
+}
+
+function planHistory(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "plan_history",
+      description: "Past coach plans for a child: goal, dates, status, how many days were ticked done, and the check-in notes. Use before proposing a plan, so a plan that failed is not offered again unchanged.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || s.kind !== "child") return { error: "unknown_subject" };
+      return rpc(ctx, "coach_plan_history", { p_subject_id: s.id, p_limit: 8 });
+    },
+  };
+}
+
+function recentChats(): AssistantTool {
+  return {
+    def: {
+      name: "recent_chats",
+      description: "The member's last few saved chats with you: title, date and the last question and answer. Use to pick up where an earlier chat left off ('last time we talked about her naps').",
+      input_schema: obj({}),
+    },
+    run: async (_input, ctx) => {
+      const { data } = await ctx.supabase.from("ask_chats").select("title, updated_at, messages").order("updated_at", { ascending: false }).limit(4);
+      type M = { role?: string; text?: string };
+      return {
+        chats: ((data as { title: string; updated_at: string; messages: M[] }[] | null) ?? []).map((c) => {
+          const ms = (Array.isArray(c.messages) ? c.messages : []).filter((m) => m && typeof m.text === "string");
+          const lastQ = [...ms].reverse().find((m) => m.role === "user")?.text?.slice(0, 200) ?? null;
+          const lastA = [...ms].reverse().find((m) => m.role === "assistant")?.text?.slice(0, 300) ?? null;
+          return { title: c.title, on: c.updated_at.slice(0, 10), last_question: lastQ, last_answer: lastA };
+        }),
+      };
+    },
+  };
+}
+
 function proposePlan(ctx0: ToolContext): AssistantTool {
   const kids = ctx0.subjects.filter((s) => s.kind === "child" && can(ctx0.me, s.module_id, "add"));
   return {
@@ -616,7 +721,8 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
   const careSubjects = ctx.subjects.filter((s) => can(me, s.module_id, "view"));
   if (careSubjects.length) {
     list.push(careNow(ctx), careEntries(ctx));
-    if (careSubjects.some((s) => s.kind === "child")) list.push(careStats(ctx), sleepRhythm(ctx), coachPlan(ctx));
+    if (careSubjects.some((s) => s.kind === "child")) list.push(careStats(ctx), sleepRhythm(ctx), coachPlan(ctx), ageOutlookTool(ctx), dayScheduleTool(ctx), redFlagCheck(ctx), planHistory(ctx));
+    list.push(recentChats());
     list.push(dueSoon());
   }
   if (can(me, "shopping", "view") || can(me, "shopping_requests", "add")) list.push(shoppingList());
