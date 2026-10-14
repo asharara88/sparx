@@ -1,7 +1,7 @@
 import type { EntryRow } from "@/lib/types";
 import { normsForAge } from "@/lib/norms";
 import { nextFeedAt } from "@/lib/forecast";
-import { growthSpurt } from "@/lib/lana-insights";
+import { ageOutlook, growthSpurt } from "@/lib/lana-insights";
 
 /**
  * Lana's guide: the last 24 hours against what is usual for her age, as short
@@ -61,7 +61,10 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   }
   const dayOf = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: opts.timezone ?? "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
   const spurt = growthSpurt(entries, dayOf, now);
-  if (spurt) tips.push({ level: "info", title: "Possible growth spurt", body: `She is feeding about ${spurt.recentPerDay} times a day, up from ${spurt.beforePerDay}. This is common and usually lasts 2 to 3 days: feed on demand. Call the doctor if she has fewer than 6 wet diapers a day or seems unwell.`, topic: "feeds" });
+  if (spurt) {
+    const phase = birthDate ? ageOutlook(days).now.find((w) => /spurt|sleep change|teething/i.test(w)) : null;
+    tips.push({ level: "info", title: "Possible growth spurt", body: `She is feeding about ${spurt.recentPerDay} times a day, up from ${spurt.beforePerDay}.${phase ? ` At her age this fits: ${phase.toLowerCase()}.` : ""} This is common and usually lasts 2 to 3 days: feed on demand. Call the doctor if she has fewer than 6 wet diapers a day or seems unwell.`, topic: "feeds" });
+  }
 
   // Sleep
   const sleeps = sorted.filter((e) => e.type_id === "lana.sleep");

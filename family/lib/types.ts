@@ -517,7 +517,7 @@ export interface MaintenanceOverview {
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
-export type ProposalKind = "care_entry" | "calendar_event" | "shopping" | "memory";
+export type ProposalKind = "care_entry" | "calendar_event" | "shopping" | "memory" | "plan";
 
 export interface CareEntryProposal {
   subject_id: string;
@@ -559,6 +559,8 @@ export interface AssistantProposal {
   shopping?: ShoppingProposal;
   /** A fact for the helper to keep ("Lana takes a bottle better when it is warm"). */
   memory?: { body: string };
+  /** A short day-by-day coach plan the family can start. */
+  plan?: { subject_id: string; subject_name: string; goal: string; steps: { day: number; step: string }[] };
 }
 
 /** A citation target: the tool result the answer came from, as a link. */
@@ -593,7 +595,7 @@ export interface AssistantReply {
 export interface Brief {
   id: string;
   day: string;
-  kind: "morning" | "evening";
+  kind: "morning" | "evening" | "week";
   content: string;
   created_at: string;
   model: string | null;
@@ -951,4 +953,41 @@ export interface MilkReading {
   source: "morning" | "night" | null;
   ml: number | null;
   confidence: "high" | "low";
+}
+
+export interface CoachPlan {
+  id: string;
+  goal: string;
+  steps: { day: number; step: string }[];
+  starts_on: string;
+  ends_on: string;
+  /** 1-based day of the plan today (can exceed days when over). */
+  day: number;
+  days: number;
+  over: boolean;
+  today_step: string | null;
+  done_today: boolean;
+  checkins: { day: string; done: boolean; note: string | null; by: string | null }[];
+}
+export interface CoachPlanData {
+  ok: true;
+  plan: CoachPlan | null;
+}
+
+export interface Activity {
+  id: string;
+  title: string;
+  how: string;
+  why: string;
+  source: string;
+  band: "now" | "coming";
+  from_days: number;
+  to_days: number;
+  done_on: string | null;
+  done_by: string | null;
+}
+export interface ActivitiesData {
+  ok: true;
+  age_days: number | null;
+  items: Activity[];
 }

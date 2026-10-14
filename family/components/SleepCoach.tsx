@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EntryRow } from "@/lib/types";
 import { sleepCoach } from "@/lib/lana-insights";
 
@@ -30,6 +31,9 @@ export function SleepCoach({ entries, ageDays, timezone }: { entries: EntryRow[]
           </div>
           <p className="notice text-sm font-semibold">{c.tip}</p>
           <p className="muted text-xs">From {c.naps} daytime naps in the last 14 days. An estimate, not advice.</p>
+          <Link href={`/ask?say=${encodeURIComponent("Look at her sleep over the last two weeks and tell me what to try for better naps and bedtime.")}`} className="btn">
+            Talk to the coach
+          </Link>
         </>
       )}
     </section>

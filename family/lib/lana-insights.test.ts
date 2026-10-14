@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awakeWindow, growthSpurt, sleepCoach } from "./lana-insights.ts";
+import { ageOutlook, awakeWindow, daySchedule, growthSpurt, sleepCoach } from "./lana-insights.ts";
 import type { EntryRow } from "./types.ts";
 
 const D = 86_400_000;
@@ -43,4 +43,25 @@ test("sleep coach finds nap length, best window and bedtime", () => {
   assert.equal(c.bedtime, "19:30");
   assert.ok(c.naps >= 14);
   assert.equal(sleepCoach(sleeps.slice(0, 4), 130, hourOf), null);
+});
+
+test("age outlook: phases now and next", () => {
+  const o = ageOutlook(131); // about 4.3 months
+  assert.ok(o.now.some((w) => w.startsWith("4-month sleep change")));
+  assert.ok(o.now.some((w) => w.startsWith("Teething window")));
+  assert.equal(o.next[0].what.startsWith("Solids readiness"), true);
+  assert.equal(o.next[0].inAboutDays, 34);
+  assert.equal(o.ageMonths, 4.3);
+});
+
+test("day schedule: naps after the awake window, bedtime between 18:30 and 20:30", () => {
+  const s = daySchedule(7 * 60, 131, 110);
+  assert.equal(s.awakeWindowMin, 110);
+  assert.equal(s.basedOn, "her best recent window");
+  assert.equal(s.lines[0].at, "07:00");
+  assert.equal(s.lines[1].at, "08:50"); // first nap after 110 min
+  const bed = s.lines[s.lines.length - 1];
+  assert.equal(bed.what, "asleep for the night");
+  assert.ok(bed.at >= "18:30" && bed.at <= "20:30");
+  assert.equal(daySchedule(7 * 60, 131, null).basedOn, "age norm");
 });
