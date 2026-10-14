@@ -15,6 +15,8 @@ import { PatternBars } from "@/components/PatternBars";
 import { LanaForecast } from "@/components/LanaForecast";
 import { Medicines } from "@/components/Medicines";
 import { SleepCoach } from "@/components/SleepCoach";
+import { PlanCard } from "@/components/PlanCard";
+import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +91,8 @@ async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; s
     isToday ? supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : Promise.resolve({ data: null }),
     isToday ? supabase.rpc("household_today") : Promise.resolve({ data: null }),
   ]);
+  const { data: planData } = isToday ? await supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }) : { data: null };
+  const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
   const meds = medData as MedicinesData | RpcError | null;
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const hh = hhData as HouseholdToday | RpcError | null;
@@ -150,6 +154,7 @@ async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; s
           {entries.length === 0 && <span className="muted">Nothing logged on this day.</span>}
         </p>
       </div>
+      {isToday && <PlanCard plan={plan} />}
       {isToday && meds && meds.ok && <Medicines subjectId={summary.subject.id} items={meds.items} timezone={tz} compact />}
       {isToday && <LanaForecast entries={week} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />}
       {dayStats && (

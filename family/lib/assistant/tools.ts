@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssistantProposal, AssistantRef, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
+import { sleepCoach, awakeWindow } from "@/lib/lana-insights";
+import type { EntryRow } from "@/lib/types";
 
 /**
  * The assistant's tools are thin wrappers over the RPCs the screens already use,
@@ -519,6 +521,75 @@ function proposeShopping(ctx0: ToolContext): AssistantTool {
 }
 
 /** The tools this member may use, in a fixed order (a stable list caches). */
+function coachPlan(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "coach_plan",
+      description: "The family's active coach plan for a child (goal, day-by-day steps, which day it is, which days were ticked done). Call before suggesting a new plan or when asked how the plan is going.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || s.kind !== "child") return { error: "unknown_subject" };
+      return rpc(ctx, "coach_plan_active", { p_subject_id: s.id });
+    },
+  };
+}
+
+function sleepRhythm(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "sleep_rhythm",
+      description: "A child's sleep rhythm from the last 14 days: usual nap length, the awake window before her longest naps, usual bedtime, naps counted, plus the typical awake window for her age. Use for nap, bedtime and night-waking questions before giving advice.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || s.kind !== "child") return { error: "unknown_subject" };
+      const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - 14 * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
+      if (!r.ok) return r;
+      const entries = ((r.entries as EntryRow[]) ?? []).filter((e) => e.type_id.endsWith(".sleep"));
+      const ageDays = s.birth_date ? Math.floor((ctx.now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : 120;
+      const hourOf = (iso: string) => {
+        const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ctx.tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
+        return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+      };
+      const c = sleepCoach(entries, ageDays, hourOf);
+      const [lo, hi] = awakeWindow(ageDays);
+      return { subject: s.name, age_days: ageDays, typical_awake_window_min: `${lo} to ${hi}`, sleeps_logged: entries.length, rhythm: c ?? "not enough sleeps with an end time yet (need 6)" };
+    },
+  };
+}
+
+function proposePlan(ctx0: ToolContext): AssistantTool {
+  const kids = ctx0.subjects.filter((s) => s.kind === "child" && can(ctx0.me, s.module_id, "add"));
+  return {
+    def: {
+      name: "propose_plan",
+      description: `Offer a short day-by-day coach plan (1 to 14 days, usually 5 to 7) for ${kids.map((s) => s.name).join(" or ")}: one small change, one clear step per day. The family sees it as a card and taps Start; nothing is saved until then. Introduce it briefly in words; do not repeat the steps in text.`,
+      input_schema: obj(
+        {
+          subject: { type: "string", description: `One of ${kids.map((s) => s.name).join(", ")}.` },
+          goal: { type: "string", description: "Short goal, e.g. 'Earlier, calmer bedtime'." },
+          steps: { type: "array", description: "One step per day, in order.", items: { type: "object", properties: { day: { type: "integer" }, step: { type: "string" } }, required: ["day", "step"] } },
+        },
+        ["subject", "goal", "steps"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || !can(ctx.me, s.module_id, "add")) return { error: "not_allowed" };
+      const goal = String(input.goal ?? "").trim().slice(0, 120);
+      const raw = Array.isArray(input.steps) ? (input.steps as { day?: unknown; step?: unknown }[]) : [];
+      const steps = raw.map((x, i) => ({ day: i + 1, step: String(x?.step ?? "").trim().slice(0, 300) })).filter((x) => x.step);
+      if (!goal || steps.length < 1 || steps.length > 14) return { error: "bad_plan", message: "A goal and 1 to 14 steps." };
+      const p: AssistantProposal = { id: newId(), kind: "plan", summary: `${steps.length}-day plan · ${goal} · ${s.name}`, plan: { subject_id: s.id, subject_name: s.name, goal, steps } };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Start. It is NOT saved yet." };
+    },
+  };
+}
+
 function remember(): AssistantTool {
   return {
     def: {
@@ -545,13 +616,14 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
   const careSubjects = ctx.subjects.filter((s) => can(me, s.module_id, "view"));
   if (careSubjects.length) {
     list.push(careNow(ctx), careEntries(ctx));
-    if (careSubjects.some((s) => s.kind === "child")) list.push(careStats(ctx));
+    if (careSubjects.some((s) => s.kind === "child")) list.push(careStats(ctx), sleepRhythm(ctx), coachPlan(ctx));
     list.push(dueSoon());
   }
   if (can(me, "shopping", "view") || can(me, "shopping_requests", "add")) list.push(shoppingList());
   if (can(me, "maintenance", "view")) list.push(house());
   if (can(me, "assistant", "add")) {
     if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx));
+    if (ctx.subjects.some((s) => s.kind === "child" && can(me, s.module_id, "add"))) list.push(proposePlan(ctx));
     if (can(me, "calendar", "add")) list.push(proposeCalendarEvent());
     if (can(me, "shopping", "add") || can(me, "shopping_requests", "add")) list.push(proposeShopping(ctx));
   }

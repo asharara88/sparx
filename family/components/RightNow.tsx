@@ -7,7 +7,7 @@ import { shortFeedHint } from "@/lib/forecast";
 import { Icon } from "./Icon";
 
 /** Three tiles: next feed, asleep or awake for how long, milk in the fridge. */
-export function RightNow({ summary, milk, timezone }: { summary: HomeSummary; milk: MilkData | null; timezone: string }) {
+export function RightNow({ summary, milk, timezone, milkLasts = null }: { summary: HomeSummary; milk: MilkData | null; timezone: string; milkLasts?: string | null }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
@@ -48,7 +48,7 @@ export function RightNow({ summary, milk, timezone }: { summary: HomeSummary; mi
         <div>
           <p className="text-xs font-bold uppercase tracking-wide opacity-75">Fridge</p>
           <p className="text-xl font-bold">{milk ? `${fridge} ml` : "—"}</p>
-          <p className="text-sm opacity-80">{milk ? `${bottles} bottle${bottles === 1 ? "" : "s"} · ${milk.freezer_ml} ml frozen` : ""}</p>
+          <p className="text-sm opacity-80">{milkLasts ?? (milk ? `${bottles} bottle${bottles === 1 ? "" : "s"} · ${milk.freezer_ml} ml frozen` : "")}</p>
         </div>
       </Link>
     </section>

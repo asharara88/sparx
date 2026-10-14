@@ -30,6 +30,9 @@ import { SayIt } from "@/components/SayIt";
 import { LongFeedCheck } from "@/components/LongFeedCheck";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
+import { milkForecast } from "@/lib/milk-insights";
+import { PlanCard } from "@/components/PlanCard";
+import type { CoachPlanData } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
@@ -135,6 +138,14 @@ export default async function HomePage() {
     return mama.work_days.includes(wd) && hm >= from && hm <= to;
   };
   const sitter = me.role.id === "sitter";
+  const { data: planData } = summary && summary.ok ? await supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }) : { data: null };
+  const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
+  let milkLasts: string | null = null;
+  if (milkOk) {
+    const safe = milkOk.bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);
+    const mf = milkForecast(safe, week);
+    if (mf.usePerDay > 0) milkLasts = mf.until != null ? `lasts to ${fmtDate(new Date(mf.until).toISOString(), tz, { weekday: "short" })} ${fmtTime(new Date(mf.until).toISOString(), tz)}` : "pumping keeps up";
+  }
   const feedGapMin = (summary && summary.ok ? summary.types.find((t) => t.id === "lana.feed")?.due_after_min : null) ?? 180;
   const bottleGapMin = milkOk?.bottle_interval_min ?? 120;
   // While Mama is away the bottle interval is the gap, shortened after a small bottle.
@@ -183,7 +194,8 @@ export default async function HomePage() {
           {can(me, "lana", "edit") && <LongFeedCheck entries={week} timezone={tz} />}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
           {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
-          <RightNow summary={summary} milk={milkOk} timezone={tz} />
+          <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />
+          <PlanCard plan={plan} />
           <LanaForecast entries={week} timezone={tz} away={awayAt} feedIntervalMin={summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180} hours={6} limit={3} compact />
           {sitter && (
             <section className="card" aria-labelledby="sit-h">

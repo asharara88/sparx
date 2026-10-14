@@ -279,6 +279,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const res = data as { ok: boolean; message?: string; id?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
         setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: c.via === "request" ? "/send" : "/shopping", note: c.via === "request" ? "Sent for approval." : "On the list." } }));
+      } else if (p.kind === "plan" && p.plan) {
+        const { data, error } = await supabase.rpc("coach_plan_start", { p_subject_id: p.plan.subject_id, p_goal: p.plan.goal, p_steps: p.plan.steps });
+        const res = data as { ok: boolean; message?: string } | null;
+        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not start the plan.");
+        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/", note: "Plan started. Today's step is on Home." } }));
       } else if (p.kind === "memory" && p.memory) {
         const { data, error } = await supabase.rpc("memory_add", { p_body: p.memory.body });
         const res = data as { ok: boolean; message?: string } | null;
@@ -408,13 +413,22 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
               return (
                 <div key={p.id} className="card mt-2 ring-2 ring-[var(--accent)]">
                   <p className="font-semibold">{p.summary}</p>
+                  {p.plan && (
+                    <ol className="mt-1 flex flex-col gap-1 text-sm">
+                      {p.plan.steps.map((s) => (
+                        <li key={s.day}>
+                          <b>Day {s.day}.</b> {s.step}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
                   {st.status === "pending" && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <button type="button" className="btn" onClick={() => setPstate((s) => ({ ...s, [p.id]: { status: "dropped" } }))}>
-                        Not this
+                        {p.plan ? "Not now" : "Not this"}
                       </button>
                       <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={() => void confirm(p)}>
-                        Confirm
+                        {p.plan ? "Start this plan" : "Confirm"}
                       </button>
                     </div>
                   )}

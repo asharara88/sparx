@@ -10,6 +10,8 @@ import { newClientId } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
 import { dirOf, fmtAgo, speechLang, t, type Lang } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
+import { ListenButton } from "@/components/ListenButton";
+import { awakeWindow } from "@/lib/lana-insights";
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 function recognitionCtor(): (new () => Recognition) | null {
@@ -53,6 +55,23 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
   const lastDiaper = last["lana.diaper"];
   const now = Date.now();
   const minutesSince = (iso: string) => (now - new Date(iso).getTime()) / 60000;
+  // Likely hungry (from how much she took last time) and likely sleepy (awake window for her age).
+  const hints: string[] = [];
+  const due = lastFeed?.next_due ? Date.parse(lastFeed.next_due) : null;
+  if (due != null) {
+    const m = (due - now) / 60000;
+    if (m <= 0 && m > -90) hints.push(L("hungryNow"));
+    else if (m > 0 && m <= 30) hints.push(L("hungrySoon"));
+  }
+  if (!openSleep && lastSleep?.ended_at && subject.birth_date) {
+    const awake = minutesSince(lastSleep.ended_at);
+    const [lo, hi] = awakeWindow(Math.floor((now - Date.parse(subject.birth_date)) / 86_400_000));
+    if (awake >= lo && awake <= 360) hints.push(L("sleepyNow"));
+    else if (awake >= lo - 30 && awake < lo) hints.push(L("sleepySoon"));
+    void hi;
+  }
+  const todayCount = (id: string | undefined) => (id ? (summary.today_counts[id] ?? 0) : 0);
+  const todayText = `${L("todayText").replace("{feeds}", String(todayCount(feedType?.id))).replace("{diapers}", String(todayCount(diaperType?.id))).replace("{sleeps}", String(todayCount(sleepType?.id)))} ${openSleep ? L("asleepNow") : L("awakeNow")}`;
 
   async function log(type: EntryType | undefined, payload: Record<string, unknown>, ended: boolean, noteText: string | null = null) {
     if (!type) return;
@@ -145,6 +164,16 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
           {msg}
         </p>
       )}
+      {panel === null && hints.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {hints.map((h) => (
+            <p key={h} className="notice notice-accent text-center text-xl font-bold">
+              {h}
+            </p>
+          ))}
+        </div>
+      )}
+      {panel === null && <ListenButton text={todayText} lang={lang} label={L("listen")} />}
       {panel === null && (
         <div className="grid grid-cols-2 gap-3">
           <Big icon="bottle" label={L("bottle")} tone="btn-primary" onClick={() => setPanel("bottle")} />

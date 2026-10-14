@@ -781,7 +781,41 @@ set role authenticated;
 select pg_temp.assert((public.care_feed_trim((select id from longfeed), 20, false))->>'error' = 'not_allowed', 'Lilly cannot trim (no Lana access)');
 reset role;
 
+-- Coach plans (migration 2500): propose, start, tick, stop; only through the RPCs
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.coach_plan_active(:lana))->'plan' = 'null'::jsonb, 'no plan yet');
+create temp table plan1 as select ((public.coach_plan_start(:lana, 'Earlier, calmer bedtime', '[{"day":1,"step":"Start the wind-down 15 min earlier."},{"day":2,"step":"Same again, dim the lights."},{"step":"Bath, feed, song, bed."}]'))->>'id')::uuid as id;
+select pg_temp.assert((select id from plan1) is not null, 'Dana starts a 3-day plan');
+select pg_temp.assert((public.coach_plan_active(:lana))#>>'{plan,days}' = '3', 'days are renumbered in order');
+select pg_temp.assert((public.coach_plan_active(:lana))#>>'{plan,day}' = '1', 'today is day 1');
+select pg_temp.assert((public.coach_plan_active(:lana))#>>'{plan,today_step}' = 'Start the wind-down 15 min earlier.', 'with its step');
+select pg_temp.assert((public.coach_plan_checkin((select id from plan1), null, true, 'went well'))->>'ok' = 'true', 'Dana ticks today');
+select pg_temp.assert((public.coach_plan_active(:lana))#>>'{plan,done_today}' = 'true', 'done today shows');
+select pg_temp.assert((public.coach_plan_checkin((select id from plan1), current_date + 10, true, null))->>'error' = 'bad_day', 'a day outside the plan is refused');
+select pg_temp.assert((public.coach_plan_start(:lana, '', '[]'))->>'error' = 'bad_goal', 'a goal is required');
+select pg_temp.assert((public.coach_plan_start(:lana, 'Too long', '[{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"},{"step":"x"}]'))->>'error' = 'bad_steps', 'at most 14 days');
+select pg_temp.assert((public.coach_plan_start(:lana, 'Drowsy but awake', '[{"step":"Once a day, put her down drowsy."}]'))->>'ok' = 'true', 'a new plan replaces the old one');
+reset role;
+select pg_temp.assert((select status from public.coach_plans where id = (select id from plan1)) = 'replaced', 'the old plan is marked replaced');
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.coach_plan_stop((select (x#>>'{plan,id}')::uuid from (select public.coach_plan_active(:lana) as x) y)))->>'ok' = 'true', 'Dana stops the plan');
+select pg_temp.assert((public.coach_plan_active(:lana))->'plan' = 'null'::jsonb, 'no active plan again');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.coach_plan_active(:lana))->>'error' = 'not_allowed', 'Lilly cannot see plans');
+select pg_temp.assert((public.coach_plan_start(:lana, 'x', '[{"step":"y"}]'))->>'error' = 'not_allowed', 'nor start one');
+do $$ begin
+  perform count(*) from public.coach_plans;
+  raise exception 'ASSERT FAILED: Lilly could read coach_plans directly';
+exception when insufficient_privilege then
+  raise notice 'ok  - plans are only reachable through the RPCs';
+end $$;
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

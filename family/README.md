@@ -33,6 +33,11 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   evening before a workday says which freezer bags to bring down. Lana's guide adds "likely hungry
   soon" and a possible growth spurt; Patterns gets a sleep coach. "Say it to log" on Home sends
   what you said to Ask for a one-tap Confirm.
+- The helper is also a baby coach: ask about naps, bedtime, teething, a growth spurt or a habit
+  and it looks at her real numbers first, says what is usual at her exact age, and can propose a
+  short day-by-day plan you start with one tap. Today's step sits on Home with "Done today".
+  The grandmas' screen says "probably hungry" or "sleepy soon" in their language and reads
+  her day aloud.
 - The helper remembers what the family tells it ("remember that…", confirmed with a tap), has a
   hands-free Talk mode (listens, answers out loud, listens again), and there is a Babysitter role
   that sees Lana, the chat and the helper only. Every night the database is backed up to a

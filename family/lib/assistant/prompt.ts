@@ -3,6 +3,7 @@ import type { ToolContext } from "./tools";
 import { local } from "./tools";
 import { can } from "@/lib/types";
 import { fmtDate } from "@/lib/time";
+import { COACH_KNOWLEDGE } from "./coach";
 
 /**
  * The system prompt has two blocks. The first is the same for every member of a
@@ -62,6 +63,8 @@ ${subjects || "- (no child or pet logs are shared with this role)"}
 Members use their first names: Mido and Dana (the parents, admins), Wafa and Luda (the grandmothers, family carers), Lilly (the home carer, staff).${
     ctx.routines.length ? `\n\nRoutines the family told us (use them for "is Dana home", "when is she back"; the log and calendar win if they disagree):\n${ctx.routines.map((r) => `- ${r.name}: ${r.routine}`).join("\n")}` : ""
   }${hh.notes ? `\n\nHousehold notes: ${hh.notes}` : ""}${
+    ctx.subjects.some((s) => s.kind === "child") ? `\n\n${COACH_KNOWLEDGE}` : ""
+  }${
     ctx.memories.length ? `\n\nThings the family asked you to remember (follow them; they are not log data, so do not cite them):\n${ctx.memories.map((m) => `- ${m}`).join("\n")}` : ""
   }${
     hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day. Pumped amounts are lana.pump entries (amount_ml); bottle feeds say which milk was used. "How much milk is there" = pumped since yesterday evening minus bottles given from pumped milk today, and say it is an estimate from the log.` : ""
@@ -73,7 +76,14 @@ export function volatileSystem(ctx: ToolContext): string {
   const nowLocal = local(ctx.now.toISOString(), ctx.tz);
   const weekday = fmtDate(ctx.now.toISOString(), ctx.tz, { weekday: "long" });
   const lang = me.member.lang === "ar" ? " Answer in simple Arabic (keep numbers, times and names as they are)." : me.member.lang === "ru" ? " Answer in simple Russian (keep numbers, times and names as they are)." : "";
-  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). You are talking to ${me.member.display_name} (${me.role.label}).${lang}`;
+  const ages = ctx.subjects
+    .filter((s) => s.kind === "child" && s.birth_date)
+    .map((s) => {
+      const days = Math.floor((ctx.now.getTime() - Date.parse(s.birth_date!)) / 86_400_000);
+      return `${s.name} is ${days} days old (${Math.floor(days / 7)} weeks, about ${(days / 30.44).toFixed(1)} months).`;
+    })
+    .join(" ");
+  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). ${ages} You are talking to ${me.member.display_name} (${me.role.label}).${lang}`;
 }
 
 export function systemBlocks(ctx: ToolContext): Anthropic.Beta.BetaTextBlockParam[] {
