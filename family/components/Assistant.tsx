@@ -50,7 +50,7 @@ function recognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function Assistant({ suggestions, chats = [], initial = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null }) {
+export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null }) {
   const me = useMe();
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
@@ -183,6 +183,15 @@ export function Assistant({ suggestions, chats = [], initial = null }: { suggest
     },
     [busy, msgs],
   );
+
+  // Said on Home ("Say it to log"): send it straight away, once.
+  const autoRef = useRef(false);
+  useEffect(() => {
+    if (!autoAsk || autoRef.current) return;
+    autoRef.current = true;
+    void ask(autoAsk);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAsk]);
 
   // ---- voice
   function startListening() {

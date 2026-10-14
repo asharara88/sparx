@@ -26,6 +26,10 @@ import { HandoverSince } from "@/components/HandoverSince";
 import { FridgePlan } from "@/components/FridgePlan";
 import { DayStrip } from "@/components/DayStrip";
 import { LanaForecast } from "@/components/LanaForecast";
+import { SayIt } from "@/components/SayIt";
+import { LongFeedCheck } from "@/components/LongFeedCheck";
+import { ThawReminder } from "@/components/MilkInsights";
+import { nextFeedAt } from "@/lib/forecast";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
@@ -131,6 +135,12 @@ export default async function HomePage() {
     return mama.work_days.includes(wd) && hm >= from && hm <= to;
   };
   const sitter = me.role.id === "sitter";
+  const feedGapMin = (summary && summary.ok ? summary.types.find((t) => t.id === "lana.feed")?.due_after_min : null) ?? 180;
+  const bottleGapMin = milkOk?.bottle_interval_min ?? 120;
+  // While Mama is away the bottle interval is the gap, shortened after a small bottle.
+  const nextBottle = mamaAway ? nextFeedAt(week, { gapMin: bottleGapMin, awayCapMin: bottleGapMin, away: awayAt }) : null;
+  const awayTomorrow = !!mama && mama.work_days.includes(new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay());
+  const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(to / 100) * 60 + (to % 100)) - (Math.floor(from / 100) * 60 + (from % 100)), intervalMin: bottleGapMin, hour };
   const aroundTheHouse = suggestions.length > 0 || (pending > 0 && can(me, "shopping_review", "edit")) || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok) || (fanta && fanta.ok) || (house && house.ok) || can(me, "shopping", "view");
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
@@ -139,14 +149,15 @@ export default async function HomePage() {
   const blocks: Record<string, React.ReactNode> =
     summary && summary.ok
       ? {
-          countdown: milkOk ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} timezone={tz} /> : null,
+          countdown: milkOk ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} timezone={tz} nextAtIso={nextBottle ? new Date(nextBottle.at).toISOString() : null} /> : null,
+          thaw: milkOk ? <ThawReminder key="th" milk={milkOk} entries={week} timezone={tz} opts={thawOpts} /> : null,
           plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} /> : null,
           pump: showPump ? <PumpTarget key="pt" pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} /> : null,
           handover:
             mamaWorks && (part === "away" || part === "evening") && hhm >= from ? (
               <HandoverSince key="h" entries={recent} fromIso={atLocal(from)} toIso={part === "away" ? now.toISOString() : atLocal(to)} label={part === "away" ? `Since ${mama?.name ?? "Mama"} left at ${fmtTime(atLocal(from), tz)}` : `While ${mama?.name ?? "Mama"} was at work`} />
             ) : null,
-          guide: <LanaGuide key="g" entries={recent} birthDate={summary.subject.birth_date} />,
+          guide: <LanaGuide key="g" entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />,
           brief: can(me, "assistant", "view") ? <BriefCard key="b" hour={hour} /> : null,
           strip: <DayStrip key="s" entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} title="Lana's day so far" />,
         }
@@ -154,8 +165,8 @@ export default async function HomePage() {
   const order =
     part === "morning" ? ["brief", "pump", "guide", "countdown", "strip"]
     : part === "away" ? ["countdown", "plan", "handover", "guide", "pump", "strip", "brief"]
-    : part === "evening" ? ["handover", "guide", "pump", "strip", "brief", "countdown"]
-    : ["guide", "strip", "countdown", "brief"];
+    : part === "evening" ? ["thaw", "handover", "guide", "pump", "strip", "brief", "countdown"]
+    : ["thaw", "guide", "strip", "countdown", "brief"];
 
   return (
     <div className="flex flex-col gap-4">
@@ -169,7 +180,9 @@ export default async function HomePage() {
             .map((d) => (
               <VaccineNotice key={d.visit} item={d} timezone={tz} />
             ))}
+          {can(me, "lana", "edit") && <LongFeedCheck entries={week} timezone={tz} />}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
+          {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
           <RightNow summary={summary} milk={milkOk} timezone={tz} />
           <LanaForecast entries={week} timezone={tz} away={awayAt} feedIntervalMin={summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180} hours={6} limit={3} compact />
           {sitter && (

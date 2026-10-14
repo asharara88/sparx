@@ -6,9 +6,10 @@ import { MilkStash } from "@/components/MilkStash";
 import { PageHeader } from "@/components/PageHeader";
 import { FridgePlan } from "@/components/FridgePlan";
 import { MilkScan } from "@/components/MilkScan";
+import { MilkInsights } from "@/components/MilkInsights";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
-import { dayRange, todayYmd } from "@/lib/time";
+import { addDays, dayRange, todayYmd } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ export default async function MilkPage() {
   const tz = me.household.timezone;
   const today = todayYmd(tz);
   const [{ data }, { data: hhData }, { data: sumData }] = await Promise.all([supabase.rpc("milk_list"), supabase.rpc("household_today"), supabase.rpc("home_summary")]);
+  const subjectId = (sumData as HomeSummary | RpcError | null)?.ok ? (sumData as HomeSummary).subject.id : null;
+  const { data: histData } = subjectId ? await supabase.rpc("care_entries_list", { p_subject_id: subjectId, p_from: new Date(Date.now() - 14 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : { data: null };
+  const history = ((histData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const milk = data as MilkData | RpcError;
   if (!milk.ok) redirect("/");
   const hh = hhData as HouseholdToday | RpcError;
@@ -32,6 +36,8 @@ export default async function MilkPage() {
   const away = !!mama && mama.works_today && hhm >= from && hhm <= to;
   const dayStart = Date.parse(dayRange(today, tz).from);
   const backAt = new Date(dayStart + (Math.floor(to / 100) * 60 + (to % 100)) * 60_000).toISOString();
+  const awayTomorrow = !!mama && mama.work_days.includes(new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay());
+  const thaw = { awayTomorrow, awayMinutes: (Math.floor(to / 100) * 60 + (to % 100)) - (Math.floor(from / 100) * 60 + (from % 100)), intervalMin: milk.bottle_interval_min, hour: Math.floor(hhm / 100) };
   let lastBottleMl = 120;
   let lastFeedAt: string | null = null;
   if (summary.ok) {
@@ -45,6 +51,7 @@ export default async function MilkPage() {
       {can(me, "lana", "add") && <MilkScan timezone={tz} />}
       {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} />}
       <MilkStash data={milk} timezone={me.household.timezone} />
+      <MilkInsights milk={milk} entries={history} timezone={tz} thaw={thaw} />
     </div>
   );
 }

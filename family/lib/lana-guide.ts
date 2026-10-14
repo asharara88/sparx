@@ -1,5 +1,7 @@
 import type { EntryRow } from "@/lib/types";
 import { normsForAge } from "@/lib/norms";
+import { nextFeedAt } from "@/lib/forecast";
+import { growthSpurt } from "@/lib/lana-insights";
 
 /**
  * Lana's guide: the last 24 hours against what is usual for her age, as short
@@ -8,6 +10,7 @@ import { normsForAge } from "@/lib/norms";
  * National Sleep Foundation); wake windows from common paediatric guidance.
  */
 export type Tip = { level: "red" | "yellow" | "info"; title: string; body: string; topic: "nappies" | "poo" | "feeds" | "sleep" | "fever" };
+export type GuideOptions = { timezone?: string; feedGapMin?: number };
 
 const H = 3_600_000;
 const mins = (ms: number) => Math.round(ms / 60_000);
@@ -21,7 +24,7 @@ function wakeWindow(days: number): [number, number] {
   return [180, 300];
 }
 
-export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Date.now()): Tip[] {
+export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Date.now(), opts: GuideOptions = {}): Tip[] {
   const days = birthDate ? Math.floor((now - Date.parse(birthDate)) / 86_400_000) : 120;
   const n = normsForAge(days);
   const [wakeLo, wakeHi] = wakeWindow(days);
@@ -47,6 +50,18 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const lastFeed = sorted.find((e) => e.type_id === "lana.feed");
   if (covered && feeds.length < n.feeds.low) tips.push({ level: feeds.length <= n.feeds.low - 2 ? "red" : "yellow", title: `${feeds.length} feeds in 24 h`, body: `Usual at her age: ${n.feeds.low} to ${n.feeds.high} feeds. Were any feeds missed in the log?`, topic: "feeds" });
   if (lastFeed && now - t(lastFeed) > 4 * H) tips.push({ level: now - t(lastFeed) > 5 * H ? "red" : "yellow", title: `Last feed ${hm(mins(now - t(lastFeed)))} ago`, body: "Longer than usual between feeds. Offer a feed, or log one if it was missed.", topic: "feeds" });
+  else {
+    // Likely hungry soon: from how much she took last time, not a fixed clock.
+    const nf = nextFeedAt(sorted, { gapMin: opts.feedGapMin ?? 180 });
+    if (nf) {
+      const m = mins(nf.at - now);
+      if (m <= 0 && m > -60) tips.push({ level: "info", title: "Likely hungry now", body: "Look for rooting, hands to the mouth or fussing. Offer a feed.", topic: "feeds" });
+      else if (m > 0 && m <= 30) tips.push({ level: "info", title: `Likely hungry in about ${m} min`, body: nf.fullness < 0.75 ? "The last feed was a small one, so this comes sooner." : "From her usual gap between feeds.", topic: "feeds" });
+    }
+  }
+  const dayOf = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: opts.timezone ?? "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  const spurt = growthSpurt(entries, dayOf, now);
+  if (spurt) tips.push({ level: "info", title: "Possible growth spurt", body: `She is feeding about ${spurt.recentPerDay} times a day, up from ${spurt.beforePerDay}. This is common and usually lasts 2 to 3 days: feed on demand. Call the doctor if she has fewer than 6 wet diapers a day or seems unwell.`, topic: "feeds" });
 
   // Sleep
   const sleeps = sorted.filter((e) => e.type_id === "lana.sleep");

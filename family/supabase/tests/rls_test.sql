@@ -757,7 +757,31 @@ select pg_temp.assert((public.shopping_list())->>'error' = 'not_allowed', 'nor t
 select pg_temp.assert((public.milk_consume(60))->>'ok' = 'true', 'Sam can give a bottle from the fridge');
 reset role;
 
+-- Smart care (migration 2400): the next feed depends on how much she took; a long breastfeed can be trimmed
+-- (earlier blocks logged feeds "now"; park them so the feeds below are the latest)
+update public.care_entries set deleted_at = now() where type_id = 'lana.feed' and deleted_at is null and occurred_at > now() - interval '2 hours';
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '12 minutes', now() - interval '7 minutes', '{"method":"Breast","side":"Left"}'))->>'ok' = 'true', 'Dana logs 5 min on the left');
+select pg_temp.assert(((public.home_summary())#>>'{last,lana.feed,fullness}')::numeric < 0.1, 'a 5-minute feed is nearly empty');
+select pg_temp.assert(((public.home_summary())#>>'{last,lana.feed,next_due}')::timestamptz between now() + interval '82 minutes' and now() + interval '84 minutes', 'and the next feed comes 1.5 h after it ended (half the 3 h gap)');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '5 minutes', null, '{"method":"Breast","side":"Both","duration_min":25}'))->>'ok' = 'true', 'then 25 min on both sides');
+select pg_temp.assert(((public.home_summary())#>>'{last,lana.feed,fullness}')::numeric = 1, 'a full feed scores 1');
+select pg_temp.assert(((public.home_summary())#>>'{last,lana.feed,next_due}')::timestamptz between now() + interval '174 minutes' and now() + interval '176 minutes', 'and the usual 3 h gap applies');
+create temp table longfeed as select ((public.care_entry_log(:lana, 'lana.feed', now() - interval '3 hours', now() - interval '18 minutes', '{"method":"Breast","side":"Right"}'))->>'id')::uuid as id;
+select pg_temp.assert((select id from longfeed) is not null, 'a 162-minute feed (timer left on)');
+select pg_temp.assert((public.care_feed_trim((select id from longfeed), 20, false))->>'raw_minutes' = '162', 'Dana trims it; the raw minutes are kept');
+select pg_temp.assert((select payload->>'duration_min' from public.care_entries where id = (select id from longfeed)) = '20', 'the entry now says 20 min');
+select pg_temp.assert((select ended_at from public.care_entries where id = (select id from longfeed)) = (select occurred_at + interval '20 minutes' from public.care_entries where id = (select id from longfeed)), 'and ends 20 min after it started');
+select pg_temp.assert((public.care_feed_trim((select id from longfeed), 20, true))->>'kept' = 'true', 'marking it real is also allowed');
+select pg_temp.assert((public.care_feed_trim((select (x->>'id')::uuid from jsonb_array_elements((public.care_entries_list(:lana, now() - interval '1 day', now()))->'entries') x where x->>'type_id' = 'lana.diaper' limit 1), 20, false))->>'error' = 'not_a_breastfeed', 'only breastfeeds can be trimmed');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.care_feed_trim((select id from longfeed), 20, false))->>'error' = 'not_allowed', 'Lilly cannot trim (no Lana access)');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
