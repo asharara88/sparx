@@ -5,9 +5,9 @@ import { Assistant } from "@/components/Assistant";
 
 export const dynamic = "force-dynamic";
 
-export default async function AskPage({ searchParams }: { searchParams: Promise<{ c?: string; q?: string; say?: string }> }) {
+export default async function AskPage({ searchParams }: { searchParams: Promise<{ c?: string; q?: string; say?: string; from?: string }> }) {
   const supabase = await createClient();
-  const { c, q, say } = await searchParams;
+  const { c, q, say, from } = await searchParams;
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
   if (!can(me, "assistant", "view")) {
@@ -31,5 +31,5 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
     supabase.from("ask_chats").select("id, title, updated_at").order("updated_at", { ascending: false }).limit(30),
     c && /^[0-9a-f-]{36}$/.test(c) ? supabase.from("ask_chats").select("*").eq("id", c).maybeSingle() : Promise.resolve({ data: null }),
   ]);
-  return <Assistant key={c ?? say ?? "new"} suggestions={s} chats={(chatRows as Pick<AskChat, "id" | "title" | "updated_at">[] | null) ?? []} initial={(current as AskChat | null) ?? null} autoAsk={say?.trim().slice(0, 300) || null} />;
+  return <Assistant key={c ?? say ?? "new"} suggestions={s} chats={(chatRows as Pick<AskChat, "id" | "title" | "updated_at">[] | null) ?? []} initial={(current as AskChat | null) ?? null} autoAsk={say?.trim().slice(0, 300) || null} screen={from?.trim().slice(0, 20) || null} />;
 }

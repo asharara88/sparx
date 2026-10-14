@@ -841,7 +841,36 @@ select pg_temp.assert((public.activities_list(:lana))->>'error' = 'not_allowed',
 select pg_temp.assert((public.activity_tick(:lana, (select id from act1), true, null))->>'error' = 'not_allowed', 'nor tick');
 reset role;
 
+-- Skills (migration 2800): the helper's knowledge as data; admins edit, everyone it serves reads
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.skill_list(false))->>'ok' = 'true', 'Dana reads the skills');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.skill_list(false))->'items')) >= 14, 'the seed is there');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.skill_list(false))->'items') x where (x->>'always_on')::boolean) = 2, 'two are always on');
+select pg_temp.assert((public.skill_save('travel', 'Travel', 'Flights, time zones, the car seat.', array['travel','flight','plane','jet lag'], 'A long enough body about travelling with a baby, in plain words.', 'NHS', false, null, null, 50, true))->>'ok' = 'true', 'Dana adds a skill');
+select pg_temp.assert((select x->>'version' from jsonb_array_elements((public.skill_list(false))->'items') x where x->>'id' = 'travel') = '1', 'at version 1');
+select pg_temp.assert((public.skill_save('travel', 'Travel', 'Flights, time zones, the car seat.', array['travel','flight'], 'A long enough body about travelling with a baby, in plain words, revised.', 'NHS', false, null, null, 50, false))->>'ok' = 'true', 'and edits it off');
+select pg_temp.assert((select x->>'version' from jsonb_array_elements((public.skill_list(true))->'items') x where x->>'id' = 'travel') = '2', 'version bumps');
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.skill_list(false))->'items') x where x->>'id' = 'travel'), 'inactive skills are not served');
+select pg_temp.assert((public.skill_save('Bad Id', 'x', '', '{}', 'short', '', false, null, null, 100, true))->>'error' = 'bad_id', 'ids are checked');
+select pg_temp.assert((public.skill_save('tiny', 'Tiny', '', '{}', 'short', '', false, null, null, 100, true))->>'error' = 'bad_skill', 'bodies must be real');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.skill_list(false))->>'ok' = 'true', 'Wafa reads the skills (the helper runs as her)');
+select pg_temp.assert((public.skill_list(true))->>'error' = 'not_allowed', 'but not the inactive ones');
+select pg_temp.assert((public.skill_save('sleep', 'Sleep', 'x', '{}', 'A long enough body that Wafa must not be able to write here.', '', false, null, null, 10, true))->>'error' = 'not_allowed', 'and cannot edit');
+reset role;
+do $$ begin
+  begin
+    set role authenticated;
+    perform * from public.assistant_skills;
+    raise exception 'direct read should fail';
+  exception when insufficient_privilege then reset role;
+  end;
+end $$;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

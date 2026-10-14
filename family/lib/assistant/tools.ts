@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssistantProposal, AssistantRef, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
+import type { AssistantProposal, AssistantRef, AssistantSkill, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
+import { selectSkills, skillText, type Selection } from "./skills";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
 import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/lana-insights";
@@ -38,6 +39,16 @@ export interface ToolContext {
   refs: Record<string, AssistantRef>;
   /** Writes the assistant asked for. The member confirms them in the UI. */
   proposals: AssistantProposal[];
+  /** Every active skill (for the index and load_skill). */
+  skills: AssistantSkill[];
+  /** What the router picked for this question. */
+  selection: Selection;
+  /** Skills the model pulled in itself with load_skill, in order. */
+  loaded: AssistantSkill[];
+  /** The screen the member came from (home, lana, milk, plan…), if the app said. */
+  screen: string | null;
+  /** The situation snapshot, filled in by the run. */
+  situation: string;
 }
 
 export interface AssistantTool {
@@ -713,10 +724,28 @@ function remember(): AssistantTool {
   };
 }
 
+function loadSkill(): AssistantTool {
+  return {
+    def: {
+      name: "load_skill",
+      description: "Read one of your skills from the index by id (sleep, feeding, teething, solids, illness, development, mama…) when the question needs it and it is not already under SKILLS IN USE. Returns the skill's text. Call at most twice per answer.",
+      input_schema: obj({ id: { type: "string", description: "The skill id from the index." } }, ["id"]),
+    },
+    run: async (input, ctx) => {
+      const id = String(input.id ?? "").trim().toLowerCase();
+      const s = ctx.skills.find((x) => x.id === id && x.is_active);
+      if (!s) return { error: "unknown_skill", known: ctx.skills.filter((x) => x.is_active && !x.always_on).map((x) => x.id) };
+      if (!ctx.loaded.some((x) => x.id === s.id)) ctx.loaded.push(s);
+      return { id: s.id, title: s.title, text: skillText(s) };
+    },
+  };
+}
+
 export function buildTools(ctx: ToolContext): AssistantTool[] {
   const me = ctx.me;
   const list: AssistantTool[] = [whoIsHome()];
   if (can(me, "assistant", "view")) list.push(remember());
+  if (ctx.skills.some((s) => s.is_active && !s.always_on) && ctx.subjects.some((s) => s.kind === "child")) list.push(loadSkill());
   if (can(me, "calendar", "view")) list.push(calendar(ctx));
   const careSubjects = ctx.subjects.filter((s) => can(me, s.module_id, "view"));
   if (careSubjects.length) {
@@ -737,20 +766,31 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
 }
 
 /** Load what the member may see, once per request. RLS does the filtering. */
-export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date()): Promise<ToolContext> {
-  const [{ data: subjects }, { data: types }, { data: members }, { data: memData }] = await Promise.all([
+export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null } = {}): Promise<ToolContext> {
+  const [{ data: subjects }, { data: types }, { data: members }, { data: memData }, { data: skillData }] = await Promise.all([
     supabase.from("care_subjects").select("id,name,module_id,kind,birth_date").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
     supabase.from("members").select("display_name,routine").eq("is_active", true).not("routine", "is", null).order("display_name"),
     supabase.rpc("memory_list"),
+    supabase.rpc("skill_list", { p_all: false }),
   ]);
   const memories = (((memData as { ok?: boolean; items?: { body: string }[] } | null)?.items ?? []) as { body: string }[]).map((m) => m.body);
+  const skills = (((skillData as { ok?: boolean; items?: AssistantSkill[] } | null)?.items ?? []) as AssistantSkill[]).map((s) => ({ ...s, triggers: Array.isArray(s.triggers) ? s.triggers : [] }));
+  const subs = (subjects as SubjectInfo[]) ?? [];
+  const child = subs.find((s) => s.kind === "child" && s.birth_date);
+  const ageDays = child?.birth_date ? Math.floor((now.getTime() - Date.parse(child.birth_date)) / 86_400_000) : null;
+  const selection = selectSkills(opts.question ?? "", skills, { ageDays, history: opts.history });
   return {
+    skills,
+    selection,
+    loaded: [],
+    screen: opts.screen ?? null,
+    situation: "",
     supabase,
     me,
     tz: me.household.timezone,
     now,
-    subjects: (subjects as SubjectInfo[]) ?? [],
+    subjects: subs,
     types: (types as EntryType[]) ?? [],
     routines: (((members as { display_name: string; routine: string | null }[] | null) ?? []).filter((m) => m.routine) as { display_name: string; routine: string }[]).map((m) => ({ name: m.display_name, routine: m.routine })),
     memories,

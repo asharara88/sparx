@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
+import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -22,7 +22,13 @@ interface Msg {
   text: string;
   refs?: Record<string, AssistantRef>;
   proposals?: AssistantProposal[];
+  /** The skills the answer drew on. */
+  skills?: { id: string; title: string }[];
   error?: boolean;
+  /** Still being written (streamed); not spoken, not saved yet. */
+  streaming?: boolean;
+  /** What it is doing while it works ("Reading the log…"). */
+  status?: string;
   /** Saved with the chat: what happened to each proposal. */
   states?: Record<string, ProposalState>;
 }
@@ -50,7 +56,7 @@ function recognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null }) {
+export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null }) {
   const me = useMe();
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
@@ -122,7 +128,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   // Save the thread (title = the first question) after every assistant reply and every proposal outcome.
   const saveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!msgs.some((m) => m.role === "assistant" && !m.error)) return;
+    if (!msgs.some((m) => m.role === "assistant" && !m.error) || msgs.some((m) => m.streaming)) return;
     if (saveRef.current) clearTimeout(saveRef.current);
     saveRef.current = setTimeout(async () => {
       const title = (msgs.find((m) => m.role === "user")?.text ?? "Chat").slice(0, 80);
@@ -140,7 +146,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   useEffect(() => {
     if ((!aloud && !talk) || typeof speechSynthesis === "undefined") return;
     const lastMsg = msgs[msgs.length - 1];
-    if (!lastMsg || lastMsg.role !== "assistant" || spokeRef.current) return;
+    if (!lastMsg || lastMsg.role !== "assistant" || lastMsg.streaming || spokeRef.current) return;
     spokeRef.current = true;
     if (lastMsg.error) {
       if (talkRef.current) endTalk();
@@ -164,24 +170,62 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       setInput("");
       setBusy(true);
       spokeRef.current = false;
-      const turns: AssistantTurn[] = msgs.filter((m) => !m.error).map((m) => ({ role: m.role, text: m.text }));
-      setMsgs((m) => [...m, { role: "user", text: q }]);
+      const turns: AssistantTurn[] = msgs.filter((m) => !m.error && !m.streaming).map((m) => ({ role: m.role, text: m.text }));
+      // The answer is written into a streaming bubble as it arrives, then replaced by the final reply.
+      setMsgs((m) => [...m, { role: "user", text: q }, { role: "assistant", text: "", streaming: true, status: "Thinking…" }]);
+      const patch = (f: (last: Msg) => Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), f(m[m.length - 1])] : m));
+      const finish = (msg: Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), msg] : [...m, msg]));
       try {
-        const res = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns }) });
-        const data = (await res.json()) as AssistantReply | RpcError;
-        if (!data.ok) {
-          setMsgs((m) => [...m, { role: "assistant", text: data.message ?? "Something went wrong.", error: true }]);
-        } else {
-          setMsgs((m) => [...m, { role: "assistant", text: data.answer, refs: data.refs, proposals: data.proposals }]);
-          if (data.proposals.length) setPstate((s) => ({ ...s, ...Object.fromEntries(data.proposals.map((p) => [p.id, { status: "pending" } as ProposalState])) }));
+        const res = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true }) });
+        if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").includes("ndjson")) {
+          const data = (await res.json().catch(() => null)) as AssistantReply | RpcError | null;
+          if (data && data.ok) {
+            finish({ role: "assistant", text: data.answer, refs: data.refs, proposals: data.proposals, skills: data.skills });
+            if (data.proposals.length) setPstate((s) => ({ ...s, ...Object.fromEntries(data.proposals.map((p) => [p.id, { status: "pending" } as ProposalState])) }));
+          } else finish({ role: "assistant", text: (data as RpcError | null)?.message ?? "Something went wrong.", error: true });
+          return;
         }
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        let done = false;
+        const handle = (e: AssistantEvent) => {
+          if (e.type === "delta") patch((l) => ({ ...l, text: l.text + e.text, status: undefined }));
+          else if (e.type === "reset") patch((l) => ({ ...l, text: "" }));
+          else if (e.type === "status") patch((l) => ({ ...l, status: e.text }));
+          else if (e.type === "done") {
+            done = true;
+            finish({ role: "assistant", text: e.reply.answer, refs: e.reply.refs, proposals: e.reply.proposals, skills: e.reply.skills });
+            if (e.reply.proposals.length) setPstate((s) => ({ ...s, ...Object.fromEntries(e.reply.proposals.map((p) => [p.id, { status: "pending" } as ProposalState])) }));
+          } else if (e.type === "error") {
+            done = true;
+            finish({ role: "assistant", text: e.message, error: true });
+          }
+        };
+        for (;;) {
+          const { value, done: end } = await reader.read();
+          if (end) break;
+          buf += dec.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            try {
+              handle(JSON.parse(line) as AssistantEvent);
+            } catch {
+              /* a torn line; the next one carries on */
+            }
+          }
+        }
+        if (!done) finish({ role: "assistant", text: "The answer was cut off. Ask again.", error: true });
       } catch {
-        setMsgs((m) => [...m, { role: "assistant", text: "No connection. Try again when you are back online.", error: true }]);
+        finish({ role: "assistant", text: "No connection. Try again when you are back online.", error: true });
       } finally {
         setBusy(false);
       }
     },
-    [busy, msgs],
+    [busy, msgs, screen],
   );
 
   // Said on Home ("Say it to log"): send it straight away, once.
@@ -406,8 +450,14 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         {msgs.map((m, i) => (
           <li key={i} className={m.role === "user" ? "self-end" : "self-start"} style={{ maxWidth: "92%" }}>
             <div className={m.role === "user" ? "bubble bubble-me" : `bubble ${m.error ? "bubble-err" : ""}`}>
-              {m.role === "user" ? <p>{m.text}</p> : <Cited text={m.text} refs={m.refs} />}
+              {m.role === "user" ? <p>{m.text}</p> : m.streaming && !m.text ? <p className="muted">{m.status ?? "Thinking…"}</p> : <Cited text={m.text} refs={m.refs} />}
+              {m.streaming && m.text && <span className="muted"> ▍</span>}
             </div>
+            {m.role === "assistant" && !m.streaming && !!m.skills?.length && (
+              <p className="muted mt-1 px-1 text-xs" aria-label="Skills used">
+                Used: {m.skills.map((k) => k.title).join(" · ")}
+              </p>
+            )}
             {m.proposals?.map((p) => {
               const st = pstate[p.id] ?? { status: "pending" };
               return (
@@ -457,11 +507,6 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
             })}
           </li>
         ))}
-        {busy && (
-          <li className="self-start">
-            <div className="bubble muted">Looking…</div>
-          </li>
-        )}
         <div ref={endRef} />
       </ol>
 

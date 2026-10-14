@@ -57,7 +57,7 @@ export function SayIt() {
       setListening(false);
       recRef.current = null;
       const q = text.trim();
-      if (q) router.push(`/ask?say=${encodeURIComponent(q)}`);
+      if (q) router.push(`/ask?from=home&say=${encodeURIComponent(q)}`);
     };
     recRef.current = rec;
     setHeard("");

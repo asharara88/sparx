@@ -280,7 +280,7 @@ function AskTab({ me }: { me: Me }) {
       </Link>
       <div className="flex flex-wrap gap-2">
         {prompts.map((p) => (
-          <Link key={p} href={`/ask?q=${encodeURIComponent(p)}`} className="chip">
+          <Link key={p} href={`/ask?from=lana&q=${encodeURIComponent(p)}`} className="chip">
             {p}
           </Link>
         ))}
