@@ -51,7 +51,7 @@ export function PlanCard({ plan }: { plan: CoachPlan | null }) {
           )
         )}
         {can(me, "assistant", "view") && (
-          <Link href={`/ask?say=${encodeURIComponent(`How is the plan "${plan.goal}" going? Day ${Math.max(1, plan.day)}.`)}`} className="btn" style={{ minHeight: 44 }}>
+          <Link href={`/ask?from=plan&say=${encodeURIComponent(`How is the plan "${plan.goal}" going? Day ${Math.max(1, plan.day)}.`)}`} className="btn" style={{ minHeight: 44 }}>
             Ask the coach
           </Link>
         )}

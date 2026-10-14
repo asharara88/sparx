@@ -590,7 +590,21 @@ export interface AssistantReply {
   proposals: AssistantProposal[];
   refs: Record<string, AssistantRef>;
   usage: AssistantUsage;
+  /** The skills the answer drew on (routed or loaded), for the "Used:" line. */
+  skills: { id: string; title: string }[];
+  /** Names of the tools that ran, in order (for the evals; nothing sensitive). */
+  tools: string[];
 }
+
+export type { AssistantSkill } from "./assistant/skill-types";
+
+/** What the server streams while it answers (NDJSON lines). */
+export type AssistantEvent =
+  | { type: "status"; text: string }
+  | { type: "delta"; text: string }
+  | { type: "reset" }
+  | { type: "done"; reply: AssistantReply }
+  | { type: "error"; error: string; message: string };
 
 export interface Brief {
   id: string;

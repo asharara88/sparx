@@ -37,6 +37,17 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   thing to try, what is due), written on Sunday and pushed, with "Write it again" on the Lana page.
   Play ideas by age with a tick (`/lana/activities`, NHS, AAP and CDC sourced), a "what to expect"
   card on Patterns, and home-screen shortcuts for the sleep timer, feed, diaper and Ask.
+- The helper is built as an agent with skills: what it knows lives in `assistant_skills`
+  (sleep, safe sleep, regressions, growth spurts, feeding, pumped milk, solids, teething,
+  habits, crying, illness, development, Mama), each with trigger words in three languages,
+  sources and an age range. A router picks the skills a question needs before the model is
+  called; the always-on ones (how to coach, red flags) are in every call; the model can read
+  any other with `load_skill`. Admins edit skills at `/ask/skills` without a deploy. Every
+  answer starts from a situation snapshot (asleep or awake, last feed, next due, today's
+  counts, phase, active plan) and the screen the member came from. Answers stream to the
+  phone; tools of a round run in parallel with a timeout and a size cap; the last round is
+  forced to answer in words. `npm run eval:assistant` runs the graded eval set
+  (`lib/assistant/evals.ts`) against a running app with the cron secret.
 - The helper is also a baby coach: ask about naps, bedtime, teething, a growth spurt or a habit
   and it looks at her real numbers first, says what is usual at her exact age, and can propose a
   short day-by-day plan you start with one tap. Today's step sits on Home with "Done today".
