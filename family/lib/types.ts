@@ -152,6 +152,8 @@ export interface LastEntry {
   note: string | null;
   by: string | null;
   next_due: string | null;
+  /** Feeds only: how full the last feed was, 0 to 1 (same rule as the database). */
+  fullness?: number | null;
 }
 
 export interface EntryRow {

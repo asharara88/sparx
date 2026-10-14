@@ -14,6 +14,7 @@ import { LanaTabs, type LanaTab } from "@/components/LanaTabs";
 import { PatternBars } from "@/components/PatternBars";
 import { LanaForecast } from "@/components/LanaForecast";
 import { Medicines } from "@/components/Medicines";
+import { SleepCoach } from "@/components/SleepCoach";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 
 export const dynamic = "force-dynamic";
@@ -212,6 +213,7 @@ async function PatternsTab({ supabase, summary, today, tz }: { supabase: SB; sum
           subtitle="Average per day over the last 7 full days."
         />
       )}
+      <SleepCoach entries={entries} ageDays={summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : 120} timezone={tz} />
       <Link href="/lana/trends" className="btn">
         <Icon name="trend" size={18} /> Trends and growth
       </Link>

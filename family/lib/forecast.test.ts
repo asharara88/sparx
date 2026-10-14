@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { forecast, median } from "./forecast.ts";
+import { feedFullness, forecast, median, nextFeedAt, shortFeedHint } from "./forecast.ts";
 import type { EntryRow } from "./types.ts";
 
 const H = 3_600_000;
@@ -52,4 +52,26 @@ test("nothing logged still gives a plan", () => {
   assert.ok(items.some((i) => i.kind === "feed"));
   assert.ok(items.some((i) => i.kind === "diaper"));
   assert.ok(items.every((i) => i.at >= NOW - 30 * 60_000 && i.at < NOW + 12 * H));
+});
+
+const feedRow = (at: number, payload: Record<string, unknown>, end: number | null = null): EntryRow => ({ ...row("lana.feed", at, end), payload });
+
+test("feed fullness: side, minutes and bottle size", () => {
+  assert.equal(feedFullness(feedRow(NOW, { method: "Breast", side: "Left" }, NOW + 10 * 60_000)), 0.33);
+  assert.equal(feedFullness(feedRow(NOW, { method: "Breast", side: "Left", duration_min: 25 })), 0.75);
+  assert.equal(feedFullness(feedRow(NOW, { method: "Breast", side: "Both", duration_min: 25 })), 1);
+  const usual = [150, 150, 150].map((n, i) => feedRow(NOW - (i + 1) * H, { method: "Bottle", amount_ml: n }));
+  assert.equal(feedFullness(feedRow(NOW, { method: "Bottle", amount_ml: 75 }), usual), 0.5);
+  assert.equal(feedFullness(feedRow(NOW, { method: "Bottle", amount_ml: 40 })), 40 / 120);
+});
+
+test("next feed comes sooner after a small feed, never under an hour", () => {
+  const full = nextFeedAt([feedRow(NOW - H, { method: "Breast", side: "Both", duration_min: 25 }, NOW - H + 25 * 60_000)], { gapMin: 180 })!;
+  assert.equal(full.at, NOW - H + 25 * 60_000 + 3 * H);
+  const sips = nextFeedAt([feedRow(NOW, { method: "Breast", side: "Left" }, NOW + 5 * 60_000)], { gapMin: 180 })!;
+  assert.equal(sips.at, NOW + 5 * 60_000 + 1.5 * H);
+  assert.equal(shortFeedHint(sips.last, sips.fullness), "Short feed on the left · she may want the right side soon");
+  const capped = nextFeedAt([feedRow(NOW, { method: "Bottle", amount_ml: 120 })], { gapMin: 180, awayCapMin: 120, away: () => true })!;
+  assert.equal(capped.at, NOW + 2 * H);
+  assert.equal(nextFeedAt([], { gapMin: 180 }), null);
 });

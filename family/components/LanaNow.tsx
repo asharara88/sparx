@@ -198,6 +198,11 @@ export function LanaNow({
               }
             />
           )}
+          {breastfeeds && minutesBetween(state.entry.occurred_at, nowIso) >= 30 && (
+            <p className="notice notice-warn text-center font-semibold" role="status">
+              Still feeding? Over 30 min on one side. The timer may have been left on: tap the boob to stop it.
+            </p>
+          )}
           <Big onClick={() => run("Feed saved.", () => end(state.entry))}>Done feeding</Big>
         </>
       )}

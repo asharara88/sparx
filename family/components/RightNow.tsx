@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { HomeSummary, MilkData } from "@/lib/types";
 import { fmtDuration, fmtTime } from "@/lib/time";
+import { shortFeedHint } from "@/lib/forecast";
 import { Icon } from "./Icon";
 
 /** Three tiles: next feed, asleep or awake for how long, milk in the fridge. */
@@ -20,6 +21,7 @@ export function RightNow({ summary, milk, timezone }: { summary: HomeSummary; mi
   const n = now ?? Date.parse(summary.today + "T00:00:00Z");
   const since = (iso: string) => fmtDuration(Math.max(0, Math.round((n - Date.parse(iso)) / 60_000)));
   const feedDue = due != null && now != null && due <= now;
+  const hint = feed && typeof feed.fullness === "number" ? shortFeedHint(feed, feed.fullness) : null;
   const fridge = milk?.fridge_ml ?? 0;
   const bottles = milk?.fridge_count ?? 0;
   const tile = "tile flex min-w-[9.5rem] shrink-0 snap-start flex-col justify-between gap-2";
@@ -30,7 +32,7 @@ export function RightNow({ summary, milk, timezone }: { summary: HomeSummary; mi
         <div>
           <p className="text-xs font-bold uppercase tracking-wide opacity-75">Next feed</p>
           <p className="text-xl font-bold">{due == null || now == null ? "—" : feedDue ? "Due now" : `in ${fmtDuration(Math.round((due - now) / 60_000))}`}</p>
-          <p className="text-sm opacity-80">{feed ? `last ${fmtTime(feed.occurred_at, timezone)}` : "No feed yet"}</p>
+          <p className="text-sm opacity-80">{hint ?? (feed ? `last ${fmtTime(feed.occurred_at, timezone)}` : "No feed yet")}</p>
         </div>
       </Link>
       <Link href="/lana" className={`${tile} ${asleep ? "bg-[var(--fg)] text-[var(--bg)]" : ""}`}>

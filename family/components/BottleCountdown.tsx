@@ -9,7 +9,7 @@ import { Icon } from "@/components/Icon";
  * The milk line on the home screen: what is in the fridge, and while Mama is out, when the
  * next bottle is due (last feed + the household's bottle interval). Ticks every minute.
  */
-export function BottleCountdown({ milk, lastFeedAt, mamaAway, timezone }: { milk: MilkData; lastFeedAt: string | null; mamaAway: boolean; timezone: string }) {
+export function BottleCountdown({ milk, lastFeedAt, mamaAway, timezone, nextAtIso }: { milk: MilkData; lastFeedAt: string | null; mamaAway: boolean; timezone: string; nextAtIso?: string | null }) {
   // Set after mount so the server and the phone render the same HTML.
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -17,7 +17,7 @@ export function BottleCountdown({ milk, lastFeedAt, mamaAway, timezone }: { milk
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
-  const nextAt = lastFeedAt ? new Date(lastFeedAt).getTime() + milk.bottle_interval_min * 60_000 : null;
+  const nextAt = nextAtIso ? new Date(nextAtIso).getTime() : lastFeedAt ? new Date(lastFeedAt).getTime() + milk.bottle_interval_min * 60_000 : null;
   const minLeft = nextAt && now ? Math.round((nextAt - now) / 60_000) : null;
   const low = milk.fridge_ml < milk.target_ml;
   const next = milk.bottles.find((b) => b.location === "fridge" && !b.expired);

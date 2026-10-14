@@ -6,7 +6,7 @@ import { tipsFor } from "@/lib/lana-guide";
 import { Icon } from "./Icon";
 
 /** The last 24 hours against her age, as tips. Quiet when all is well. */
-export function LanaGuide({ entries, birthDate }: { entries: EntryRow[]; birthDate: string | null }) {
+export function LanaGuide({ entries, birthDate, timezone, feedGapMin }: { entries: EntryRow[]; birthDate: string | null; timezone?: string; feedGapMin?: number }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
@@ -14,7 +14,7 @@ export function LanaGuide({ entries, birthDate }: { entries: EntryRow[]; birthDa
     return () => clearInterval(t);
   }, []);
   if (now == null) return null;
-  const tips = tipsFor(entries, birthDate, now);
+  const tips = tipsFor(entries, birthDate, now, { timezone, feedGapMin });
   return (
     <section className="flex flex-col gap-2" aria-labelledby="guide-h">
       <div className="flex items-baseline justify-between">

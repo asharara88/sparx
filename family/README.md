@@ -26,6 +26,13 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   is too early (`/lana/medicine`). Her next 12 hours (feeds, nappies, naps) estimated from the
   last week, on Lana's Today tab, the Home screen and today's calendar. Her firsts with photos
   (`/lana/milestones`). A photo of a milk bag label or a bottle fills in the amount and date.
+- Smart care: the next feed depends on how much she took (ten minutes on one side comes back
+  sooner than a full feed on both; same rule in the database and the app), with a short-feed hint on
+  Home. A breastfeed over 45 minutes gets a "Timer left on?" card with trim or keep. The Milk page
+  forecasts when the fridge runs out, compares morning and night pumps week on week, and on the
+  evening before a workday says which freezer bags to bring down. Lana's guide adds "likely hungry
+  soon" and a possible growth spurt; Patterns gets a sleep coach. "Say it to log" on Home sends
+  what you said to Ask for a one-tap Confirm.
 - The helper remembers what the family tells it ("remember that…", confirmed with a tap), has a
   hands-free Talk mode (listens, answers out loud, listens again), and there is a Babysitter role
   that sees Lana, the chat and the helper only. Every night the database is backed up to a
