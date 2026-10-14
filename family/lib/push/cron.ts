@@ -85,6 +85,17 @@ export async function runDaily(): Promise<CronReport> {
         r.sent ? (report.sent += 1) : (report.skipped += 1);
       }
 
+      // 2b. Sunday: "This week for Lana", written now and pushed, for anyone who sees her log.
+      const localWd = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date());
+      if ((localWd === "Sun" || process.env.PLAN_EVERY_DAY === "1") && can(me, "assistant", "view") && can(me, "lana", "view")) {
+        const w = await getBrief(client, me, "week", false);
+        if (w.ok) {
+          const r = await notifyMember(service, t.member_id, { kind: "brief", key: `brief:week:${w.brief.day}`, title: "This week for Lana", body: plain(w.brief.content, 160), url: "/lana" });
+          log.push(`week note ${r.sent ? "sent" : r.skipped}`);
+          r.sent ? (report.sent += 1) : (report.skipped += 1);
+        } else log.push(`week note: ${w.message}`);
+      }
+
       // 3. Sunday: next week's plan, drafted for whoever can put things on the calendar.
       const localWeekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date());
       if ((localWeekday === "Sun" || process.env.PLAN_EVERY_DAY === "1") && can(me, "calendar", "add") && can(me, "assistant", "view")) {

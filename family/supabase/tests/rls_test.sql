@@ -819,7 +819,29 @@ exception when insufficient_privilege then
 end $$;
 reset role;
 
+-- This week (migration 2700): play ideas by age with a tick; the weekly brief kind
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.activities_list(:lana))->>'ok' = 'true', 'Dana sees play ideas');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now') between 5 and 8, 'with a handful for her age now');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'coming') >= 5, 'and the next band coming');
+select pg_temp.assert((select bool_and(((public.activities_list(:lana))->>'age_days')::int between (x->>'from_days')::int and (x->>'to_days')::int) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now'), 'the "now" ideas match her age');
+create temp table act1 as select x->>'id' as id from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now' limit 1;
+select pg_temp.assert((public.activity_tick(:lana, (select id from act1), true, 'she loved it'))->>'ok' = 'true', 'Dana ticks one');
+select pg_temp.assert((select x->>'done_by' from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'id' = (select id from act1)) = 'Dana', 'it shows who did it');
+select pg_temp.assert((public.activity_tick(:lana, (select id from act1), false, null))->>'ok' = 'true', 'and unticks');
+select pg_temp.assert((select x->>'done_on' from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'id' = (select id from act1)) is null, 'cleanly');
+select pg_temp.assert((public.activity_tick(:lana, 'nope', true, null))->>'error' = 'not_found', 'unknown ideas are refused');
+select pg_temp.assert((public.assistant_brief_save(current_date, 'week', 'This week: a quiet one.'))->>'ok' = 'true', 'a weekly brief can be saved');
+select pg_temp.assert((public.assistant_brief_get(current_date, 'week'))#>>'{brief,content}' = 'This week: a quiet one.', 'and read back');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.activities_list(:lana))->>'error' = 'not_allowed', 'Lilly cannot see play ideas');
+select pg_temp.assert((public.activity_tick(:lana, (select id from act1), true, null))->>'error' = 'not_allowed', 'nor tick');
+reset role;
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

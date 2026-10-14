@@ -595,7 +595,7 @@ export interface AssistantReply {
 export interface Brief {
   id: string;
   day: string;
-  kind: "morning" | "evening";
+  kind: "morning" | "evening" | "week";
   content: string;
   created_at: string;
   model: string | null;
@@ -972,4 +972,22 @@ export interface CoachPlan {
 export interface CoachPlanData {
   ok: true;
   plan: CoachPlan | null;
+}
+
+export interface Activity {
+  id: string;
+  title: string;
+  how: string;
+  why: string;
+  source: string;
+  band: "now" | "coming";
+  from_days: number;
+  to_days: number;
+  done_on: string | null;
+  done_by: string | null;
+}
+export interface ActivitiesData {
+  ok: true;
+  age_days: number | null;
+  items: Activity[];
 }

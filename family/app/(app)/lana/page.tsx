@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError } from "@/lib/types";
+import type { ActivitiesData, BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { ageDays, ageLabel } from "@/lib/norms";
@@ -16,6 +16,9 @@ import { LanaForecast } from "@/components/LanaForecast";
 import { Medicines } from "@/components/Medicines";
 import { SleepCoach } from "@/components/SleepCoach";
 import { PlanCard } from "@/components/PlanCard";
+import { WeekCard } from "@/components/WeekCard";
+import { PhaseCard } from "@/components/PhaseCard";
+import { Activities } from "@/components/Activities";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 
@@ -46,6 +49,7 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
     { href: "/lana/medicine", icon: "clock", label: "Medicine" },
     { href: "/lana/doctor", icon: "phone", label: "Doctor" },
     { href: "/lana/milestones", icon: "star", label: "Firsts" },
+    { href: "/lana/activities", icon: "sparkles", label: "Play" },
     { href: "/lana/trends", icon: "trend", label: "Growth" },
     { href: "/lana/emergency", icon: "bell", label: "Emergency" },
     { href: "/lana/when-to-call", icon: "clipboard", label: "When to call" },
@@ -69,7 +73,7 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
         ))}
       </div>
       <LanaTabs active={tab} day={day} />
-      {tab === "today" && <TodayTab supabase={supabase} summary={summary} day={day} today={today} tz={tz} />}
+      {tab === "today" && <TodayTab supabase={supabase} me={me} summary={summary} day={day} today={today} tz={tz} />}
       {tab === "patterns" && <PatternsTab supabase={supabase} summary={summary} today={today} tz={tz} />}
       {tab === "week" && <WeekTab supabase={supabase} summary={summary} today={today} />}
       {tab === "handover" && <HandoverTab supabase={supabase} summary={summary} />}
@@ -80,7 +84,7 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
 
 type SB = Awaited<ReturnType<typeof createClient>>;
 
-async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; summary: HomeSummary; day: string; today: string; tz: string }) {
+async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: SB; me: Me; summary: HomeSummary; day: string; today: string; tz: string }) {
   const { from, to } = dayRange(day, tz);
   const isToday = day === today;
   const [{ data: listData }, { data: stripData }, { data: statsData }, { data: medData }, { data: weekData }, { data: hhData }] = await Promise.all([
@@ -93,6 +97,8 @@ async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; s
   ]);
   const { data: planData } = isToday ? await supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }) : { data: null };
   const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
+  const { data: actData } = isToday ? await supabase.rpc("activities_list", { p_subject_id: summary.subject.id }) : { data: null };
+  const acts = (actData as ActivitiesData | RpcError | null)?.ok ? (actData as ActivitiesData).items : [];
   const meds = medData as MedicinesData | RpcError | null;
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const hh = hhData as HouseholdToday | RpcError | null;
@@ -155,6 +161,8 @@ async function TodayTab({ supabase, summary, day, today, tz }: { supabase: SB; s
         </p>
       </div>
       {isToday && <PlanCard plan={plan} />}
+      {isToday && can(me, "assistant", "view") && <WeekCard name={summary.subject.name} />}
+      {isToday && <Activities subjectId={summary.subject.id} items={acts} compact />}
       {isToday && meds && meds.ok && <Medicines subjectId={summary.subject.id} items={meds.items} timezone={tz} compact />}
       {isToday && <LanaForecast entries={week} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />}
       {dayStats && (
@@ -218,6 +226,7 @@ async function PatternsTab({ supabase, summary, today, tz }: { supabase: SB; sum
           subtitle="Average per day over the last 7 full days."
         />
       )}
+      {summary.subject.birth_date && <PhaseCard ageDays={ageDays(summary.subject.birth_date, today)} name={summary.subject.name} />}
       <SleepCoach entries={entries} ageDays={summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : 120} timezone={tz} />
       <Link href="/lana/trends" className="btn">
         <Icon name="trend" size={18} /> Trends and growth

@@ -2,11 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Brief, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
+import { ageOutlook } from "@/lib/lana-insights";
 import { buildTools, loadContext } from "./tools";
 import { stableSystem, volatileSystem } from "./prompt";
 import { assistantConfigured, compose, MODEL } from "./run";
 
-export type BriefKind = "morning" | "evening";
+export type BriefKind = "morning" | "evening" | "week";
 
 /** The morning brief is for today; the evening digest is "what happened today". */
 export function briefKindNow(tz: string, now = new Date()): BriefKind {
@@ -31,7 +32,9 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
   if (!can(me, "assistant", "view")) return { ok: false, error: "not_allowed", message: "The assistant is not switched on for your role." };
   const tz = me.household.timezone;
   const now = new Date();
-  const day = todayYmd(tz, now);
+  const today = todayYmd(tz, now);
+  // The weekly note is keyed by its week's Sunday, so it is written once a week.
+  const day = kind === "week" ? addDays(today, -new Date(`${today}T12:00:00Z`).getUTCDay()) : today;
 
   if (!refresh) {
     const { data } = await supabase.rpc("assistant_brief_get", { p_day: day, p_kind: kind });
@@ -51,6 +54,37 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
       return { error: e instanceof Error ? e.message : "failed" };
     }
   };
+
+  if (kind === "week") {
+    const kids = ctx.subjects.filter((s) => s.kind === "child" && can(me, s.module_id, "view"));
+    const wk: Record<string, unknown> = {};
+    for (const s of kids) {
+      const ageDays = s.birth_date ? Math.floor((now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : null;
+      wk[`${s.name}_age`] = ageDays != null ? ageOutlook(ageDays) : null;
+      wk[`${s.name}_last_week`] = await run("care_stats", { subject: s.name, from: addDays(today, -7), to: addDays(today, -1) });
+      wk[`${s.name}_sleep_rhythm`] = await run("sleep_rhythm", { subject: s.name });
+      wk[`${s.name}_plan`] = await run("coach_plan", { subject: s.name });
+      const { data: acts } = await supabase.rpc("activities_list", { p_subject_id: s.id });
+      const items = ((acts as { items?: { title: string; how: string; band: string; done_on: string | null }[] } | null)?.items ?? []).filter((a) => a.band === "now" && !a.done_on).slice(0, 3);
+      wk[`${s.name}_play_ideas`] = items.map((a) => `${a.title}: ${a.how}`);
+    }
+    wk.due_soon = await run("due_soon", { days_ahead: 10 });
+    const askWeek = `Write "This week for ${kids.map((s) => s.name).join(" and ") || "the baby"}" for ${me.member.display_name}: a short weekly note. In this order: 1) what her age usually brings this week (from the age outlook: the phase she is in, what is coming and in how many days), in two or three plain sentences; 2) how last week went in numbers (feeds, sleep, longest stretch, nappies) and one thing that stands out, citing [entry:ID] only where the data gives ids; 3) one or two gentle things to try this week, from the sleep rhythm and the play ideas given (name the idea); 4) anything due in the next 10 days (vaccines, appointments). Under 160 words, short lines. No diagnoses, no doses. Leave out empty sections.`;
+    const t0w = Date.now();
+    const resW = await compose(
+      [
+        { type: "text", text: stableSystem(ctx), cache_control: { type: "ephemeral", ttl: "1h" } },
+        { type: "text", text: `${volatileSystem(ctx)}\nYou are writing a weekly note, not answering a question. The data below is everything you may use.` },
+      ],
+      `${askWeek}\n\nDATA:\n${JSON.stringify(wk)}`,
+    );
+    const contentW = resW.refusal ? "I could not write the weekly note this time." : resW.text || "Nothing to report.";
+    const usageW = { ...resW.usage, ms: Date.now() - t0w };
+    const { data: savedW } = await supabase.rpc("assistant_brief_save", { p_day: day, p_kind: kind, p_content: contentW, p_model: MODEL, p_usage: usageW, p_refs: ctx.refs });
+    await audit(supabase, { p_question: `week note ${day}`, p_answer: contentW, p_usage: usageW, p_tools: Object.keys(wk).map((name) => ({ name, ok: true })) });
+    const idW = ((savedW as { id?: string } | null)?.id ?? "") as string;
+    return { ok: true, fresh: true, brief: { id: idW, day, kind, content: contentW, created_at: new Date().toISOString(), model: MODEL, refs: ctx.refs } };
+  }
 
   const yesterday = addDays(day, -1);
   const data: Record<string, unknown> = {

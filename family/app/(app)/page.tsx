@@ -32,6 +32,7 @@ import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
 import { milkForecast } from "@/lib/milk-insights";
 import { PlanCard } from "@/components/PlanCard";
+import { WeekCard } from "@/components/WeekCard";
 import type { CoachPlanData } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 
@@ -170,14 +171,15 @@ export default async function HomePage() {
             ) : null,
           guide: <LanaGuide key="g" entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />,
           brief: can(me, "assistant", "view") ? <BriefCard key="b" hour={hour} /> : null,
+          week: can(me, "assistant", "view") && ["Sun", "Mon"].includes(new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(now)) ? <WeekCard key="w" name={summary.subject.name} /> : null,
           strip: <DayStrip key="s" entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} title="Lana's day so far" />,
         }
       : {};
   const order =
-    part === "morning" ? ["brief", "pump", "guide", "countdown", "strip"]
-    : part === "away" ? ["countdown", "plan", "handover", "guide", "pump", "strip", "brief"]
-    : part === "evening" ? ["thaw", "handover", "guide", "pump", "strip", "brief", "countdown"]
-    : ["thaw", "guide", "strip", "countdown", "brief"];
+    part === "morning" ? ["brief", "week", "pump", "guide", "countdown", "strip"]
+    : part === "away" ? ["countdown", "plan", "handover", "guide", "pump", "strip", "brief", "week"]
+    : part === "evening" ? ["thaw", "handover", "guide", "pump", "strip", "brief", "week", "countdown"]
+    : ["thaw", "guide", "strip", "countdown", "brief", "week"];
 
   return (
     <div className="flex flex-col gap-4">

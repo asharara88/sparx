@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const kindParam = url.searchParams.get("kind");
-  const kind: BriefKind = kindParam === "morning" || kindParam === "evening" ? kindParam : briefKindNow(me.household.timezone);
+  const kind: BriefKind = kindParam === "morning" || kindParam === "evening" || kindParam === "week" ? kindParam : briefKindNow(me.household.timezone);
   const refresh = url.searchParams.get("refresh") === "1";
   try {
     const res = await getBrief(supabase, me, kind, refresh);

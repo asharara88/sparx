@@ -33,6 +33,10 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   evening before a workday says which freezer bags to bring down. Lana's guide adds "likely hungry
   soon" and a possible growth spurt; Patterns gets a sleep coach. "Say it to log" on Home sends
   what you said to Ask for a one-tap Confirm.
+- This week for Lana: a weekly note (what her age brings this week, last week in numbers, one
+  thing to try, what is due), written on Sunday and pushed, with "Write it again" on the Lana page.
+  Play ideas by age with a tick (`/lana/activities`, NHS, AAP and CDC sourced), a "what to expect"
+  card on Patterns, and home-screen shortcuts for the sleep timer, feed, diaper and Ask.
 - The helper is also a baby coach: ask about naps, bedtime, teething, a growth spurt or a habit
   and it looks at her real numbers first, says what is usual at her exact age, and can propose a
   short day-by-day plan you start with one tap. Today's step sits on Home with "Done today".
