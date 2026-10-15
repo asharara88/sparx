@@ -10,7 +10,7 @@
 
 alter table public.ask_chats add column if not exists summary text check (summary is null or length(summary) <= 400);
 
-create or replace function public.ask_chat_save(p_id uuid, p_title text, p_messages jsonb, p_summary text default null) returns jsonb
+create or replace function public.ask_chat_save(p_id uuid, p_title text, p_messages jsonb, p_summary text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v_me uuid := public.current_member_id(); v_id uuid := p_id; v_sum text := nullif(left(btrim(coalesce(p_summary, '')), 400), '');
 begin
@@ -27,7 +27,11 @@ begin
   return jsonb_build_object('ok', true, 'id', v_id);
 end $$;
 grant execute on function public.ask_chat_save(uuid, text, jsonb, text) to authenticated, service_role;
-drop function if exists public.ask_chat_save(uuid, text, jsonb);
+-- The three-argument form stays for older clients (no default on p_summary, so the
+-- two never collide in PostgREST) and simply saves without a recap.
+create or replace function public.ask_chat_save(p_id uuid, p_title text, p_messages jsonb) returns jsonb
+language sql security definer set search_path = public as $$ select public.ask_chat_save(p_id, p_title, p_messages, null); $$;
+grant execute on function public.ask_chat_save(uuid, text, jsonb) to authenticated, service_role;
 
 -- A member's own recent chats, one line each: what they asked and where it ended.
 create or replace function public.ask_chat_recaps(p_limit integer default 6) returns jsonb
