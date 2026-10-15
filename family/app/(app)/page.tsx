@@ -27,7 +27,7 @@ import { FridgePlan } from "@/components/FridgePlan";
 import { DayStrip } from "@/components/DayStrip";
 import { LanaForecast } from "@/components/LanaForecast";
 import { SayIt } from "@/components/SayIt";
-import { LongFeedCheck } from "@/components/LongFeedCheck";
+import { EntryChecks } from "@/components/EntryChecks";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
 import { milkForecast } from "@/lib/milk-insights";
@@ -193,7 +193,7 @@ export default async function HomePage() {
             .map((d) => (
               <VaccineNotice key={d.visit} item={d} timezone={tz} />
             ))}
-          {can(me, "lana", "edit") && <LongFeedCheck entries={week} timezone={tz} />}
+          {can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} limit={2} canDelete={can(me, "lana", "delete")} />}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
           {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
           <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />

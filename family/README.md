@@ -37,6 +37,11 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   thing to try, what is due), written on Sunday and pushed, with "Write it again" on the Lana page.
   Play ideas by age with a tick (`/lana/activities`, NHS, AAP and CDC sourced), a "what to expect"
   card on Patterns, and home-screen shortcuts for the sleep timer, feed, diaper and Ask.
+- Entry checks: the log flags its own mis-entries (a sleep or feed timer left running, a
+  timer that ran across later entries, a one-second tap, two nappies in the same minute, a
+  bottle over 240 ml) and offers the fix the data supports: end it at the next entry, trim to
+  a normal feed, remove it, or "it was real" so it is never asked again. Home shows the first
+  two, Lana's Today shows all; `care_entry_check` is audited like any edit.
 - The helper is built as an agent with skills: what it knows lives in `assistant_skills`
   (sleep, safe sleep, regressions, growth spurts, feeding, pumped milk, solids, teething,
   habits, crying, illness, development, Mama), each with trigger words in three languages,
