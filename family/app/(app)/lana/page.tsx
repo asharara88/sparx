@@ -19,6 +19,7 @@ import { PlanCard } from "@/components/PlanCard";
 import { WeekCard } from "@/components/WeekCard";
 import { PhaseCard } from "@/components/PhaseCard";
 import { Activities } from "@/components/Activities";
+import { EntryChecks } from "@/components/EntryChecks";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 
@@ -160,6 +161,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
           {entries.length === 0 && <span className="muted">Nothing logged on this day.</span>}
         </p>
       </div>
+      {isToday && can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />}
       {isToday && <PlanCard plan={plan} />}
       {isToday && can(me, "assistant", "view") && <WeekCard name={summary.subject.name} />}
       {isToday && <Activities subjectId={summary.subject.id} items={acts} compact />}

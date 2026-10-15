@@ -870,7 +870,20 @@ do $$ begin
   end;
 end $$;
 
+-- Entry checks (migration 2900): it was real / end it here / remove it
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table chk1 as select ((public.care_entry_log(:lana, 'lana.sleep', now() - interval '14 hours', null, '{}'::jsonb, 'checks test', null))->>'id')::uuid as id;
+select pg_temp.assert((public.care_entry_check((select id from chk1), 'end', now() - interval '6 hours'))->>'ok' = 'true', 'Dana ends a sleep timer left on');
+select pg_temp.assert((select (payload->>'timer_capped')::boolean and (payload->>'raw_minutes')::int between 835 and 845 and (payload->>'duration_min')::int between 475 and 485 from public.care_entries where id = (select id from chk1)), 'the raw length is kept, the new one recorded');
+select pg_temp.assert((public.care_entry_check((select id from chk1), 'end', now() - interval '20 hours'))->>'error' = 'bad_end', 'an end before the start is refused');
+select pg_temp.assert((public.care_entry_check((select id from chk1), 'ok', null))->>'kept' = 'true', 'and it can be confirmed real');
+select pg_temp.assert((public.care_entry_check((select id from chk1), 'delete', null))->>'deleted' = 'true', 'or removed');
+select pg_temp.assert((public.care_entry_check((select id from chk1), 'ok', null))->>'error' = 'not_found', 'gone');
+reset role;
+update public.care_entries set deleted_at = now() where note = 'checks test';
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
