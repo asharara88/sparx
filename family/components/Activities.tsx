@@ -16,7 +16,10 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
   const [open, setOpen] = useState<string | null>(null);
   const now = items.filter((a) => a.band === "now");
   const coming = items.filter((a) => a.band === "coming");
-  const shown = compact ? now.filter((a) => !a.done_on).slice(0, 3) : now;
+  // Three a day, rotating through what she has not tried yet so the same three do not sit there for a month.
+  const pending = now.filter((a) => !a.done_on);
+  const offset = pending.length ? (Math.floor(Date.now() / 86_400_000) * 3) % pending.length : 0;
+  const shown = compact ? [...pending.slice(offset), ...pending.slice(0, offset)].slice(0, 3) : now;
 
   async function tick(a: Activity) {
     setBusy(a.id);

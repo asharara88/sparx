@@ -37,6 +37,16 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   thing to try, what is due), written on Sunday and pushed, with "Write it again" on the Lana page.
   Play ideas by age with a tick (`/lana/activities`, NHS, AAP and CDC sourced), a "what to expect"
   card on Patterns, and home-screen shortcuts for the sleep timer, feed, diaper and Ask.
+- Next nap on Home and Today: her last wake-up plus her own awake window (from the log once
+  it shows a rhythm, else the age norm), recalculated on every load, with a push about ten
+  minutes before the window closes when the often cron runs. A mood tap (four faces) on
+  Today, set against sleep day by day on Patterns. Week by week to three years
+  (`/lana/weeks`, NHS, AAP and CDC sourced), named on the "what to expect" card, in the
+  weekly note and in the helper's age outlook. About 150 play ideas, three a day in rotation.
+  A monthly story (`/lana/story`): firsts with photos, the month in numbers, what was tried
+  and a paragraph from the helper, written and pushed on her monthly birthday, printable.
+  Growth charts on the WHO girls' curves (3rd to 97th percentile band, 2006 standards) for
+  weight, length and head, with the approximate percentile of the latest measurement.
 - Entry checks: the log flags its own mis-entries (a sleep or feed timer left running, a
   timer that ran across later entries, a one-second tap, two nappies in the same minute, a
   bottle over 240 ml) and offers the fix the data supports: end it at the next entry, trim to

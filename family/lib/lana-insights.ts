@@ -147,3 +147,43 @@ export function daySchedule(wakeMinutes: number, ageDays: number, bestWindowMin:
   lines.push({ at: hm(bed - 30), what: "bedtime routine" }, { at: hm(bed), what: "asleep for the night" });
   return { awakeWindowMin: win, basedOn: bestWindowMin ? "her best recent window" : "age norm", lines };
 }
+
+export interface NextNap {
+  /** She is asleep now, since this time (ISO). at is null then. */
+  asleepSince: string | null;
+  /** When the next sleep is likely due, ms since epoch; null when asleep or nothing to go on. */
+  at: number | null;
+  /** The awake window used, minutes. */
+  windowMin: number;
+  basis: "her rhythm" | "her age";
+  /** The window ends in the evening: it is bedtime, not a nap. */
+  isBedtime: boolean;
+  /** Minutes awake so far (0 when asleep). */
+  awakeMin: number;
+  /** The last wake-up used, ISO. */
+  since: string | null;
+}
+
+/**
+ * The next nap, recalculated from where the day actually is: the last wake-up
+ * plus her own awake window when the log shows one (the window before her
+ * best naps, kept inside a sensible range for her age), else the age norm.
+ * A late nap moves everything after it, which is the whole point.
+ */
+export function nextNap(entries: EntryRow[], ageDays: number, now: number, hourOf: (iso: string) => number): NextNap | null {
+  const sleeps = entries.filter((e) => e.type_id === "lana.sleep" && now - t(e.occurred_at) < 36 * 3_600_000 && t(e.occurred_at) <= now + 5 * MIN).sort((a, b) => t(a.occurred_at) - t(b.occurred_at));
+  const open = [...sleeps].reverse().find((e) => !e.ended_at && now - t(e.occurred_at) < 16 * 3_600_000);
+  const [lo, hi] = awakeWindow(ageDays);
+  const coach = sleepCoach(entries, ageDays, hourOf);
+  const own = coach?.bestWindowMin ?? null;
+  const windowMin = own != null && coach && coach.naps >= 6 ? Math.round(Math.min(hi + 30, Math.max(lo - 15, own))) : Math.round((lo + hi) / 2);
+  const basis: NextNap["basis"] = own != null && coach && coach.naps >= 6 ? "her rhythm" : "her age";
+  if (open) return { asleepSince: open.occurred_at, at: null, windowMin, basis, isBedtime: false, awakeMin: 0, since: null };
+  const ended = sleeps.filter((e) => e.ended_at && t(e.ended_at!) <= now + 5 * MIN);
+  const last = ended[ended.length - 1];
+  if (!last) return null;
+  const since = last.ended_at!;
+  const at = t(since) + windowMin * MIN;
+  const h = hourOf(new Date(at).toISOString());
+  return { asleepSince: null, at, windowMin, basis, isBedtime: h >= 18.5 || h < 5, awakeMin: Math.max(0, Math.round((now - t(since)) / MIN)), since };
+}

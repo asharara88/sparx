@@ -28,6 +28,8 @@ import { DayStrip } from "@/components/DayStrip";
 import { LanaForecast } from "@/components/LanaForecast";
 import { SayIt } from "@/components/SayIt";
 import { EntryChecks } from "@/components/EntryChecks";
+import { NextNap } from "@/components/NextNap";
+import { ageDays } from "@/lib/norms";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
 import { milkForecast } from "@/lib/milk-insights";
@@ -195,6 +197,7 @@ export default async function HomePage() {
             ))}
           {can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} limit={2} canDelete={can(me, "lana", "delete")} />}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
+          {summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
           {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
           <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />
           <PlanCard plan={plan} />

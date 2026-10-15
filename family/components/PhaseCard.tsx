@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { ageOutlook } from "@/lib/lana-insights";
+import { leapWeek } from "@/lib/leaps";
 
 /** What her age usually brings now, and what comes next. */
 export function PhaseCard({ ageDays, name }: { ageDays: number; name: string }) {
   const o = ageOutlook(ageDays);
+  const w = leapWeek(ageDays);
   return (
     <section className="card" aria-labelledby="phase-h">
       <h2 id="phase-h" className="font-semibold">
@@ -25,6 +28,11 @@ export function PhaseCard({ ageDays, name }: { ageDays: number; name: string }) 
       <p className="muted mt-1 text-xs">
         Usual awake window {o.awakeWindowMin[0]} to {o.awakeWindowMin[1]} min. Every baby differs; {name} sets her own pace.
       </p>
+      {w && (
+        <Link href="/lana/weeks" className="mt-2 block text-sm font-semibold text-[var(--accent)] no-underline">
+          Week {w.week}: {w.band.title.toLowerCase()} ›
+        </Link>
+      )}
     </section>
   );
 }

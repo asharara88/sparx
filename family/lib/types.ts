@@ -611,7 +611,7 @@ export type AssistantEvent =
 export interface Brief {
   id: string;
   day: string;
-  kind: "morning" | "evening" | "week";
+  kind: "morning" | "evening" | "week" | "story";
   content: string;
   created_at: string;
   model: string | null;
