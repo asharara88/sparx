@@ -42,6 +42,12 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   bottle over 240 ml) and offers the fix the data supports: end it at the next entry, trim to
   a normal feed, remove it, or "it was real" so it is never asked again. Home shows the first
   two, Lana's Today shows all; `care_entry_check` is audited like any edit.
+- The helper remembers in three ways: facts the family confirmed (`/ask/memory`, or "remember
+  that…" in Ask; the ones that matter for the question go into the prompt, with ids so
+  `forget_memory` can drop one after a tap), a one-line recap of each of the member's own
+  earlier chats (what they asked, where it ended), and the outcome of the last coach plan. The
+  coaching rule asks it to offer a memory when something was decided, so the next chat and the
+  other carers start from it.
 - The helper is built as an agent with skills: what it knows lives in `assistant_skills`
   (sleep, safe sleep, regressions, growth spurts, feeding, pumped milk, solids, teething,
   habits, crying, illness, development, Mama), each with trigger words in three languages,

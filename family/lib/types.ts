@@ -517,7 +517,7 @@ export interface MaintenanceOverview {
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
-export type ProposalKind = "care_entry" | "calendar_event" | "shopping" | "memory" | "plan";
+export type ProposalKind = "care_entry" | "calendar_event" | "shopping" | "memory" | "forget" | "plan";
 
 export interface CareEntryProposal {
   subject_id: string;
@@ -559,6 +559,8 @@ export interface AssistantProposal {
   shopping?: ShoppingProposal;
   /** A fact for the helper to keep ("Lana takes a bottle better when it is warm"). */
   memory?: { body: string };
+  /** A remembered fact to drop, because it is wrong or out of date. */
+  forget?: { id: string; body: string };
   /** A short day-by-day coach plan the family can start. */
   plan?: { subject_id: string; subject_name: string; goal: string; steps: { day: number; step: string }[] };
 }

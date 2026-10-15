@@ -883,7 +883,23 @@ select pg_temp.assert((public.care_entry_check((select id from chk1), 'ok', null
 reset role;
 update public.care_entries set deleted_at = now() where note = 'checks test';
 
+-- Memory (migration 3000): chat recaps are the member's own; the coaching rule mentions forget_memory
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table rc1 as select ((public.ask_chat_save(null, 'Why are her naps so short?', '[{"role":"user","text":"Why are her naps so short?"},{"role":"assistant","text":"One sleep cycle."}]'::jsonb, 'Why are her naps so short? → One sleep cycle; settle at the first stir.'))->>'id')::uuid as id;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.ask_chat_recaps(6))->'items')) = 1, 'Dana sees her recap');
+select pg_temp.assert((select x->>'summary' from jsonb_array_elements((public.ask_chat_recaps(6))->'items') x limit 1) like 'Why are her naps%', 'with the line she saved');
+select pg_temp.assert((public.ask_chat_save((select id from rc1), 'Why are her naps so short?', '[]'::jsonb, null))->>'ok' = 'true', 'saving without a recap keeps the old one');
+select pg_temp.assert((select x->>'summary' from jsonb_array_elements((public.ask_chat_recaps(6))->'items') x limit 1) like 'Why are her naps%', 'still there');
+reset role;
+select pg_temp.assert((select body like '%forget_memory%' and body like '%EARLIER CHATS%' from public.assistant_skills where id = 'coaching'), 'the coaching rule knows about forgetting and earlier chats');
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.ask_chat_recaps(6))->'items')) = 0, 'Wafa does not see Dana''s chats');
+reset role;
+update public.ask_chats set deleted_at = now() where id = (select id from rc1);
+
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
