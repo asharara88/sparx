@@ -1,8 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CalendarData, Me, RpcError, ShoppingRequest, Suggestion, Ticket } from "@/lib/types";
+import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, ShoppingRequest, Suggestion, Ticket } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, fmtTime, todayYmd } from "@/lib/time";
 import { getBrief } from "@/lib/assistant/brief";
+import { nextNap } from "@/lib/lana-insights";
+import { birthdayMonth } from "@/lib/story";
+import { ageDays as ageDaysOf } from "@/lib/norms";
 import { draftPlan } from "@/lib/plan/draft";
 import { memberClient, serviceClient } from "@/lib/server/member";
 import { notifyMember, plain } from "./send";
@@ -96,6 +99,22 @@ export async function runDaily(): Promise<CronReport> {
         } else log.push(`week note: ${w.message}`);
       }
 
+      // 2c. Her monthly birthday: the month's story, written now and pushed to everyone who sees her log.
+      if (can(me, "assistant", "view") && can(me, "lana", "view")) {
+        const { data: sumData } = await client.rpc("home_summary");
+        const sum = sumData as HomeSummary | RpcError | null;
+        const birth = sum?.ok ? sum.subject.birth_date : null;
+        const m = birth ? birthdayMonth(birth, today) : null;
+        if (m) {
+          const st = await getBrief(client, me, "story", false, { month: m });
+          if (st.ok) {
+            const r = await notifyMember(service, t.member_id, { kind: "brief", key: `story:${m}`, title: `${sum!.ok ? sum!.subject.name : "She"} is ${m} month${m === 1 ? "" : "s"} old today`, body: plain(st.brief.content, 160), url: `/lana/story/${m}` });
+            log.push(`story ${m} ${r.sent ? "sent" : r.skipped}`);
+            r.sent ? (report.sent += 1) : (report.skipped += 1);
+          } else log.push(`story: ${st.message}`);
+        }
+      }
+
       // 3. Sunday: next week's plan, drafted for whoever can put things on the calendar.
       const localWeekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date());
       if ((localWeekday === "Sun" || process.env.PLAN_EVERY_DAY === "1") && can(me, "calendar", "add") && can(me, "assistant", "view")) {
@@ -155,6 +174,28 @@ export async function runOften(): Promise<CronReport> {
           if (r.sent) {
             report.sent += 1;
             log.push(`request ${q.item_name}`);
+          }
+        }
+      }
+      // The next nap, about ten minutes before her window closes, for whoever has her log.
+      if (can(me, "lana", "view")) {
+        const { data: sumData } = await client.rpc("home_summary");
+        const sum = sumData as HomeSummary | RpcError | null;
+        if (sum?.ok && sum.subject.birth_date) {
+          const { data: listData } = await client.rpc("care_entries_list", { p_subject_id: sum.subject.id, p_from: new Date(now - 36 * 3_600_000).toISOString(), p_to: new Date(now + 3_600_000).toISOString() });
+          const entries = ((listData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
+          const hourOf = (iso: string) => {
+            const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
+            return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+          };
+          const n = nextNap(entries, ageDaysOf(sum.subject.birth_date, today), now, hourOf);
+          if (n && n.at != null && n.at - now <= 15 * 60_000 && n.at - now > -5 * 60_000) {
+            const slot = new Date(Math.round(n.at / (5 * 60_000)) * 5 * 60_000).toISOString();
+            const r = await notifyMember(service, t.member_id, { kind: "nap", key: `nap:${slot}`, title: n.isBedtime ? `Bedtime around ${fmtTime(new Date(n.at).toISOString(), tz)}` : `Next nap around ${fmtTime(new Date(n.at).toISOString(), tz)}`, body: `Awake ${n.awakeMin} min; her window is about ${n.windowMin} min (${n.basis}). Start the wind-down.`, url: "/lana" });
+            if (r.sent) {
+              report.sent += 1;
+              log.push(`nap ${slot}`);
+            }
           }
         }
       }

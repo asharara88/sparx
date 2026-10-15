@@ -7,7 +7,7 @@ import { friendlyModelError } from "@/lib/server/anthropic";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-/** GET ?kind=morning|evening&refresh=1 → today's brief for the caller (generated on first ask). */
+/** GET ?kind=morning|evening|week|story&month=N&refresh=1 → today's brief for the caller (generated on first ask). */
 export async function GET(req: Request) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
@@ -18,10 +18,11 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const kindParam = url.searchParams.get("kind");
-  const kind: BriefKind = kindParam === "morning" || kindParam === "evening" || kindParam === "week" ? kindParam : briefKindNow(me.household.timezone);
+  const kind: BriefKind = kindParam === "morning" || kindParam === "evening" || kindParam === "week" || kindParam === "story" ? kindParam : briefKindNow(me.household.timezone);
   const refresh = url.searchParams.get("refresh") === "1";
+  const month = Number(url.searchParams.get("month") ?? 0) || undefined;
   try {
-    const res = await getBrief(supabase, me, kind, refresh);
+    const res = await getBrief(supabase, me, kind, refresh, { month });
     return NextResponse.json(res, { status: res.ok ? 200 : res.error === "not_allowed" ? 403 : 503 });
   } catch (e) {
     console.error("brief:", e);

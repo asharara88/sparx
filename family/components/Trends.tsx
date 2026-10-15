@@ -1,4 +1,5 @@
 "use client";
+import { GrowthChart } from "@/components/GrowthChart";
 import { useMemo, useState } from "react";
 import type { DailyStats, DayStats } from "@/lib/types";
 import { fmtDuration } from "@/lib/time";
@@ -49,6 +50,8 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
     night_sleep_min: mean(thisWeek, "night_sleep_min"),
   };
   const weights = all.filter((d) => d.weight_kg != null);
+  const lengths = all.filter((d) => d.length_cm != null);
+  const heads = all.filter((d) => d.head_cm != null);
   const milestones = all.filter((d) => d.milestones.length).flatMap((d) => d.milestones.map((m) => ({ day: d.day, what: m })));
 
   return (
@@ -158,7 +161,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
             {weights[weights.length - 1].weight_kg} kg on {weights[weights.length - 1].day}
             {weights.length > 1 ? `, up ${(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg)).toFixed(2)} kg since ${weights[0].day}` : ""}.
           </p>
-          <WeightChart points={weights} ageWeeks={ageWeeks} />
+          {birthDate ? <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate} /> : <WeightChart points={weights} ageWeeks={ageWeeks} />}
           <table className="mt-2 w-full text-sm">
             <tbody>
               {weights
@@ -177,6 +180,8 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           </table>
         </section>
       )}
+      {birthDate && lengths.length > 0 && <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} />}
+      {birthDate && heads.length > 0 && <GrowthChart kind="head_cm" points={heads.map((d) => ({ day: d.day, value: Number(d.head_cm) }))} birthDate={birthDate} />}
 
       {milestones.length > 0 && (
         <section className="card">

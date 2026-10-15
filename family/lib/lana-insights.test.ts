@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ageOutlook, awakeWindow, daySchedule, growthSpurt, sleepCoach } from "./lana-insights.ts";
+import { ageOutlook, awakeWindow, daySchedule, growthSpurt, nextNap, sleepCoach } from "./lana-insights.ts";
 import type { EntryRow } from "./types.ts";
 
 const D = 86_400_000;
@@ -64,4 +64,34 @@ test("day schedule: naps after the awake window, bedtime between 18:30 and 20:30
   assert.equal(bed.what, "asleep for the night");
   assert.ok(bed.at >= "18:30" && bed.at <= "20:30");
   assert.equal(daySchedule(7 * 60, 131, null).basedOn, "age norm");
+});
+
+test("nextNap: last wake-up plus her window; asleep means no prediction; evening means bedtime", () => {
+  // Six naps over three days with 90 minutes awake before the long ones, so her rhythm is known.
+  const rows: EntryRow[] = [];
+  for (let d = 3; d >= 1; d--) {
+    const base = NOW - d * D - 3 * H; // 09:00 UTC that day
+    rows.push(row("lana.sleep", base, base + 45 * 60_000));
+    rows.push(row("lana.sleep", base + 45 * 60_000 + 90 * 60_000, base + 45 * 60_000 + 90 * 60_000 + 80 * 60_000));
+  }
+  const lastWake = NOW - 30 * 60_000;
+  rows.push(row("lana.sleep", lastWake - 40 * 60_000, lastWake));
+  const n = nextNap(rows, 130, NOW, hourOf)!;
+  assert.equal(n.asleepSince, null);
+  assert.equal(n.basis, "her rhythm");
+  assert.equal(n.windowMin, 90);
+  assert.equal(n.at, lastWake + 90 * 60_000);
+  assert.equal(n.awakeMin, 30);
+  assert.equal(n.isBedtime, false);
+  // Asleep now: nothing to predict.
+  const asleep = nextNap([...rows, row("lana.sleep", NOW - 10 * 60_000, null)], 130, NOW, hourOf)!;
+  assert.equal(asleep.asleepSince, iso(NOW - 10 * 60_000));
+  assert.equal(asleep.at, null);
+  // No rhythm yet: the age norm, and a wake-up at 17:30 points to bedtime.
+  const evening = Date.UTC(2026, 9, 13, 17, 30);
+  const e = nextNap([row("lana.sleep", evening - H, evening)], 130, evening + 10 * 60_000, hourOf)!;
+  assert.equal(e.basis, "her age");
+  assert.equal(e.windowMin, 128);
+  assert.equal(e.isBedtime, true);
+  assert.equal(nextNap([], 130, NOW, hourOf), null);
 });

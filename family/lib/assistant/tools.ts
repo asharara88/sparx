@@ -6,6 +6,7 @@ import { selectMemories, type ChatRecap, type MemoryFact } from "./memory";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
 import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/lana-insights";
+import { leapWeek } from "@/lib/leaps";
 import { tipsFor } from "@/lib/lana-guide";
 import type { EntryRow } from "@/lib/types";
 
@@ -592,7 +593,8 @@ function ageOutlookTool(ctx0: ToolContext): AssistantTool {
     run: async (input, ctx) => {
       const s = findSubject(ctx, input.subject);
       if (!s || s.kind !== "child") return { error: "unknown_subject" };
-      return { subject: s.name, ...ageOutlook(ageDaysOf(ctx, s)) };
+      const w = leapWeek(ageDaysOf(ctx, s));
+      return { subject: s.name, ...ageOutlook(ageDaysOf(ctx, s)), week: w ? { week: w.week, stretch: w.band.title, expect: w.band.expect, often_harder: w.band.tough, tip: w.band.tip, next_stretch: w.next?.title ?? null, weeks_to_next: w.weeksToNext } : null };
     },
   };
 }

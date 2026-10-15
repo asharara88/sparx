@@ -297,7 +297,7 @@ select pg_temp.assert((public.assistant_brief_get(current_date, 'morning'))#>>'{
 select pg_temp.assert((public.assistant_brief_get(current_date, 'morning'))#>>'{brief,refs,abc,label}' = 'Sleep 19:40', 'with the links its citations need');
 select pg_temp.assert((select count(*) from (select 1 from public.assistant_briefs limit 1) x) = 1 and not exists (select 1 from information_schema.role_table_grants where table_name = 'assistant_briefs' and grantee = 'authenticated' and privilege_type = 'INSERT'), 'briefs are read-only from the client; writes go through the RPC');
 select pg_temp.assert((public.assistant_brief_get(current_date, 'evening'))->'brief' = 'null'::jsonb, 'no evening digest yet');
-select pg_temp.assert((public.assistant_brief_save(current_date, 'lunch', 'x', null, null))->>'error' = 'bad_kind', 'only morning or evening');
+select pg_temp.assert((public.assistant_brief_save(current_date, 'lunch', 'x', null, null))->>'error' = 'bad_kind', 'only the known kinds');
 select pg_temp.assert((select count(*) from public.assistant_briefs) = 1, 'Wafa sees only her own brief rows');
 reset role;
 
@@ -823,7 +823,7 @@ reset role;
 select pg_temp.act_as(:dana);
 set role authenticated;
 select pg_temp.assert((public.activities_list(:lana))->>'ok' = 'true', 'Dana sees play ideas');
-select pg_temp.assert((select count(*) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now') between 5 and 8, 'with a handful for her age now');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now') >= 5, 'with a handful for her age now');
 select pg_temp.assert((select count(*) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'coming') >= 5, 'and the next band coming');
 select pg_temp.assert((select bool_and(((public.activities_list(:lana))->>'age_days')::int between (x->>'from_days')::int and (x->>'to_days')::int) from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now'), 'the "now" ideas match her age');
 create temp table act1 as select x->>'id' as id from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now' limit 1;
@@ -901,5 +901,23 @@ update public.ask_chats set deleted_at = now() where id = (select id from rc1);
 
 \o
 \echo
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory).'
+
+-- Sprouty round (migration 3100): mood type, the story kind, what was tried
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((select is_active from public.care_entry_types where id = 'lana.mood'), 'the mood type is on');
+select pg_temp.assert((public.assistant_brief_save(current_date, 'story', 'Month one.', 'test-model', null))->>'ok' = 'true', 'the monthly story is a brief kind');
+create temp table act2 as select x->>'id' as id from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now' limit 1;
+select pg_temp.assert((public.activity_tick(:lana, (select id from act2), true, null))->>'ok' = 'true', 'Dana ticks an idea');
+select pg_temp.assert((public.activity_done_list(:lana, current_date - 30, current_date))->>'ok' = 'true', 'and lists what was tried');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.activity_done_list(:lana, current_date - 30, current_date))->'items')) >= 1, 'including that one');
+select pg_temp.assert((public.activity_tick(:lana, (select id from act2), false, null))->>'ok' = 'true', 'then unticks it');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.activity_done_list(:lana, current_date - 30, current_date))->>'error' = 'not_allowed', 'Lilly cannot list what was tried');
+select pg_temp.assert((select count(*) from public.activities where is_active) >= 140, 'the play library has grown');
+reset role;
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

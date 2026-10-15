@@ -20,6 +20,9 @@ import { WeekCard } from "@/components/WeekCard";
 import { PhaseCard } from "@/components/PhaseCard";
 import { Activities } from "@/components/Activities";
 import { EntryChecks } from "@/components/EntryChecks";
+import { NextNap } from "@/components/NextNap";
+import { MoodTap } from "@/components/MoodTap";
+import { MoodPattern } from "@/components/MoodPattern";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 
@@ -52,6 +55,8 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
     { href: "/lana/milestones", icon: "star", label: "Firsts" },
     { href: "/lana/activities", icon: "sparkles", label: "Play" },
     { href: "/lana/trends", icon: "trend", label: "Growth" },
+    { href: "/lana/weeks", icon: "calendar", label: "Weeks" },
+    { href: "/lana/story", icon: "note", label: "Story" },
     { href: "/lana/emergency", icon: "bell", label: "Emergency" },
     { href: "/lana/when-to-call", icon: "clipboard", label: "When to call" },
     { href: "/lana/export", icon: "printer", label: "For the doctor" },
@@ -162,6 +167,8 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
         </p>
       </div>
       {isToday && can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />}
+      {isToday && summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} />}
+      {isToday && <MoodTap subjectId={summary.subject.id} today={entries} timezone={tz} />}
       {isToday && <PlanCard plan={plan} />}
       {isToday && can(me, "assistant", "view") && <WeekCard name={summary.subject.name} />}
       {isToday && <Activities subjectId={summary.subject.id} items={acts} compact />}
@@ -230,6 +237,7 @@ async function PatternsTab({ supabase, summary, today, tz }: { supabase: SB; sum
       )}
       {summary.subject.birth_date && <PhaseCard ageDays={ageDays(summary.subject.birth_date, today)} name={summary.subject.name} />}
       <SleepCoach entries={entries} ageDays={summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : 120} timezone={tz} />
+      <MoodPattern entries={entries} days={days} stats={stats?.ok ? stats.days : []} timezone={tz} />
       <Link href="/lana/trends" className="btn">
         <Icon name="trend" size={18} /> Trends and growth
       </Link>
