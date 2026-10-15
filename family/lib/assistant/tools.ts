@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssistantProposal, AssistantRef, AssistantSkill, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
 import { selectSkills, skillText, type Selection } from "./skills";
+import { selectMemories, type ChatRecap, type MemoryFact } from "./memory";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
 import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/lana-insights";
@@ -33,8 +34,12 @@ export interface ToolContext {
   types: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
   routines: { name: string; routine: string }[];
-  /** What the family told the assistant to remember. */
+  /** What the family told the assistant to remember, the ones that matter for this question. */
   memories: string[];
+  /** All confirmed facts with ids (for forget_memory). */
+  facts: MemoryFact[];
+  /** This member's recent chats, one line each. */
+  recaps: ChatRecap[];
   /** Every id the tools returned, so the answer's citations become links. */
   refs: Record<string, AssistantRef>;
   /** Writes the assistant asked for. The member confirms them in the UI. */
@@ -706,6 +711,24 @@ function proposePlan(ctx0: ToolContext): AssistantTool {
   };
 }
 
+function forgetMemory(): AssistantTool {
+  return {
+    def: {
+      name: "forget_memory",
+      description: "Prepare to drop a remembered fact that the member says is wrong or out of date. The member confirms with a tap. Use the id from the list of remembered things.",
+      input_schema: obj({ id: { type: "string", description: "The memory id (the 8 characters in brackets are enough)." } }, ["id"]),
+    },
+    run: async (input, ctx) => {
+      const key = String(input.id ?? "").trim().toLowerCase();
+      const f = ctx.facts.find((x) => x.id === key || x.id.startsWith(key));
+      if (!key || !f) return { error: "unknown_memory", known: ctx.facts.map((x) => `${x.id.slice(0, 8)}: ${x.body}`) };
+      const p: AssistantProposal = { id: newId(), kind: "forget", summary: `Forget: ${f.body}`, forget: { id: f.id, body: f.body } };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT forgotten yet." };
+    },
+  };
+}
+
 function remember(): AssistantTool {
   return {
     def: {
@@ -744,7 +767,10 @@ function loadSkill(): AssistantTool {
 export function buildTools(ctx: ToolContext): AssistantTool[] {
   const me = ctx.me;
   const list: AssistantTool[] = [whoIsHome()];
-  if (can(me, "assistant", "view")) list.push(remember());
+  if (can(me, "assistant", "view")) {
+    list.push(remember());
+    if (ctx.facts.length) list.push(forgetMemory());
+  }
   if (ctx.skills.some((s) => s.is_active && !s.always_on) && ctx.subjects.some((s) => s.kind === "child")) list.push(loadSkill());
   if (can(me, "calendar", "view")) list.push(calendar(ctx));
   const careSubjects = ctx.subjects.filter((s) => can(me, s.module_id, "view"));
@@ -767,14 +793,17 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
 
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null } = {}): Promise<ToolContext> {
-  const [{ data: subjects }, { data: types }, { data: members }, { data: memData }, { data: skillData }] = await Promise.all([
+  const [{ data: subjects }, { data: types }, { data: members }, { data: memData }, { data: skillData }, { data: recapData }] = await Promise.all([
     supabase.from("care_subjects").select("id,name,module_id,kind,birth_date").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
     supabase.from("members").select("display_name,routine").eq("is_active", true).not("routine", "is", null).order("display_name"),
     supabase.rpc("memory_list"),
     supabase.rpc("skill_list", { p_all: false }),
+    supabase.rpc("ask_chat_recaps", { p_limit: 6 }),
   ]);
-  const memories = (((memData as { ok?: boolean; items?: { body: string }[] } | null)?.items ?? []) as { body: string }[]).map((m) => m.body);
+  const facts = (((memData as { ok?: boolean; items?: MemoryFact[] } | null)?.items ?? []) as MemoryFact[]).map((m) => ({ id: m.id, body: m.body, created_at: m.created_at, by: m.by }));
+  const memories = selectMemories(opts.question ?? "", opts.history ?? [], facts).map((m) => `[${m.id.slice(0, 8)}] ${m.body}`);
+  const recaps = ((recapData as { ok?: boolean; items?: ChatRecap[] } | null)?.items ?? []) as ChatRecap[];
   const skills = (((skillData as { ok?: boolean; items?: AssistantSkill[] } | null)?.items ?? []) as AssistantSkill[]).map((s) => ({ ...s, triggers: Array.isArray(s.triggers) ? s.triggers : [] }));
   const subs = (subjects as SubjectInfo[]) ?? [];
   const child = subs.find((s) => s.kind === "child" && s.birth_date);
@@ -783,6 +812,8 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
   return {
     skills,
     selection,
+    facts,
+    recaps,
     loaded: [],
     screen: opts.screen ?? null,
     situation: "",

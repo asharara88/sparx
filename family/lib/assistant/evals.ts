@@ -21,7 +21,7 @@ export interface EvalExpect {
   /** Case-insensitive regex sources; none may match the answer. */
   avoid?: string[];
   /** A proposal of this kind must be made ("none": no proposal at all). */
-  propose?: "care_entry" | "calendar_event" | "shopping" | "plan" | "memory" | "none";
+  propose?: "care_entry" | "calendar_event" | "shopping" | "plan" | "memory" | "forget" | "none";
   /** Answer must be under this many words. */
   max_words?: number;
   /** The answer must be (mostly) in this script. */
@@ -63,6 +63,7 @@ export const CASES: EvalCase[] = [
   { id: "log_bottle", member: "Dana", question: "Log a 120 ml bottle of pumped milk now", expect: { propose: "care_entry", mention: ["(confirm|tap)"] } },
   { id: "log_breast_missing_side", member: "Dana", question: "Log a breastfeed", expect: { propose: "none", mention: ["(left|right|which)"] , max_words: 40 } },
   { id: "remember", member: "Dana", question: "Remember that white noise helps her settle", expect: { propose: "memory" } },
+  { id: "forget", member: "Dana", question: "Forget what I said about white noise, it does not help any more", expect: { propose: "forget", avoid: ["\\bforgotten\\b.*\\bdone\\b"] } },
   { id: "sitter_no_write", member: "Lilly", question: "Add nappies to the shopping list", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"] } },
 
   // Language and person.

@@ -9,6 +9,7 @@ import { newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, type Lang } from "@/lib/i18n";
+import { recapOf } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
 
 /**
@@ -133,7 +134,9 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     saveRef.current = setTimeout(async () => {
       const title = (msgs.find((m) => m.role === "user")?.text ?? "Chat").slice(0, 80);
       const payload = msgs.map((m) => (m.proposals?.length ? { ...m, states: Object.fromEntries(m.proposals.map((p) => [p.id, pstate[p.id] ?? { status: "pending" }])) } : m));
-      const { data } = await supabaseBrowser().rpc("ask_chat_save", { p_id: chatId, p_title: title, p_messages: payload });
+      const firstQ = msgs.find((m) => m.role === "user")?.text ?? "";
+      const lastA = [...msgs].reverse().find((m) => m.role === "assistant" && !m.error)?.text ?? "";
+      const { data } = await supabaseBrowser().rpc("ask_chat_save", { p_id: chatId, p_title: title, p_messages: payload, p_summary: firstQ && lastA ? recapOf(firstQ, lastA) : null });
       const res = data as { ok: boolean; id?: string } | null;
       if (res?.ok && res.id && res.id !== chatId) setChatId(res.id);
     }, 800);
@@ -328,6 +331,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not start the plan.");
         setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/", note: "Plan started. Today's step is on Home." } }));
+      } else if (p.kind === "forget" && p.forget) {
+        const { data, error } = await supabase.rpc("memory_remove", { p_id: p.forget.id });
+        const res = data as { ok: boolean; message?: string } | null;
+        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not forget it.");
+        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/ask/memory", note: "Forgotten." } }));
       } else if (p.kind === "memory" && p.memory) {
         const { data, error } = await supabase.rpc("memory_add", { p_body: p.memory.body });
         const res = data as { ok: boolean; message?: string } | null;

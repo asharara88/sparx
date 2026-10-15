@@ -4,6 +4,7 @@ import { local } from "./tools";
 import { can } from "@/lib/types";
 import { fmtDate } from "@/lib/time";
 import { coreBlock, routedBlock, skillIndex } from "./skills";
+import { recapsBlock } from "./memory";
 
 /**
  * The system prompt has three blocks, longest-lived first so the cache works:
@@ -83,7 +84,7 @@ Members use their first names: Mido and Dana (the parents, admins), Wafa and Lud
   }${hh.notes ? `\n\nHousehold notes: ${hh.notes}` : ""}${
     hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day.` : ""
   }${
-    ctx.memories.length ? `\n\nThings the family asked you to remember (follow them; they are not log data, so do not cite them):\n${ctx.memories.map((m) => `- ${m}`).join("\n")}` : ""
+    ctx.memories.length ? `\n\nThings the family asked you to remember (follow them; they are not log data, so do not cite them; the id in brackets is for forget_memory):\n${ctx.memories.map((m) => `- ${m}`).join("\n")}` : ""
   }${hasChild && ctx.selection.core.length ? `\n\n${coreBlock(ctx.selection.core)}` : ""}${hasChild ? `\n\n${skillIndex(ctx.skills)}` : ""}`;
 }
 
@@ -105,7 +106,8 @@ export function volatileSystem(ctx: ToolContext): string {
     .join(" ");
   const who = `${me.member.display_name} (${me.role.label}${me.member.relationship ? `, ${me.member.relationship}` : ""}${me.member.simple_mode ? ", uses the simple screen" : ""})`;
   const screen = ctx.screen && SCREEN_LABELS[ctx.screen] ? ` They opened you from ${SCREEN_LABELS[ctx.screen]}.` : "";
-  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). ${ages} You are talking to ${who}.${lang}${screen}${ctx.situation ? `\n\nSITUATION (from the log, as of now; not citable):\n${ctx.situation}` : ""}`;
+  const recaps = recapsBlock(ctx.recaps, (iso) => fmtDate(iso, ctx.tz, { day: "numeric", month: "short" }));
+  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). ${ages} You are talking to ${who}.${lang}${screen}${ctx.situation ? `\n\nSITUATION (from the log, as of now; not citable):\n${ctx.situation}` : ""}${recaps ? `\n\n${recaps}` : ""}`;
 }
 
 export function systemBlocks(ctx: ToolContext): Anthropic.Beta.BetaTextBlockParam[] {
