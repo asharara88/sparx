@@ -22,6 +22,7 @@ import { Activities } from "@/components/Activities";
 import { EntryChecks } from "@/components/EntryChecks";
 import { NextNap } from "@/components/NextNap";
 import { MoodTap } from "@/components/MoodTap";
+import { Backfill } from "@/components/Backfill";
 import { MoodPattern } from "@/components/MoodPattern";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
@@ -177,6 +178,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
       {dayStats && (
         <AgeCheck totals={dayStats} birthDate={summary.subject.birth_date} day={day} complete={day < today} title={day === today ? "Today against her age" : "Against her age"} subtitle={day === today ? "Counts so far. Nothing is flagged until the day is over." : undefined} />
       )}
+      <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} entries={isToday ? week : []} feedIntervalMin={feedInterval} />
       <ul className="flex flex-col gap-2">
         {entries.map((e) => (
           <li key={e.id}>

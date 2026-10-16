@@ -420,7 +420,7 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "propose_care_entry",
-      description: `Prepare a log entry for the member to confirm with one tap. Call this when asked to log, record or note something for ${writable.map((s) => s.name).join(" or ")}. Fill every required field from what was said; if a required field is missing or ambiguous, ask instead of calling. Times default to now. Types and their fields:\n${typeHelp}`,
+      description: `Prepare a log entry for the member to confirm with one tap. Call this when asked to log, record or note something for ${writable.map((s) => s.name).join(" or ")}. Fill every required field from what was said; if a required field is missing or ambiguous, ask instead of calling. Times default to now; when the member says "at 3", "an hour ago" or "this morning", set occurred_at (and ended_at for a finished sleep or feed) from that, never now. Types and their fields:\n${typeHelp}`,
       input_schema: obj(
         {
           subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}.` },
