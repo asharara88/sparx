@@ -29,6 +29,7 @@ import { LanaForecast } from "@/components/LanaForecast";
 import { SayIt } from "@/components/SayIt";
 import { EntryChecks } from "@/components/EntryChecks";
 import { NextNap } from "@/components/NextNap";
+import { Backfill } from "@/components/Backfill";
 import { ageDays } from "@/lib/norms";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
@@ -199,6 +200,7 @@ export default async function HomePage() {
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
           {summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
           {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
+          <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} entries={week} feedIntervalMin={feedGapMin} />
           <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />
           <PlanCard plan={plan} />
           <LanaForecast entries={week} timezone={tz} away={awayAt} feedIntervalMin={summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180} hours={6} limit={3} compact />

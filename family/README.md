@@ -47,6 +47,13 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   and a paragraph from the helper, written and pushed on her monthly birthday, printable.
   Growth charts on the WHO girls' curves (3rd to 97th percentile band, 2006 standards) for
   weight, length and head, with the approximate percentile of the latest measurement.
+- Logging after the fact: every one-tap button on Home and the sleep shortcut has a "When"
+  line (now, 15 min to 3 h ago, or a time), so a late tap is still logged at the right
+  moment, including "woke up 20 min ago". A "Forgot to log something?" card on Home and on
+  each day in the Lana tab writes a finished feed, nappy, nap or pump into the past in a few
+  taps (what, started, lasted, the one detail), and nudges when nothing has been fed for
+  well past her usual gap. Past days default to that day. The helper's "say it to log"
+  takes "at 3" and "an hour ago" too.
 - Entry checks: the log flags its own mis-entries (a sleep or feed timer left running, a
   timer that ran across later entries, a one-second tap, two nappies in the same minute, a
   bottle over 240 ml) and offers the fix the data supports: end it at the next entry, trim to

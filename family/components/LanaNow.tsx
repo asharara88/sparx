@@ -9,6 +9,9 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId } from "@/lib/offline";
 import { Boobs } from "./Boobs";
 import { Icon } from "@/components/Icon";
+import { WhenChips } from "@/components/WhenChips";
+import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
+import { fromLocalInput } from "@/lib/time";
 
 /**
  * Lana's screen follows her state: asleep, awake, feeding, awake at night.
@@ -40,6 +43,8 @@ export function LanaNow({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
+  // "When": now by default; "20 min ago" when the tap comes late. Every tap below honours it.
+  const [when, setWhen] = useState<When>(NOW);
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
@@ -57,7 +62,8 @@ export function LanaNow({
   const bottleQuick = (feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[];
   const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
   const now = new Date();
-  const nowIso = now.toISOString();
+  const whenIso = whenToIso(when, now.getTime(), (l) => fromLocalInput(l, timezone));
+  const nowIso = whenIso;
 
   // ---- what is Lana doing right now?
   const openSleep = ongoing.find((e) => e.type_id === sleepType?.id);
@@ -107,14 +113,16 @@ export function LanaNow({
     });
   }
   async function end(entry: OngoingEntry) {
-    return rpc("care_entry_end", { p_id: entry.id, p_ended_at: new Date().toISOString() });
+    const at = Date.parse(whenIso) > Date.parse(entry.occurred_at) ? whenIso : new Date().toISOString();
+    return rpc("care_entry_end", { p_id: entry.id, p_ended_at: at });
   }
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(true);
     setMsg(null);
     try {
       await fn();
-      setMsg(label);
+      setMsg(isEarlier(when) ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label);
+      setWhen(NOW);
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Could not save.");
@@ -123,7 +131,8 @@ export function LanaNow({
     }
   }
 
-  const sinceText = (iso: string) => `${fmtTime(iso, timezone)} · ${fmtDuration(Math.max(0, minutesBetween(iso, nowIso)))}`;
+  const realNowIso = now.toISOString();
+  const sinceText = (iso: string) => `${fmtTime(iso, timezone)} · ${fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)))}`;
 
   // ---- status line
   let status: React.ReactNode;
@@ -168,7 +177,7 @@ export function LanaNow({
       <div className={`notice ${tone}`}>
         <p className="text-xl font-bold">{status}</p>
         {state.kind === "feeding" && !breastfeeds && (
-          <p className="mt-1 text-4xl font-bold tabular-nums">{fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, nowIso)))}</p>
+          <p className="mt-1 text-4xl font-bold tabular-nums">{fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, realNowIso)))}</p>
         )}
       </div>
 
@@ -177,6 +186,7 @@ export function LanaNow({
           {msg}
         </p>
       )}
+      {canAdd && <WhenChips value={when} onChange={setWhen} timezone={timezone} disabled={busy} />}
 
       {/* ---- feeding: switch side or finish */}
       {state.kind === "feeding" && (
@@ -184,7 +194,7 @@ export function LanaNow({
           {breastfeeds && (
             <Boobs
               active={state.side === "Left" || state.side === "Right" ? state.side : null}
-              elapsed={fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, nowIso)))}
+              elapsed={fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, realNowIso)))}
               suggested={null}
               counts={sideCounts}
               disabled={busy || !canAdd}
@@ -198,7 +208,7 @@ export function LanaNow({
               }
             />
           )}
-          {breastfeeds && minutesBetween(state.entry.occurred_at, nowIso) >= 30 && (
+          {breastfeeds && minutesBetween(state.entry.occurred_at, realNowIso) >= 30 && (
             <p className="notice notice-warn text-center font-semibold" role="status">
               Still feeding? Over 30 min on one side. The timer may have been left on: tap the boob to stop it.
             </p>
