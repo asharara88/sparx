@@ -213,6 +213,12 @@ project → Integrations → GitHub and set:
 - *Production branch*: `main`. Migrations in `family/supabase/migrations` are applied when a
   change lands on `main`, so merge PR #10 (or whatever branch carries them). With Branching on,
   each PR also gets a preview database.
+- If the "Supabase Preview" check on a `main` commit says *Remote migration versions not found
+  in local migrations directory*, the directory path is still the default: the integration is
+  reading the root `supabase/` folder (one old file) and cannot match the versions the live
+  database records (`20261010000100` onwards). Set the path to `family/supabase` and the next
+  push to `main` applies whatever is missing. Migrations applied by hand are recorded in
+  `supabase_migrations.schema_migrations` with the file's version and name so both routes agree.
 
 **B. From your machine.**
 
