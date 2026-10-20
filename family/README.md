@@ -322,7 +322,7 @@ scripts/               seed-accounts.mjs, make-icons.mjs
 - Paediatrician card (`/lana/doctor`): doctor, hospital, call, book, directions, questions for the next visit, upcoming vaccines and appointments, past visits.
 - Screenshot mode: build a local database with `supabase/tests/run-local.sh`, load `supabase/tests/demo_data.sql`, then run the app with `FAMILY_LOCAL_DB=<database>`. Pages read that database through psql as the member named by a `shot_as` cookie (defaults to Mido). Never set in production.
 - Every environment variable, what it powers and where to get it: `VERCEL_ENV.md`.
-- Lana first: Home is her place (state, one-tap log, next feed, pumping, the handover, her guide), the Lana tab has Today, Patterns, Week, Handover and Ask, plus Emergency and When to call. The rest of the house sits below a divider; Shopping and Fanta live under More.
+- Lana first: Home is her place (state, one-tap log, next feed, pumping, the handover, her guide), the Lana tab has Today, Patterns, Week, Handover and Ask, plus Emergency and When to call. The rest of the house sits below a divider. Shopping and Fanta are switched off for the household (`household.hidden_modules`); their data and permissions stay, and taking a module out of that list brings it back.
 - A bottle feed takes its milk out of the fridge stash (oldest first); a pump logged from Home goes into the fridge; while Mama is away the fridge plan says how many bottles are coming and whether to thaw a bag.
 - Push notifications are not in yet (they need web-push keys and a scheduler; see LATER.md).
   Fanta's log, maintenance, receipts, the assistant: later steps, per PLAN.md.

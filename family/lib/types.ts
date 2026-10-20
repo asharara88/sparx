@@ -66,6 +66,8 @@ export interface Household {
   milk_target_ml?: number;
   /** Minutes between bottles while Mama is at work. */
   bottle_interval_min?: number;
+  /** Modules switched off for everyone; permissions and data stay, the app just does not show them. */
+  hidden_modules?: string[];
 }
 
 export interface Me {
@@ -228,7 +230,8 @@ export interface AuditRow {
 }
 
 export function can(me: Me | null, module: string, action: Action): boolean {
-  return !!me?.permissions?.[module]?.[action];
+  if (!me?.permissions?.[module]?.[action]) return false;
+  return !(me.household?.hidden_modules ?? []).includes(module);
 }
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
