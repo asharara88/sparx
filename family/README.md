@@ -208,17 +208,16 @@ schema in; use one.
 **A. GitHub integration (connected to this repo).** In the Supabase dashboard open the
 project → Integrations → GitHub and set:
 
-- *Supabase directory path*: `family/supabase` — **not** the default `supabase`, which holds the
-  old sparx pipeline schema and would create the wrong tables.
+- *Supabase directory path*: `family/supabase`, or the default `supabase`: the repo-root
+  `supabase` entry is a link to `family/supabase`, so both resolve to the family migrations.
+  (The old sparx pipeline schema now lives in `docs/pipeline-schema/`.)
 - *Production branch*: `main`. Migrations in `family/supabase/migrations` are applied when a
   change lands on `main`, so merge PR #10 (or whatever branch carries them). With Branching on,
   each PR also gets a preview database.
 - If the "Supabase Preview" check on a `main` commit says *Remote migration versions not found
-  in local migrations directory*, the directory path is still the default: the integration is
-  reading the root `supabase/` folder (one old file) and cannot match the versions the live
-  database records (`20261010000100` onwards). Set the path to `family/supabase` and the next
-  push to `main` applies whatever is missing. Migrations applied by hand are recorded in
-  `supabase_migrations.schema_migrations` with the file's version and name so both routes agree.
+  in local migrations directory*, the directory the integration reads does not hold the family
+  migrations. Migrations applied by hand are recorded in `supabase_migrations.schema_migrations`
+  with the file's version and name (`20261010000100` onwards) so both routes agree.
 
 **B. From your machine.**
 
