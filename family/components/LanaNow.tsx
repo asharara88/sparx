@@ -143,7 +143,7 @@ export function LanaNow({
         <Icon name="zzz" size={18} className="inline" /> Asleep since {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "notice-accent";
+    tone = "notice-night";
   } else if (state.kind === "feeding") {
     status = (
       <>

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LoginForm } from "./LoginForm";
 import { NotConfigured } from "@/components/NotConfigured";
 import { HashSession } from "@/components/HashSession";
+import { Mark } from "@/components/Brand";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto max-w-md p-6 pt-16">
       <HashSession />
-      <div className="mb-8 flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="" width={56} height={56} className="rounded-2xl" />
-        <h1 className="page-title">Our home</h1>
+      <div className="mb-8 flex flex-col items-start gap-3">
+        <Mark size={64} />
+        <div>
+          <h1 className="wordmark text-4xl">bambino</h1>
+          <p className="muted mt-1">The little one&apos;s day, in everyone&apos;s hands.</p>
+        </div>
       </div>
       <div className="card">
         {error && (

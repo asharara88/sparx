@@ -1,3 +1,4 @@
+import { Wordmark } from "@/components/Brand";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Me, Presence, PresenceState } from "@/lib/types";
@@ -70,6 +71,10 @@ export default async function MePage() {
         </Link>
         <SignOutButton />
       </div>
+      <p className="muted flex items-center justify-between pt-2 text-xs">
+        <Wordmark size={18} />
+        <span>Private. Yours.</span>
+      </p>
     </div>
   );
 }

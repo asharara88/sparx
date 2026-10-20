@@ -3,15 +3,23 @@ import "./globals.css";
 import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
-  title: "Our home",
-  description: "Private family app: Lana's log, who is home, and the household list.",
+  title: "Bambino",
+  description: "Bambino: the little one's day, in everyone's hands. Lana's log, the helper, who is home, and the house.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Our home" },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
+  applicationName: "Bambino",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Bambino" },
+  icons: {
+    icon: [
+      { url: "/brand/mark.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f4f4f7" }, { media: "(prefers-color-scheme: dark)", color: "#0f1013" }],
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#fbf6f0" }, { media: "(prefers-color-scheme: dark)", color: "#1c1714" }],
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

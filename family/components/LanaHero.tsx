@@ -3,6 +3,7 @@ import { ageDays, ageLabel } from "@/lib/norms";
 import { Avatar } from "./Avatar";
 import { CustodyToggle } from "./CustodyToggle";
 import { ProfileMenu } from "./ProfileMenu";
+import { Mark } from "./Brand";
 
 /** Lana at the top of Home: her photo, her age, who has her, and your own menu. */
 export function LanaHero({ summary, me, today, dateLine }: { summary: HomeSummary; me: Me; today: string; dateLine: string }) {
@@ -14,7 +15,9 @@ export function LanaHero({ summary, me, today, dateLine }: { summary: HomeSummar
       <div className="flex items-center gap-3">
         <Avatar name={s.name} path={photo} size={64} />
         <div className="min-w-0 flex-1">
-          <p className="muted text-sm">{dateLine}</p>
+          <p className="muted flex items-center gap-1.5 text-sm">
+            <Mark size={16} title="Bambino" /> {dateLine}
+          </p>
           <h1 className="page-title">{s.name}</h1>
           {age && <p className="muted">{age}</p>}
         </div>
