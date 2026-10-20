@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "elnunu · النونو",
-    short_name: "elnunu · النونو",
-    description: "The little one's day, in everyone's hands.",
+    name: "elnunu",
+    short_name: "elnunu",
+    description: "Care, together. A shared view of your baby's day.",
     start_url: "/",
     display: "standalone",
-    background_color: "#fbf6f0",
-    theme_color: "#cf5a32",
+    background_color: "#fff9f0",
+    theme_color: "#4b203f",
     shortcuts: [
       { name: "Sleep timer", short_name: "Sleep", url: "/lana/quick/sleep", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Log a feed", short_name: "Feed", url: "/lana/log/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
