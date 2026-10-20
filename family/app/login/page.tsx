@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LoginForm } from "./LoginForm";
 import { NotConfigured } from "@/components/NotConfigured";
 import { HashSession } from "@/components/HashSession";
-import { Mark } from "@/components/Brand";
+import { Mark, Name } from "@/components/Brand";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +21,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <div className="mb-8 flex flex-col items-start gap-3">
         <Mark size={64} />
         <div>
-          <h1 className="wordmark text-4xl">bambino</h1>
-          <p className="muted mt-1">The little one&apos;s day, in everyone&apos;s hands.</p>
+          <h1>
+            <Name className="text-6xl" />
+          </h1>
+          <p className="tagline mt-1 text-2xl">Care, together.</p>
+          <p className="muted mt-1">A shared view of your baby&apos;s day.</p>
         </div>
       </div>
       <div className="card">

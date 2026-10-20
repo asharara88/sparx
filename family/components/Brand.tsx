@@ -1,32 +1,52 @@
 /**
- * Bambino: the mark (a rounded b with a moon in its bowl, on warm clay) and
- * the wordmark. The mark is inline SVG so it inherits size and never loads.
+ * elnunu (النونو): the mark is the Arabic letter noon drawn as an ivory cradle
+ * with the little one above it in apricot, on plum. The wordmark is "nunu",
+ * big and plum; "el" (or "ال") is small and apricot in front of it.
+ * The mark is inline SVG so it inherits size and never loads.
  */
-export function Mark({ size = 32, className = "", title = "Bambino" }: { size?: number; className?: string; title?: string }) {
+export function Mark({ size = 32, className = "", title = "elnunu" }: { size?: number; className?: string; title?: string }) {
   return (
     <svg viewBox="0 0 512 512" width={size} height={size} className={className} role="img" aria-label={title}>
       <defs>
-        <linearGradient id="bambino-clay" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#F0885B" />
-          <stop offset="1" stopColor="#D45F3A" />
+        <linearGradient id="elnunu-plum" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#5C2A4E" />
+          <stop offset="1" stopColor="#43193A" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="128" fill="url(#bambino-clay)" />
-      <path d="M176 112 v232" fill="none" stroke="#FFF7F1" strokeWidth="64" strokeLinecap="round" />
-      <circle cx="276" cy="326" r="90" fill="none" stroke="#FFF7F1" strokeWidth="64" />
-      <path d="M296 282 a44 44 0 1 0 0 88 a36 36 0 1 1 0 -88 z" fill="#FFF7F1" />
+      <rect width="512" height="512" rx="128" fill="url(#elnunu-plum)" />
+      <path d="M120 236 a136 136 0 0 0 272 0" fill="none" stroke="#FFF9F0" strokeWidth="60" strokeLinecap="round" />
+      <circle cx="256" cy="154" r="42" fill="#F29B78" />
     </svg>
   );
 }
 
-/** Mark plus the name. `size` is the mark; the name scales with it. */
-export function Wordmark({ size = 28, className = "" }: { size?: number; className?: string }) {
+/** The Latin name: small apricot "el", big plum "nunu". */
+export function Name({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <span className={`wordmark ${className}`} style={style} lang="en">
+      <span className="wordmark-el">el</span>
+      <span className="wordmark-nunu">nunu</span>
+    </span>
+  );
+}
+
+/** The Arabic name, same scheme: small apricot "ال", big plum "نونو". One run, so the letters stay joined. */
+export function NameArabic({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <span className={`wordmark-ar ${className}`} style={style} lang="ar" dir="rtl">
+      <span className="wordmark-el">ال</span>
+      <span className="wordmark-nunu">نونو</span>
+    </span>
+  );
+}
+
+/** Mark plus the Latin name. `size` is the mark; the name scales with it. */
+export function Wordmark({ size = 28, className = "", arabic = false }: { size?: number; className?: string; arabic?: boolean }) {
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <Mark size={size} />
-      <span className="wordmark" style={{ fontSize: size * 0.85 }}>
-        bambino
-      </span>
+      <Name style={{ fontSize: size * 0.9 }} />
+      {arabic && <NameArabic style={{ fontSize: size * 0.8 }} />}
     </span>
   );
 }

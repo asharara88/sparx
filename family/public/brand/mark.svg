@@ -1,15 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Bambino">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="elnunu">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#F0885B"/>
-      <stop offset="1" stop-color="#D45F3A"/>
+      <stop offset="0" stop-color="#5C2A4E"/>
+      <stop offset="1" stop-color="#43193A"/>
     </linearGradient>
   </defs>
-  <!-- warm clay tile; the squircle keeps every platform's mask happy -->
+  <!-- plum tile; the squircle keeps every platform's mask happy -->
   <rect width="512" height="512" rx="128" fill="url(#g)"/>
-  <!-- the b: a stem and a bowl, drawn as a single rounded stroke -->
-  <path d="M176 112 v232" fill="none" stroke="#FFF7F1" stroke-width="64" stroke-linecap="round"/>
-  <circle cx="276" cy="326" r="90" fill="none" stroke="#FFF7F1" stroke-width="64"/>
-  <!-- the little moon in the bowl: night and day, both looked after -->
-  <path d="M296 282 a44 44 0 1 0 0 88 a36 36 0 1 1 0 -88 z" fill="#FFF7F1"/>
+  <!-- the noon: an ivory cradle ... -->
+  <path d="M120 236 a136 136 0 0 0 272 0" fill="none" stroke="#FFF9F0" stroke-width="60" stroke-linecap="round"/>
+  <!-- ... and the little one above it, in apricot -->
+  <circle cx="256" cy="154" r="42" fill="#F29B78"/>
 </svg>

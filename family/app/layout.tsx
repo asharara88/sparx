@@ -3,11 +3,11 @@ import "./globals.css";
 import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
-  title: "Bambino",
-  description: "Bambino: the little one's day, in everyone's hands. Lana's log, the helper, who is home, and the house.",
+  title: "elnunu",
+  description: "elnunu: care, together. A shared view of your baby's day: Lana's log, the helper, who is home, and the house.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Bambino",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Bambino" },
+  applicationName: "elnunu",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "elnunu" },
   icons: {
     icon: [
       { url: "/brand/mark.svg", type: "image/svg+xml" },
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#fbf6f0" }, { media: "(prefers-color-scheme: dark)", color: "#1c1714" }],
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#fff9f0" }, { media: "(prefers-color-scheme: dark)", color: "#2a1526" }],
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

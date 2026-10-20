@@ -5,69 +5,76 @@
    Ask screen's own very dark mode. Everything else reads these variables.
    ========================================================================== */
 :root {
-  /* Bambino: warm cream ground, clay accent, plum for night. Every colour is a token. */
-  --bg: #fbf6f0;
-  --fg: #2a211c;
-  --muted: #7b6e66;
+  /* elnunu: ivory ground, plum does the work, apricot is decoration, sage is calm. Every colour is a token. */
+  --bg: #fff9f0;
+  --fg: #4b203f;
+  --muted: #8a6a7e;
   --card: #ffffff;
-  --card-2: #f5ede5;
-  --line: #eadfd5;
-  --accent: #cf5a32;
-  --accent-soft: #fbe6dc;
-  --accent-fg: #ffffff;
-  --night: #6b5b95;
-  --night-soft: #ece8f5;
-  --ok: #2e7d4f;
-  --ok-soft: #e2f2e7;
+  --card-2: #f8f0e8;
+  --line: #eee2d8;
+  --accent: #4b203f;
+  --accent-soft: #f3e4ec;
+  --accent-fg: #fff9f0;
+  --apricot: #f29b78;
+  --apricot-soft: #fde8dc;
+  --night: #6f7f60;
+  --night-soft: #e8ede1;
+  --ok: #5d7a4c;
+  --ok-soft: #e8ede1;
   --warn: #9a5b00;
   --warn-soft: #fff0d6;
-  --danger: #c62b2b;
-  --danger-soft: #fce4e4;
-  --info-soft: #ece8f5;
-  --shadow: 0 1px 2px rgba(60, 35, 20, 0.05), 0 4px 16px rgba(60, 35, 20, 0.07);
+  --danger: #b8322f;
+  --danger-soft: #fbe3e1;
+  --info-soft: #f3e4ec;
+  --shadow: 0 1px 2px rgba(75, 32, 63, 0.05), 0 4px 16px rgba(75, 32, 63, 0.07);
   --radius: 18px;
   --radius-sm: 12px;
   --tabbar-h: 64px;
   --font-display: "Fredoka", ui-rounded, "SF Pro Rounded", "Nunito", -apple-system, system-ui, sans-serif;
+  --font-display-ar: "Baloo Bhaijaan 2", "SF Arabic Rounded", "SF Arabic", "Noto Naskh Arabic", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="night"]) {
-    --bg: #1c1714;
-    --fg: #f4ede7;
-    --muted: #a99c93;
-    --card: #27201b;
-    --card-2: #302820;
-    --line: #3b322b;
-    --accent: #f08c66;
-    --accent-soft: #3d271d;
-    --accent-fg: #1c1714;
-    --night: #b1a3dc;
-    --night-soft: #2c2740;
-    --ok: #6ccf8e;
-    --ok-soft: #173223;
+    --bg: #2a1526;
+    --fg: #fff4ea;
+    --muted: #c3a7b8;
+    --card: #371f32;
+    --card-2: #42283c;
+    --line: #513346;
+    --accent: #f29b78;
+    --accent-soft: #4f2d3a;
+    --accent-fg: #2a1526;
+    --apricot: #f29b78;
+    --apricot-soft: #4f2d3a;
+    --night: #b9c6a8;
+    --night-soft: #34392e;
+    --ok: #b9c6a8;
+    --ok-soft: #34392e;
     --warn: #f2b45c;
-    --warn-soft: #3a2b12;
-    --danger: #ff7b7b;
-    --danger-soft: #3b1a1a;
-    --info-soft: #2c2740;
+    --warn-soft: #3f2e16;
+    --danger: #ff8a85;
+    --danger-soft: #4a2127;
+    --info-soft: #4f2d3a;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
     color-scheme: dark;
   }
 }
 html[data-theme="night"] {
-  --bg: #0b0908;
-  --fg: #e9e2dc;
-  --muted: #8f857d;
-  --card: #15110f;
-  --card-2: #1c1714;
-  --line: #27211d;
-  --accent: #f2a07f;
-  --accent-soft: #2e1d16;
-  --accent-fg: #0b0908;
-  --night: #b1a3dc;
-  --night-soft: #221d33;
-  --ok: #6fd38a;
+  --bg: #120810;
+  --fg: #f1e6e0;
+  --muted: #9d8594;
+  --card: #1c0f19;
+  --card-2: #241522;
+  --line: #301c2c;
+  --accent: #f2a98c;
+  --accent-soft: #3a2030;
+  --accent-fg: #120810;
+  --apricot: #f2a98c;
+  --apricot-soft: #3a2030;
+  --night: #b9c6a8;
+  --night-soft: #262b22;
+  --ok: #b9c6a8;
   --shadow: none;
   color-scheme: dark;
 }
@@ -80,6 +87,14 @@ html[data-theme="night"] {
   font-style: normal;
   font-display: swap;
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Baloo Bhaijaan 2";
+  src: url("/fonts/baloo-bhaijaan2-arabic.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
 }
 html {
   font-size: 17px; /* iOS body size; large mode for the grandmothers */
@@ -103,7 +118,12 @@ body {
 h1, h2, h3 { letter-spacing: -0.02em; }
 /* Display face for titles only; body stays the system font for reading at 3 am. */
 .page-title, .wordmark { font-family: var(--font-display); letter-spacing: -0.01em; }
-.wordmark { font-weight: 600; line-height: 1; }
+.wordmark { font-weight: 700; line-height: 1; display: inline-flex; align-items: baseline; }
+.wordmark-ar { font-family: var(--font-display-ar); font-weight: 700; line-height: 1.2; letter-spacing: 0; display: inline-flex; align-items: baseline; }
+/* The name is "nunu": big and plum. "el" / "ال" is small and apricot, a decoration before it. */
+.wordmark .wordmark-el, .wordmark-ar .wordmark-el { font-weight: 500; color: var(--apricot); font-size: 0.52em; margin-inline-end: 0.04em; }
+.wordmark .wordmark-nunu, .wordmark-ar .wordmark-nunu { font-weight: 700; color: var(--fg); }
+.tagline { font-family: var(--font-display); font-weight: 500; letter-spacing: 0.02em; color: var(--fg); }
 .pill-night { background: var(--night-soft); color: var(--night); }
 .notice-night { background: var(--night-soft); color: var(--night); }
 .page-header { padding: 8px 0 4px; }

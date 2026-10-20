@@ -72,7 +72,7 @@ export default async function MePage() {
         <SignOutButton />
       </div>
       <p className="muted flex items-center justify-between pt-2 text-xs">
-        <Wordmark size={18} />
+        <Wordmark size={18} arabic />
         <span>Private. Yours.</span>
       </p>
     </div>

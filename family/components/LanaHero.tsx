@@ -16,7 +16,7 @@ export function LanaHero({ summary, me, today, dateLine }: { summary: HomeSummar
         <Avatar name={s.name} path={photo} size={64} />
         <div className="min-w-0 flex-1">
           <p className="muted flex items-center gap-1.5 text-sm">
-            <Mark size={16} title="Bambino" /> {dateLine}
+            <Mark size={16} title="elnunu" /> {dateLine}
           </p>
           <h1 className="page-title">{s.name}</h1>
           {age && <p className="muted">{age}</p>}
