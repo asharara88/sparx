@@ -17,7 +17,7 @@ export function NextNap({ entries, ageDays, timezone, now = Date.now(), compact 
   const inMin = Math.round((n.at! - now) / 60_000);
   const what = n.isBedtime ? "Bedtime" : "Next nap";
   const when = inMin >= 0 ? `in about ${inMin >= 60 ? `${Math.floor(inMin / 60)} h ${inMin % 60 ? `${inMin % 60} min` : ""}`.trim() : `${inMin} min`}` : `${-inMin} min past her window`;
-  const tone = inMin < 0 ? "notice-warn" : inMin <= 15 ? "notice-accent" : "";
+  const tone = inMin < 0 ? "notice-warn" : inMin <= 15 ? "notice-night" : "";
   if (compact) {
     return (
       <p className={`notice ${tone} text-sm`}>
