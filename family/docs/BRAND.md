@@ -7,46 +7,49 @@ capable pair of hands, never like a dashboard and never like a toy.
 
 ## Name
 
-**elnunu** in Latin letters, **النونو** in Arabic. Both lowercase in the wordmark, both
-with the weight on the name: *el* and *ال* are light and muted, *nunu* and *نونو* are
-bold. In prose: "elnunu" (never "Elnunu App", never an exclamation mark after it). The
-two scripts sit side by side where there is room (sign-in, the Me page); elsewhere the
-Latin name alone.
+**elnunu** in Latin letters, **النونو** in Arabic. The name is *nunu*: big, bold, plum.
+*el* (or *ال*) is small and apricot in front of it, about half the height, sitting on the
+same baseline. Never bold the *el*, never set it in plum, never separate the two with a
+space. In prose: "elnunu" (never "Elnunu App", never an exclamation mark after it). The
+Latin wordmark is the primary one; the Arabic appears where the family reads Arabic (the
+Me page footer, Arabic simple mode).
 
-**Line:** *The little one's day, in everyone's hands.* Used on the sign-in screen and the
-app store style description. Not repeated inside the app.
+**Line:** *Care, together.* Under the wordmark on the sign-in screen and the icon tile.
+**Second line:** *A shared view of your baby's day.* For descriptions and the store
+listing. Neither is repeated inside the app.
 
 ## Mark
 
-The Arabic letter **noon (ن)** drawn as a cradle with the little one above it, on a warm
-clay tile. It reads as the letter to anyone who reads Arabic, and as a cradle, a smile or a
-crescent with a dot to everyone else. The tile is a squircle (radius 25%) so every
-platform's icon mask leaves it whole.
+The Arabic letter **noon (ن)** drawn as an ivory cradle with the little one above it in
+apricot, on a plum tile. It reads as the letter to anyone who reads Arabic, and as a cradle,
+a smile or a crescent with a sun to everyone else. The tile is a squircle (radius 25%) so
+every platform's icon mask leaves it whole.
 
 - Files: `public/brand/mark.svg` (colour), `public/brand/mark-mono.svg` (single colour,
   uses `currentColor`), PNGs in `public/brand/` and `public/icons/`.
 - In the app, use `Mark`, `Name`, `NameArabic` and `Wordmark` from `components/Brand.tsx`.
 - Minimum size 16 px. Clear space around it equal to the dot's diameter.
-- Do not recolour the tile, add eyes to the dot, or put the mark on a busy photo.
+- Do not recolour the tile, add eyes to the dot, or put the mark on a busy photo. The
+  single-colour version is for plum-on-ivory or ivory-on-plum only.
 
 ## Colour
 
-Light theme tokens (`app/globals.css`); the dark and night themes carry the same roles.
+Four colours, each with one job. Light theme tokens (`app/globals.css`); the dark and night
+themes carry the same roles.
 
 | Role | Token | Value | Use |
 |---|---|---|---|
-| Cream | `--bg` | `#FBF6F0` | The page. Warm, never pink. |
-| Ink | `--fg` | `#2A211C` | Text. Warm near-black, not pure black. |
-| Clay | `--accent` | `#CF5A32` | One accent: primary buttons, the active tab, links. |
-| Clay soft | `--accent-soft` | `#FBE6DC` | Tinted chips and notices. |
-| Plum | `--night` | `#6B5B95` | Sleep and night: pills and notices about naps and bedtime. |
-| Sage | `--ok` | `#2E7D4F` | Done, on track. |
+| Ivory | `--bg` | `#FFF9F0` | The page. Warm, never grey. |
+| Plum | `--fg`, `--accent` | `#4B203F` | Text, titles, primary buttons, the active tab, the icon tile. Plum does the work. |
+| Plum soft | `--accent-soft` | `#F3E4EC` | Tinted chips and notices. |
+| Apricot | `--apricot` | `#F29B78` | Decoration only: the "el", the little one on the mark, a warm tint. Never a button, never body text. |
+| Sage | `--night`, `--ok` | `#6F7F60` on `#E8EDE1` | Calm: sleep and night notices, done, on track. |
 | Amber | `--warn` | `#9A5B00` | Needs a look. |
-| Brick | `--danger` | `#C62B2B` | Stop, delete, call. |
+| Brick | `--danger` | `#B8322F` | Stop, delete, call. |
 
-Semantic colours are not accents: a green tick and a clay button never compete. Dark theme
-keeps the same roles with lighter clay (`#F08C66`) on warm charcoal (`#1C1714`). The Ask
-screen's night mode goes darker still for 3 am.
+Dark theme: deep plum ground (`#2A1526`), ivory text, and apricot becomes the accent for
+buttons and the active tab, since plum on plum cannot. The Ask screen's night mode goes
+darker still for 3 am.
 
 ## Type
 
