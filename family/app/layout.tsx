@@ -3,11 +3,11 @@ import "./globals.css";
 import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
-  title: "Bambino",
-  description: "Bambino: the little one's day, in everyone's hands. Lana's log, the helper, who is home, and the house.",
+  title: "elnunu · النونو",
+  description: "elnunu (النونو): the little one's day, in everyone's hands. Lana's log, the helper, who is home, and the house.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Bambino",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Bambino" },
+  applicationName: "elnunu",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "elnunu" },
   icons: {
     icon: [
       { url: "/brand/mark.svg", type: "image/svg+xml" },

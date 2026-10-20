@@ -1,4 +1,4 @@
-# Bambino — Steps 1 to 5
+# elnunu (النونو) — Steps 1 to 5
 
 Private family-operations app for one household. This folder is the whole app:
 a Next.js PWA on Vercel talking to the household's own Supabase project.
@@ -202,10 +202,10 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 
 ## 0. Brand
 
-The app is **Bambino**: the little one's day, in everyone's hands. The mark (a rounded b
-with a moon in its bowl, on clay), the colour tokens, the display face and the voice are
-described in `docs/BRAND.md`; the components are in `components/Brand.tsx`, the files in
-`public/brand/` and `public/icons/`.
+The app is **elnunu** (النونو, "the little one"): the little one's day, in everyone's
+hands. The mark (the Arabic noon as a cradle with the little one above it, on clay), the
+colour tokens, the display faces and the voice are described in `docs/BRAND.md`; the
+components are in `components/Brand.tsx`, the files in `public/brand/` and `public/icons/`.
 
 ## 1. Database (Supabase)
 

@@ -1,6 +1,6 @@
 /* Minimal app-shell cache so the installed app opens offline and queued
    entries can be made. Data always comes from the network. */
-const CACHE = "bambino-shell-v4";
+const CACHE = "elnunu-shell-v5";
 const SHELL = ["/", "/lana", "/calendar", "/shopping", "/send", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -45,9 +45,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Bambino", body: event.data ? event.data.text() : "" };
+    data = { title: "elnunu", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Bambino";
+  const title = data.title || "elnunu";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
