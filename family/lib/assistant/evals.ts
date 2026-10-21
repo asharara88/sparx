@@ -26,10 +26,11 @@ export interface EvalExpect {
   entry?: { type_id?: string; payload?: Record<string, unknown>; at?: string };
   /**
    * The end-timer case, graded against what was really running when it was asked: with a
-   * timer open, an end_timer proposal must name one of the open entries and end it within
-   * `within_min` of "now"; with nothing open, no end may be proposed and the answer must say so.
+   * timer of `type_id` open (any kind when unset), an end_timer proposal must name one of
+   * those entries and end it within `within_min` of "now"; with none open, no end of that
+   * kind may be proposed and the answer must say so.
    */
-  end_timer?: { within_min: number };
+  end_timer?: { within_min: number; type_id?: string };
   /** Answer must be under this many words. */
   max_words?: number;
   /** The answer must be (mostly) in this script. */
@@ -70,7 +71,7 @@ export const CASES: EvalCase[] = [
   // Writes: propose, never save; ask when a detail is missing.
   { id: "log_bottle", member: "Dana", question: "Log a 120 ml bottle of pumped milk now", expect: { propose: "care_entry", mention: ["(confirm|tap)"], entry: { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 120 } } } },
   { id: "bottle_at_time", member: "Dana", question: "She had 90 ml of formula at 14:30", expect: { propose: "care_entry", entry: { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 90, milk: "Formula" }, at: "14:30" } } },
-  { id: "woke_up", member: "Dana", question: "She just woke up", expect: { tools_any: ["propose_end_timer"], tools_none: ["propose_care_entry"], avoid: ["\\bsaved\\b"], end_timer: { within_min: 5 } } },
+  { id: "woke_up", member: "Dana", question: "She just woke up", expect: { tools_any: ["propose_end_timer"], tools_none: ["propose_care_entry"], avoid: ["\\bsaved\\b"], end_timer: { within_min: 5, type_id: "lana.sleep" } } },
   { id: "bad_time", member: "Dana", question: "Log a 100 ml bottle at half past", expect: { propose: "none", mention: ["(when|what time|which|half past)"], max_words: 40 } },
   { id: "log_breast_missing_side", member: "Dana", question: "Log a breastfeed", expect: { propose: "none", mention: ["(left|right|which)"] , max_words: 40 } },
   { id: "remember", member: "Dana", question: "Remember that white noise helps her settle", expect: { propose: "memory" } },
@@ -92,10 +93,10 @@ export interface EvalRun {
   proposals: string[];
   /** Every care_entry proposal, with its time as household "HH:MM". */
   care_entries?: { type_id: string; payload: Record<string, unknown>; at: string }[];
-  /** Every end_timer proposal: which entry, and the end as an ISO instant. */
-  end_timers?: { entry_id: string; ended_at: string }[];
-  /** The ids of the timers that were open when the question was asked. */
-  open_timers?: string[];
+  /** Every end_timer proposal: which entry, of which kind, and the end as an ISO instant. */
+  end_timers?: { entry_id: string; type_id: string; ended_at: string }[];
+  /** The timers that were open when the question was asked: id and kind. */
+  open_timers?: { id: string; type_id: string }[];
   /** When the question was asked (ISO), for "ends now" checks. */
   asked_at?: string;
 }
@@ -122,8 +123,9 @@ export function grade(c: EvalCase, r: EvalRun): { pass: boolean; failures: strin
     if (!hit) f.push(`no care_entry with ${JSON.stringify(want)} (got ${JSON.stringify(r.care_entries ?? [])})`);
   }
   if (e.end_timer) {
-    const open = r.open_timers ?? [];
-    const ends = r.end_timers ?? [];
+    const kind = e.end_timer.type_id;
+    const open = (r.open_timers ?? []).filter((o) => !kind || o.type_id === kind).map((o) => o.id);
+    const ends = (r.end_timers ?? []).filter((x) => !kind || x.type_id === kind);
     if (open.length) {
       const hit = ends.find((x) => open.includes(x.entry_id));
       if (!hit) f.push(`no end_timer for an open timer ${JSON.stringify(open)} (got ${JSON.stringify(ends)})`);

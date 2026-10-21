@@ -119,14 +119,25 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
     return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
   }
 
-  const history = turns.filter((t) => t.role === "user").map((t) => t.text);
-  const ctx = await loadContext(supabase, me, new Date(), { question, history, screen });
-  ctx.signal = signal;
-  ctx.situation = await loadSituation(ctx).catch(() => "");
-  const tools = buildTools(ctx);
-  const byName = new Map(tools.map((t) => [t.def.name, t]));
   const usage = emptyUsage();
   const toolLog: { name: string; input: unknown; ok: boolean }[] = [];
+  // The member ended it (or the connection dropped): stop here, record what was spent, say so.
+  const stopped = async (): Promise<RpcError> => {
+    usage.ms = Date.now() - t0;
+    await audit(supabase, "ask", { p_question: question, p_answer: "(stopped by the member)", p_tools: toolLog, p_proposals: [], p_usage: usage });
+    return { ok: false, error: "cancelled", message: "Stopped." };
+  };
+
+  const history = turns.filter((t) => t.role === "user").map((t) => t.text);
+  if (signal?.aborted) return stopped();
+  const ctx = await loadContext(supabase, me, new Date(), { question, history, screen });
+  ctx.signal = signal;
+  // A conversation ended during the context reads goes no further: no situation snapshot, no model.
+  if (signal?.aborted) return stopped();
+  ctx.situation = await loadSituation(ctx).catch(() => "");
+  if (signal?.aborted) return stopped();
+  const tools = buildTools(ctx);
+  const byName = new Map(tools.map((t) => [t.def.name, t]));
   const system = systemBlocks(ctx);
   const defs = tools.map((t) => t.def);
 
@@ -134,13 +145,6 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
     ...turns.slice(-MAX_TURNS).map((t): Anthropic.Beta.BetaMessageParam => ({ role: t.role, content: t.text })),
     { role: "user", content: question },
   ];
-
-  // The member ended it (or the connection dropped): stop here, record what was spent, say so.
-  const stopped = async (): Promise<RpcError> => {
-    usage.ms = Date.now() - t0;
-    await audit(supabase, "ask", { p_question: question, p_answer: "(stopped by the member)", p_tools: toolLog, p_proposals: [], p_usage: usage });
-    return { ok: false, error: "cancelled", message: "Stopped." };
-  };
 
   let answer = "";
   let refused = false;

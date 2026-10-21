@@ -54,15 +54,15 @@ export async function POST(req: Request) {
       }
       // For the end-timer case: what is really running right now, so the grade checks the id and the time.
       const asked_at = new Date().toISOString();
-      let open_timers: string[] | undefined;
+      let open_timers: { id: string; type_id: string }[] | undefined;
       if (c.expect.end_timer) {
-        open_timers = [];
+        open_timers = [] as { id: string; type_id: string }[];
         for (const s of cl.me.subjects ?? []) {
           const { data, error } = await cl.supabase.rpc("home_summary", { p_subject_id: s.id });
-          const sum = data as { ok?: boolean; error?: string; ongoing?: { id?: string }[] } | null;
+          const sum = data as { ok?: boolean; error?: string; ongoing?: { id?: string; type_id?: string }[] } | null;
           // No snapshot, no grade: a failed read must not pass as "nothing running".
           if (error || !sum?.ok) throw new Error(`could not read the timers for ${s.name}: ${error?.message ?? sum?.error ?? "no answer"}`);
-          open_timers.push(...(sum.ongoing ?? []).map((o) => o.id).filter((id): id is string => !!id));
+          for (const o of sum.ongoing ?? []) if (o.id && o.type_id) open_timers.push({ id: o.id, type_id: o.type_id });
         }
       }
       const reply = await askAssistant({ supabase: cl.supabase, me: cl.me, turns: [], question: c.question, screen: c.screen ?? null });
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
         tools: reply.tools,
         proposals: reply.proposals.map((p) => p.kind),
         care_entries: reply.proposals.filter((p) => p.care_entry).map((p) => ({ type_id: p.care_entry!.type_id, payload: p.care_entry!.payload, at: toLocalInput(p.care_entry!.occurred_at, tz).slice(11) })),
-        end_timers: reply.proposals.filter((p) => p.end_timer).map((p) => ({ entry_id: p.end_timer!.entry_id, ended_at: p.end_timer!.ended_at })),
+        end_timers: reply.proposals.filter((p) => p.end_timer).map((p) => ({ entry_id: p.end_timer!.entry_id, type_id: p.end_timer!.type_id, ended_at: p.end_timer!.ended_at })),
         open_timers,
         asked_at,
       };
