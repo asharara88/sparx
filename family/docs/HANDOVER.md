@@ -92,8 +92,12 @@ Open:
   e-mail at the moment the auth row is created, before any confirmation. Keep
   "Confirm email" on in Supabase Auth, or switch public sign-ups off and create
   accounts with `setup-household.mjs --accounts`. Not yet confirmed in the dashboard.
-- **View-as hardening** (next PR): a few own-row RPCs (remove note, chat, memory;
-  photo; push subscription) still accept the previewed member as "me".
+- **View-as** is read only everywhere since migration `…3600` (the own-row RPCs
+  carry `private.read_only_preview()`), a preview token the database stops
+  accepting ends the preview instead of looking like a sign-out, and the
+  sign-out and view-as form posts refuse cross-site requests. The database still
+  honours a `preview_mode: 'full'` claim in `has_permission` that nothing mints;
+  harmless, and a candidate for removal.
 - Groceries (the shopping list, receipts, the cart, the home carer's requests) is
   the last non-baby area still in the code. Removing it is entangled with the Send
   screen and the assistant's shopping tools, so it was left for a second pass.

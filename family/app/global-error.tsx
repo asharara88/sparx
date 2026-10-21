@@ -7,8 +7,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <body style={{ fontFamily: "system-ui, sans-serif", padding: 24, background: "#f4f4f7", color: "#111" }}>
         <h1 style={{ fontSize: 20 }}>Something went wrong</h1>
         <p style={{ color: "#555", wordBreak: "break-word" }}>
-          {error.message || "No details."}
-          {error.digest ? ` (ref ${error.digest})` : ""}
+          Try again. If it keeps happening, tell an admin{error.digest ? ` and mention ref ${error.digest}` : ""}.
         </p>
         <button type="button" onClick={() => reset()} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid #ccc", background: "#fff" }}>
           Try again

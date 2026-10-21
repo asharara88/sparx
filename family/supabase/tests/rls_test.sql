@@ -959,5 +959,27 @@ select pg_temp.assert((select attributed_to from public.care_entries where id = 
 reset role;
 update public.care_entries set deleted_at = now() where note = 'timers test';
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers).'
+-- Preview guards (migration 3600): the "own row" RPCs are read only in view-as too
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.push_subscribe('https://push.test/wafa-1', 'k', 'a', 'test'))->>'ok' = 'true', 'Wafa subscribes her phone');
+select pg_temp.assert((public.push_unsubscribe('https://push.test/wafa-1'))->>'ok' = 'true', 'and unsubscribes it');
+select pg_temp.assert((public.member_photo_save(:wafa, 'members/wafa.jpg'))->>'ok' = 'true', 'Wafa sets her own photo');
+reset role;
+select pg_temp.preview_as(:dana, :wafa);
+set role authenticated;
+select pg_temp.assert(public.current_member_id() = :wafa, 'Dana previews Wafa');
+select pg_temp.assert((public.push_subscribe('https://push.test/dana-as-wafa', 'k', 'a', 'test'))->>'error' = 'not_allowed', 'in preview a phone cannot be bound to the previewed member');
+select pg_temp.assert((public.push_unsubscribe('https://push.test/wafa-1'))->>'error' = 'not_allowed', 'nor unsubscribed');
+select pg_temp.assert((public.member_photo_save(:wafa, 'members/x.jpg'))->>'error' = 'not_allowed', 'nor her photo changed');
+select pg_temp.assert((public.note_remove(gen_random_uuid()))->>'error' = 'not_allowed', 'nor a note removed');
+select pg_temp.assert((public.chat_remove(gen_random_uuid()))->>'error' = 'not_allowed', 'nor a chat message removed');
+select pg_temp.assert((public.memory_remove(gen_random_uuid()))->>'error' = 'not_allowed', 'nor a memory removed');
+select pg_temp.assert((public.ask_chat_remove(gen_random_uuid()))->>'error' = 'not_allowed', 'nor an earlier chat removed');
+select pg_temp.assert((select photo_path from public.members where id = :wafa) = 'members/wafa.jpg', 'Wafa''s photo is as she set it');
+reset role;
+update public.members set photo_path = null where id = :wafa;
+delete from public.push_subscriptions where endpoint like 'https://push.test/%';
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

@@ -1,7 +1,11 @@
 "use client";
 import { useEffect } from "react";
 
-/** A screen crashed. Say so, with the reason, instead of going blank. */
+/**
+ * A screen crashed. Say so instead of going blank. The reason goes to the console (and
+ * Vercel's logs by its digest), not to the screen: a raw error can carry internals, and
+ * a grandmother cannot act on it anyway.
+ */
 export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error(error);
@@ -11,8 +15,7 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
       <div className="card flex flex-col gap-3">
         <h1 className="text-xl font-bold">Something went wrong on this screen</h1>
         <p className="muted break-words text-sm">
-          {error.message || "No details."}
-          {error.digest ? ` (ref ${error.digest})` : ""}
+          Try again, or go Home. If it keeps happening, tell an admin{error.digest ? ` and mention ref ${error.digest}` : ""}.
         </p>
         <div className="flex gap-2">
           <button type="button" className="btn btn-primary" onClick={() => reset()}>
