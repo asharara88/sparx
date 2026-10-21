@@ -29,6 +29,14 @@ begin
   if not coalesce(p_ok, false) then raise exception 'ASSERT FAILED: %', p_msg; end if;
   raise notice 'ok  - %', p_msg;
 end $$;
+-- True when the statement raises (a policy refusal, a constraint): for checks that a write is refused.
+create or replace function pg_temp.fails(p_sql text) returns boolean language plpgsql as $$
+begin
+  execute p_sql;
+  return false;
+exception when others then
+  return true;
+end $$;
 
 select pg_temp.assert((select count(*) from public.members where user_id is not null) = 5, 'all five members linked to auth users by e-mail');
 
@@ -1159,6 +1167,23 @@ select pg_temp.assert((public.entry_type_save('lana.feed', 'lana', 'feed', 'Feed
 select pg_temp.assert((public.skill_save('khan_skill', 'Khan skill', 'when', '{}', 'a body of at least twenty characters here', '', false, null, null, 100, true))->>'error' = 'shared', 'nor a helper skill');
 reset role;
 select pg_temp.assert((select label from public.care_entry_types where id = 'lana.feed') <> 'Feed!' and not exists (select 1 from public.roles where id = 'nanny') and not exists (select 1 from public.assistant_skills where id = 'khan_skill'), 'and nothing shared changed');
+-- Nor straight through the tables (PostgREST): the write policies answer to the first home only.
+select pg_temp.act_as(:haitham);
+set role authenticated;
+with u as (update public.permissions set allowed = true where role_id = 'family_carer' and module_id = 'notes' and action = 'delete' returning 1) select count(*) as n_perm from u \gset
+select pg_temp.assert(:n_perm = 0, 'Haitham''s direct update of the matrix changes no row');
+select pg_temp.assert(pg_temp.fails('insert into public.roles (id, label) values (''nanny'', ''Nanny'')'), 'his direct insert of a role is refused');
+with u as (update public.care_entry_types set label = 'Feed!' where id = 'lana.feed' returning 1) select count(*) as n_type from u \gset
+select pg_temp.assert(:n_type = 0, 'and so is a direct edit of an entry type');
+with u as (update public.stores set label = label where true returning 1) select count(*) as n_store from u \gset
+select pg_temp.assert(:n_store = 0, 'and a direct edit of the shared stores');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+with u as (update public.care_entry_types set label = label where id = 'lana.feed' returning 1) select count(*) as n_mine from u \gset
+select pg_temp.assert(:n_mine = 1, 'Mido, in the first home, still edits entry types directly');
+reset role;
+select pg_temp.assert(not exists (select 1 from public.roles where id = 'nanny') and (select label from public.care_entry_types where id = 'lana.feed') <> 'Feed!', 'and the shared tables are as they were');
 insert into public.backups (path, household_id, rows) values ('home-khan/run-test', :khan_home, 1), ('home-ours/run-test', (select id from public.household where name = 'Our home'), 1);
 select pg_temp.act_as(:mido);
 set role authenticated;
@@ -1167,13 +1192,6 @@ reset role;
 delete from public.backups where path like 'home-%/run-test';
 
 -- Photos per home: the bucket keeps each home to its own folder; what was there before is the first home's
-create or replace function pg_temp.fails(p_sql text) returns boolean language plpgsql as $$
-begin
-  execute p_sql;
-  return false;
-exception when others then
-  return true;
-end $$;
 select pg_temp.act_as(:mido);
 set role authenticated;
 insert into storage.objects (bucket_id, name) values ('photos', 'requests/before-many-homes.jpg');

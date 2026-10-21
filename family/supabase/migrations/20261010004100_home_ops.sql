@@ -134,6 +134,23 @@ begin
 end $$;
 alter function public.skill_save(text, text, text, text[], text, text, boolean, integer, integer, integer, boolean) owner to app_rls;
 
+-- The same lock on the tables themselves: the shared tables' write policies answer to
+-- the permission alone, so a second home's admin could write the matrix straight through
+-- PostgREST. A restrictive policy per write keeps every direct write to the first home;
+-- reads stay as they were. The definer editors run as app_rls and keep their own check.
+do $$
+declare t text;
+begin
+  foreach t in array array['roles', 'permissions', 'presence_states', 'care_entry_types', 'stores'] loop
+    execute format('drop policy if exists %I on public.%I', t || '_platform_ins', t);
+    execute format('create policy %I on public.%I as restrictive for insert to authenticated with check (private.current_household_id() = private.platform_home())', t || '_platform_ins', t);
+    execute format('drop policy if exists %I on public.%I', t || '_platform_upd', t);
+    execute format('create policy %I on public.%I as restrictive for update to authenticated using (private.current_household_id() = private.platform_home()) with check (private.current_household_id() = private.platform_home())', t || '_platform_upd', t);
+    execute format('drop policy if exists %I on public.%I', t || '_platform_del', t);
+    execute format('create policy %I on public.%I as restrictive for delete to authenticated using (private.current_household_id() = private.platform_home())', t || '_platform_del', t);
+  end loop;
+end $$;
+
 -- Backups per home: an admin lists their own; rows from before (no home) stay with the first home.
 alter table public.backups add column if not exists household_id uuid references public.household (id) on delete cascade;
 update public.backups set household_id = private.platform_home() where household_id is null;

@@ -225,6 +225,9 @@ declare
   v_child uuid;
 begin
   if v_uid is null then return jsonb_build_object('ok', false, 'error', 'not_signed_in', 'message', 'Sign in first.'); end if;
+  -- One home is made at a time: two first sign-ups in the same second would otherwise
+  -- both find the seeded empty home free and move into it together.
+  perform pg_advisory_xact_lock(hashtext('household_create'));
   -- An e-mail already on some home's list joins that home; it never makes a second one.
   perform public.link_current_user();
   if exists (select 1 from public.members where user_id = v_uid and is_active) then
