@@ -38,7 +38,8 @@ export type ChatSummary = Pick<AskChat, "id" | "title" | "updated_at">;
 
 type ProposalState = { status: "pending" } | { status: "saving" } | { status: "saved"; href?: string; note: string } | { status: "dropped" } | { status: "error"; message: string };
 
-const STORE = "family.ask.v1";
+/** This tab's unsaved chat, kept per member so a sign-in after someone else on the same phone starts clean. */
+const storeKey = (memberId: string) => `family.ask.v1.${memberId}`;
 
 // Browser speech recognition, minimal typing (not in lib.dom for every TS target).
 type Recognition = {
@@ -61,6 +62,7 @@ function recognitionCtor(): (new () => Recognition) | null {
 export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null }) {
   const me = useMe();
   const router = useRouter();
+  const STORE = storeKey(me.member.id);
   const lang = (me.member.lang ?? "en") as Lang;
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [chatId, setChatId] = useState<string | null>(initial?.id ?? null);

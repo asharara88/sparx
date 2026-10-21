@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
+import { SignOutForm } from "./SignOutForm";
 
 /** Your photo at the top of Home. Tap it for Me and Sign out. */
 export function ProfileMenu({ name, path }: { name: string; path?: string | null }) {
@@ -26,11 +27,11 @@ export function ProfileMenu({ name, path }: { name: string; path?: string | null
           <Link href="/me" className="flex items-center gap-2 px-4 py-3 font-semibold" onClick={() => setOpen(false)}>
             <Icon name="user" size={18} /> {name}
           </Link>
-          <form action="/auth/signout" method="post">
+          <SignOutForm>
             <button type="submit" className="flex w-full items-center gap-2 px-4 py-3 text-left font-semibold">
               <Icon name="logout" size={18} /> Sign out
             </button>
-          </form>
+          </SignOutForm>
         </div>
       )}
     </div>

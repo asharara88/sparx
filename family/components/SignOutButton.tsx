@@ -1,9 +1,11 @@
+import { SignOutForm } from "./SignOutForm";
+
 export function SignOutButton() {
   return (
-    <form action="/auth/signout" method="post">
+    <SignOutForm>
       <button className="btn w-full" type="submit">
         Sign out
       </button>
-    </form>
+    </SignOutForm>
   );
 }
