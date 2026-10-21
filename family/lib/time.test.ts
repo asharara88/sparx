@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dateWords, fmtDate, fmtDateTime, fmtTime, ISO_IN_TEXT, parseHouseholdTime } from "./time.ts";
+import { dateWords, fmtDate, fmtDateTime, fmtTime, fromLocalInput, ISO_IN_TEXT, parseHouseholdTime, toLocalInput } from "./time.ts";
 
 const at = "2026-10-14T15:50:00Z"; // Wed 14 Oct 2026, 19:50 in Dubai
 
@@ -37,4 +37,21 @@ test("parseHouseholdTime reads the helper's formats and refuses the rest", () =>
   for (const bad of ["", "  ", "now", "half past three", "3pm", "2026-13-01 10:00", "yesterday 19:50", "19:50"]) {
     assert.equal(parseHouseholdTime(bad, "Asia/Dubai"), null, JSON.stringify(bad));
   }
+});
+
+test("a wall time on a daylight-saving changeover day lands where the clock said", () => {
+  // New York springs forward on 8 March 2026 at 02:00 (EST → EDT).
+  assert.equal(toLocalInput(fromLocalInput("2026-03-08T03:30", "America/New_York"), "America/New_York"), "2026-03-08T03:30");
+  assert.equal(toLocalInput(fromLocalInput("2026-03-08T01:30", "America/New_York"), "America/New_York"), "2026-03-08T01:30");
+  assert.equal(fromLocalInput("2026-03-08T03:30", "America/New_York"), "2026-03-08T07:30:00.000Z");
+  // and it falls back on 1 November 2026: 01:30 happens twice; the later (standard-time) one is taken
+  assert.equal(toLocalInput(fromLocalInput("2026-11-01T01:30", "America/New_York"), "America/New_York"), "2026-11-01T01:30");
+  assert.equal(parseHouseholdTime("2026-03-08 03:30", "America/New_York"), "2026-03-08T07:30:00.000Z");
+});
+
+test("an impossible offset is refused, not thrown", () => {
+  for (const bad of ["2026-10-14T15:50:00+24:00", "2026-10-14T15:50:00+99:99", "2026-10-14T15:50:00-25:00"]) {
+    assert.equal(parseHouseholdTime(bad, "Asia/Dubai"), null, bad);
+  }
+  assert.equal(parseHouseholdTime("2026-10-14T15:50:00+04:00", "Asia/Dubai"), "2026-10-14T11:50:00.000Z");
 });
