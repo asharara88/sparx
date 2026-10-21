@@ -44,6 +44,10 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
   const [panel, setPanel] = useState<null | "bottle" | "diaper" | "note">(null);
   const [milkPick, setMilkPick] = useState<string | null>(null);
+  // A pick lives as long as the bottle panel: Cancel, or a logged bottle, forgets it.
+  useEffect(() => {
+    if (panel !== "bottle") setMilkPick(null);
+  }, [panel]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
