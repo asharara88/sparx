@@ -123,6 +123,25 @@ export function toLocalInput(iso: string, tz: string): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
+/**
+ * A time the helper was given, in the household's clock: "2026-10-11",
+ * "2026-10-11 14:10", "2026-10-11T14:10" or an ISO instant. Null when it is
+ * none of those, so a misheard or malformed time is a question back, never
+ * "now" by accident.
+ */
+export function parseHouseholdTime(s: string | null | undefined, tz: string): string | null {
+  const t = (s ?? "").trim();
+  if (!t) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/.exec(t);
+  if (!m) return null;
+  const [, y, mo, d, hh = "00", mm = "00", offset] = m;
+  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm)));
+  // A 13th month or a 32nd day rolls over in Date; the round trip catches it.
+  if (date.toISOString().slice(0, 16) !== `${y}-${mo}-${d}T${hh}:${mm}`) return null;
+  if (offset) return new Date(t).toISOString();
+  return fromLocalInput(`${y}-${mo}-${d}T${hh}:${mm}`, tz);
+}
+
 /** Inverse of toLocalInput: wall-clock in tz -> ISO instant. */
 export function fromLocalInput(local: string, tz: string): string {
   const [datePart, timePart] = local.split("T");

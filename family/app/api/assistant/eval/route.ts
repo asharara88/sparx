@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Me, RpcError } from "@/lib/types";
 import { CASES, grade } from "@/lib/assistant/evals";
+import { toLocalInput } from "@/lib/time";
 import { askAssistant } from "@/lib/assistant/run";
 import { cronAuthorized, memberClient, serviceClient } from "@/lib/server/member";
 
@@ -56,7 +57,14 @@ export async function POST(req: Request) {
         results.push({ id: c.id, pass: false, failures: [`${reply.error}: ${reply.message ?? ""}`], ms: Date.now() - t0 });
         continue;
       }
-      const run = { answer: reply.answer, skills: reply.skills.map((s) => s.id), tools: reply.tools, proposals: reply.proposals.map((p) => p.kind) };
+      const tz = cl.me.household.timezone;
+      const run = {
+        answer: reply.answer,
+        skills: reply.skills.map((s) => s.id),
+        tools: reply.tools,
+        proposals: reply.proposals.map((p) => p.kind),
+        care_entries: reply.proposals.filter((p) => p.care_entry).map((p) => ({ type_id: p.care_entry!.type_id, payload: p.care_entry!.payload, at: toLocalInput(p.care_entry!.occurred_at, tz).slice(11) })),
+      };
       const g = grade(c, run);
       results.push({ id: c.id, member: c.member, pass: g.pass, failures: g.failures, answer: reply.answer, skills: run.skills, tools: run.tools, proposals: run.proposals, tokens: reply.usage.input_tokens + reply.usage.output_tokens, cache_read: reply.usage.cache_read, ms: Date.now() - t0 });
     } catch (e) {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dateWords, fmtDate, fmtDateTime, fmtTime, ISO_IN_TEXT } from "./time.ts";
+import { dateWords, fmtDate, fmtDateTime, fmtTime, ISO_IN_TEXT, parseHouseholdTime } from "./time.ts";
 
 const at = "2026-10-14T15:50:00Z"; // Wed 14 Oct 2026, 19:50 in Dubai
 
@@ -27,4 +27,14 @@ test("dateWords keeps Intl's order and drops its separators", () => {
 test("ISO_IN_TEXT takes the whole instant out of a sentence, fraction and offset included", () => {
   const s = "A feed was logged at 2026-10-21T05:15:24.591871+00:00, 45 min in. Next at 2026-10-21T09:00:00Z.";
   assert.equal(s.replace(ISO_IN_TEXT, (iso) => fmtTime(iso, "Asia/Dubai")), "A feed was logged at 09:15, 45 min in. Next at 13:00.");
+});
+
+test("parseHouseholdTime reads the helper's formats and refuses the rest", () => {
+  assert.equal(parseHouseholdTime("2026-10-14 19:50", "Asia/Dubai"), "2026-10-14T15:50:00.000Z");
+  assert.equal(parseHouseholdTime("2026-10-14T19:50", "Asia/Dubai"), "2026-10-14T15:50:00.000Z");
+  assert.equal(parseHouseholdTime("2026-10-14", "Asia/Dubai"), "2026-10-13T20:00:00.000Z");
+  assert.equal(parseHouseholdTime("2026-10-14T15:50:00Z", "Asia/Dubai"), "2026-10-14T15:50:00.000Z");
+  for (const bad of ["", "  ", "now", "half past three", "3pm", "2026-13-01 10:00", "yesterday 19:50", "19:50"]) {
+    assert.equal(parseHouseholdTime(bad, "Asia/Dubai"), null, JSON.stringify(bad));
+  }
 });

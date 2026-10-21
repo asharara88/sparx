@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
-import { dateWords } from "@/lib/time";
+import { dateWords, fmtTime } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { newClientId, sendOrQueue } from "@/lib/offline";
+import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, type Lang } from "@/lib/i18n";
@@ -84,6 +84,40 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   const talkRef = useRef(false);
   const silentRef = useRef(0);
   const startListeningRef = useRef<() => void>(() => {});
+  // The request in flight, so End can stop it; and a listening session number, so a
+  // recognition that was ended (or superseded) never sends what it half heard.
+  const abortRef = useRef<AbortController | null>(null);
+  const sessionRef = useRef(0);
+  const tz = me.household.timezone;
+
+  /** Say it in the member's language; `then` runs when it has been said (or at once, with no voice). */
+  function say(text: string, then?: () => void) {
+    if (typeof speechSynthesis === "undefined" || !text.trim()) {
+      then?.();
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = speechLang(lang);
+    u.onend = () => then?.();
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+  /** What a proposal is, in words: the exact thing a tap would write, so a voice user hears it before confirming. */
+  function spoken(p: AssistantProposal): string {
+    if (p.kind === "care_entry" && p.care_entry) {
+      const c = p.care_entry;
+      const details = Object.entries(c.payload)
+        .filter(([, v]) => v !== null && v !== "" && v !== undefined)
+        .map(([k, v]) => (k === "amount_ml" ? `${v} ml` : k === "amount_g" ? `${v} g` : k === "duration_min" ? `${v} min` : String(v)))
+        .join(", ");
+      return `${c.type_label}${details ? `, ${details}` : ""}, ${c.subject_name}, ${fmtTime(c.occurred_at, tz)}${c.ended_at ? ` to ${fmtTime(c.ended_at, tz)}` : ""}.`;
+    }
+    if (p.kind === "end_timer" && p.end_timer) {
+      const c = p.end_timer;
+      return `${c.type_label} ${c.subject_name}, ${fmtTime(c.since, tz)} to ${fmtTime(c.ended_at, tz)}.`;
+    }
+    return p.summary.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\s+·\s+/g, ", ").trim();
+  }
 
   useEffect(() => {
     if (initial) {
@@ -158,14 +192,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       if (talkRef.current) endTalk();
       return;
     }
-    const u = new SpeechSynthesisUtterance(lastMsg.text.replace(/\[[a-z]+:[^\]]+\]/g, ""));
-    u.lang = speechLang(lang);
-    u.onend = () => {
+    // The answer, then each proposal as the exact thing a tap would write.
+    const text = [lastMsg.text.replace(/\[[a-z]+:[^\]]+\]/g, ""), ...(lastMsg.proposals ?? []).map(spoken)].join(" ");
+    say(text, () => {
       // In talk mode the floor goes back to the member once the answer is said.
       if (talkRef.current && !lastMsg.proposals?.length) startListeningRef.current();
-    };
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [msgs, aloud, talk, lang]);
 
@@ -181,8 +213,10 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       setMsgs((m) => [...m, { role: "user", text: q }, { role: "assistant", text: "", streaming: true, status: "Thinking…" }]);
       const patch = (f: (last: Msg) => Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), f(m[m.length - 1])] : m));
       const finish = (msg: Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), msg] : [...m, msg]));
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
-        const res = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true }) });
+        const res = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true }), signal: controller.signal });
         if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").includes("ndjson")) {
           const data = (await res.json().catch(() => null)) as AssistantReply | RpcError | null;
           if (data && data.ok) {
@@ -226,8 +260,9 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         }
         if (!done) finish({ role: "assistant", text: "The answer was cut off. Ask again.", error: true });
       } catch {
-        finish({ role: "assistant", text: "No connection. Try again when you are back online.", error: true });
+        finish({ role: "assistant", text: controller.signal.aborted ? "Stopped." : "No connection. Try again when you are back online.", error: true });
       } finally {
+        if (abortRef.current === controller) abortRef.current = null;
         setBusy(false);
       }
     },
@@ -249,18 +284,23 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     const Ctor = recognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
+    const session = ++sessionRef.current;
     rec.lang = speechLang(lang);
     rec.interimResults = true;
     rec.continuous = false;
     heardRef.current = "";
     rec.onresult = (e) => {
+      if (session !== sessionRef.current) return;
       let text = "";
       for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
       heardRef.current = text;
       setInput(text);
     };
-    rec.onerror = () => setListening(false);
+    rec.onerror = () => {
+      if (session === sessionRef.current) setListening(false);
+    };
     rec.onend = () => {
+      if (session !== sessionRef.current) return; // ended by End, or superseded: say nothing, send nothing
       setListening(false);
       recRef.current = null;
       const heard = heardRef.current.trim();
@@ -297,9 +337,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   function endTalk() {
     talkRef.current = false;
     setTalk(false);
+    sessionRef.current += 1; // whatever recognition is open belongs to no one now
+    heardRef.current = "";
     recRef.current?.abort?.();
     recRef.current = null;
     setListening(false);
+    abortRef.current?.abort(); // and the answer being fetched stops too
     if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
   }
 
@@ -307,18 +350,29 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   async function confirm(p: AssistantProposal) {
     setPstate((s) => ({ ...s, [p.id]: { status: "saving" } }));
     const supabase = supabaseBrowser();
+    let result = "Saved.";
+    const saved = (href: string | undefined, note: string) => {
+      result = note;
+      setPstate((s) => ({ ...s, [p.id]: { status: "saved", href, note } }));
+    };
+    const offline = "Saved on this phone; it will send when you are back online.";
     try {
       if (p.kind === "care_entry" && p.care_entry) {
         const c = p.care_entry;
         const r = await sendOrQueue(supabase, { client_id: newClientId(), subject_id: c.subject_id, type_id: c.type_id, occurred_at: c.occurred_at, ended_at: c.ended_at, payload: c.payload, note: c.note });
         if (r.status === "error") throw new Error(r.message);
-        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: r.status === "saved" ? `/entry/${r.id}` : undefined, note: r.status === "saved" ? "Saved." : "Saved on this phone; it will send when you are back online." } }));
+        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? "Saved." : offline);
+      } else if (p.kind === "end_timer" && p.end_timer) {
+        const c = p.end_timer;
+        const r = await endOrQueue(supabase, c.entry_id, c.ended_at);
+        if (r.status === "error") throw new Error(r.message);
+        saved(r.status === "saved" ? `/entry/${c.entry_id}` : undefined, r.status === "saved" ? "Ended." : offline);
       } else if (p.kind === "calendar_event" && p.calendar_event) {
         const c = p.calendar_event;
         const { data, error } = await supabase.rpc("calendar_save", { p_id: null, p_title: c.title, p_kind: c.kind, p_starts_at: c.starts_at, p_ends_at: c.ends_at, p_all_day: c.all_day, p_visibility: "household", p_assigned_to: null, p_note: c.note, p_repeat: "none", p_repeat_until: null });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
-        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/calendar", note: "On the calendar." } }));
+        saved("/calendar", "On the calendar.");
       } else if (p.kind === "shopping" && p.shopping) {
         const c = p.shopping;
         let call;
@@ -328,29 +382,32 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const { data, error } = await call;
         const res = data as { ok: boolean; message?: string; id?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
-        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: c.via === "request" ? "/send" : "/shopping", note: c.via === "request" ? "Sent for approval." : "On the list." } }));
+        saved(c.via === "request" ? "/send" : "/shopping", c.via === "request" ? "Sent for approval." : "On the list.");
       } else if (p.kind === "plan" && p.plan) {
         const { data, error } = await supabase.rpc("coach_plan_start", { p_subject_id: p.plan.subject_id, p_goal: p.plan.goal, p_steps: p.plan.steps });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not start the plan.");
-        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/", note: "Plan started. Today's step is on Home." } }));
+        saved("/", "Plan started. Today's step is on Home.");
       } else if (p.kind === "forget" && p.forget) {
         const { data, error } = await supabase.rpc("memory_remove", { p_id: p.forget.id });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not forget it.");
-        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/ask/memory", note: "Forgotten." } }));
+        saved("/ask/memory", "Forgotten.");
       } else if (p.kind === "memory" && p.memory) {
         const { data, error } = await supabase.rpc("memory_add", { p_body: p.memory.body });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
-        setPstate((s) => ({ ...s, [p.id]: { status: "saved", href: "/ask/memory", note: "Remembered." } }));
+        saved("/ask/memory", "Remembered.");
       } else {
         throw new Error("I do not know how to save that.");
       }
-      if (talkRef.current) startListeningRef.current();
+      // Out loud, the result; in talk mode the floor comes back once it is said.
+      if (aloud || talkRef.current) say(result, () => talkRef.current && startListeningRef.current());
       router.refresh();
     } catch (e) {
-      setPstate((s) => ({ ...s, [p.id]: { status: "error", message: e instanceof Error ? e.message : "Could not save." } }));
+      const message = e instanceof Error ? e.message : "Could not save.";
+      setPstate((s) => ({ ...s, [p.id]: { status: "error", message } }));
+      if (aloud || talkRef.current) say(message);
     }
   }
 

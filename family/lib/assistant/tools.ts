@@ -4,7 +4,7 @@ import type { AssistantProposal, AssistantRef, AssistantSkill, EntryType, EventK
 import { selectSkills, skillText, type Selection } from "./skills";
 import { MAX_FACTS, selectMemories, type ChatRecap, type MemoryFact } from "./memory";
 import { EVENT_KINDS, can } from "@/lib/types";
-import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
+import { addDays, dayRange, parseHouseholdTime, todayYmd, toLocalInput } from "@/lib/time";
 import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
 import { tipsFor } from "@/lib/child-guide";
@@ -82,14 +82,25 @@ export function local(iso: string | null | undefined, tz: string): string | null
   return toLocalInput(iso, tz).replace("T", " ");
 }
 
-/** Accepts "2026-10-11", "2026-10-11 14:10", "2026-10-11T14:10" or an ISO instant, in the household timezone. */
+/**
+ * A time bound for a *read* ("2026-10-11", "2026-10-11 14:10", an ISO instant,
+ * household timezone); anything unreadable falls back, since a wrong window
+ * only changes what is listed. Writes use whenGiven() below and never guess.
+ */
 export function parseWhen(s: string | null | undefined, tz: string, fallback: Date): string {
-  if (!s) return fallback.toISOString();
-  const t = s.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return fromLocalInput(`${t}T00:00`, tz);
-  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}$/.test(t)) return fromLocalInput(t.replace(" ", "T"), tz);
-  const d = new Date(t);
-  return isNaN(d.getTime()) ? fallback.toISOString() : d.toISOString();
+  return parseHouseholdTime(s, tz) ?? fallback.toISOString();
+}
+
+/**
+ * A time the member gave for something to write: absent means now, readable
+ * means that instant, and anything else is an error back to the model, so a
+ * misheard "half past" is a question to the member rather than "now".
+ */
+function whenGiven(s: unknown, ctx: ToolContext): { at: string } | { error: "bad_time"; given: string; message: string } {
+  if (s === undefined || s === null || String(s).trim() === "") return { at: ctx.now.toISOString() };
+  const at = parseHouseholdTime(String(s), ctx.tz);
+  if (!at) return { error: "bad_time", given: String(s), message: "Could not read that time. Ask the member when exactly and call again with 'YYYY-MM-DD HH:MM' household time. Never assume now." };
+  return { at };
 }
 
 function findSubject(ctx: ToolContext, name: unknown): SubjectInfo | null {
@@ -392,7 +403,7 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "propose_care_entry",
-      description: `Prepare a log entry for the member to confirm with one tap. Call this when asked to log, record or note something for ${writable.map((s) => s.name).join(" or ")}. Fill every required field from what was said; if a required field is missing or ambiguous, ask instead of calling. Times default to now; when the member says "at 3", "an hour ago" or "this morning", set occurred_at (and ended_at for a finished sleep or feed) from that, never now. Types and their fields:\n${typeHelp}`,
+      description: `Prepare a log entry for the member to confirm with one tap. Call this when asked to log, record or note something for ${writable.map((s) => s.name).join(" or ")}. Fill every required field from what was said; if a required field is missing or ambiguous, ask instead of calling. Times default to now; when the member says "at 3", "an hour ago" or "this morning", set occurred_at (and ended_at for a finished sleep or feed) from that, never now. To end something already running ("she woke up", "feed finished") use propose_end_timer instead. Types and their fields:\n${typeHelp}`,
       input_schema: obj(
         {
           subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}.` },
@@ -415,8 +426,15 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
       if (missing.length) return { error: "missing_fields", missing, message: "Ask the member for these before proposing." };
       const bad = t.fields.filter((f) => f.options?.length && payload[f.key] !== undefined && !f.options.includes(String(payload[f.key]))).map((f) => ({ field: f.key, options: f.options }));
       if (bad.length) return { error: "bad_option", bad };
-      const occurred = parseWhen(input.occurred_at as string | undefined, ctx.tz, ctx.now);
-      const ended = input.ended_at ? parseWhen(input.ended_at as string, ctx.tz, ctx.now) : null;
+      const o = whenGiven(input.occurred_at, ctx);
+      if ("error" in o) return o;
+      const occurred = o.at;
+      let ended: string | null = null;
+      if (input.ended_at !== undefined && input.ended_at !== null && String(input.ended_at).trim() !== "") {
+        const e = whenGiven(input.ended_at, ctx);
+        if ("error" in e) return e;
+        ended = e.at;
+      }
       if (ended && new Date(ended) < new Date(occurred)) return { error: "end_before_start" };
       const details = Object.entries(payload)
         .filter(([, v]) => v !== null && v !== "" && v !== undefined)
@@ -430,6 +448,51 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT saved yet." };
+    },
+  };
+}
+
+function proposeEndTimer(ctx0: ToolContext): AssistantTool {
+  const writable = ctx0.subjects.filter((s) => can(ctx0.me, s.module_id, "add"));
+  const timers = ctx0.types.filter((t) => t.has_end && writable.some((s) => s.module_id === t.module_id)).map((t) => `${t.id} "${t.label}"`);
+  return {
+    def: {
+      name: "propose_end_timer",
+      description: `End something still running, for the member to confirm with one tap: "she woke up", "she's up", "feed finished", "night wake over". Finds the running timer itself; call this, not propose_care_entry, when the thing already started. It ends now unless the member said when ("she woke at 6:40"). Subjects: ${writable.map((s) => s.name).join(", ")}. Timers: ${timers.join("; ")}.`,
+      input_schema: obj(
+        {
+          subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}.` },
+          type_id: { type: "string", description: "Which timer, e.g. lana.sleep. Omit to end whatever is running when only one thing is." },
+          ended_at: { type: "string", description: "When it ended, 'YYYY-MM-DD HH:MM' household time. Omit for now." },
+        },
+        ["subject"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || !can(ctx.me, s.module_id, "add")) return { error: "not_allowed", message: "You cannot log for that subject." };
+      const r = await rpc(ctx, "home_summary", { p_subject_id: s.id });
+      if (!r.ok) return r;
+      const running = ((r.ongoing as { id: string; type_id: string; occurred_at: string; payload?: Record<string, unknown> }[]) ?? []).filter((o) => o.id && o.type_id && o.occurred_at);
+      const wanted = input.type_id ? running.filter((o) => o.type_id === input.type_id) : running;
+      if (!wanted.length) {
+        return { error: "nothing_running", running: running.map((o) => o.type_id), message: "Nothing of that kind is running now. If it did happen, propose_care_entry with its start and end; otherwise tell the member." };
+      }
+      if (wanted.length > 1) return { error: "ambiguous", running: wanted.map((o) => ({ type_id: o.type_id, since: local(o.occurred_at, ctx.tz) })), message: "More than one thing is running: ask which, then call again with type_id." };
+      const o = wanted[0];
+      const e = whenGiven(input.ended_at, ctx);
+      if ("error" in e) return e;
+      if (new Date(e.at) < new Date(o.occurred_at)) return { error: "end_before_start", started: local(o.occurred_at, ctx.tz), message: "That end is before it started; ask the member again." };
+      const t = ctx.types.find((x) => x.id === o.type_id);
+      const label = t?.label ?? o.type_id;
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "end_timer",
+        summary: `${t?.icon ?? ""} ${label} ended · ${s.name} · ${local(o.occurred_at, ctx.tz)} → ${local(e.at, ctx.tz)?.slice(11)}`.trim(),
+        end_timer: { entry_id: o.id, subject_name: s.name, type_id: o.type_id, type_label: label, since: o.occurred_at, ended_at: e.at },
+      };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT ended yet." };
     },
   };
 }
@@ -453,8 +516,16 @@ function proposeCalendarEvent(): AssistantTool {
     run: async (input, ctx) => {
       const kind = EVENT_KINDS.find((k) => k.id === input.kind)?.id ?? ("event" as EventKind);
       const allDay = /^\d{4}-\d{2}-\d{2}$/.test(String(input.starts_at).trim());
-      const starts = parseWhen(input.starts_at as string, ctx.tz, ctx.now);
-      const ends = input.ends_at ? parseWhen(input.ends_at as string, ctx.tz, ctx.now) : null;
+      const st = whenGiven(input.starts_at, ctx);
+      if ("error" in st) return st;
+      const starts = st.at;
+      let ends: string | null = null;
+      if (input.ends_at !== undefined && input.ends_at !== null && String(input.ends_at).trim() !== "") {
+        const en = whenGiven(input.ends_at, ctx);
+        if ("error" in en) return en;
+        ends = en.at;
+      }
+      if (ends && new Date(ends) < new Date(starts)) return { error: "end_before_start" };
       const title = String(input.title ?? "").trim();
       if (!title) return { error: "no_title" };
       const p: AssistantProposal = {
@@ -756,7 +827,7 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
   }
   if (can(me, "shopping", "view") || can(me, "shopping_requests", "add")) list.push(shoppingList());
   if (can(me, "assistant", "add")) {
-    if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx));
+    if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx), proposeEndTimer(ctx));
     if (ctx.subjects.some((s) => s.kind === "child" && can(me, s.module_id, "add"))) list.push(proposePlan(ctx));
     if (can(me, "calendar", "add")) list.push(proposeCalendarEvent());
     if (can(me, "shopping", "add") || can(me, "shopping_requests", "add")) list.push(proposeShopping(ctx));

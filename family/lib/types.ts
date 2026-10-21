@@ -436,7 +436,17 @@ export interface Attachment {
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
-export type ProposalKind = "care_entry" | "calendar_event" | "shopping" | "memory" | "forget" | "plan";
+export type ProposalKind = "care_entry" | "end_timer" | "calendar_event" | "shopping" | "memory" | "forget" | "plan";
+
+/** "She woke up": the running timer the helper found, and when it should end. */
+export interface EndTimerProposal {
+  entry_id: string;
+  subject_name: string;
+  type_id: string;
+  type_label: string;
+  since: string;
+  ended_at: string;
+}
 
 export interface CareEntryProposal {
   subject_id: string;
@@ -474,6 +484,7 @@ export interface AssistantProposal {
   kind: ProposalKind;
   summary: string;
   care_entry?: CareEntryProposal;
+  end_timer?: EndTimerProposal;
   calendar_event?: CalendarEventProposal;
   shopping?: ShoppingProposal;
   /** A fact for the helper to keep ("the baby takes a bottle better when it is warm"). */
