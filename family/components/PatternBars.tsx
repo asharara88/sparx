@@ -1,5 +1,5 @@
 import type { EntryRow } from "@/lib/types";
-import { zonedMidnight } from "@/lib/time";
+import { dateWords, zonedMidnight } from "@/lib/time";
 
 /**
  * Two weeks at a glance: one thin 24-hour bar per day. Sleep is the dark band, night
@@ -32,7 +32,7 @@ export function PatternBars({ entries, days, timezone, today }: { entries: Entry
       diapers: entries.filter((e) => e.type_id === "lana.diaper" && inDay(e)).map((e) => minute(new Date(e.occurred_at).getTime())),
     };
   });
-  const label = (day: string) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", timeZone: "UTC" }).format(new Date(day + "T12:00:00Z"));
+  const label = (day: string) => dateWords(new Date(day + "T12:00:00Z"), { weekday: "short", day: "numeric", timeZone: "UTC" });
   return (
     <section className="card">
       <h2 className="font-semibold">Patterns, last {days.length} days</h2>

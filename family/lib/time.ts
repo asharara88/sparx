@@ -4,10 +4,25 @@ export function fmtTime(iso: string, tz: string): string {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: tz }).format(new Date(iso));
 }
 
+/**
+ * "Wed 14 Oct", "Wednesday 14 October 2026". Built from the parts, not from
+ * Intl's own punctuation: ICU versions differ on the comma after the weekday
+ * in en-GB, and the server (Node) and the phone (its browser) rarely share
+ * one, which made React throw the whole server render away on every page
+ * that shows a date.
+ */
 export function fmtDate(iso: string, tz: string, opts: Intl.DateTimeFormatOptions = {}): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz, ...opts }).format(
-    new Date(iso),
-  );
+  return dateWords(new Date(iso), { weekday: "short", day: "numeric", month: "short", timeZone: tz, ...opts });
+}
+
+/** The parts of an Intl format in Intl's order, separated by single spaces; only the colon inside a time survives. */
+export function dateWords(date: Date, opts: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("en-GB", opts)
+    .formatToParts(date)
+    .map((p) => (p.type === "literal" ? (p.value.trim() === ":" ? ":" : " ") : p.value))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function fmtDateTime(iso: string, tz: string): string {
