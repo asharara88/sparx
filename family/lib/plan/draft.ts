@@ -62,7 +62,6 @@ export async function draftPlan(supabase: SupabaseClient, me: Me): Promise<{ ok:
     who_is_home_today: await run("who_is_home", {}),
     due: await run("due_soon", { days_ahead: 14 }),
     running_low: await run("shopping_list", { only_needed: true }),
-    house: await run("house", { status: "open" }),
   };
 
   const t0 = Date.now();

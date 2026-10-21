@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, ShoppingRequest, Suggestion, Ticket } from "@/lib/types";
+import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, ShoppingRequest, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, fmtTime, todayYmd } from "@/lib/time";
 import { getBrief } from "@/lib/assistant/brief";
@@ -196,17 +196,6 @@ export async function runOften(): Promise<CronReport> {
               report.sent += 1;
               log.push(`nap ${slot}`);
             }
-          }
-        }
-      }
-      // Urgent tickets, for the house people.
-      if (can(me, "maintenance", "edit")) {
-        const { data } = await client.rpc("tickets_list", { p_status: "open" });
-        for (const k of (((data as { tickets?: Ticket[] } | null)?.tickets ?? []) as Ticket[]).filter((x) => x.priority === "urgent")) {
-          const r = await notifyMember(service, t.member_id, { kind: "ticket", key: `ticket:${k.id}`, title: `🔥 ${k.title}`, body: [k.location, k.opened_by_name].filter(Boolean).join(" · "), url: `/house/tickets/${k.id}` });
-          if (r.sent) {
-            report.sent += 1;
-            log.push(`ticket ${k.title}`);
           }
         }
       }

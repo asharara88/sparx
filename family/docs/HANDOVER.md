@@ -48,7 +48,7 @@ through security-definer RPCs (`care_entry_log`, `activity_tick`,
 `assistant_brief_save` and so on) so the client never writes tables directly. The
 baby's log is `care_entries`, keyed by `client_id` so a retry or an import can
 never double-insert. `household.hidden_modules` switches whole sections off; it
-currently holds `{shopping,fanta}`.
+currently holds `{shopping,fanta}`, though Fanta's screens have since been deleted outright.
 
 ## State as of this handover
 
@@ -60,8 +60,11 @@ Done and live:
 - Branding as elnunu, plum and ivory, self-hosted fonts, icons and manifest.
 - The full Lovable history, 5 June to 20 October, imported as real entries
   (migration `…3200`). The family's earlier playground app can be closed.
-- Shopping and Fanta switched off for the household (migration `…3300`). The code
-  is still there; only the switch is off.
+- Shopping switched off for the household (migration `…3300`). The code is still
+  there; only the switch is off.
+- Fanta the cat, the house (tickets, appliances, contractors) and the Home Assistant
+  hub are **deleted from the app**. The app is baby care only. Their database tables
+  still exist and hold the old rows; nothing reads them.
 
 Open:
 
@@ -75,8 +78,11 @@ Open:
 - **No CI job runs the database tests.** They pass locally
   (`supabase/tests/run-local.sh`, needs Postgres 16 and a `postgres` user) but
   nothing runs them on a pull request.
-- Shopping and Fanta code could be deleted rather than hidden, if the family is
-  sure. Hiding was chosen so nothing is lost.
+- Groceries (the shopping list, receipts, the cart, Lilly's requests) is the last
+  non-baby area still in the code. Removing it is entangled with the Send screen and
+  the assistant's shopping tools, so it was left for a second pass.
+- The dropped tables (tickets, assets, contractors, Fanta's subject and entries,
+  hub entities) could be removed with a new migration once nobody wants the history.
 
 ## Access, and what is currently broken
 

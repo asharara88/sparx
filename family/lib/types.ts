@@ -393,7 +393,7 @@ export interface DailyStats {
   days: DayStats[];
 }
 
-// ---- Step 3: Fanta, attachments, the house ---------------------------------
+// ---- Step 3: due items and attachments -------------------------------------
 export interface DueItem {
   subject_id: string;
   subject: string;
@@ -418,105 +418,6 @@ export interface Attachment {
   ocr_text: string | null;
   created_at: string;
   created_by_name: string | null;
-}
-export type TicketStatus = "open" | "in_progress" | "waiting" | "done";
-export const TICKET_STATUS: { id: TicketStatus; label: string; icon: string; tone: "danger" | "warn" | "accent" | "ok" }[] = [
-  { id: "open", label: "Open", icon: "🔴", tone: "danger" },
-  { id: "in_progress", label: "In progress", icon: "🟠", tone: "warn" },
-  { id: "waiting", label: "Waiting", icon: "🟡", tone: "accent" },
-  { id: "done", label: "Done", icon: "✅", tone: "ok" },
-];
-export interface Ticket {
-  id: string;
-  title: string;
-  description: string | null;
-  location: string | null;
-  status: TicketStatus;
-  priority: "low" | "normal" | "urgent";
-  asset_id: string | null;
-  asset_name: string | null;
-  contractor_id: string | null;
-  contractor_name: string | null;
-  contractor_phone?: string | null;
-  opened_by: string | null;
-  opened_by_name: string | null;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-  photo_path?: string | null;
-  updates?: number;
-  cost_total?: number | null;
-}
-export interface TicketUpdate {
-  id: string;
-  note: string | null;
-  status: TicketStatus | null;
-  photo_path: string | null;
-  created_at: string;
-  by_name: string | null;
-}
-export interface TicketCost {
-  id: string;
-  amount: number;
-  currency: string;
-  paid_on: string | null;
-  note: string | null;
-  paid_by_name: string | null;
-}
-export interface TicketDetail {
-  ok: true;
-  costs_visible: boolean;
-  ticket: Ticket;
-  updates: TicketUpdate[];
-  costs: TicketCost[] | null;
-}
-export const ASSET_CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: "appliance", label: "Appliance", icon: "🔌" },
-  { id: "ac", label: "AC", icon: "❄️" },
-  { id: "plumbing", label: "Plumbing", icon: "🚰" },
-  { id: "electrical", label: "Electrical", icon: "💡" },
-  { id: "furniture", label: "Furniture", icon: "🛋️" },
-  { id: "electronics", label: "Electronics", icon: "📺" },
-  { id: "vehicle", label: "Vehicle", icon: "🚗" },
-  { id: "other", label: "Other", icon: "📦" },
-];
-export interface Asset {
-  id: string;
-  name: string;
-  category: string;
-  location: string | null;
-  brand: string | null;
-  model: string | null;
-  serial: string | null;
-  purchased_on: string | null;
-  warranty_until: string | null;
-  supplier: string | null;
-  notes: string | null;
-  label_path: string | null;
-  is_active: boolean;
-  open_tickets: number;
-}
-export interface Contractor {
-  id: string;
-  name: string;
-  trade: string | null;
-  phone: string | null;
-  whatsapp: string | null;
-  company: string | null;
-  notes: string | null;
-  rating: number | null;
-  is_active: boolean;
-  jobs: number;
-  last_job: string | null;
-}
-export interface MaintenanceOverview {
-  ok: true;
-  open: number;
-  urgent: number;
-  assets: number;
-  contractors: number;
-  costs_visible: boolean;
-  recent: Pick<Ticket, "id" | "title" | "status" | "priority" | "location" | "created_at">[];
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
@@ -776,22 +677,6 @@ export interface PushStatus {
   recent: { kind: string; title: string; sent_at: string }[];
 }
 
-export interface HubEntity {
-  entity_id: string;
-  label: string;
-  kind: "sensor" | "binary" | "camera" | "other";
-  sort: number;
-  is_active: boolean;
-}
-export interface HubState {
-  entity_id: string;
-  label: string;
-  kind: HubEntity["kind"];
-  state: string;
-  unit: string | null;
-  last_changed: string | null;
-  attributes?: Record<string, unknown>;
-}
 
 // ---- adopted features (migration 1300) ---------------------------------------------------
 
@@ -890,23 +775,6 @@ export interface MilkData {
   bottle_interval_min: number;
 }
 
-export interface Routine {
-  id: string;
-  label: string;
-  every_days: number;
-  type_id: string | null;
-  payload: Record<string, unknown>;
-  last_done: string | null;
-  due_on: string | null;
-  days_left: number | null;
-  sort: number;
-  is_active: boolean;
-}
-export interface RoutinesData {
-  ok: true;
-  today: string;
-  routines: Routine[];
-}
 
 export interface AskChat {
   id: string;

@@ -22,7 +22,7 @@ export interface ChatRecap {
   at: string;
 }
 
-const STOP = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "is", "it", "she", "her", "he", "his", "we", "you", "i", "my", "our", "with", "when", "what", "how", "does", "do", "did", "was", "were", "be", "been", "that", "this", "than", "then", "there", "about", "not", "no", "so", "if", "but", "can", "should", "would", "lana", "fanta"]);
+const STOP = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "is", "it", "she", "her", "he", "his", "we", "you", "i", "my", "our", "with", "when", "what", "how", "does", "do", "did", "was", "were", "be", "been", "that", "this", "than", "then", "there", "about", "not", "no", "so", "if", "but", "can", "should", "would", "lana"]);
 
 export function words(text: string): string[] {
   return (text.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []).filter((w) => !STOP.has(w));

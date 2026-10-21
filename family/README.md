@@ -92,7 +92,7 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   contractor visits, appointments. Per-event visibility: *whole household* or *family only*
   (hidden from staff). A guest day blocks contractor bookings and links to the shopping list.
   Each day shows who is in the house and who is working, from presence and work days.
-- Shopping: one list across groceries, Lana, Fanta, home and supplements, with owner, usual
+- Shopping: one list across groceries, Lana and supplements, with owner, usual
   shop, product link, quantity left, size (with last-changed date), last bought, last price
   and a "buy again every N days" reminder. Tick an item off and it remembers the date.
 - Lilly's screen (`/send`): a shelf of usual items to tap, or a photo with a note. Requests
@@ -102,9 +102,9 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 **Step 4 — the assistant (this release)**
 
 - **Ask** (`/ask`, and the 💬 button on every screen): type or speak a question — "when did Lana
-  last feed", "who's home Thursday", "what's due for Fanta", "how did she sleep this week".
-  The answer cites the entries it came from; each citation is a link to that entry, event,
-  ticket or item. If the data does not say, it says "I don't know".
+  last feed", "who's home Thursday", "when is the next vaccination", "how did she sleep this
+  week". The answer cites the entries it came from; each citation is a link to that entry,
+  event or item. If the data does not say, it says "I don't know".
 - **It only sees what you see.** The assistant runs on the server *with your own session*; its
   tools are the same RPCs the screens use, under the same Row Level Security, and a tool is only
   offered when your role has that screen's permission. Lilly's assistant has no Lana tool at
@@ -122,24 +122,20 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   cached for an hour and server-side refusal fallback on. Needs `ANTHROPIC_API_KEY` on the
   server (Vercel project env). Cost is roughly a cent or two per question.
 
-**Step 6 — the proactive layer and the hub (this release)**
+**Step 6 — the proactive layer (this release)**
 
 - **Cards on the home screen** that need a decision, not a screen: "Pepsi is probably running
-  out" (approve → back on the list), "Fanta: flea drops is overdue", "3 running-low requests to
-  check", "🔥 urgent ticket still open". Approve or dismiss; dismiss snoozes it a week. Cards are
+  out" (approve → back on the list), "3 running-low requests to check". Approve or dismiss; dismiss snoozes it a week. Cards are
   per member and only cover what that member may see. They refresh when the home screen opens.
 - **Plan the week** (calendar → "Draft the week"): the model reads who is home, what is due,
-  what is low, what is open, and proposes up to six calendar entries with a reason each. Tick
+  what is low, and proposes up to six calendar entries with a reason each. Tick
   the ones you want, approve: only those go on the calendar. Sundays the cron drafts it for you.
 - **Push notifications** (Me → Notifications, iPhone: add to Home Screen first): the morning
-  brief at 06:55, new cards, an event starting within the hour, Lilly's requests and urgent
-  tickets. Sent by a Vercel cron that runs *as each member* (a short-lived member JWT), so the
+  brief at 06:55, new cards, an event starting within the hour, and Lilly's requests.
+  Sent by a Vercel cron that runs *as each member* (a short-lived member JWT), so the
   same RLS applies to what is pushed. Opt in per phone; nothing is sent to anyone who did not.
-- **The hub** (House → hub card): read-only Home Assistant. Admins pick which entities to show
-  (temperatures, doors, motion, camera stills). The app never switches anything.
-- **For the doctor / for the vet**: `/lana/export` (2 weeks, 4 weeks, 3 months: averages per
-  day, growth, firsts, day-by-day table, every entry when 14 days or less) and `/fanta/export`
-  (profile card, treatments with next due, weights, 90 days of notes). Print → Save as PDF.
+- **For the doctor**: `/lana/export` (2 weeks, 4 weeks, 3 months: averages per day, growth,
+  firsts, day-by-day table, every entry when 14 days or less). Print → Save as PDF.
 - **View as** (Members → “View the app as Dana”): an admin sees every screen exactly as that
   member sees it, read only, with a banner and a “Back to me” button. The database treats the
   session as that member and refuses every write, so nothing can be logged in their name;
@@ -152,12 +148,9 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   fridge or freezer, oldest first, with how long it keeps (fridge 4 days, frozen 6 months,
   thawed 24 h, warmed 2 h). Thaw, Warmed, Used, Bin are one tap. While Dana is at work the home
   screen counts down to the next bottle (last feed + the household's bottle interval).
-- **Fanta's routines** (her page, and on the home screen when something is due): "every N
-  days" tiles: litter full change, brushing, flea and tick, deworming, weighing. Done logs the
-  linked entry. Admins edit them at `/fanta/routines`.
 - **Simple screen** (Me → Simple screen, with a language: English, Arabic or Russian): what
   Lana is doing and four huge buttons: Bottle (three amounts), Diaper, Asleep / Woke up, Note
-  (spoken or typed), plus Fanta fed and Ask. Arabic reads right to left. "Full screen" at the
+  (spoken or typed), plus Ask. Arabic reads right to left. "Full screen" at the
   bottom switches back.
 - **Voice helper** (Ask): the microphone listens in the member's language, the assistant
   answers in it, and the speaker button reads answers aloud. Chats save themselves after the
@@ -172,8 +165,8 @@ The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
   the next outing. Admins edit the list.
 - **Entry types** (Members → Entry types): admins add, rename, switch off and reorder what
   the logs record, set "due again after N minutes", and edit each type's fields.
-- **Due on the calendar**: vaccinations and dewormings with a date show on their day.
-- **Fanta's weight** curve on her profile card. **Audit log** downloads as CSV.
+- **Due on the calendar**: vaccinations with a date show on their day.
+- **Audit log** downloads as CSV.
 - **Member photos** (Me → tap the photo): stored in the private photos bucket; shown on
   Members and wherever a member is listed.
 - **Household facts** (Members → Household, and a Routine box per member): "Dana works 9 to 5,
@@ -240,7 +233,7 @@ What `db push` creates: tables `household, roles, modules, permissions, members,
 presence_states, presence, work_schedules, audit_log, care_subjects, care_entry_types,
 care_entries, care_custody`, the RLS policies, the RPC functions the app calls, and the
 seed: Mido & Dana (admin), Wafa & Luda (family carer), Lilly (home carer, works
-Tue/Wed/Fri/Sat/Sun), presence, Lana (born 5 June 2026), Fanta, and Lana's entry types.
+Tue/Wed/Fri/Sat/Sun), presence, Lana (born 5 June 2026), and Lana's entry types.
 
 Auth settings in the Supabase dashboard (Authentication → URL configuration):
 - Site URL: `https://elnunu.com`
@@ -349,7 +342,6 @@ scripts/               seed-accounts.mjs, make-icons.mjs
 - Paediatrician card (`/lana/doctor`): doctor, hospital, call, book, directions, questions for the next visit, upcoming vaccines and appointments, past visits.
 - Screenshot mode: build a local database with `supabase/tests/run-local.sh`, load `supabase/tests/demo_data.sql`, then run the app with `FAMILY_LOCAL_DB=<database>`. Pages read that database through psql as the member named by a `shot_as` cookie (defaults to Mido). Never set in production.
 - Every environment variable, what it powers and where to get it: `VERCEL_ENV.md`.
-- Lana first: Home is her place (state, one-tap log, next feed, pumping, the handover, her guide), the Lana tab has Today, Patterns, Week, Handover and Ask, plus Emergency and When to call. The rest of the house sits below a divider. Shopping and Fanta are switched off for the household (`household.hidden_modules`); their data and permissions stay, and taking a module out of that list brings it back.
+- Lana first: Home is her place (state, one-tap log, next feed, pumping, the handover, her guide), the Lana tab has Today, Patterns, Week, Handover and Ask, plus Emergency and When to call. The rest of the household sits below a divider. Shopping is switched off for the household (`household.hidden_modules`); its data and permissions stay, and taking a module out of that list brings it back. Fanta, the house and the Home Assistant hub were removed from the app; their tables are still in the database.
 - A bottle feed takes its milk out of the fridge stash (oldest first); a pump logged from Home goes into the fridge; while Mama is away the fridge plan says how many bottles are coming and whether to thaw a bag.
 - Push notifications are not in yet (they need web-push keys and a scheduler; see LATER.md).
-  Fanta's log, maintenance, receipts, the assistant: later steps, per PLAN.md.

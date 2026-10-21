@@ -4,7 +4,6 @@ import type { AttendanceData, CalendarData, Me, RpcError, ShoppingData, Shopping
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { SendRequest } from "@/components/SendRequest";
-import { TicketForm } from "@/components/TicketForm";
 import { AttendanceButton } from "@/components/AttendanceButton";
 import Link from "next/link";
 
@@ -39,16 +38,6 @@ export default async function SendPage() {
         timezone={me.household.timezone}
         today={today}
       />
-      {can(me, "maintenance", "add") && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-xl font-bold">Something broken?</h2>
-          <p className="muted">Take a photo, say what it is, send.</p>
-          <TicketForm assets={[]} simple />
-          <Link href="/house" className="text-sm font-semibold text-[var(--accent)]">
-            Open tickets ›
-          </Link>
-        </section>
-      )}
     </div>
   );
 }
