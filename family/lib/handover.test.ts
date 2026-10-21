@@ -56,6 +56,9 @@ test("awayParent: the breastfeeding parent, else the parent with work hours, els
   const maria = m("Maria", { role_id: "home_carer", relationship: "Household staff", work_days: [0, 2], work_from: "08:00", work_to: "18:00" });
   assert.equal(awayParent([haitham, noor, maria])?.name, "Noor", "the one marked breastfeeds wins");
   assert.equal(awayParent([maria, haitham])?.name, "Haitham", "no breastfeeds flag: the parent with work hours, not the staff");
+  const nursingAtHome = m("Noor", { role_id: "admin", relationship: "Parent", breastfeeds: true, work_days: [] });
+  assert.equal(awayParent([nursingAtHome, haitham, maria])?.name, "Haitham", "a nursing parent with no work days does not hide the parent who works");
+  assert.equal(awayParent([nursingAtHome, maria]), null, "nursing at home and nobody else working: no away parent");
   const dad = m("Dad", { relationship: "Father", work_days: [1], work_from: "09:00", work_to: "17:00" });
   assert.equal(awayParent([maria, dad])?.name, "Dad", "a father by relationship counts as a parent");
   assert.equal(awayParent([maria, m("Teta", { relationship: "Haitham's mother" })]), null, "nobody with work hours, no away parent");

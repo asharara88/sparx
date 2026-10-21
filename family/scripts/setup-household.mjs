@@ -18,7 +18,7 @@
 // Reads .env.local: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 import { readFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
-import { linkOutcome, planMembers, validateConfig } from "../lib/setup/plan.mjs";
+import { blankToNull, linkOutcome, planMembers, validateConfig } from "../lib/setup/plan.mjs";
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith("--")) ?? "household.json";
@@ -55,8 +55,8 @@ const hh = cfg.household;
 const given = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const homeRow = given({
   name: hh.name,
-  timezone: hh.timezone ?? "Asia/Dubai",
-  currency: hh.currency ?? "AED",
+  timezone: blankToNull(hh.timezone) ?? "Asia/Dubai",
+  currency: blankToNull(hh.currency) ?? "AED",
   notes: hh.notes ?? null,
   milk_target_ml: hh.milk_target_ml,
   bottle_interval_min: hh.bottle_interval_min,
@@ -81,7 +81,7 @@ if (plan.errors.length) fail(plan.errors.map((e) => `✗ ${e}`).join("\n") + "\n
 const homeId = home
   ? (await ok(admin.from("household").update(homeRow).eq("id", home.id).select("id").single())).id
   : (await ok(admin.from("household").insert(homeRow).select("id").single())).id;
-console.log(`✓ household "${hh.name}" (${hh.timezone ?? "Asia/Dubai"}) ${home ? "updated" : "created"}, id ${homeId}`);
+console.log(`✓ household "${hh.name}" (${homeRow.timezone}) ${home ? "updated" : "created"}, id ${homeId}`);
 
 // ---- 5. Write: the members, as planned ---------------------------------------
 const members = [];
@@ -111,7 +111,13 @@ for (const x of plan.missing) {
 // ---- 6. Write: the child -------------------------------------------------------
 async function subject(kind, moduleId, s, sort) {
   if (!s || !s.name) return null;
-  const { name, birth_date = null, names = {}, night_from, night_to, ...profile } = s;
+  const { name, names = {}, ...rest } = s;
+  const birth_date = blankToNull(rest.birth_date);
+  const night_from = blankToNull(rest.night_from);
+  const night_to = blankToNull(rest.night_to);
+  delete rest.birth_date;
+  delete rest.night_from;
+  delete rest.night_to;
   const found = await ok(admin.from("care_subjects").select("id, profile, settings").eq("household_id", homeId).eq("kind", kind).eq("is_active", true).order("sort").limit(1));
   const row = {
     household_id: homeId,
@@ -119,7 +125,7 @@ async function subject(kind, moduleId, s, sort) {
     kind,
     name,
     birth_date,
-    profile: { ...(found[0]?.profile ?? {}), ...profile, names },
+    profile: { ...(found[0]?.profile ?? {}), ...rest, names },
     settings: { ...(found[0]?.settings ?? {}), ...(night_from ? { night_from } : {}), ...(night_to ? { night_to } : {}) },
     sort,
   };

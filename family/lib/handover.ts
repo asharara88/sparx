@@ -18,14 +18,16 @@ export interface WindowStats {
  */
 /**
  * Whose workday the handover and the fridge plan follow: the breastfeeding parent
- * when one is marked (bottles while she is away), else the parent with work hours,
- * the one who leaves earliest first. A home where nobody breastfeeds, or where the
- * father is the one at work, still gets "since they left" and the plan to their
- * return. Nobody with work hours: no away parent.
+ * when one is marked and has work days (bottles while she is away; the hours
+ * default when she has none), else the parent with work days and hours, the one
+ * who leaves earliest first. A home where nobody breastfeeds, or where the
+ * nursing parent stays home and the father is the one at work, still gets
+ * "since they left" and the plan to their return. Nobody with work days: no
+ * away parent.
  */
 export function awayParent(members: HouseholdMember[]): HouseholdMember | null {
   const parent = (m: HouseholdMember) => m.role_id === "admin" || /\b(parent|mother|father|mum|mom|dad|mama|papa|baba)\b/i.test(m.relationship ?? "");
-  const nursing = members.find((m) => m.breastfeeds);
+  const nursing = members.find((m) => m.breastfeeds && m.work_days.length > 0);
   if (nursing) return nursing;
   const working = members.filter((m) => parent(m) && m.work_days.length > 0 && (m.work_from || m.work_to));
   working.sort((a, b) => (a.work_from ?? "99:99").localeCompare(b.work_from ?? "99:99"));

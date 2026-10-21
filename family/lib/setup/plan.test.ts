@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { linkOutcome, planMembers, validateConfig } from "./plan.mjs";
+import { blankToNull, linkOutcome, planMembers, validateConfig } from "./plan.mjs";
 
 const HOME = "00000000-0000-4000-8000-00000000b000";
 const base = () => ({
@@ -37,6 +37,34 @@ test("validateConfig: the whole file is checked before anything is written", () 
   const noChild = base();
   delete noChild.child;
   assert.ok(validateConfig(noChild).some((e) => e.includes("child.name")));
+});
+
+test("validateConfig: every typed value the script writes is checked, so a bad date cannot fail after the members are written", () => {
+  const bad = base() as Record<string, any>;
+  bad.child.birth_date = "2026-02-30";
+  bad.child.night_from = "7pm";
+  bad.household.timezone = "Dubai";
+  bad.household.bottle_interval_min = "180";
+  bad.members[1].work_from = "8:30";
+  bad.members[2].birth_date = "01/02/1990";
+  bad.members[2].email = "maria at example";
+  const errors = validateConfig(bad);
+  for (const want of ["child: birth_date", "child: night_from", "household.timezone", "bottle_interval_min", "Noor: work_from", "Maria: birth_date", "not an e-mail"]) {
+    assert.ok(errors.some((e) => e.includes(want)), `${want} is refused: ${errors.join("; ")}`);
+  }
+  // Fields left blank in the file are simply not given.
+  const blank = base() as Record<string, any>;
+  blank.child.birth_date = "";
+  blank.members[0].birth_date = "";
+  blank.members[0].work_from = "";
+  blank.members[0].email = "";
+  assert.deepEqual(validateConfig(blank), []);
+  const row = planMembers(blank, [], "00000000-0000-4000-8000-00000000b000").members[0].row;
+  assert.equal(row.birth_date, null);
+  assert.equal(row.work_from, null);
+  assert.equal(row.email, null);
+  assert.equal(blankToNull("  "), null);
+  assert.equal(blankToNull("2026-10-01"), "2026-10-01");
 });
 
 test("planMembers: a changed e-mail on a linked member is refused, not quietly kept on the old account", () => {

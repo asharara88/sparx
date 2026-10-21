@@ -18,15 +18,59 @@ export const LANGS = ["en", "ar", "ru"];
 export const PRESENCES = ["lives_here", "staying_with_us", "visiting_today", "away"];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const norm = (s) => (s == null ? null : String(s).trim().toLowerCase() || null);
+/** A field left blank in the file ("") is not given: it is written as null, never as an empty date. */
+export const blankToNull = (v) => (v == null || (typeof v === "string" && v.trim() === "") ? null : v);
+const isDate = (s) => {
+  if (typeof s !== "string" || !DATE.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
+const isTime = (s) => typeof s === "string" && TIME.test(s);
+const isZone = (z) => {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: z });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
-/** Problems with the file itself, before the database is even looked at. */
+/**
+ * Problems with the file itself, before the database is even looked at. Every
+ * typed value the script writes is checked here (dates, times, the time zone,
+ * the numbers), because the writes go one row at a time and the child is last:
+ * a bad birth date the database refused would otherwise land after the home and
+ * the members were already changed.
+ */
 export function validateConfig(cfg) {
   const errors = [];
+  const typed = (who, obj, dates, times) => {
+    for (const k of dates) {
+      const v = blankToNull(obj?.[k]);
+      if (v != null && !isDate(v)) errors.push(`${who}: ${k} must be a date, YYYY-MM-DD`);
+    }
+    for (const k of times) {
+      const v = blankToNull(obj?.[k]);
+      if (v != null && !isTime(v)) errors.push(`${who}: ${k} must be a time, HH:MM`);
+    }
+  };
   const hh = cfg?.household ?? {};
   if (!hh.name) errors.push("household.name is required.");
   if (hh.id && !UUID.test(hh.id)) errors.push("household.id is not a uuid.");
+  if (blankToNull(hh.timezone) != null && !isZone(hh.timezone)) errors.push(`household.timezone "${hh.timezone}" is not a time zone name (Asia/Dubai, Europe/London, …)`);
+  for (const k of ["milk_target_ml", "bottle_interval_min"]) {
+    if (hh[k] != null && !(Number.isInteger(hh[k]) && hh[k] > 0)) errors.push(`household.${k} must be a whole number above 0`);
+  }
+  if (hh.hidden_modules != null && !(Array.isArray(hh.hidden_modules) && hh.hidden_modules.every((x) => typeof x === "string"))) errors.push("household.hidden_modules must be a list of module names");
   if (!cfg?.child?.name) errors.push("child.name is required: the app is the child's day.");
+  typed("child", cfg?.child, ["birth_date"], ["night_from", "night_to"]);
+  if (cfg?.child?.names != null && (typeof cfg.child.names !== "object" || Array.isArray(cfg.child.names) || !Object.values(cfg.child.names).every((v) => typeof v === "string"))) {
+    errors.push("child.names must be an object of language to name");
+  }
   const members = Array.isArray(cfg?.members) ? cfg.members : [];
   if (!members.length) errors.push("members is empty: at least one admin is needed.");
   const names = new Set();
@@ -39,6 +83,10 @@ export function validateConfig(cfg) {
     if (m.presence != null && !PRESENCES.includes(m.presence)) errors.push(`${who}: presence must be one of ${PRESENCES.join(", ")}`);
     if (m.id && !UUID.test(m.id)) errors.push(`${who}: id is not a uuid`);
     if (m.active != null && typeof m.active !== "boolean") errors.push(`${who}: active must be true or false`);
+    if (m.relink != null && typeof m.relink !== "boolean") errors.push(`${who}: relink must be true or false`);
+    if (blankToNull(m.email) != null && !EMAIL.test(String(m.email).trim())) errors.push(`${who}: "${m.email}" is not an e-mail address`);
+    typed(who, m, ["birth_date"], ["work_from", "work_to"]);
+    if (m.work_days != null && !Array.isArray(m.work_days)) errors.push(`${who}: work_days must be a list of days, 0 (Sunday) to 6`);
     if (Array.isArray(m.work_days) && m.work_days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) errors.push(`${who}: work_days are 0 (Sunday) to 6`);
     const n = norm(m.name);
     if (n && names.has(n)) errors.push(`${who}: the name appears twice in the file`);
@@ -95,12 +143,12 @@ export function planMembers(cfg, existing, homeId) {
       display_name: m.name,
       email,
       role_id: m.role,
-      relationship: m.relationship ?? null,
-      birth_date: m.birth_date ?? null,
+      relationship: blankToNull(m.relationship),
+      birth_date: blankToNull(m.birth_date),
       breastfeeds: !!m.breastfeeds,
-      work_from: m.work_from ?? null,
-      work_to: m.work_to ?? null,
-      routine: m.routine ?? null,
+      work_from: blankToNull(m.work_from),
+      work_to: blankToNull(m.work_to),
+      routine: blankToNull(m.routine),
       lang: m.lang ?? "en",
     };
     let relink = false;
