@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import type { EntryRow } from "@/lib/types";
 import { checkEntries, type CheckFlag } from "@/lib/entry-checks";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { fmtDateTime, fmtTime } from "@/lib/time";
+import { fmtDateTime, fmtTime, ISO_IN_TEXT } from "@/lib/time";
 import { useMe } from "@/lib/me-context";
 import { childName, possessive } from "@/lib/names";
 
@@ -41,7 +41,7 @@ export function EntryChecks({ entries, timezone, limit, canDelete }: { entries: 
         <div key={f.id} className="card ring-2 ring-[var(--accent)]">
           <p className="text-lg font-bold">{f.title}</p>
           <p className="muted text-sm">
-            {f.entry.type_id.split(".")[1]} at {when(f.entry.occurred_at)}. {f.detail.replace(/\d{4}-\d{2}-\d{2}T[^\s,.]+/g, (iso) => when(iso))}
+            {f.entry.type_id.split(".")[1]} at {when(f.entry.occurred_at)}. {f.detail.replace(ISO_IN_TEXT, (iso) => when(iso))}
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {f.fix && (

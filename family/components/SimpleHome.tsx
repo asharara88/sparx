@@ -62,6 +62,8 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const openSleep = ongoing.find((e) => e.type_id === sleepType?.id);
   const openFeed = ongoing.find((e) => e.type_id === feedType?.id);
   const lastSleep = recent.find((e) => e.type_id === sleepType?.id && e.ended_at);
+  // A quick bottle is the same milk as the last one (the full form does the same); none known, none claimed.
+  const lastMilk = recent.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle" && typeof e.payload.milk === "string")?.payload.milk as string | undefined;
   const lastFeed = last["lana.feed"];
   const lastDiaper = last["lana.diaper"];
   const now = Date.now();
@@ -190,7 +192,7 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
       {panel === "bottle" && (
         <div className="grid grid-cols-3 gap-3">
           {bottleQuick.map((ml) => (
-            <button key={ml} type="button" className="btn btn-primary" style={{ minHeight: 110, fontSize: "1.5rem" }} disabled={busy} onClick={() => log(feedType, { method: "Bottle", milk: "Morning pumped", amount_ml: ml }, true)}>
+            <button key={ml} type="button" className="btn btn-primary" style={{ minHeight: 110, fontSize: "1.5rem" }} disabled={busy} onClick={() => log(feedType, { method: "Bottle", ...(lastMilk ? { milk: lastMilk } : {}), amount_ml: ml }, true)}>
               {ml} ml
             </button>
           ))}

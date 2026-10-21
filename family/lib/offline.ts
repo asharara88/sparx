@@ -69,18 +69,24 @@ function readJson<T>(key: string): T[] {
   }
 }
 
-function writeJson(key: string, v: unknown[]) {
+/** False when the phone could not keep it (storage missing, full, or blocked): never say "saved" then. */
+function writeJson(key: string, v: unknown[]): boolean {
+  let kept = false;
   try {
     localStorage.setItem(key, JSON.stringify(v));
+    kept = localStorage.getItem(key) === JSON.stringify(v);
   } catch {
-    /* storage unavailable: nothing we can do */
+    kept = false;
   }
   try {
     window.dispatchEvent(new Event(EVENT));
   } catch {
     /* not in a browser */
   }
+  return kept;
 }
+
+const NOT_KEPT = "No signal, and this phone could not keep the entry. Try again when you are back online.";
 
 /** Every waiting operation, or only one user's (`owner`), oldest first. */
 export function readQueue(owner?: string | null): QueuedOp[] {
@@ -88,12 +94,13 @@ export function readQueue(owner?: string | null): QueuedOp[] {
   return owner === undefined ? q : q.filter((x) => (x.owner ?? null) === null || x.owner === owner);
 }
 
-function writeQueue(q: QueuedOp[]) {
-  writeJson(KEY, q);
+function writeQueue(q: QueuedOp[]): boolean {
+  return writeJson(KEY, q);
 }
 
-export function enqueue(e: QueuedOp) {
-  writeQueue([...readQueue().filter((x) => x.client_id !== e.client_id), e]);
+/** Keep an operation on this phone; false when it could not be kept. */
+export function enqueue(e: QueuedOp): boolean {
+  return writeQueue([...readQueue().filter((x) => x.client_id !== e.client_id), e]);
 }
 
 export function readFailed(owner?: string | null): FailedOp[] {
@@ -182,16 +189,10 @@ type RpcRes = { ok: boolean; id?: string; open?: boolean; error?: string; messag
 export async function sendOrQueue(supabase: SupabaseClient, e: Omit<QueuedEntry, "queued_at" | "owner" | "op">): Promise<SendResult> {
   const owner = await currentOwner(supabase);
   const queued: QueuedEntry = { ...e, op: "log", queued_at: new Date().toISOString(), owner };
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    enqueue(queued);
-    return { status: "queued" };
-  }
+  if (typeof navigator !== "undefined" && !navigator.onLine) return keep(queued);
   const { data, error } = await rpcLog(supabase, queued);
   if (error) {
-    if (isTransient(error)) {
-      enqueue(queued);
-      return { status: "queued" };
-    }
+    if (isTransient(error)) return keep(queued);
     return { status: "error", message: error.message };
   }
   const res = data as RpcRes;
@@ -212,7 +213,7 @@ export async function endOrQueue(supabase: SupabaseClient, entryId: string, ende
     const start = readQueue(owner).find((x) => (x.op ?? "log") === "log" && x.client_id === startId) as QueuedEntry | undefined;
     if (start) {
       if (Date.parse(endedAt) < Date.parse(start.occurred_at)) return { status: "error", message: "The end time is before the start time." };
-      writeQueue(readQueue().map((x) => (x.client_id === startId ? { ...start, ended_at: endedAt } : x)));
+      if (!writeQueue(readQueue().map((x) => (x.client_id === startId ? { ...start, ended_at: endedAt } : x)))) return { status: "error", message: NOT_KEPT };
       return { status: "queued" };
     }
     // The start went out between the screen loading and this tap: end it by its client_id.
@@ -221,17 +222,15 @@ export async function endOrQueue(supabase: SupabaseClient, entryId: string, ende
   return endOp(supabase, { op: "end", client_id: newClientId(), entry_id: entryId, start_client_id: null, ended_at: endedAt, queued_at: new Date().toISOString(), owner });
 }
 
+function keep(e: QueuedOp): SendResult {
+  return enqueue(e) ? { status: "queued" } : { status: "error", message: NOT_KEPT };
+}
+
 async function endOp(supabase: SupabaseClient, e: QueuedEnd): Promise<SendResult> {
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    enqueue(e);
-    return { status: "queued" };
-  }
+  if (typeof navigator !== "undefined" && !navigator.onLine) return keep(e);
   const { data, error } = await rpcEnd(supabase, e);
   if (error) {
-    if (isTransient(error)) {
-      enqueue(e);
-      return { status: "queued" };
-    }
+    if (isTransient(error)) return keep(e);
     return { status: "error", message: error.message };
   }
   const res = data as RpcRes;
@@ -244,14 +243,24 @@ async function endOp(supabase: SupabaseClient, e: QueuedEnd): Promise<SendResult
  * goes before its end. Stops at the first network failure. An operation the server
  * refuses is moved to the failed list (shown on screen, never silently dropped),
  * except an end whose start has not arrived yet, which waits for the next round.
+ *
+ * The queue is read again before every send: a tap can change it while a send is
+ * in flight. In particular, "woke up" during the upload of a queued "fell asleep"
+ * writes the end onto that queued start; once the start is on the server, the end
+ * it picked up meanwhile becomes its own end operation and goes next.
  */
 export async function flushQueue(supabase: SupabaseClient): Promise<{ sent: number; failed: number }> {
   const owner = await currentOwner(supabase);
   if (!owner) return { sent: 0, failed: 0 };
   let sent = 0;
   let failed = 0;
-  for (const e of readQueue(owner)) {
-    const { data, error } = (e.op ?? "log") === "log" ? await rpcLog(supabase, e as QueuedEntry) : await rpcEnd(supabase, e as QueuedEnd);
+  const seen = new Set<string>();
+  for (;;) {
+    const e = readQueue(owner).find((x) => !seen.has(x.client_id));
+    if (!e) break;
+    seen.add(e.client_id);
+    const isLog = (e.op ?? "log") === "log";
+    const { data, error } = isLog ? await rpcLog(supabase, e as QueuedEntry) : await rpcEnd(supabase, e as QueuedEnd);
     if (error) {
       if (isTransient(error)) break;
       fail(e, error.message);
@@ -260,7 +269,15 @@ export async function flushQueue(supabase: SupabaseClient): Promise<{ sent: numb
     }
     const res = data as RpcRes;
     if (res?.ok) {
-      writeQueue(readQueue().filter((x) => x.client_id !== e.client_id));
+      const now = readQueue().find((x) => x.client_id === e.client_id);
+      const endedMeanwhile = isLog && now && (now.op ?? "log") === "log" && (now as QueuedEntry).ended_at && (now as QueuedEntry).ended_at !== (e as QueuedEntry).ended_at;
+      const rest = readQueue().filter((x) => x.client_id !== e.client_id);
+      if (endedMeanwhile && res.id) {
+        const end: QueuedEnd = { op: "end", client_id: newClientId(), entry_id: res.id, start_client_id: null, ended_at: (now as QueuedEntry).ended_at!, queued_at: new Date().toISOString(), owner };
+        writeQueue([...rest, end]);
+      } else {
+        writeQueue(rest);
+      }
       sent += 1;
     } else if (e.op === "end" && e.start_client_id && res?.error === "not_found") {
       continue; // the start is still ahead of us or on another phone; try again next time

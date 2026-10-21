@@ -4,6 +4,11 @@ Private family-operations app for one household. This folder is the whole app:
 a Next.js PWA on Vercel talking to the household's own Supabase project.
 The product brief is `../BRIEF.md`; the build plan is `../PLAN.md`.
 
+The walkthrough below uses the first household's names as examples: Lana the baby,
+Dana and Mido her parents, Lilly the home carer, Wafa and Luda the grandmothers. The app
+itself takes every name, role and routine from the household you set up (see *Set up the
+household*); nothing in the code is tied to these people.
+
 **What is in this step**
 
 - Foundation: members, roles, a permission matrix (role × module × action), presence

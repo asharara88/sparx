@@ -29,6 +29,14 @@ export function fmtDateTime(iso: string, tz: string): string {
   return `${fmtDate(iso, tz)} ${fmtTime(iso, tz)}`;
 }
 
+/**
+ * An ISO instant inside a sentence, whole: seconds, fractional seconds and the
+ * offset included, as Postgres writes them ("2026-10-21T05:15:24.591871+00:00").
+ * A match that stopped early left the fraction on screen and, with no offset,
+ * parsed as local time, which differs between the server and the phone.
+ */
+export const ISO_IN_TEXT = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g;
+
 /** "2 h 10 min ago", "just now", "in 40 min" — plain words, no abbreviations a 70-year-old would not know. */
 export function ago(iso: string, now: Date = new Date()): string {
   const diffMin = Math.round((now.getTime() - new Date(iso).getTime()) / 60000);

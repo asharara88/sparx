@@ -3,16 +3,35 @@ import assert from "node:assert/strict";
 
 // A localStorage stand-in so the queue helpers run under node's test runner.
 const store = new Map<string, string>();
+let storageBroken = false; // a full or blocked localStorage throws on every write
 (globalThis as unknown as { localStorage: Storage }).localStorage = {
   getItem: (k: string) => store.get(k) ?? null,
-  setItem: (k: string, v: string) => void store.set(k, v),
+  setItem: (k: string, v: string) => {
+    if (storageBroken) throw new Error("QuotaExceededError");
+    store.set(k, v);
+  },
   removeItem: (k: string) => void store.delete(k),
   clear: () => store.clear(),
   key: () => null,
   length: 0,
 } as Storage;
 
-const { isTransient, mergeOngoing, newClientId, enqueue, readQueue, QUEUED_ID_PREFIX } = await import("./offline.ts");
+const { isTransient, mergeOngoing, newClientId, enqueue, readQueue, QUEUED_ID_PREFIX, sendOrQueue, endOrQueue, flushQueue } = await import("./offline.ts");
+
+type Call = { fn: string; args: Record<string, unknown> };
+/** A Supabase client stand-in: signed in as `owner`, answering each RPC through `answer`. */
+function fakeSupabase(owner: string, answer: (fn: string, args: Record<string, unknown>) => unknown) {
+  const calls: Call[] = [];
+  const client = {
+    auth: { getSession: async () => ({ data: { session: { user: { id: owner } } } }) },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, args });
+      return { data: await answer(fn, args), error: null };
+    },
+  };
+  return { client: client as unknown as Parameters<typeof flushQueue>[0], calls };
+}
+const start = (client_id: string, owner: string) => ({ op: "log" as const, client_id, subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-14T10:00:00.000Z", ended_at: null, payload: {}, note: null, queued_at: "2026-10-14T10:00:00.000Z", owner });
 
 test("newClientId is always a uuid, with or without crypto.randomUUID", () => {
   const re = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -78,4 +97,62 @@ test("readQueue filters by owner but keeps entries queued before owners existed"
   enqueue({ op: "log", client_id: "c", subject_id: "s", type_id: "t", occurred_at: "x", ended_at: null, payload: {}, note: null, queued_at: "x" });
   assert.deepEqual(readQueue("user-1").map((e) => e.client_id), ["a", "c"]);
   assert.deepEqual(readQueue().map((e) => e.client_id), ["a", "b", "c"]);
+});
+
+test("a wake-up tapped while the queued sleep start is uploading is not lost", async () => {
+  store.clear();
+  enqueue(start("sleep-1", "user-1"));
+  const woke = "2026-10-14T11:00:00.000Z";
+  let tapped = false;
+  const { client, calls } = fakeSupabase("user-1", (fn) => {
+    if (fn === "care_entry_log") {
+      // The carer taps "woke up" while this send is in flight: the end lands on the queued start.
+      if (!tapped) {
+        tapped = true;
+        return endOrQueue(client, QUEUED_ID_PREFIX + "sleep-1", woke).then((r) => {
+          assert.equal(r.status, "queued");
+          return { ok: true, id: "srv-1" };
+        });
+      }
+      return { ok: true, id: "srv-1" };
+    }
+    return { ok: true, id: "srv-1" };
+  });
+  const r = await flushQueue(client);
+  assert.deepEqual(r, { sent: 2, failed: 0 });
+  assert.deepEqual(calls.map((c) => c.fn), ["care_entry_log", "care_entry_end"]);
+  assert.equal(calls[1].args.p_id, "srv-1");
+  assert.equal(calls[1].args.p_ended_at, woke);
+  assert.deepEqual(readQueue(), []);
+});
+
+test("an end that was already on the queued start before the upload still goes with it", async () => {
+  store.clear();
+  enqueue({ ...start("sleep-2", "user-1"), ended_at: "2026-10-14T11:00:00.000Z" });
+  const { client, calls } = fakeSupabase("user-1", () => ({ ok: true, id: "srv-2" }));
+  await flushQueue(client);
+  assert.deepEqual(calls.map((c) => c.fn), ["care_entry_log"]);
+  assert.equal(calls[0].args.p_ended_at, "2026-10-14T11:00:00.000Z");
+  assert.deepEqual(readQueue(), []);
+});
+
+test("when this phone cannot keep an entry, the carer is told, not shown 'saved'", async () => {
+  store.clear();
+  const { client, calls } = fakeSupabase("user-1", () => ({ ok: true, id: "x" }));
+  // In node `navigator.onLine` is undefined, which the queue reads as offline: nothing is sent.
+  storageBroken = true;
+  try {
+    const r = await sendOrQueue(client, { client_id: "c1", subject_id: "s", type_id: "lana.feed", occurred_at: "2026-10-14T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    assert.equal(r.status, "error");
+    assert.match((r as { message: string }).message, /could not keep/);
+    const e = await endOrQueue(client, "srv-9", "2026-10-14T11:00:00.000Z");
+    assert.equal(e.status, "error");
+  } finally {
+    storageBroken = false;
+  }
+  assert.deepEqual(calls, []);
+  assert.deepEqual(readQueue(), []);
+  const ok = await sendOrQueue(client, { client_id: "c2", subject_id: "s", type_id: "lana.feed", occurred_at: "2026-10-14T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+  assert.equal(ok.status, "queued");
+  assert.equal(readQueue().length, 1);
 });
