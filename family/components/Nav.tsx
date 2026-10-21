@@ -5,7 +5,7 @@ import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { Icon, type IconName } from "@/components/Icon";
 
-/** Home, Lana, Milk, Calendar, Chat, More. Shopping, Fanta, the house and admin screens live under More. */
+/** Home, Lana, Milk, Calendar, Chat, More. Shopping and the admin screens live under More. */
 export function Nav() {
   const me = useMe();
   const path = usePathname();
@@ -13,7 +13,6 @@ export function Nav() {
   const items: { href: string; label: string; icon: IconName }[] = [];
   if (staff) {
     items.push({ href: "/send", label: "Send", icon: "camera" });
-    if (can(me, "maintenance", "view")) items.push({ href: "/house", label: "House", icon: "house" });
     if (can(me, "calendar", "view")) items.push({ href: "/calendar", label: "Calendar", icon: "calendar" });
     if (can(me, "chat", "view")) items.push({ href: "/chat", label: "Chat", icon: "chat" });
   } else {

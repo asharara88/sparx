@@ -6,7 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
 
 /**
- * Admin: the kinds of entry Lana's and Fanta's logs accept. Rename, reorder, switch off,
+ * Admin: the kinds of entry Lana's log accepts. Rename, reorder, switch off,
  * set "due again after N minutes" (what the home screen counts down), and edit the fields
  * each entry asks for (a JSON list, same shape as the seed).
  */

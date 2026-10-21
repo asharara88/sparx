@@ -12,7 +12,7 @@ export default async function EntryTypesPage() {
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/members");
-  const { data } = await supabase.from("care_entry_types").select("*").in("module_id", ["lana", "fanta"]).order("module_id").order("sort");
+  const { data } = await supabase.from("care_entry_types").select("*").eq("module_id", "lana").order("module_id").order("sort");
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/members" title="Entry types" subtitle="What the logs can record, and when something is due again." />
@@ -20,7 +20,6 @@ export default async function EntryTypesPage() {
         types={(data as EntryType[] | null) ?? []}
         modules={[
           { id: "lana", label: "Lana's log" },
-          { id: "fanta", label: "Fanta's log" },
         ]}
       />
     </div>

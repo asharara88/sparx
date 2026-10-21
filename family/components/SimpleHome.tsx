@@ -25,7 +25,7 @@ function recognitionCtor(): (new () => Recognition) | null {
  * Bottle (three amounts), Diaper (wet / dirty / both), Asleep or Woke up, Note (spoken or typed).
  * Every label in her language; Arabic reads right to left.
  */
-export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null; fantaFood: { subjectId: string; typeId: string; food: string } | null }) {
+export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null }) {
   const me = useMe();
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
@@ -90,16 +90,6 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
   async function endSleep(e: OngoingEntry) {
     setBusy(true);
     const { data, error } = await supabaseBrowser().rpc("care_entry_end", { p_id: e.id, p_ended_at: new Date().toISOString() });
-    setBusy(false);
-    const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    setMsg(L("saved"));
-    router.refresh();
-  }
-  async function fanta() {
-    if (!fantaFood) return;
-    setBusy(true);
-    const { data, error } = await supabaseBrowser().rpc("care_entry_log", { p_subject_id: fantaFood.subjectId, p_type_id: fantaFood.typeId, p_occurred_at: new Date().toISOString(), p_ended_at: null, p_payload: { food: fantaFood.food }, p_note: null, p_client_id: newClientId() });
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
@@ -180,7 +170,6 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
           <Big icon="diaper" label={L("diaper")} onClick={() => setPanel("diaper")} />
           {openSleep ? <Big icon="sun" label={L("wokeUp")} onClick={() => endSleep(openSleep)} /> : <Big icon="zzz" label={L("fellAsleep")} onClick={() => log(sleepType, {}, false)} />}
           <Big icon="note" label={L("note")} onClick={() => setPanel("note")} />
-          {fantaFood && can(me, "fanta", "add") && <Big icon="cat" label={L("fantaFed")} onClick={fanta} />}
           {can(me, "assistant", "view") && (
             <Link href="/ask" className="btn flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
               <Icon name="mic" size={36} />
