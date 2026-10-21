@@ -3,6 +3,11 @@
 -- checks. The live project gets its household from scripts/setup-household.mjs
 -- instead; nothing here is a migration.
 
+-- The home is the one the migrations seeded (migration 3900 gave it an id). While
+-- it is the only one, every row below lands in it without saying so, as a script
+-- with the service role would.
+update public.household set name = 'Our home', timezone = 'Asia/Dubai', currency = 'AED';
+
 insert into public.members (id, email, display_name, role_id, birth_date, relationship) values
   ('00000000-0000-4000-8000-000000000001', 'mido@test.local', 'Mido',  'admin',        null,         'Parent'),
   ('00000000-0000-4000-8000-000000000002', null,              'Dana',  'admin',        null,         'Parent'),

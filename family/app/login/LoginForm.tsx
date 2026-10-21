@@ -87,7 +87,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
   const title = mode === "signin" ? "Sign in" : mode === "signup" ? "Create your account" : mode === "forgot" ? "Forgot password" : "E-mail me a link";
   const hint =
     mode === "signin" ? "Your e-mail and password." :
-    mode === "signup" ? "Use the e-mail an admin put on the household list, and choose a password." :
+    mode === "signup" ? "Choose a password. Then create your home, or land in the one that listed your e-mail." :
     mode === "forgot" ? "We will e-mail you a link to choose a new password." :
     "No password needed: we send a one-time link to your e-mail.";
 

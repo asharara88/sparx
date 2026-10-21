@@ -35,30 +35,38 @@ const ok = async (p) => {
 };
 
 // ---- household ---------------------------------------------------------------
+// One deployment holds many homes (docs/MULTI_HOME.md). This file is one home: the
+// one named in it, matched by name, else by `household.id`, else made new.
 const hh = cfg.household ?? {};
 if (!hh.name) fail("household.name is required.");
 // Columns with a database default are only sent when the file sets them.
 const given = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
-await ok(
-  admin.from("household").upsert(
-    given({
-      id: true,
-      name: hh.name,
-      timezone: hh.timezone ?? "Asia/Dubai",
-      currency: hh.currency ?? "AED",
-      notes: hh.notes ?? null,
-      milk_target_ml: hh.milk_target_ml,
-      bottle_interval_min: hh.bottle_interval_min,
-      hidden_modules: hh.hidden_modules ?? ["shopping"],
-    }),
-    { onConflict: "id" },
-  ),
-);
-console.log(`✓ household "${hh.name}" (${hh.timezone ?? "Asia/Dubai"})`);
+const homeRow = given({
+  name: hh.name,
+  timezone: hh.timezone ?? "Asia/Dubai",
+  currency: hh.currency ?? "AED",
+  notes: hh.notes ?? null,
+  milk_target_ml: hh.milk_target_ml,
+  bottle_interval_min: hh.bottle_interval_min,
+  hidden_modules: hh.hidden_modules ?? ["shopping"],
+});
+const homes = await ok(admin.from("household").select("id, name"));
+const peopled = new Set((await ok(admin.from("members").select("household_id"))).map((m) => m.household_id));
+// By id, by name, else the home nobody is in yet (a fresh deployment is seeded with one).
+// Two homes may share a name; then the file must say which by id, or the script could write
+// a family's members into a stranger's home.
+const sameName = homes.filter((h) => h.name === hh.name);
+if (!hh.id && sameName.length > 1) fail(`${sameName.length} homes are named "${hh.name}" (${sameName.map((h) => h.id).join(", ")}); set household.id to say which.`);
+if (hh.id && !homes.some((h) => h.id === hh.id)) fail(`No home has id ${hh.id}.`);
+const home = (hh.id && homes.find((h) => h.id === hh.id)) || sameName[0] || homes.find((h) => !peopled.has(h.id)) || null;
+const homeId = home
+  ? (await ok(admin.from("household").update(homeRow).eq("id", home.id).select("id").single())).id
+  : (await ok(admin.from("household").insert(homeRow).select("id").single())).id;
+console.log(`✓ household "${hh.name}" (${hh.timezone ?? "Asia/Dubai"}) ${home ? "updated" : "created"}, id ${homeId}`);
 
 // ---- members -----------------------------------------------------------------
 const ROLES = new Set(["admin", "family_carer", "home_carer", "sitter"]);
-const existing = await ok(admin.from("members").select("id, display_name, email, user_id"));
+const existing = await ok(admin.from("members").select("id, display_name, email, user_id").eq("household_id", homeId));
 const byEmail = new Map(existing.filter((m) => m.email).map((m) => [m.email.toLowerCase(), m]));
 const byName = new Map(existing.map((m) => [m.display_name.toLowerCase(), m]));
 const members = [];
@@ -68,6 +76,7 @@ for (const m of cfg.members ?? []) {
   const email = m.email ? String(m.email).trim().toLowerCase() : null;
   const found = (email && byEmail.get(email)) || byName.get(m.name.toLowerCase());
   const row = {
+    household_id: homeId,
     display_name: m.name,
     email,
     role_id: m.role,
@@ -88,10 +97,10 @@ for (const m of cfg.members ?? []) {
   // Work days: replace the set. Presence: set once, the app changes it afterwards.
   await ok(admin.from("work_schedules").delete().eq("member_id", saved.id));
   if (Array.isArray(m.work_days) && m.work_days.length) {
-    await ok(admin.from("work_schedules").insert(m.work_days.map((d) => ({ member_id: saved.id, weekday: d }))));
+    await ok(admin.from("work_schedules").insert(m.work_days.map((d) => ({ household_id: homeId, member_id: saved.id, weekday: d }))));
   }
   const presence = await ok(admin.from("presence").select("id").eq("member_id", saved.id).limit(1));
-  if (!presence.length) await ok(admin.from("presence").insert({ member_id: saved.id, state_id: m.presence ?? "lives_here" }));
+  if (!presence.length) await ok(admin.from("presence").insert({ household_id: homeId, member_id: saved.id, state_id: m.presence ?? "lives_here" }));
   console.log(`✓ ${m.name} (${m.role})${email ? ` <${email}>` : ""}${found ? " updated" : ""}`);
 }
 if (!members.some((m) => m.cfg.role === "admin")) fail("at least one member must be an admin");
@@ -100,8 +109,9 @@ if (!members.some((m) => m.cfg.role === "admin")) fail("at least one member must
 async function subject(kind, moduleId, s, sort) {
   if (!s || !s.name) return null;
   const { name, birth_date = null, names = {}, night_from, night_to, ...profile } = s;
-  const found = await ok(admin.from("care_subjects").select("id, profile, settings").eq("kind", kind).eq("is_active", true).order("sort").limit(1));
+  const found = await ok(admin.from("care_subjects").select("id, profile, settings").eq("household_id", homeId).eq("kind", kind).eq("is_active", true).order("sort").limit(1));
   const row = {
+    household_id: homeId,
     module_id: moduleId,
     kind,
     name,
@@ -113,7 +123,6 @@ async function subject(kind, moduleId, s, sort) {
   const saved = found[0]
     ? await ok(admin.from("care_subjects").update(row).eq("id", found[0].id).select("id").single())
     : await ok(admin.from("care_subjects").insert(row).select("id").single());
-  await ok(admin.from("modules").update({ label: `${name}'s log` }).eq("id", moduleId));
   console.log(`✓ ${kind}: ${name}${birth_date ? `, born ${birth_date}` : ""}${found[0] ? " updated" : ""}`);
   return saved.id;
 }
@@ -125,8 +134,8 @@ const meds = await ok(admin.from("medicines").select("id").eq("subject_id", chil
 if (!meds.length) {
   await ok(
     admin.from("medicines").insert([
-      { subject_id: childId, name: "Vitamin D drops", dose: "1 drop (400 IU)", min_gap_hours: 20, note: "Once a day." },
-      { subject_id: childId, name: "Paracetamol (infant)", dose: "As the doctor wrote", min_gap_hours: 6, note: "Only if the doctor said so. Never more than 4 doses in 24 hours." },
+      { household_id: homeId, subject_id: childId, name: "Vitamin D drops", dose: "1 drop (400 IU)", min_gap_hours: 20, note: "Once a day." },
+      { household_id: homeId, subject_id: childId, name: "Paracetamol (infant)", dose: "As the doctor wrote", min_gap_hours: 6, note: "Only if the doctor said so. Never more than 4 doses in 24 hours." },
     ]),
   );
 }

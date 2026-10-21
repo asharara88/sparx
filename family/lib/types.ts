@@ -57,6 +57,8 @@ export interface Presence {
 }
 
 export interface Household {
+  /** The home's id; one deployment holds many homes (docs/MULTI_HOME.md). */
+  id: string;
   name: string;
   timezone: string;
   currency: string;
@@ -87,6 +89,8 @@ export interface Me {
   ok: true;
   /** True while an admin is viewing the app as this member (read only). */
   preview?: boolean;
+  /** True in the first home on the deployment, whose admins keep the definitions every home shares. */
+  platform?: boolean;
   member: Member;
   role: Role;
   permissions: PermissionMap;

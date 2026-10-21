@@ -27,11 +27,31 @@ export async function downscale(file: File, maxSide = 1600): Promise<Blob> {
   }
 }
 
+let homeId: Promise<string> | null = null;
+
+/** The signed-in member's home, asked once per page load: photos live in the home's own folder. */
+function myHome(): Promise<string> {
+  if (homeId) return homeId;
+  const p: Promise<string> = supabaseBrowser()
+    .rpc("me")
+    .then(({ data }: { data: unknown }) => {
+      const id = (data as { ok?: boolean; household?: { id?: string } } | null)?.household?.id;
+      if (!id) {
+        homeId = null;
+        throw new Error("Sign in again before adding a photo.");
+      }
+      return id;
+    });
+  homeId = p;
+  return p;
+}
+
 /** Upload a photo from a file input. Returns the storage path to keep on the row. */
 export async function uploadPhoto(file: File, folder: "requests" | "items" | "entries" | "tickets" | "assets" | "subjects" | "receipts" | "members" | "chat"): Promise<string> {
+  const home = await myHome();
   const blob = await downscale(file);
   const ext = blob === file ? (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg" : "jpg";
-  const path = `${folder}/${crypto.randomUUID()}.${ext}`;
+  const path = `home-${home}/${folder}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabaseBrowser().storage.from(BUCKET).upload(path, blob, {
     contentType: blob === file ? file.type || "image/jpeg" : "image/jpeg",
     upsert: false,

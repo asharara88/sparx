@@ -37,7 +37,7 @@ export function BackupsCard({ rows }: { rows: BackupRow[] }) {
           {busy ? "Saving…" : "Back up now"}
         </button>
       </div>
-      <p className="muted text-sm">Every night at 03:00 the whole database is saved as compressed JSON, one file per table, with a list of the photos. The newest 8 are kept.</p>
+      <p className="muted text-sm">Every night at 03:00 your home&apos;s data is saved as compressed JSON, one file per table, with a list of the photos. The newest 8 are kept.</p>
       {rows.length === 0 ? (
         <p className="muted text-sm">No backup yet. The first one runs tonight, or tap “Back up now”.</p>
       ) : (

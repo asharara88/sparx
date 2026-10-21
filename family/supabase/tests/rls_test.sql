@@ -29,6 +29,14 @@ begin
   if not coalesce(p_ok, false) then raise exception 'ASSERT FAILED: %', p_msg; end if;
   raise notice 'ok  - %', p_msg;
 end $$;
+-- True when the statement raises (a policy refusal, a constraint): for checks that a write is refused.
+create or replace function pg_temp.fails(p_sql text) returns boolean language plpgsql as $$
+begin
+  execute p_sql;
+  return false;
+exception when others then
+  return true;
+end $$;
 
 select pg_temp.assert((select count(*) from public.members where user_id is not null) = 5, 'all five members linked to auth users by e-mail');
 
@@ -998,5 +1006,209 @@ select pg_temp.assert((public.care_entry_end_client('bbbbbbbb-0000-4000-8000-000
 reset role;
 update public.care_entries set deleted_at = now() where note = 'end once test';
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once).'
+-- Many homes (migration 3900): a second home sees nothing of the first, and an
+-- account with no home can make one. Last, because from here the deployment has
+-- two homes and rows written with no member must name theirs.
+\set khan_home '''00000000-0000-4000-8000-00000000b000'''
+\set haitham  '''00000000-0000-4000-8000-00000000b001'''
+\set zayd     '''00000000-0000-4000-8000-00000000b0a1'''
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000b001', 'haitham@test.local') on conflict do nothing;
+insert into public.household (id, name, timezone) values (:khan_home, 'The Khans', 'Asia/Dubai');
+insert into public.members (id, household_id, user_id, email, display_name, role_id, relationship)
+values (:haitham, :khan_home, '00000000-0000-4000-8000-00000000b001', 'haitham@test.local', 'Haitham', 'admin', 'Parent');
+insert into public.care_subjects (id, household_id, module_id, kind, name, birth_date, sort) values (:zayd, :khan_home, 'lana', 'child', 'Zayd', current_date - 20, 10);
+select id as first_entry from public.care_entries where subject_id = :lana and deleted_at is null order by occurred_at desc limit 1 \gset
+
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans', 'Haitham''s me() is his home');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.me())->'subjects')) = 1 and (public.me())->'subjects'->0->>'name' = 'Zayd', 'and names only his child');
+select pg_temp.assert((select count(*) from public.members) = 1, 'he sees one member: himself');
+select pg_temp.assert((select count(*) from public.household) = 1, 'and one home');
+select pg_temp.assert((select count(*) from public.care_subjects) = 1, 'and one child');
+select pg_temp.assert((select count(*) from public.care_entries) = 0, 'and none of Lana''s entries');
+select pg_temp.assert((select count(*) from public.calendar_events) = 0, 'nor the calendar');
+select pg_temp.assert((select count(*) from public.family_messages) = 0, 'nor the chat');
+select pg_temp.assert((select count(*) from public.shopping_items) = 0, 'nor the shopping list');
+select pg_temp.assert((public.home_summary(:lana))->>'ok' = 'false', 'home_summary for Lana by her id is refused');
+select pg_temp.assert((public.care_entries_list(:lana, now() - interval '7 days', now()))->>'ok' = 'false', 'so is her entry list');
+select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'false', 'and her medicines (a definer function)');
+select pg_temp.assert((public.care_entry_end(:'first_entry', now()))->>'error' = 'not_found', 'and ending her entry by id finds nothing');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now(), null, '{"method":"Bottle","amount_ml":100}'::jsonb, 'cross-home test', null))->>'ok' = 'false', 'and logging for her is refused');
+create temp table zayd_feed as select ((public.care_entry_log(:zayd, 'lana.feed', now(), null, '{"method":"Bottle","amount_ml":100}'::jsonb, 'khan test', null))->>'id')::uuid as id;
+select pg_temp.assert((select household_id from public.care_entries where id = (select id from zayd_feed)) = :khan_home, 'his own entry is stamped with his home without him saying so');
+select pg_temp.assert((public.home_summary(:zayd))->>'ok' = 'true', 'and his home summary works');
+reset role;
+
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.care_subjects where name = 'Zayd') = 0, 'Dana does not see Zayd');
+select pg_temp.assert((select count(*) from public.members where display_name = 'Haitham') = 0, 'nor Haitham');
+select pg_temp.assert((select count(*) from public.care_entries where note = 'khan test') = 0, 'nor his entry');
+select pg_temp.assert((public.home_summary(:zayd))->>'ok' = 'false', 'and cannot ask for Zayd by id');
+select pg_temp.assert((public.me())->'household'->>'name' <> 'The Khans', 'her me() is still her home');
+reset role;
+
+-- An account with no home creates one, becomes its admin, and is still kept out of the others.
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c001', 'newparent@test.local') on conflict do nothing;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.me())->>'error' = 'no_member', 'a new account is in no home');
+select pg_temp.assert((public.household_create('', 'Asia/Dubai', 'Maya'))->>'error' = 'bad_input', 'a home needs a name');
+select pg_temp.assert((public.household_create('Maya''s home', 'Mars/Olympus', 'Maya'))->>'error' = 'bad_input', 'and a real timezone');
+create temp table new_home as select public.household_create('Maya''s home', 'Europe/London', 'Maya', current_date - 3, 'Girl', 'Sara') as r;
+select pg_temp.assert((select r->>'ok' from new_home) = 'true', 'the home is created');
+select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())->'household'->>'name' = 'Maya''s home' and (public.me())->'household'->>'timezone' = 'Europe/London', 'and me() is that home from now on');
+select pg_temp.assert((public.me())->'role'->>'id' = 'admin' and (public.me())->'member'->>'display_name' = 'Sara', 'as its admin, by the name given');
+select pg_temp.assert((public.me())->'subjects'->0->>'name' = 'Maya' and (public.me())->'subjects'->0->>'sex' = 'Girl', 'with the baby made');
+select pg_temp.assert((public.household_create('Another', 'Asia/Dubai', 'X'))->>'error' = 'already_member', 'and cannot make a second one');
+select pg_temp.assert((select count(*) from public.care_entries) = 0 and (select count(*) from public.members) = 1, 'and sees nothing of the other two homes');
+reset role;
+
+-- An e-mail an admin listed joins that home, it does not get a home of its own.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.member_save(null, 'Cousin', 'cousin@test.local', 'family_carer', null, null, true, null))->>'ok' = 'true', 'Mido lists a cousin by e-mail');
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c002', 'cousin@test.local') on conflict do nothing;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c002","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.household_create('Mine', 'Asia/Dubai', 'Nobody'))->>'error' = 'already_member', 'the cousin cannot make a home: the listed e-mail wins');
+select pg_temp.assert((public.me())->'household'->>'id' <> :khan_home and (public.me())->'member'->>'display_name' = 'Cousin', 'and lands in Mido''s home as the listed member');
+reset role;
+update public.care_entries set deleted_at = now() where note in ('khan test', 'cross-home test');
+
+-- Definer functions see one home too (migration 4000): rows made in Mido's home,
+-- then every definer function that takes an id, called from the Khans' with those ids.
+select pg_temp.act_as(:dana);
+set role authenticated;
+select (public.note_save(null, 'cross-home note', false, false))->>'id' as x_note \gset
+select (public.milk_add(100, 'fridge', now(), 'cross-home bottle'))->>'id' as x_bottle \gset
+select (public.medicine_save(null, :lana, 'Cross-home medicine', 6, null, null))->>'id' as x_med \gset
+select (public.chat_send('cross-home message', null))->>'id' as x_msg \gset
+select (public.memory_add('Cross-home memory: the bottle is warmer on Tuesdays'))->>'id' as x_mem \gset
+select (public.coach_plan_start(:lana, 'Cross-home goal', '[{"day":1,"step":"one"},{"day":2,"step":"two"}]'::jsonb))->>'id' as x_plan \gset
+select pg_temp.assert((public.bag_toggle('00000000-0000-4000-8000-00000000d001', true))->>'ok' = 'true', 'Dana ticks a bag item');
+select pg_temp.assert(:'x_note' is not null and :'x_bottle' is not null and :'x_med' is not null and :'x_msg' is not null and :'x_mem' is not null and :'x_plan' is not null, 'and makes a note, a bottle, a medicine, a message, a memory and a plan');
+reset role;
+
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.bag_reset())->>'ok' = 'true', 'Haitham resets his own bag');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items') i where i->>'body' like 'Cross-home memory%') = 0, 'his memory list has none of hers');
+select pg_temp.assert((public.note_remove(:'x_note'))->>'ok' = 'false', 'her note cannot be removed by id');
+select pg_temp.assert((public.milk_consume(100, null))->'used' = '[]'::jsonb, 'her fridge is not his to drink from: his is empty');
+select pg_temp.assert((public.medicine_remove(:'x_med'))->>'ok' = 'false', 'her medicine cannot be removed by id');
+select pg_temp.assert((public.chat_remove(:'x_msg'))->>'ok' = 'false', 'nor her message');
+select pg_temp.assert((public.memory_remove(:'x_mem'))->>'ok' = 'false', 'nor her memory');
+select pg_temp.assert((public.coach_plan_stop(:'x_plan'))->>'ok' = 'false', 'nor her plan stopped');
+select pg_temp.assert((public.member_photo_save(:wafa, 'members/x.jpg'))->>'ok' = 'false', 'nor Wafa''s photo set');
+select pg_temp.assert((select (public.current_presence(:wafa)).id) is null, 'nor Wafa''s presence read');
+select pg_temp.assert((public.attendance_toggle(:lilly))->>'ok' = 'false', 'nor Lilly clocked in');
+select pg_temp.assert((public.care_entry_check(:'first_entry', 'ok', null))->>'ok' = 'false', 'nor Lana''s entry checked');
+select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'false', 'nor her medicines listed');
+select pg_temp.assert((public.coach_plan_active(:lana))->>'ok' = 'false' or (public.coach_plan_active(:lana))->'plan' is null, 'nor her plan seen');
+reset role;
+-- and, seen from above, nothing of hers moved
+select pg_temp.assert((select checked from public.bag_items where id = '00000000-0000-4000-8000-00000000d001') = true, 'Dana''s tick is still there after his reset');
+select pg_temp.assert((select deleted_at from public.notes where id = :'x_note') is null, 'her note is still there');
+select pg_temp.assert((select used_at from public.milk_bottles where id = :'x_bottle') is null, 'her bottle is unused');
+select pg_temp.assert((select is_active from public.medicines where id = :'x_med'), 'her medicine is still active');
+select pg_temp.assert((select deleted_at from public.family_messages where id = :'x_msg') is null, 'her message is still there');
+select pg_temp.assert((select deleted_at from public.assistant_memories where id = :'x_mem') is null, 'her memory is still there');
+select pg_temp.assert((select status from public.coach_plans where id = :'x_plan') = 'active', 'her plan is still active');
+select pg_temp.assert((select photo_path from public.members where id = :wafa) is null, 'Wafa''s photo is unchanged');
+update public.notes set deleted_at = now() where id = :'x_note';
+update public.milk_bottles set deleted_at = now() where id = :'x_bottle';
+update public.medicines set is_active = false where id = :'x_med';
+update public.family_messages set deleted_at = now() where id = :'x_msg';
+update public.assistant_memories set deleted_at = now() where id = :'x_mem';
+update public.coach_plans set status = 'stopped' where id = :'x_plan';
+update public.bag_items set checked = false where id = '00000000-0000-4000-8000-00000000d001';
+
+-- And it stays that way: a future definer function left with postgres would bypass the home policy.
+select pg_temp.assert(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
+      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create')) = 0,
+  'every definer function in public belongs to app_rls, except the four that must see across homes');
+select pg_temp.assert(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
+      and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
+                            'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home')) = 0,
+  'and so does every data-reading helper in private');
+select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
+-- The receipt matcher is one of those helpers: it must not find another home's item.
+select name as first_item from public.shopping_items where deleted_at is null and household_id = (select id from public.household where name = 'Our home') order by name limit 1 \gset
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((private.match_item(:'first_item')).o_item is not null, 'Mido''s receipt line matches his home''s item');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((private.match_item(:'first_item')).o_item is null, 'the same words match nothing from the Khans'' home');
+select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'a chat photo under the home folder is accepted');
+select pg_temp.assert((public.chat_send('', 'chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'and the old shape still is');
+select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/receipts/x.jpg'))->>'error' = 'bad_photo', 'but not another folder');
+reset role;
+
+-- Running many homes (migration 4100): shared definitions change only from the first home; backups per home
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->>'platform' = 'true', 'Mido''s home is the first, the platform home');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.me())->>'platform' = 'false', 'Haitham''s is not');
+select pg_temp.assert((public.permission_set('family_carer', 'notes', 'delete', true))->>'error' = 'shared', 'he cannot change the permission matrix every home shares');
+select pg_temp.assert((public.role_save('nanny', 'Nanny', null))->>'error' = 'shared', 'nor add a role');
+select pg_temp.assert((public.entry_type_save('lana.feed', 'lana', 'feed', 'Feed!', null, null, 10, false, 180, (select fields from public.care_entry_types where id = 'lana.feed'), true, true))->>'error' = 'shared', 'nor edit an entry type');
+select pg_temp.assert((public.skill_save('khan_skill', 'Khan skill', 'when', '{}', 'a body of at least twenty characters here', '', false, null, null, 100, true))->>'error' = 'shared', 'nor a helper skill');
+reset role;
+select pg_temp.assert((select label from public.care_entry_types where id = 'lana.feed') <> 'Feed!' and not exists (select 1 from public.roles where id = 'nanny') and not exists (select 1 from public.assistant_skills where id = 'khan_skill'), 'and nothing shared changed');
+-- Nor straight through the tables (PostgREST): the write policies answer to the first home only.
+select pg_temp.act_as(:haitham);
+set role authenticated;
+with u as (update public.permissions set allowed = true where role_id = 'family_carer' and module_id = 'notes' and action = 'delete' returning 1) select count(*) as n_perm from u \gset
+select pg_temp.assert(:n_perm = 0, 'Haitham''s direct update of the matrix changes no row');
+select pg_temp.assert(pg_temp.fails('insert into public.roles (id, label) values (''nanny'', ''Nanny'')'), 'his direct insert of a role is refused');
+with u as (update public.care_entry_types set label = 'Feed!' where id = 'lana.feed' returning 1) select count(*) as n_type from u \gset
+select pg_temp.assert(:n_type = 0, 'and so is a direct edit of an entry type');
+with u as (update public.stores set label = label where true returning 1) select count(*) as n_store from u \gset
+select pg_temp.assert(:n_store = 0, 'and a direct edit of the shared stores');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+with u as (update public.care_entry_types set label = label where id = 'lana.feed' returning 1) select count(*) as n_mine from u \gset
+select pg_temp.assert(:n_mine = 1, 'Mido, in the first home, still edits entry types directly');
+reset role;
+select pg_temp.assert(not exists (select 1 from public.roles where id = 'nanny') and (select label from public.care_entry_types where id = 'lana.feed') <> 'Feed!', 'and the shared tables are as they were');
+insert into public.backups (path, household_id, rows) values ('home-khan/run-test', :khan_home, 1), ('home-ours/run-test', (select id from public.household where name = 'Our home'), 1);
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.backups where path like 'home-khan/%') = 0 and (select count(*) from public.backups where path like 'home-ours/%') = 1, 'Mido lists his home''s backups, not the Khans''');
+reset role;
+delete from public.backups where path like 'home-%/run-test';
+
+-- Photos per home: the bucket keeps each home to its own folder; what was there before is the first home's
+select pg_temp.act_as(:mido);
+set role authenticated;
+insert into storage.objects (bucket_id, name) values ('photos', 'requests/before-many-homes.jpg');
+insert into storage.objects (bucket_id, name) values ('photos', 'home-' || (select id from public.household where name = 'Our home') || '/chat/ours.jpg');
+select pg_temp.assert(pg_temp.fails(format('insert into storage.objects (bucket_id, name) values (%L, %L)', 'photos', 'home-' || :khan_home || '/chat/sneaked.jpg')), 'Mido cannot upload into the Khans'' folder');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+insert into storage.objects (bucket_id, name) values ('photos', 'home-' || :khan_home || '/chat/zayd.jpg');
+select pg_temp.assert(pg_temp.fails(format('insert into storage.objects (bucket_id, name) values (%L, %L)', 'photos', 'requests/no-folder.jpg')), 'Haitham cannot upload outside his folder');
+select pg_temp.assert((select count(*) from storage.objects where bucket_id = 'photos') = 1 and (select name from storage.objects where bucket_id = 'photos') like 'home-' || :khan_home || '/%', 'and sees only his home''s photo: not the old ones, not ours');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select count(*) from storage.objects where bucket_id = 'photos') = 2 and not exists (select 1 from storage.objects where name like 'home-' || :khan_home || '/%'), 'Mido sees the old photos and his home''s, not the Khans''');
+reset role;
+delete from storage.objects where bucket_id = 'photos';
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
