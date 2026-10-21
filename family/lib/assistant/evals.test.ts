@@ -77,4 +77,10 @@ test("grade: the end-timer case checks the entry it ends and when, against what 
   assert.equal(wrongKind.pass, false, "ending the feed does not end the sleep");
   const onlyFeed = grade(c, { answer: "No sleep is running; she is in the middle of a feed.", skills: [], tools: ["propose_end_timer"], proposals: [], open_timers: [feed], end_timers: [], asked_at });
   assert.equal(onlyFeed.pass, true, onlyFeed.failures.join("; "));
+  // Every end proposed counts: the right sleep end plus a stray feed end is wrong, and so is
+  // ending the feed while saying no sleep is running.
+  const stray = grade(c, { ...base, open_timers: [sleep, feed], end_timers: [{ entry_id: "sleep-1", type_id: "lana.sleep", ended_at: asked_at }, { entry_id: "feed-9", type_id: "lana.feed", ended_at: asked_at }], asked_at });
+  assert.ok(stray.failures.some((f) => f.includes("too; only")), stray.failures.join("; "));
+  const feedInstead = grade(c, { answer: "No sleep is running; I prepared the end of the feed.", skills: [], tools: ["propose_end_timer"], proposals: ["end_timer"], open_timers: [feed], end_timers: [{ entry_id: "feed-9", type_id: "lana.feed", ended_at: asked_at }], asked_at });
+  assert.equal(feedInstead.pass, false, "ending the feed instead is not a pass");
 });

@@ -125,7 +125,12 @@ export function grade(c: EvalCase, r: EvalRun): { pass: boolean; failures: strin
   if (e.end_timer) {
     const kind = e.end_timer.type_id;
     const open = (r.open_timers ?? []).filter((o) => !kind || o.type_id === kind).map((o) => o.id);
-    const ends = (r.end_timers ?? []).filter((x) => !kind || x.type_id === kind);
+    const all = r.end_timers ?? [];
+    const ends = all.filter((x) => !kind || x.type_id === kind);
+    // Every end proposed is graded: one of another kind, or a second one, is a wrong card shown to the member.
+    const extra = all.filter((x) => !ends.includes(x));
+    if (extra.length) f.push(`proposed ending ${JSON.stringify(extra)} too; only ${kind ?? "one timer"} was asked`);
+    if (ends.length > 1) f.push(`proposed ${ends.length} ends of ${kind ?? "a timer"}; one was asked`);
     if (open.length) {
       const hit = ends.find((x) => open.includes(x.entry_id));
       if (!hit) f.push(`no end_timer for an open timer ${JSON.stringify(open)} (got ${JSON.stringify(ends)})`);
