@@ -16,6 +16,13 @@ const SCREENS = new Set(["home", "lana", "patterns", "milk", "plan", "calendar",
  * Runs with the caller's own Supabase session, so RLS decides what it may see.
  */
 export async function POST(req: Request) {
+  // Ending the conversation on the phone aborts the fetch; the signal reaches the model
+  // stream and the tools, so nothing goes on being computed for an answer nobody will read.
+  // Wired first: a disconnect during the sign-in and body reads below must not be missed
+  // (an abort that already happened is not replayed to a listener added later).
+  const stop = new AbortController();
+  if (req.signal?.aborted) stop.abort();
+  else req.signal?.addEventListener("abort", () => stop.abort(), { once: true });
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ ok: false, error: "not_signed_in", message: "Sign in first." }, { status: 401 });
@@ -38,10 +45,7 @@ export async function POST(req: Request) {
     : [];
   const screen = typeof body.screen === "string" && SCREENS.has(body.screen) ? body.screen : null;
 
-  // Ending the conversation on the phone aborts the fetch; the signal reaches the model
-  // stream and the tools, so nothing goes on being computed for an answer nobody will read.
-  const stop = new AbortController();
-  req.signal?.addEventListener("abort", () => stop.abort(), { once: true });
+  if (stop.signal.aborted) return NextResponse.json({ ok: false, error: "cancelled", message: "Stopped." }, { status: 499 });
 
   if (body.stream !== true) {
     try {

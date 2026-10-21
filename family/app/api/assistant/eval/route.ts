@@ -58,9 +58,11 @@ export async function POST(req: Request) {
       if (c.expect.end_timer) {
         open_timers = [];
         for (const s of cl.me.subjects ?? []) {
-          const { data } = await cl.supabase.rpc("home_summary", { p_subject_id: s.id });
-          const ongoing = ((data as { ongoing?: { id?: string }[] } | null)?.ongoing ?? []).map((o) => o.id).filter((id): id is string => !!id);
-          open_timers.push(...ongoing);
+          const { data, error } = await cl.supabase.rpc("home_summary", { p_subject_id: s.id });
+          const sum = data as { ok?: boolean; error?: string; ongoing?: { id?: string }[] } | null;
+          // No snapshot, no grade: a failed read must not pass as "nothing running".
+          if (error || !sum?.ok) throw new Error(`could not read the timers for ${s.name}: ${error?.message ?? sum?.error ?? "no answer"}`);
+          open_timers.push(...(sum.ongoing ?? []).map((o) => o.id).filter((id): id is string => !!id));
         }
       }
       const reply = await askAssistant({ supabase: cl.supabase, me: cl.me, turns: [], question: c.question, screen: c.screen ?? null });
