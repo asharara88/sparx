@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; mode?: string }> }) {
   if (!isConfigured()) return <NotConfigured />;
-  const supabase = await createClient();
+  // The admin's own session decides whether they are signed in, never a "view as" token.
+  const supabase = await createClient({ ignorePreview: true });
   const { data } = await supabase.auth.getUser();
   if (data.user) redirect("/");
   const { error, mode } = await searchParams;

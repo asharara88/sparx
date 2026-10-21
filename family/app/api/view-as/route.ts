@@ -2,16 +2,23 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
+import { sameOrigin } from "@/lib/server/csrf";
 import { PREVIEW_COOKIE, PREVIEW_TTL_SECONDS, mintPreviewToken, previewConfigured } from "@/lib/server/preview";
 
 /**
  * POST member_id=<uuid>  → start viewing the app as that member (admins only).
  * POST exit=1            → back to yourself.
- * Form posts, so the Members page needs no JavaScript for it.
+ * Form posts, so the Members page needs no JavaScript for it. Only from our own pages.
  */
 export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
-  const form = await request.formData();
+  if (!sameOrigin(request.headers, request.url)) return NextResponse.json({ ok: false, error: "cross_site" }, { status: 403 });
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
+  }
   if (form.get("exit")) {
     const res = NextResponse.redirect(new URL("/members", origin), { status: 303 });
     res.cookies.set(PREVIEW_COOKIE, "", { path: "/", maxAge: 0 });

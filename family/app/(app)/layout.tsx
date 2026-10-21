@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { isConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { PREVIEW_COOKIE } from "@/lib/server/preview";
 import type { Me, RpcError } from "@/lib/types";
 import { MeProvider } from "@/lib/me-context";
 import { Nav } from "@/components/Nav";
@@ -13,7 +15,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!isConfigured()) return <NotConfigured />;
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) redirect("/login");
+  if (!auth.user) {
+    // A "view as" token the database no longer accepts must not look like a sign-out:
+    // end the preview and come back as the admin.
+    if ((await cookies()).get(PREVIEW_COOKIE)?.value) redirect("/api/view-as/exit");
+    redirect("/login");
+  }
 
   const { data, error } = await supabase.rpc("me");
   const me = data as Me | RpcError | null;
