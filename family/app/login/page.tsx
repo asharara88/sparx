@@ -5,6 +5,7 @@ import { LoginForm } from "./LoginForm";
 import { NotConfigured } from "@/components/NotConfigured";
 import { HashSession } from "@/components/HashSession";
 import { Mark, Name } from "@/components/Brand";
+import { WelcomeBack } from "@/components/WelcomeBack";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </h1>
           <p className="tagline mt-1 text-2xl">Care, together.</p>
           <p className="muted mt-1">A shared view of your baby&apos;s day.</p>
+          <WelcomeBack />
         </div>
       </div>
       <div className="card">

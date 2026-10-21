@@ -1,7 +1,8 @@
 import { Wordmark } from "@/components/Brand";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import type { Me, Presence, PresenceState } from "@/lib/types";
+import type { HomeListing, Me, Presence, PresenceState } from "@/lib/types";
+import { HomeSwitcher } from "@/components/HomeSwitcher";
 import { WEEKDAYS, can } from "@/lib/types";
 import { PresenceForm } from "@/components/PresenceForm";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -16,10 +17,12 @@ export default async function MePage() {
   const supabase = await createClient();
   const { data: meData } = await supabase.rpc("me");
   const me = meData as Me;
-  const [{ data: states }, { data: history }] = await Promise.all([
+  const [{ data: states }, { data: history }, { data: homesData }] = await Promise.all([
     supabase.from("presence_states").select("*").order("sort"),
     supabase.from("presence").select("*").eq("member_id", me.member.id).order("starts_on", { ascending: false }).limit(5),
+    supabase.rpc("my_homes"),
   ]);
+  const homes = (homesData as HomeListing[] | null) ?? [];
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large flex items-center gap-4">
@@ -58,6 +61,7 @@ export default async function MePage() {
       <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"} />
       <NotificationsToggle />
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
+      {!me.preview && <HomeSwitcher homes={homes} />}
       <div className="card">
         <h2 className="text-lg font-semibold">Add this app to your phone</h2>
         <p className="mt-1">iPhone: in Safari tap Share, then “Add to Home Screen”.</p>

@@ -1,16 +1,20 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { SignOutButton } from "./SignOutButton";
 
 /**
  * A signed-in account that is in no home yet: make one, or wait to be added.
  * One screen, six fields, the baby first. household_create does the rest and
- * me() answers for the new home from the next render.
+ * me() answers for the new home from the next render. With `another`, the same
+ * form for a member making a second home from the Me screen: the account runs
+ * as the new home from then on, and the switcher goes back.
  */
-export function CreateHome({ email }: { email: string | null }) {
+export function CreateHome({ email, another = false }: { email: string | null; another?: boolean }) {
   const router = useRouter();
+  const Wrap = another ? "div" : "main";
   const guess = email ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
   const [yourName, setYourName] = useState(guess);
   const [homeName, setHomeName] = useState("");
@@ -48,17 +52,20 @@ export function CreateHome({ email }: { email: string | null }) {
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not create the home.");
+    // A second home: the account now runs as it, so the whole app reloads for it.
+    if (another) return window.location.assign("/");
     router.refresh();
   }
 
   return (
-    <main className="mx-auto max-w-md p-6 pt-12">
+    <Wrap className={another ? "flex flex-col gap-4" : "mx-auto max-w-md p-6 pt-12"}>
       <form onSubmit={submit} className="card flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Create your home</h1>
+          <h1 className="text-2xl font-bold">{another ? "Create another home" : "Create your home"}</h1>
           <p className="muted mt-1">
-            You are signed in but not in a home yet. Make one here, and you are its admin: you add the rest of the family on the Members screen. If someone
-            already added your e-mail to their home, you will land there instead.
+            {another
+              ? "You stay in your current home too, and switch between them from your settings. The new home starts empty: you are its admin and add its family on its Members screen."
+              : "You are signed in but not in a home yet. Make one here, and you are its admin: you add the rest of the family on the Members screen. If someone already added your e-mail to their home, you will land there instead."}
           </p>
         </div>
         <label className="flex flex-col gap-1">
@@ -113,9 +120,17 @@ export function CreateHome({ email }: { email: string | null }) {
         <button type="submit" className="btn btn-primary min-h-[56px] text-lg" disabled={busy || !baby.trim() || !yourName.trim()}>
           {busy ? "Creating…" : "Create the home"}
         </button>
-        <p className="muted text-sm">Signed in as {email ?? "you"}. Waiting to be added to someone else&apos;s home instead? Just sign out and come back once they have.</p>
-        <SignOutButton />
+        {another ? (
+          <Link href="/me" className="btn">
+            Back
+          </Link>
+        ) : (
+          <>
+            <p className="muted text-sm">Signed in as {email ?? "you"}. Waiting to be added to someone else&apos;s home instead? Just sign out and come back once they have.</p>
+            <SignOutButton />
+          </>
+        )}
       </form>
-    </main>
+    </Wrap>
   );
 }

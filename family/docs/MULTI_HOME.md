@@ -11,9 +11,13 @@ nothing of any other.
   carries `household_id`: members, the child, entries, milk, medicines, calendar,
   notes, chat, shopping, maintenance, the helper's chats and memories, audit
   rows, push subscriptions. 42 tables.
-- **One account, one home** (v1). `members.user_id` is unique and an e-mail is
-  listed in one home only. A grandmother helping two families needs two
-  accounts for now; a home switcher is a later step.
+- **One account, several homes** (since migration 4300). A member row is one
+  person in one home; an account holds one in each home that listed its e-mail,
+  and `(household_id, user_id)` and `(household_id, email)` are what is unique.
+  The account runs as its chosen row (`private.account_home`, set by
+  `home_switch`), else its oldest; `my_homes()` lists them and `me().homes`
+  counts them. A grandmother helping two families signs in once and switches
+  on her Me screen. The choice is on the account, so every device follows it.
 - **Who you are decides which home you see.** `private.current_household_id()`
   is the home of the signed-in member (or of the previewed member in "view as").
   Every home-scoped table has one extra *restrictive* row-security policy,
@@ -25,9 +29,10 @@ nothing of any other.
   get the policy. Since migration 4000 every definer function in `public`
   belongs to `app_rls`, a role row security applies to: inside them the home
   policy filters every read and write, and a permissive policy for `app_rls`
-  gives them, within that home, all the power they had. Four stay with
+  gives them, within that home, all the power they had. Seven stay with
   `postgres` because they must see across homes: `current_member_id`,
-  `has_permission`, `link_current_user`, `household_create`. The helpers in
+  `has_permission`, `link_current_user`, `household_create`, `my_homes`,
+  `home_switch`, `household_delete`. The helpers in
   `private` (`subject_module`, `entry_module`, `default_subject`,
   `admin_names`, `subject_names`) also answer only for the caller's home.
   **A new definer function must be given to `app_rls`** (`alter function …
@@ -49,15 +54,26 @@ nothing of any other.
 
 ## Joining
 
-- **Create a home:** a signed-in account with no member row calls
+- **Create a home:** a signed-in account calls
   `household_create(name, timezone, child name, birth date, sex, your name)`.
-  It becomes the home's first admin, the child is made, and `me()` works from
-  then on. If the e-mail is already on some home's list, that home wins and no
-  second home is made.
+  It becomes the home's first admin, the child is made, and the account runs
+  as that home from then on. An account in no home gets the screen on sign-in;
+  a member makes another home from "Create another home" on the Me screen. If
+  the e-mail is already on some home's list, the first sign-in lands there
+  first; making a home of their own is the deliberate step after.
 - **Be invited:** exactly as before. An admin adds a name, e-mail and role on
   the Members screen; the first sign-in with that e-mail links the account to
-  that row (`link_current_user`, and the auth trigger). The invitee lands in the
-  inviter's home because the member row carries its `household_id`.
+  that row (`link_current_user`, and the auth trigger), and so does the next
+  request of an account that already exists. The invitee lands in the
+  inviter's home because the member row carries its `household_id`; someone
+  already in a home keeps running as theirs and finds the new one in the
+  switcher.
+- **Leave or delete:** an admin deactivates a member on their page, as before.
+  An admin deletes the whole home from the Members screen by typing its name
+  (`household_delete`): every row the home owns goes with it by cascade, the
+  audit row outlives it, and the app then removes the home's folder from the
+  photos and backups buckets. The first home on the deployment cannot be
+  deleted from the app: it holds what every home shares.
 
 ## Phases
 
@@ -79,8 +95,14 @@ nothing of any other.
    before many homes are the first home's). The timezone and currency lookups
    written as `from household limit 1` are safe since phase 3: inside an
    `app_rls` function row security leaves exactly the caller's home.
-5. **Later:** one account in several homes with a switcher; a home's own
-   subdomain or name on the login screen; deleting a home.
+5. **One account, several homes** (migration 4300): the uniqueness of a member
+   moves from the account to the home; the account's chosen home
+   (`home_switch`, the switcher on the Me screen); "Create another home";
+   deleting a home by name (`household_delete`, with the bucket folders
+   removed by `app/api/home/delete`); the sign-in screen greets the home this
+   device last signed in to.
+6. **Later:** a home's own subdomain; per-home copies of the shared
+   definitions, if a family ever needs its own matrix.
 
 ## What does not change
 

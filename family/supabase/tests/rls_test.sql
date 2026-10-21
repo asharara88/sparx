@@ -1061,11 +1061,10 @@ select pg_temp.assert((select r->>'ok' from new_home) = 'true', 'the home is cre
 select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())->'household'->>'name' = 'Maya''s home' and (public.me())->'household'->>'timezone' = 'Europe/London', 'and me() is that home from now on');
 select pg_temp.assert((public.me())->'role'->>'id' = 'admin' and (public.me())->'member'->>'display_name' = 'Sara', 'as its admin, by the name given');
 select pg_temp.assert((public.me())->'subjects'->0->>'name' = 'Maya' and (public.me())->'subjects'->0->>'sex' = 'Girl', 'with the baby made');
-select pg_temp.assert((public.household_create('Another', 'Asia/Dubai', 'X'))->>'error' = 'already_member', 'and cannot make a second one');
 select pg_temp.assert((select count(*) from public.care_entries) = 0 and (select count(*) from public.members) = 1, 'and sees nothing of the other two homes');
 reset role;
 
--- An e-mail an admin listed joins that home, it does not get a home of its own.
+-- An e-mail an admin listed joins that home at the first sign-in (making one of their own is a later, deliberate step: migration 4300, below).
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert((public.member_save(null, 'Cousin', 'cousin@test.local', 'family_carer', null, null, true, null))->>'ok' = 'true', 'Mido lists a cousin by e-mail');
@@ -1073,8 +1072,7 @@ reset role;
 insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c002', 'cousin@test.local') on conflict do nothing;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c002","role":"authenticated"}', false);
 set role authenticated;
-select pg_temp.assert((public.household_create('Mine', 'Asia/Dubai', 'Nobody'))->>'error' = 'already_member', 'the cousin cannot make a home: the listed e-mail wins');
-select pg_temp.assert((public.me())->'household'->>'id' <> :khan_home and (public.me())->'member'->>'display_name' = 'Cousin', 'and lands in Mido''s home as the listed member');
+select pg_temp.assert((public.me())->'household'->>'id' <> :khan_home and (public.me())->'member'->>'display_name' = 'Cousin', 'the cousin lands in Mido''s home as the listed member');
 reset role;
 update public.care_entries set deleted_at = now() where note in ('khan test', 'cross-home test');
 
@@ -1130,8 +1128,8 @@ update public.bag_items set checked = false where id = '00000000-0000-4000-8000-
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
-      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create')) = 0,
-  'every definer function in public belongs to app_rls, except the four that must see across homes');
+      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete')) = 0,
+  'every definer function in public belongs to app_rls, except the seven that must see across homes');
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
@@ -1228,5 +1226,86 @@ select pg_temp.assert((select ended_at from public.care_entries where id = :'lil
 select pg_temp.assert((select ended_at from public.care_entries where id = :'lilly_sleep') > now() - interval '5 minutes', 'the first end, not the later one');
 select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where proname = 'care_entry_end')) = 'app_rls', 'care_entry_end runs as app_rls, so its own permission checks decide, not the table policy');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops).'
+-- One account in several homes (migration 4300): a person listed in two homes has a row in
+-- each and runs as the chosen one; switching, making another home, and deleting one.
+select email as mido_email from public.members where id = :mido \gset
+select id as our_home from public.household where name = 'Our home' \gset
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.member_save(null, 'Mido', :'mido_email', 'family_carer', null, 'Zayd''s uncle', true, null))->>'ok' = 'true', 'Haitham lists Mido''s e-mail in the Khans'' home');
+select pg_temp.assert((public.member_save(null, 'Dana', 'dana@test.local', 'family_carer', null, 'Zayd''s aunt', true, null))->>'ok' = 'true', 'and Dana''s');
+reset role;
+select pg_temp.assert((select count(*) from public.members where email = :'mido_email') = 2, 'Mido has a row in each home');
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'Mido still runs as his own home');
+select pg_temp.assert(jsonb_array_length(public.my_homes()) = 2 and (public.me())->>'homes' = '2', 'and is told he is in two');
+select pg_temp.assert((select count(*) from jsonb_array_elements(public.my_homes()) h where (h->>'current')::boolean and h->>'name' = 'Our home') = 1, 'with the current one marked');
+select pg_temp.assert((public.home_switch(gen_random_uuid()))->>'error' = 'not_member', 'a home he is not in cannot be chosen');
+select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true', 'he switches to the Khans');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->'role'->>'id' = 'family_carer', 'and from the next request runs as the family carer there');
+select pg_temp.assert((public.me())->'subjects'->0->>'name' = 'Zayd' and (select count(*) from public.care_subjects) = 1, 'seeing Zayd and not Lana');
+select pg_temp.assert(not public.has_permission('members', 'edit'), 'without his admin powers from home');
+select pg_temp.assert((public.home_summary(:lana))->>'ok' = 'false', 'Lana''s summary is refused from there');
+select pg_temp.assert((public.home_switch(:'our_home'))->>'ok' = 'true', 'he switches back');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home' and public.has_permission('members', 'edit'), 'and is the admin at home again');
+reset role;
+-- A scheduled job runs as one row in one home: its client names the row (lib/server/member.ts).
+select id as mido_khan from public.members where email = :'mido_email' and household_id = :khan_home \gset
+select set_config('request.jwt.claims', jsonb_build_object('sub', (select user_id from public.members where id = :mido), 'role', 'authenticated', 'member_id', :'mido_khan')::text, false);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->'role'->>'id' = 'family_carer', 'a job for Mido''s row in the Khans runs as that row, whatever his chosen home');
+reset role;
+select set_config('request.jwt.claims', jsonb_build_object('sub', (select user_id from public.members where id = :mido), 'role', 'authenticated', 'member_id', :haitham)::text, false);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'a claim naming someone else''s row is ignored');
+reset role;
+-- The first sign-in after being listed links the new row too, without moving the account.
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home' and (public.me())->>'homes' = '2', 'Dana''s row in the Khans carries her account; she stays at home');
+reset role;
+select pg_temp.assert((select count(*) from public.members where user_id = (select user_id from public.members where id = :dana) and is_active) = 2, 'both her rows carry her account');
+-- A member makes another home and runs as it from then on.
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select (public.household_create('The Khans at the beach', 'Asia/Dubai', 'Zayd', current_date - 20, 'Boy', 'Haitham'))->>'household_id' as beach_home \gset
+select pg_temp.assert(:'beach_home' is not null, 'Haitham, already in a home, makes another');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans at the beach' and (public.me())->>'homes' = '2', 'and runs as it from the next request');
+select pg_temp.assert((select count(*) from public.members) = 1 and (select count(*) from public.care_entries) = 0, 'a fresh home: himself and nothing else');
+select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true', 'he goes back to the first');
+reset role;
+-- Deleting a home: its admin, by its exact name, never the first home on the deployment.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.household_delete(:khan_home, 'The Khans'))->>'ok' = 'false', 'Mido, a carer in the Khans'' home, cannot delete it');
+select pg_temp.assert((public.household_delete(:'our_home', 'Our home'))->>'error' = 'platform', 'nor his own: the first home holds what every home shares');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.household_delete(:'our_home', 'Our home'))->>'ok' = 'false', 'Haitham cannot delete Mido''s home');
+select pg_temp.assert((public.household_delete(:'beach_home', 'The Khans'))->>'error' = 'bad_name', 'nor his own without its exact name');
+select pg_temp.assert((public.household_delete(:'beach_home', ' the khans at the beach '))->>'ok' = 'true', 'with the name, the beach home goes');
+reset role;
+select pg_temp.assert(not exists (select 1 from public.household where id = :'beach_home') and not exists (select 1 from public.members where household_id = :'beach_home') and not exists (select 1 from public.care_subjects where household_id = :'beach_home'), 'home, members and child are gone');
+select pg_temp.assert((select count(*) from public.audit_log where target_table = 'household' and target_id = :'beach_home' and allowed) = 1, 'and the deletion is in the audit log, outliving the home');
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->>'homes' = '1', 'Haitham is back to one home');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home' and (public.me())->>'homes' = '2', 'Mido is at home, still listed in the Khans');
+reset role;
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
