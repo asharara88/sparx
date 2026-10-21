@@ -2,7 +2,9 @@
 --
 -- 1. One open timer per type. A second "fell asleep" (another phone, a double tap, an
 --    offline queue replayed twice) returns the timer already running instead of opening a
---    second sleep that double-counts minutes and confuses "next nap".
+--    second sleep that double-counts minutes and confuses "next nap". Starts of one type
+--    for one subject are serialised with an advisory lock, so two phones in the same
+--    second cannot both pass the check.
 -- 2. "Who has her" expires. Custody set more than 12 hours ago no longer attributes new
 --    entries to that member; the person logging is attributed instead. A toggle that was
 --    forgotten three days ago used to put every entry in the wrong name.
@@ -42,6 +44,9 @@ begin
        select 1 from public.care_entry_types t where t.id = p_type_id and t.has_end
           and (t.settings->'end_if' is null
                or not exists (select 1 from jsonb_each_text(t.settings->'end_if') k where coalesce(p_payload, '{}'::jsonb)->>k.key is distinct from k.value))) then
+    -- Two phones in the same second: serialise starts of this type for this subject so the
+    -- second one sees the first (transaction-scoped advisory lock).
+    perform pg_advisory_xact_lock(hashtext(p_subject_id::text || ':' || p_type_id));
     select e.id into v_open from public.care_entries e
       join public.care_entry_types t on t.id = e.type_id
      where e.subject_id = p_subject_id and e.type_id = p_type_id and e.ended_at is null and e.deleted_at is null

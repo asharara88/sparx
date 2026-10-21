@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OngoingEntry } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueue, sendOrQueue, type QueuedOp } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
@@ -19,8 +19,10 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
   // A sleep started with no signal is still on this phone; it counts as asleep.
   const [queue, setQueue] = useState<QueuedOp[]>([]);
   useEffect(() => {
-    setQueue(readQueue());
-    return onQueueChange(() => setQueue(readQueue()));
+    const sb = supabaseBrowser();
+    const load = () => void readQueueFor(sb).then(setQueue);
+    load();
+    return onQueueChange(load);
   }, []);
   const asleep = mergeOngoing(serverAsleep ? [serverAsleep] : [], subjectId, queue).find((e) => e.type_id === typeId) ?? null;
 

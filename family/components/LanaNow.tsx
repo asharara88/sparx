@@ -6,7 +6,7 @@ import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueue, sendOrQueue, type QueuedOp } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { Boobs } from "./Boobs";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
@@ -54,8 +54,10 @@ export function LanaNow({
   // server-rendered screen and the first client render agree).
   const [queue, setQueue] = useState<QueuedOp[]>([]);
   useEffect(() => {
-    setQueue(readQueue());
-    return onQueueChange(() => setQueue(readQueue()));
+    const sb = supabaseBrowser();
+    const load = () => void readQueueFor(sb).then(setQueue);
+    load();
+    return onQueueChange(load);
   }, []);
   const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
   const queuedRef = useRef(false);

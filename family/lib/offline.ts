@@ -144,6 +144,11 @@ export function isTransient(error: Pick<PostgrestError, "code" | "message"> | { 
   return false;
 }
 
+/** The signed-in user's waiting operations (plus any queued before owners existed). */
+export async function readQueueFor(supabase: SupabaseClient): Promise<QueuedOp[]> {
+  return readQueue(await currentOwner(supabase));
+}
+
 async function currentOwner(supabase: SupabaseClient): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getSession();
@@ -203,11 +208,11 @@ export async function endOrQueue(supabase: SupabaseClient, entryId: string, ende
   const owner = await currentOwner(supabase);
   if (entryId.startsWith(QUEUED_ID_PREFIX)) {
     const startId = entryId.slice(QUEUED_ID_PREFIX.length);
-    const q = readQueue();
-    const start = q.find((x) => (x.op ?? "log") === "log" && x.client_id === startId) as QueuedEntry | undefined;
+    // Only this user's queued starts: another user's timer on a shared phone is not ours to end.
+    const start = readQueue(owner).find((x) => (x.op ?? "log") === "log" && x.client_id === startId) as QueuedEntry | undefined;
     if (start) {
       if (Date.parse(endedAt) < Date.parse(start.occurred_at)) return { status: "error", message: "The end time is before the start time." };
-      writeQueue(q.map((x) => (x.client_id === startId ? { ...start, ended_at: endedAt } : x)));
+      writeQueue(readQueue().map((x) => (x.client_id === startId ? { ...start, ended_at: endedAt } : x)));
       return { status: "queued" };
     }
     // The start went out between the screen loading and this tap: end it by its client_id.

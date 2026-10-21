@@ -6,7 +6,7 @@ import type { EntryRow, EntryType, HomeSummary, MilkData, OngoingEntry } from "@
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueue, sendOrQueue, type QueuedOp } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
 import { dirOf, fmtAgo, speechLang, t, type Lang } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
@@ -34,8 +34,10 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   // A sleep started with no signal is still on this phone; it counts as running.
   const [queue, setQueue] = useState<QueuedOp[]>([]);
   useEffect(() => {
-    setQueue(readQueue());
-    return onQueueChange(() => setQueue(readQueue()));
+    const sb = supabaseBrowser();
+    const load = () => void readQueueFor(sb).then(setQueue);
+    load();
+    return onQueueChange(load);
   }, []);
   const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
   const [panel, setPanel] = useState<null | "bottle" | "diaper" | "note">(null);

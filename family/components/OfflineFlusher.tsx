@@ -12,6 +12,8 @@ export function OfflineFlusher() {
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
   const [online, setOnline] = useState(true);
+  // The signed-in user; undefined until the session is read (then every owner's rows show).
+  const [owner, setOwner] = useState<string | null | undefined>(undefined);
   const router = useRouter();
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export function OfflineFlusher() {
     };
     void supabase.auth.getSession().then(({ data }: { data: { session: { user: { id: string } } | null } }) => {
       owner = data.session?.user.id ?? null;
+      setOwner(owner);
       refresh();
       void flush();
     });
@@ -59,7 +62,7 @@ export function OfflineFlusher() {
       {failed.length > 0 && (
         <span className="block">
           {failed.length === 1 ? "One entry could not be sent" : `${failed.length} entries could not be sent`}: {Array.from(new Set(failed)).join("; ")}{" "}
-          <button type="button" className="underline" onClick={() => dismissFailed()}>
+          <button type="button" className="underline" onClick={() => dismissFailed(owner)}>
             Dismiss
           </button>
         </span>
