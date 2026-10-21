@@ -52,3 +52,21 @@ test("grade: a care_entry proposal must carry what was said, amount and time inc
   const noDetails = grade(c, { answer: "Prepared. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"] });
   assert.equal(noDetails.pass, false);
 });
+
+test("grade: the end-timer case checks the entry it ends and when, against what was running", () => {
+  const c = CASES.find((x) => x.id === "woke_up")!;
+  const base = { answer: "She was asleep since 13:10. Prepared the wake-up for you to confirm.", skills: [], tools: ["propose_end_timer"], proposals: ["end_timer"] };
+  const asked_at = "2026-10-14T15:50:00Z";
+  const right = grade(c, { ...base, open_timers: ["sleep-1"], end_timers: [{ entry_id: "sleep-1", ended_at: "2026-10-14T15:51:00Z" }], asked_at });
+  assert.equal(right.pass, true, right.failures.join("; "));
+  const wrongId = grade(c, { ...base, open_timers: ["sleep-1"], end_timers: [{ entry_id: "feed-9", ended_at: "2026-10-14T15:51:00Z" }], asked_at });
+  assert.ok(wrongId.failures.some((f) => f.includes("no end_timer for an open timer")));
+  const wrongTime = grade(c, { ...base, open_timers: ["sleep-1"], end_timers: [{ entry_id: "sleep-1", ended_at: "2026-10-14T14:00:00Z" }], asked_at });
+  assert.ok(wrongTime.failures.some((f) => f.includes("min from when it was asked")));
+  const toolOnly = grade(c, { ...base, open_timers: ["sleep-1"], end_timers: [], asked_at });
+  assert.equal(toolOnly.pass, false, "running the tool is not enough; the proposal must be there");
+  const nothing = grade(c, { answer: "Nothing is running right now; she was not logged as asleep.", skills: [], tools: ["propose_end_timer"], proposals: [], open_timers: [], end_timers: [], asked_at });
+  assert.equal(nothing.pass, true, nothing.failures.join("; "));
+  const phantom = grade(c, { ...base, open_timers: [], end_timers: [{ entry_id: "sleep-1", ended_at: asked_at }], asked_at });
+  assert.ok(phantom.failures.some((f) => f.includes("nothing running")));
+});

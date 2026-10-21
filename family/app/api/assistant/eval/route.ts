@@ -52,6 +52,17 @@ export async function POST(req: Request) {
         cl = { supabase, me };
         clients.set(c.member, cl);
       }
+      // For the end-timer case: what is really running right now, so the grade checks the id and the time.
+      const asked_at = new Date().toISOString();
+      let open_timers: string[] | undefined;
+      if (c.expect.end_timer) {
+        open_timers = [];
+        for (const s of cl.me.subjects ?? []) {
+          const { data } = await cl.supabase.rpc("home_summary", { p_subject_id: s.id });
+          const ongoing = ((data as { ongoing?: { id?: string }[] } | null)?.ongoing ?? []).map((o) => o.id).filter((id): id is string => !!id);
+          open_timers.push(...ongoing);
+        }
+      }
       const reply = await askAssistant({ supabase: cl.supabase, me: cl.me, turns: [], question: c.question, screen: c.screen ?? null });
       if (!reply.ok) {
         results.push({ id: c.id, pass: false, failures: [`${reply.error}: ${reply.message ?? ""}`], ms: Date.now() - t0 });
@@ -64,6 +75,9 @@ export async function POST(req: Request) {
         tools: reply.tools,
         proposals: reply.proposals.map((p) => p.kind),
         care_entries: reply.proposals.filter((p) => p.care_entry).map((p) => ({ type_id: p.care_entry!.type_id, payload: p.care_entry!.payload, at: toLocalInput(p.care_entry!.occurred_at, tz).slice(11) })),
+        end_timers: reply.proposals.filter((p) => p.end_timer).map((p) => ({ entry_id: p.end_timer!.entry_id, ended_at: p.end_timer!.ended_at })),
+        open_timers,
+        asked_at,
       };
       const g = grade(c, run);
       results.push({ id: c.id, member: c.member, pass: g.pass, failures: g.failures, answer: reply.answer, skills: run.skills, tools: run.tools, proposals: run.proposals, tokens: reply.usage.input_tokens + reply.usage.output_tokens, cache_read: reply.usage.cache_read, ms: Date.now() - t0 });

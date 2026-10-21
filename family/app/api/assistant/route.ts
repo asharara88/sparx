@@ -38,10 +38,15 @@ export async function POST(req: Request) {
     : [];
   const screen = typeof body.screen === "string" && SCREENS.has(body.screen) ? body.screen : null;
 
+  // Ending the conversation on the phone aborts the fetch; the signal reaches the model
+  // stream and the tools, so nothing goes on being computed for an answer nobody will read.
+  const stop = new AbortController();
+  req.signal?.addEventListener("abort", () => stop.abort(), { once: true });
+
   if (body.stream !== true) {
     try {
-      const reply = await askAssistant({ supabase, me, turns, question, screen });
-      return NextResponse.json(reply, { status: reply.ok ? 200 : reply.error === "not_allowed" ? 403 : 503 });
+      const reply = await askAssistant({ supabase, me, turns, question, screen, signal: stop.signal });
+      return NextResponse.json(reply, { status: reply.ok ? 200 : reply.error === "not_allowed" ? 403 : reply.error === "cancelled" ? 499 : 503 });
     } catch (e) {
       console.error("assistant:", e);
       const f = friendlyModelError(e);
@@ -62,7 +67,7 @@ export async function POST(req: Request) {
         }
       };
       try {
-        const reply = await askAssistant({ supabase, me, turns, question, screen, onEvent: (e) => e.type !== "done" && send(e) });
+        const reply = await askAssistant({ supabase, me, turns, question, screen, signal: stop.signal, onEvent: (e) => e.type !== "done" && send(e) });
         if (reply.ok) send({ type: "done", reply });
         else send({ type: "error", error: reply.error, message: reply.message ?? "The assistant could not answer." });
       } catch (e) {
@@ -77,6 +82,10 @@ export async function POST(req: Request) {
           /* already closed */
         }
       }
+    },
+    cancel() {
+      // The reader went away (End tapped, tab closed): stop the model and the tools.
+      stop.abort();
     },
   });
   return new Response(stream, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" } });

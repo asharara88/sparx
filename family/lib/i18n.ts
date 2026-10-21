@@ -51,6 +51,16 @@ const STRINGS = {
     asleepNow_m: "He is asleep now.",
     awakeNow: "She is awake now.",
     awakeNow_m: "He is awake now.",
+    ended: "Ended.",
+    onCalendar: "On the calendar.",
+    onList: "On the list.",
+    sentForApproval: "Sent for approval.",
+    planStarted: "Plan started. Today's step is on Home.",
+    forgotten: "Forgotten.",
+    remembered: "Remembered.",
+    couldNotSave: "Could not save.",
+    to: "to",
+    yesterday: "yesterday",
   },
   ar: {
     title: "{child}",
@@ -104,6 +114,16 @@ const STRINGS = {
     asleepNow_m: "هو نايم دلوقتي.",
     awakeNow: "هي صاحية دلوقتي.",
     awakeNow_m: "هو صاحي دلوقتي.",
+    ended: "تم الإنهاء.",
+    onCalendar: "أُضيف إلى التقويم.",
+    onList: "أُضيف إلى القائمة.",
+    sentForApproval: "أُرسل للموافقة.",
+    planStarted: "بدأت الخطة. خطوة اليوم على الشاشة الرئيسية.",
+    forgotten: "تم النسيان.",
+    remembered: "تم الحفظ في الذاكرة.",
+    couldNotSave: "تعذّر الحفظ.",
+    to: "إلى",
+    yesterday: "أمس",
   },
   ru: {
     title: "{child}",
@@ -150,6 +170,16 @@ const STRINGS = {
     asleepNow_m: "Сейчас он спит.",
     awakeNow: "Сейчас она не спит.",
     awakeNow_m: "Сейчас он не спит.",
+    ended: "Завершено.",
+    onCalendar: "В календаре.",
+    onList: "В списке.",
+    sentForApproval: "Отправлено на одобрение.",
+    planStarted: "План начат. Шаг на сегодня на главном экране.",
+    forgotten: "Забыто.",
+    remembered: "Запомнено.",
+    couldNotSave: "Не удалось сохранить.",
+    to: "до",
+    yesterday: "вчера",
   },
 } as const;
 
@@ -181,6 +211,30 @@ export function speechLang(lang: Lang | undefined): string {
 export function dirOf(lang: Lang | undefined): "ltr" | "rtl" {
   return LANGS.find((l) => l.id === lang)?.dir ?? "ltr";
 }
+/**
+ * When something happened, said aloud in the member's language: the time alone
+ * if it was today, "yesterday 19:50" for yesterday, else the day and month too
+ * ("Tuesday 14 October 19:50"), so an entry logged for another day is heard as
+ * such before it is confirmed.
+ */
+export function spokenWhen(iso: string, tz: string, lang: Lang | undefined, now: Date = new Date()): string {
+  const locale = speechLang(lang);
+  const d = new Date(iso);
+  const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(d);
+  const ymd = (x: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(x);
+  const day = ymd(d);
+  if (day === ymd(now)) return time;
+  if (day === ymd(new Date(now.getTime() - 86_400_000))) return `${t(lang, "yesterday")} ${time}`;
+  // The day's words in Intl's order, separated by spaces (as lib/time's dateWords does, in this locale).
+  const words = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", timeZone: tz })
+    .formatToParts(d)
+    .map((p) => (p.type === "literal" ? " " : p.value))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${words} ${time}`;
+}
+
 /** "2 h 10 min" in the member's language, from minutes. */
 export function fmtAgo(lang: Lang | undefined, minutes: number): string {
   const m = Math.max(0, Math.round(minutes));

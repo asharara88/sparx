@@ -24,6 +24,12 @@ export interface EvalExpect {
   propose?: "care_entry" | "end_timer" | "calendar_event" | "shopping" | "plan" | "memory" | "forget" | "none";
   /** A care_entry proposal must carry exactly this: the type, these payload values, and this household time ("HH:MM"). */
   entry?: { type_id?: string; payload?: Record<string, unknown>; at?: string };
+  /**
+   * The end-timer case, graded against what was really running when it was asked: with a
+   * timer open, an end_timer proposal must name one of the open entries and end it within
+   * `within_min` of "now"; with nothing open, no end may be proposed and the answer must say so.
+   */
+  end_timer?: { within_min: number };
   /** Answer must be under this many words. */
   max_words?: number;
   /** The answer must be (mostly) in this script. */
@@ -64,7 +70,7 @@ export const CASES: EvalCase[] = [
   // Writes: propose, never save; ask when a detail is missing.
   { id: "log_bottle", member: "Dana", question: "Log a 120 ml bottle of pumped milk now", expect: { propose: "care_entry", mention: ["(confirm|tap)"], entry: { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 120 } } } },
   { id: "bottle_at_time", member: "Dana", question: "She had 90 ml of formula at 14:30", expect: { propose: "care_entry", entry: { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 90, milk: "Formula" }, at: "14:30" } } },
-  { id: "woke_up", member: "Dana", question: "She just woke up", expect: { tools_any: ["propose_end_timer"], tools_none: ["propose_care_entry"], avoid: ["\\bsaved\\b"] } },
+  { id: "woke_up", member: "Dana", question: "She just woke up", expect: { tools_any: ["propose_end_timer"], tools_none: ["propose_care_entry"], avoid: ["\\bsaved\\b"], end_timer: { within_min: 5 } } },
   { id: "bad_time", member: "Dana", question: "Log a 100 ml bottle at half past", expect: { propose: "none", mention: ["(when|what time|which|half past)"], max_words: 40 } },
   { id: "log_breast_missing_side", member: "Dana", question: "Log a breastfeed", expect: { propose: "none", mention: ["(left|right|which)"] , max_words: 40 } },
   { id: "remember", member: "Dana", question: "Remember that white noise helps her settle", expect: { propose: "memory" } },
@@ -86,6 +92,12 @@ export interface EvalRun {
   proposals: string[];
   /** Every care_entry proposal, with its time as household "HH:MM". */
   care_entries?: { type_id: string; payload: Record<string, unknown>; at: string }[];
+  /** Every end_timer proposal: which entry, and the end as an ISO instant. */
+  end_timers?: { entry_id: string; ended_at: string }[];
+  /** The ids of the timers that were open when the question was asked. */
+  open_timers?: string[];
+  /** When the question was asked (ISO), for "ends now" checks. */
+  asked_at?: string;
 }
 
 export function grade(c: EvalCase, r: EvalRun): { pass: boolean; failures: string[] } {
@@ -108,6 +120,22 @@ export function grade(c: EvalCase, r: EvalRun): { pass: boolean; failures: strin
         (!want.at || c.at === want.at),
     );
     if (!hit) f.push(`no care_entry with ${JSON.stringify(want)} (got ${JSON.stringify(r.care_entries ?? [])})`);
+  }
+  if (e.end_timer) {
+    const open = r.open_timers ?? [];
+    const ends = r.end_timers ?? [];
+    if (open.length) {
+      const hit = ends.find((x) => open.includes(x.entry_id));
+      if (!hit) f.push(`no end_timer for an open timer ${JSON.stringify(open)} (got ${JSON.stringify(ends)})`);
+      else {
+        const asked = r.asked_at ? new Date(r.asked_at).getTime() : Date.now();
+        const off = Math.abs(new Date(hit.ended_at).getTime() - asked) / 60_000;
+        if (!(off <= e.end_timer.within_min)) f.push(`end ${hit.ended_at} is ${off.toFixed(1)} min from when it was asked, over ${e.end_timer.within_min}`);
+      }
+    } else {
+      if (ends.length) f.push(`proposed ending ${JSON.stringify(ends)} with nothing running`);
+      if (!/\b(nothing|no |not |isn't|is not)\b/i.test(r.answer)) f.push("nothing was running and the answer does not say so");
+    }
   }
   if (e.max_words) {
     const words = r.answer.replace(/\[[a-z]+:[^\]]+\]/g, "").trim().split(/\s+/).filter(Boolean).length;

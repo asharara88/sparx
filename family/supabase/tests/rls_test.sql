@@ -1210,5 +1210,23 @@ select pg_temp.assert((select count(*) from storage.objects where bucket_id = 'p
 reset role;
 delete from storage.objects where bucket_id = 'photos';
 
+-- A timer ends once, locked (migration 4200): the end is written under a row lock, and an
+-- "add"-only member ending her own timer really ends it (the invoker update used to no-op).
+update public.care_entries set ended_at = now() where type_id = 'lana.sleep' and ended_at is null and deleted_at is null;
+insert into public.permissions (role_id, module_id, action, allowed) values ('home_carer', 'lana', 'view', true), ('home_carer', 'lana', 'add', true)
+  on conflict (role_id, module_id, action) do update set allowed = true;
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action in ('edit', 'delete');
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert(public.has_permission('lana', 'add') and not public.has_permission('lana', 'edit'), 'Lilly may add to the log but not edit it');
+select (public.care_entry_log(:lana, 'lana.sleep', now() - interval '20 minutes', null, '{}', null, null))->>'id' as lilly_sleep \gset
+select pg_temp.assert(:'lilly_sleep' is not null, 'she starts a sleep');
+select pg_temp.assert((public.care_entry_end(:'lilly_sleep', now()))->>'ok' = 'true', 'and ends it herself');
+select pg_temp.assert((public.care_entry_end(:'lilly_sleep', now() - interval '10 minutes'))->>'error' = 'already_ended', 'a second end, with an earlier time, is refused');
+reset role;
+select pg_temp.assert((select ended_at from public.care_entries where id = :'lilly_sleep') is not null, 'and the row really carries her end (the add-only update used to change nothing)');
+select pg_temp.assert((select ended_at from public.care_entries where id = :'lilly_sleep') > now() - interval '5 minutes', 'the first end, not the later one');
+select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where proname = 'care_entry_end')) = 'app_rls', 'care_entry_end runs as app_rls, so its own permission checks decide, not the table policy');
+
 \echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
