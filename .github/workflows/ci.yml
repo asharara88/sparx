@@ -62,7 +62,11 @@ jobs:
           cache-dependency-path: family/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      # The unit tests include lib/setup/plan.test.ts: the household setup script's
+      # matching, account-link and validation rules, exercised without a database.
       - run: npm test
+      - name: The setup script parses (its logic is in lib/setup/plan.mjs, tested above)
+        run: node --check scripts/setup-household.mjs
       - name: Migrations + RLS checks against a fresh Postgres
         env:
           PGPASSWORD: postgres

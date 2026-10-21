@@ -262,7 +262,11 @@ npm run setup:household -- household.json --accounts
 `household.json` is ignored by git. The example file documents every field: roles (`admin`,
 `family_carer`, `home_carer`, `sitter`), presence, work days, who breastfeeds, work hours, the
 child's name in Arabic and Russian for the simple screen, night window, ambulance number,
-blood group, doctor. With `--accounts` the script creates a sign-in account for every member
+blood group, doctor. The whole file is checked before the first write. Members match by `id`
+(every run prints each member's id), else by e-mail, else by name; a member linked to a
+sign-in account keeps that link unless the file says `"relink": true`; a deactivated member
+comes back only with `"active": true`; members in the home but not in the file are listed
+and left alone unless `household.deactivate_missing` is true. With `--accounts` the script creates a sign-in account for every member
 with an e-mail and links it; each person then uses "Forgot password" on the sign-in screen to
 choose their first password. Without it, anyone who creates an account with a listed e-mail is
 linked on first sign-in; an e-mail that is not on the list sees "Your e-mail is not on the

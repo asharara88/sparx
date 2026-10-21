@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { awayParent } from "@/lib/handover";
 import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { childPronouns, possessive } from "@/lib/names";
@@ -78,7 +79,7 @@ export default async function HomePage() {
   const staffToday = household.ok ? household.members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
   // Mama is away: the breastfeeding member works today and it is within their hours.
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
-  const mama = household.ok ? household.members.find((m) => m.breastfeeds) ?? null : null;
+  const mama = household.ok ? awayParent(household.members) : null;
   const mamaWorks = !!mama && mama.works_today;
   const from = hhmm(mama?.work_from, WORK_FROM);
   const to = hhmm(mama?.work_to, WORK_TO);

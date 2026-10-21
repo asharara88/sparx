@@ -1,4 +1,4 @@
-import type { EntryRow } from "@/lib/types";
+import type { EntryRow, HouseholdMember } from "@/lib/types";
 
 export interface WindowStats {
   bottles: number;
@@ -16,6 +16,22 @@ export interface WindowStats {
  * `toIso`, counts up to `toIso` only. So "while Mama was at work" neither loses
  * the nap she left during nor claims the evening's.
  */
+/**
+ * Whose workday the handover and the fridge plan follow: the breastfeeding parent
+ * when one is marked (bottles while she is away), else the parent with work hours,
+ * the one who leaves earliest first. A home where nobody breastfeeds, or where the
+ * father is the one at work, still gets "since they left" and the plan to their
+ * return. Nobody with work hours: no away parent.
+ */
+export function awayParent(members: HouseholdMember[]): HouseholdMember | null {
+  const parent = (m: HouseholdMember) => m.role_id === "admin" || /\b(parent|mother|father|mum|mom|dad|mama|papa|baba)\b/i.test(m.relationship ?? "");
+  const nursing = members.find((m) => m.breastfeeds);
+  if (nursing) return nursing;
+  const working = members.filter((m) => parent(m) && m.work_days.length > 0 && (m.work_from || m.work_to));
+  working.sort((a, b) => (a.work_from ?? "99:99").localeCompare(b.work_from ?? "99:99"));
+  return working[0] ?? null;
+}
+
 export function windowStats(entries: EntryRow[], fromIso: string, toIso: string): WindowStats {
   const from = Date.parse(fromIso);
   const to = Date.parse(toIso);

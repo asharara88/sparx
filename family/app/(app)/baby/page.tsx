@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { awayParent } from "@/lib/handover";
 import type { ActivitiesData, BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childPronouns, possessive, type Pronouns } from "@/lib/names";
@@ -111,7 +112,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
   const meds = medData as MedicinesData | RpcError | null;
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const hh = hhData as HouseholdToday | RpcError | null;
-  const mama = hh && hh.ok ? hh.members.find((m) => m.breastfeeds) ?? null : null;
+  const mama = hh && hh.ok ? awayParent(hh.members) : null;
   const awayFrom = hhmm(mama?.work_from, WORK_FROM);
   const awayTo = hhmm(mama?.work_to, WORK_TO);
   const away = (at: number) => {

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { awayParent } from "@/lib/handover";
 import type { Me, MilkData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { MilkStash } from "@/components/MilkStash";
@@ -28,7 +29,7 @@ export default async function MilkPage() {
   if (!milk.ok) redirect("/");
   const hh = hhData as HouseholdToday | RpcError;
   const summary = sumData as HomeSummary | RpcError;
-  const mama = hh.ok ? hh.members.find((m) => m.breastfeeds) ?? null : null;
+  const mama = hh.ok ? awayParent(hh.members) : null;
   const now = new Date();
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
   const from = hhmm(mama?.work_from, WORK_FROM);

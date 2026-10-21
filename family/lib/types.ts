@@ -119,6 +119,8 @@ export interface FieldDef {
   show_if?: Record<string, string>;
   /** Option -> member flag that must be true for the option to show (e.g. Breast -> breastfeeds). */
   option_flags?: Record<string, string>;
+  /** What an option is called in another language: lang -> stored value -> label. The stored value stays the same. */
+  labels?: Partial<Record<"ar" | "ru", Record<string, string>>>;
   default?: string | number;
 }
 

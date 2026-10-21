@@ -249,3 +249,18 @@ export function fmtAgo(lang: Lang | undefined, minutes: number): string {
   const text = h ? `${h} ${units.h}${r ? ` ${r} ${units.m}` : ""}` : `${r} ${units.m}`;
   return lang === "ar" ? `منذ ${text}` : lang === "ru" ? `${text} назад` : `${text} ago`;
 }
+
+/**
+ * A choice option in the member's language. The stored value never changes ("Formula"
+ * is what the log keeps); the label comes from the field's own `labels` (an admin can
+ * set them on the entry type), else from the words below for the defaults, else the
+ * value itself.
+ */
+const OPTION_LABELS: Record<"ar" | "ru", Record<string, string>> = {
+  ar: { "Morning pumped": "حليب الصباح", "Night pumped": "حليب الليل", Freezer: "من الفريزر", Formula: "حليب صناعي", Bottle: "رضّاعة", Breast: "رضاعة طبيعية", Left: "يسار", Right: "يمين", Both: "الاثنان", Wet: "مبلول", Dirty: "متسخ" },
+  ru: { "Morning pumped": "Утреннее сцеженное", "Night pumped": "Ночное сцеженное", Freezer: "Из морозилки", Formula: "Смесь", Bottle: "Бутылочка", Breast: "Грудь", Left: "Левая", Right: "Правая", Both: "Обе", Wet: "Мокрый", Dirty: "Грязный" },
+};
+export function optionLabel(lang: Lang | undefined, value: string, field?: { labels?: Partial<Record<"ar" | "ru", Record<string, string>>> } | null): string {
+  if (!lang || lang === "en") return value;
+  return field?.labels?.[lang]?.[value] ?? OPTION_LABELS[lang]?.[value] ?? value;
+}
