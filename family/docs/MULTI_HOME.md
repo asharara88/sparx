@@ -35,11 +35,13 @@ nothing of any other.
   Composite foreign keys (`household_id, member_id` and `household_id,
   subject_id`) mean a row cannot point at a member or child of another home
   whoever writes it.
-- **Shared definitions stay shared** for now: roles, the permission matrix,
-  modules, entry types, presence states, the vaccine schedule, activities,
-  stores and the helper's skills are one set for the deployment. An admin
-  editing them edits them for every home. Phase 3 decides between per-home
-  copies and locking those screens to the first home.
+- **Shared definitions stay shared**: roles, the permission matrix, modules,
+  entry types, presence states, the vaccine schedule, activities, stores and
+  the helper's skills are one set for the deployment. Since migration 4100
+  only the first home's admins change them (`private.platform_home()`;
+  `me().platform` says whether you are there), and the editors say so to
+  everyone else. Per-home copies are a later step, if a family ever needs
+  its own matrix.
 - **New rows know their home.** `household_id` defaults to the caller's home.
   While a deployment has exactly one home, a script writing with the service
   role (which has no member) lands there too; with two or more homes a script
@@ -69,7 +71,15 @@ nothing of any other.
    the suite, all refused; composite home foreign keys. Still open: backups
    and the push cron per home (both use the service role across homes today);
    shared definitions per home or locked.
-4. **Later:** one account in several homes with a switcher; a home's own
+4. **Running it** (migration 4100): backups per home (`home-<id>/run-<stamp>`
+   in the bucket, listed and downloadable by that home's admins only); push
+   notifications stamped with the member's home; the four shared-definition
+   editors locked to the first home; the photos bucket per home (uploads go
+   under `home-<id>/…` and the bucket policies check the folder; photos from
+   before many homes are the first home's). The timezone and currency lookups
+   written as `from household limit 1` are safe since phase 3: inside an
+   `app_rls` function row security leaves exactly the caller's home.
+5. **Later:** one account in several homes with a switcher; a home's own
    subdomain or name on the login screen; deleting a home.
 
 ## What does not change

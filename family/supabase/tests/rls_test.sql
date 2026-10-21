@@ -1125,5 +1125,52 @@ select pg_temp.assert(
       and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create')) = 0,
   'every definer function in public belongs to app_rls, except the four that must see across homes');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope).'
+-- Running many homes (migration 4100): shared definitions change only from the first home; backups per home
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->>'platform' = 'true', 'Mido''s home is the first, the platform home');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.me())->>'platform' = 'false', 'Haitham''s is not');
+select pg_temp.assert((public.permission_set('family_carer', 'notes', 'delete', true))->>'error' = 'shared', 'he cannot change the permission matrix every home shares');
+select pg_temp.assert((public.role_save('nanny', 'Nanny', null))->>'error' = 'shared', 'nor add a role');
+select pg_temp.assert((public.entry_type_save('lana.feed', 'lana', 'feed', 'Feed!', null, null, 10, false, 180, (select fields from public.care_entry_types where id = 'lana.feed'), true, true))->>'error' = 'shared', 'nor edit an entry type');
+select pg_temp.assert((public.skill_save('khan_skill', 'Khan skill', 'when', '{}', 'a body of at least twenty characters here', '', false, null, null, 100, true))->>'error' = 'shared', 'nor a helper skill');
+reset role;
+select pg_temp.assert((select label from public.care_entry_types where id = 'lana.feed') <> 'Feed!' and not exists (select 1 from public.roles where id = 'nanny') and not exists (select 1 from public.assistant_skills where id = 'khan_skill'), 'and nothing shared changed');
+insert into public.backups (path, household_id, rows) values ('home-khan/run-test', :khan_home, 1), ('home-ours/run-test', (select id from public.household where name = 'Our home'), 1);
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.backups where path like 'home-khan/%') = 0 and (select count(*) from public.backups where path like 'home-ours/%') = 1, 'Mido lists his home''s backups, not the Khans''');
+reset role;
+delete from public.backups where path like 'home-%/run-test';
+
+-- Photos per home: the bucket keeps each home to its own folder; what was there before is the first home's
+create or replace function pg_temp.fails(p_sql text) returns boolean language plpgsql as $$
+begin
+  execute p_sql;
+  return false;
+exception when others then
+  return true;
+end $$;
+select pg_temp.act_as(:mido);
+set role authenticated;
+insert into storage.objects (bucket_id, name) values ('photos', 'requests/before-many-homes.jpg');
+insert into storage.objects (bucket_id, name) values ('photos', 'home-' || (select id from public.household where name = 'Our home') || '/chat/ours.jpg');
+select pg_temp.assert(pg_temp.fails(format('insert into storage.objects (bucket_id, name) values (%L, %L)', 'photos', 'home-' || :khan_home || '/chat/sneaked.jpg')), 'Mido cannot upload into the Khans'' folder');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+insert into storage.objects (bucket_id, name) values ('photos', 'home-' || :khan_home || '/chat/zayd.jpg');
+select pg_temp.assert(pg_temp.fails(format('insert into storage.objects (bucket_id, name) values (%L, %L)', 'photos', 'requests/no-folder.jpg')), 'Haitham cannot upload outside his folder');
+select pg_temp.assert((select count(*) from storage.objects where bucket_id = 'photos') = 1 and (select name from storage.objects where bucket_id = 'photos') like 'home-' || :khan_home || '/%', 'and sees only his home''s photo: not the old ones, not ours');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select count(*) from storage.objects where bucket_id = 'photos') = 2 and not exists (select 1 from storage.objects where name like 'home-' || :khan_home || '/%'), 'Mido sees the old photos and his home''s, not the Khans''');
+reset role;
+delete from storage.objects where bucket_id = 'photos';
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

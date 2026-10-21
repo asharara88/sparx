@@ -17,6 +17,11 @@ export default async function EntryTypesPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/members" title="Entry types" subtitle="What the logs can record, and when something is due again." />
+      {!me.platform && (
+        <p className="notice notice-accent">
+          This is shared by every home on elnunu, so only the first home&apos;s admins change it. What you see here is what applies to yours.
+        </p>
+      )}
       <EntryTypesAdmin
         types={(data as EntryType[] | null) ?? []}
         modules={[

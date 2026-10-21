@@ -19,9 +19,15 @@ async function admin() {
 
 /** GET ?path=run-…/file → a one-hour link to that backup file (audit viewers only). */
 export async function GET(req: Request) {
-  if (!(await admin())) return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
+  const me = await admin();
+  if (!me) return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
   const path = new URL(req.url).searchParams.get("path") ?? "";
-  if (!/^run-[0-9-]+\/[a-z_]+\.(json|json\.gz)$/.test(path)) return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
+  // Backups live per home: home-<id>/run-<stamp>/<table>; only your own home's.
+  // Runs from before many homes (run-<stamp>/…) belong to the first home.
+  const m = /^(?:home-([0-9a-f-]{36})\/)?run-[0-9-]+\/[a-z_]+\.(json|json\.gz)$/.exec(path);
+  if (!m) return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
+  const mine = m[1] ? m[1] === me.household.id : me.platform === true;
+  if (!mine) return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ ok: false, error: "not_configured", message: "SUPABASE_SERVICE_ROLE_KEY is not set on the server." }, { status: 503 });
   const { data, error } = await serviceClient().storage.from("backups").createSignedUrl(path, 3600);
   if (error || !data) return NextResponse.json({ ok: false, error: "not_found", message: error?.message }, { status: 404 });

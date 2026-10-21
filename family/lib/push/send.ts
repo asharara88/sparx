@@ -34,10 +34,14 @@ interface Sub {
 export async function notifyMember(service: SupabaseClient, memberId: string, n: Notice): Promise<{ sent: number; skipped?: "sent" | "no_phones" | "not_configured" }> {
   if (!pushConfigured()) return { sent: 0, skipped: "not_configured" };
   setup();
+  // The service role is in no home, so the row says whose home it is for.
+  const { data: who } = await service.from("members").select("household_id").eq("id", memberId).maybeSingle();
+  const home = (who as { household_id: string } | null)?.household_id;
+  if (!home) return { sent: 0, skipped: "no_phones" };
   // Dedupe first: the unique (member_id, key) is the lock.
   const { data: ins, error: insErr } = await service
     .from("notifications")
-    .insert({ member_id: memberId, kind: n.kind, key: n.key, title: n.title, body: n.body ?? null, url: n.url ?? null })
+    .insert({ household_id: home, member_id: memberId, kind: n.kind, key: n.key, title: n.title, body: n.body ?? null, url: n.url ?? null })
     .select("id")
     .maybeSingle();
   if (insErr || !ins) return { sent: 0, skipped: "sent" };
