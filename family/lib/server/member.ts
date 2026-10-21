@@ -7,7 +7,10 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/env";
  *  - the service client: reads the subscription and notification tables, nothing else;
  *  - a member client: a short-lived JWT signed with the project's JWT secret for that
  *    member's auth user, so everything the job computes for them runs under their own
- *    Row Level Security, exactly as if they had opened the app.
+ *    Row Level Security, exactly as if they had opened the app. It also names the
+ *    member row: an account can be in several homes (docs/MULTI_HOME.md), and a job
+ *    for the row in one home must not run as the account's chosen home. The
+ *    database honours the claim only for a row of that very account.
  * Both need secrets that never reach the browser.
  */
 
@@ -22,10 +25,10 @@ export function serviceClient(): SupabaseClient {
   return createClient(SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-export async function memberClient(userId: string): Promise<SupabaseClient> {
+export async function memberClient(userId: string, memberId?: string): Promise<SupabaseClient> {
   const secret = process.env.SUPABASE_JWT_SECRET;
   if (!secret) throw new Error("SUPABASE_JWT_SECRET is not set");
-  const jwt = await new SignJWT({ role: "authenticated", aud: "authenticated" })
+  const jwt = await new SignJWT({ role: "authenticated", aud: "authenticated", ...(memberId ? { member_id: memberId } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(userId)
     .setIssuer(`${SUPABASE_URL}/auth/v1`)

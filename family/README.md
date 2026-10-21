@@ -340,11 +340,14 @@ New kind of Lana entry (solids, teething…): insert a row in `care_entry_types`
 
 Since migration 3900 one deployment holds many homes (`docs/MULTI_HOME.md`): every
 row carries its `household_id`, row security keeps each home to itself, and a
-signed-in account that is in no home can create one with `household_create` (the
-screen for it is the next step). An admin invites people exactly as before, by
-listing their e-mail on the Members screen. The setup script still works too: it
-writes the home named in its file, and `npm run setup:household` on a deployment
-with several homes needs `household.id` or a `household.name` to match.
+signed-in account that is in no home gets the "Create your home" screen. An admin
+invites people exactly as before, by listing their e-mail on the Members screen.
+Since migration 4300 one account can be in several homes (a grandmother helping two
+families): the Me screen lists them with a switcher and "Create another home", and
+an admin can delete a home from the Members screen by typing its name. The setup
+script still works too: it writes the home named in its file, and `npm run
+setup:household` on a deployment with several homes needs `household.id` or a
+`household.name` to match.
 
 A separate deployment per family (below) remains possible, and is the stricter choice
 when two families must never share a database at all:

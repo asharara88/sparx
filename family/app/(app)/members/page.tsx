@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { HouseholdToday, Me, Role } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
 import { HouseholdForm } from "@/components/HouseholdForm";
+import { DeleteHome } from "@/components/DeleteHome";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 
@@ -78,6 +79,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
         </Link>
       </div>
       <HouseholdForm household={me.household} />
+      {me.role.id === "admin" && !me.preview && <DeleteHome household={me.household} platform={me.platform === true} />}
     </div>
   );
 }

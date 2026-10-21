@@ -91,6 +91,8 @@ export interface Me {
   preview?: boolean;
   /** True in the first home on the deployment, whose admins keep the definitions every home shares. */
   platform?: boolean;
+  /** How many homes this account is in; above one, the Me screen offers the switcher. */
+  homes?: number;
   member: Member;
   role: Role;
   permissions: PermissionMap;
@@ -105,6 +107,19 @@ export interface RpcError {
   ok: false;
   error: string;
   message?: string;
+}
+
+/** One of the homes the signed-in account is in (`my_homes`), the current one first. */
+export interface HomeListing {
+  household_id: string;
+  name: string;
+  timezone: string;
+  member_id: string;
+  display_name: string;
+  role_id: string;
+  role_label: string;
+  current: boolean;
+  platform: boolean;
 }
 
 export type FieldType = "choice" | "number" | "text" | "date";

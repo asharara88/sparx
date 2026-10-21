@@ -11,6 +11,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { CreateHome } from "@/components/CreateHome";
 import { OfflineFlusher } from "@/components/OfflineFlusher";
 import { PreviewBanner } from "@/components/PreviewBanner";
+import { RememberHome } from "@/components/RememberHome";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isConfigured()) return <NotConfigured />;
@@ -56,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1">{children}</main>
         <Nav />
         <OfflineFlusher />
+        {!me.preview && <RememberHome name={me.household.name} />}
       </div>
     </MeProvider>
   );

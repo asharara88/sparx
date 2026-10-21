@@ -14,8 +14,9 @@ import { notifyMember, plain } from "./send";
 /**
  * The scheduled jobs. Each member with a phone switched on is visited with a
  * client that carries *their* identity, so the brief, the suggestions and the
- * reminders are computed under their own permissions. The service client is
- * only used to find those members and to send.
+ * reminders are computed under their own permissions. The client names the
+ * member row too: a person in two homes is two members, each visited for their
+ * own home. The service client is only used to find those members and to send.
  */
 
 interface Target {
@@ -54,7 +55,7 @@ export async function runDaily(): Promise<CronReport> {
     report.members += 1;
     const log: string[] = [];
     try {
-      const client = await memberClient(t.user_id);
+      const client = await memberClient(t.user_id, t.member_id);
       const me = await meOf(client);
       if (!me) {
         log.push("no member");
@@ -144,7 +145,7 @@ export async function runOften(): Promise<CronReport> {
     report.members += 1;
     const log: string[] = [];
     try {
-      const client = await memberClient(t.user_id);
+      const client = await memberClient(t.user_id, t.member_id);
       const me = await meOf(client);
       if (!me) continue;
       const tz = me.household.timezone;

@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 35 files, applied in filename order |
+| Migrations | `supabase/migrations`, 43 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -50,10 +50,15 @@ One deployment holds many homes (migration 3900, `docs/MULTI_HOME.md`): `househo
 has a uuid id and many rows, every home-scoped table carries `household_id` with a
 restrictive row-security policy on top of its permission policies, and the helpers
 definer functions trust (`private.subject_module`, `entry_module`, `default_subject`,
-`admin_names`, `subject_names`) answer only for the caller's home. One account is in
-one home. `household_create` makes a home for an account that has none; the
-"Create your home" screen and the audit of every definer function from a second
-home are the next two phases. Permissions are data, not code. `members` have a `role`, roles have rows in
+`admin_names`, `subject_names`) answer only for the caller's home. Every definer
+function belongs to `app_rls`, a role row security applies to, so a function cannot
+reach another home by accident (4000); backups, push notifications and the photos
+bucket are per home, and the roles, matrix, entry types and helper skills every home
+shares change only from the first home (4100). One account can be in several homes,
+one member row in each, and runs as its chosen one (`home_switch`; the switcher on
+the Me screen); `household_create` makes a home, from the "Create your home" screen
+or "Create another home"; an admin deletes a home by typing its name (4300).
+Permissions are data, not code. `members` have a `role`, roles have rows in
 `permissions` (module, action), and every policy calls `has_permission`. To give
 someone access to something, insert a permission row; no deploy needed. Writes go
 through security-definer RPCs (`care_entry_log`, `activity_tick`,
@@ -88,6 +93,17 @@ Done and live:
   never done; this was the one deliberate exception, to get personal data out of
   the repo. Git history still contains the old files: if the repo is ever shared
   with another family, rewrite history or start a fresh repo.
+- Many homes in one deployment, phases 1 to 5 (migrations 3900 to 4300,
+  `docs/MULTI_HOME.md`): scoping, the create-home screen, the definer audit,
+  per-home backups, pushes and photos, one account in several homes, deleting a
+  home. The live project holds the first family as its one home, the platform
+  home.
+- The setup script checks the whole file before writing anything, matches members
+  by id, then e-mail, then name, and never relinks an account by accident
+  (`lib/setup/plan.mjs`, unit-tested; `household.example.json` documents the keys).
+- A timer ends once under a row lock; End on the phone stops the model on the
+  server; the helper's spoken readback is in the member's language with the day;
+  the wake-up eval checks the record.
 
 Open:
 
@@ -120,14 +136,12 @@ do on its own.
 |---|---|
 | GitHub | Works. Branches, pull requests, merges, check statuses. |
 | Supabase GitHub integration | Works. This is how migrations reach the live database. |
-| Supabase connector (direct SQL) | **Broken.** Every call returns "You do not have permission to perform this action". The connected account no longer sees the organisation that owns `home`. |
-| Vercel connector | **Read-only, partly.** It lists the team's projects, domains and deployments, but environment variables and integrations return 403 ("no permission"): a scope the connector install lacks, not a team grant. Env vars have to be changed by a person. |
+| Supabase connector (direct SQL) | Works again since 21 October (reconnected to the organisation that owns `home`): read-only checks of the live schema and data. Migrations still travel through the GitHub integration, never by hand. |
+| Vercel connector | Lists the team's projects, deployments, logs and the names of environment variables. Changing an environment variable is still done by a person in the dashboard. |
 | Browser control | Not available. Sessions run in a cloud container with no connection to anyone's browser. |
 
-To repair the two connectors: claude.ai, Settings, Connectors, reconnect Supabase
+If a connector stops working: claude.ai, Settings, Connectors, reconnect Supabase
 choosing the organisation that owns `home`, and reconnect Vercel granting the team.
-Until then, anything that needs the Supabase or Vercel dashboard has to be done by
-a person, and migrations must travel through the GitHub integration.
 
 The Supabase integration also failed for several days with "organization members
 have reached their maximum limits for the number of active free projects". Two
