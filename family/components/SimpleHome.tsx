@@ -43,6 +43,11 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   }, []);
   const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
   const [panel, setPanel] = useState<null | "bottle" | "diaper" | "note">(null);
+  const [milkPick, setMilkPick] = useState<string | null>(null);
+  // A pick lives as long as the bottle panel: Cancel, or a logged bottle, forgets it.
+  useEffect(() => {
+    if (panel !== "bottle") setMilkPick(null);
+  }, [panel]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -64,6 +69,9 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const lastSleep = recent.find((e) => e.type_id === sleepType?.id && e.ended_at);
   // A quick bottle is the same milk as the last one (the full form does the same); none known, none claimed.
   const lastMilk = recent.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle" && typeof e.payload.milk === "string")?.payload.milk as string | undefined;
+  // The milk in the bottle: the household's options, the last bottle's as the default, one tap to change.
+  const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
+  const milkChosen = milkPick ?? (lastMilk && milkOptions.includes(lastMilk) ? lastMilk : null);
   const lastFeed = last["lana.feed"];
   const lastDiaper = last["lana.diaper"];
   const now = Date.now();
@@ -191,8 +199,20 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
       )}
       {panel === "bottle" && (
         <div className="grid grid-cols-3 gap-3">
+          {milkOptions.length > 0 && (
+            <div className="col-span-3 flex flex-col gap-2" role="radiogroup" aria-label={L("whichMilk")}>
+              <p className="muted text-center text-lg font-semibold">{L("whichMilk")}</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {milkOptions.map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={milkChosen === m} className={`btn ${milkChosen === m ? "btn-primary" : ""}`} style={{ minHeight: 56, fontSize: "1.15rem" }} onClick={() => setMilkPick(m)}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {bottleQuick.map((ml) => (
-            <button key={ml} type="button" className="btn btn-primary" style={{ minHeight: 110, fontSize: "1.5rem" }} disabled={busy} onClick={() => log(feedType, { method: "Bottle", ...(lastMilk ? { milk: lastMilk } : {}), amount_ml: ml }, true)}>
+            <button key={ml} type="button" className="btn btn-primary" style={{ minHeight: 110, fontSize: "1.5rem" }} disabled={busy} onClick={() => log(feedType, { method: "Bottle", ...(milkChosen ? { milk: milkChosen } : {}), amount_ml: ml }, true)}>
               {ml} ml
             </button>
           ))}
