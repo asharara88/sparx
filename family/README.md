@@ -243,8 +243,9 @@ seed: Mido & Dana (admin), Wafa & Luda (family carer), Lilly (home carer, works
 Tue/Wed/Fri/Sat/Sun), presence, Lana (born 5 June 2026), Fanta, and Lana's entry types.
 
 Auth settings in the Supabase dashboard (Authentication → URL configuration):
-- Site URL: your Vercel URL (e.g. `https://family-xyz.vercel.app`)
-- Redirect URLs: `https://<your-vercel-domain>/auth/callback` and `http://localhost:3000/auth/callback`
+- Site URL: `https://elnunu.com`
+- Redirect URLs: `https://elnunu.com/auth/callback`, `https://sparx-tsom.vercel.app/auth/callback`
+  and `http://localhost:3000/auth/callback`
 
 ### Create the five sign-in accounts
 
@@ -281,6 +282,25 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_USKFwTlyUZFxansVpZHWFQ_eBjVjJt6
 Until they are set the app shows a "Not connected yet" screen.
 
 Local: `npm run dev` → http://localhost:3000.
+
+### Domain: elnunu.com
+
+The app lives at `https://elnunu.com`; `sparx-tsom.vercel.app` keeps working as a fallback.
+The code never hard-codes the host (sign-in links, callbacks and redirects all use the
+request's own origin), so attaching the domain is configuration only:
+
+1. Vercel → project `sparx-tsom` → Settings → Domains → Add `elnunu.com` (Vercel adds
+   `www.elnunu.com` as a redirect to it). Vercel then shows the records to set.
+2. At the registrar's DNS: an `A` record for `@` → `76.76.21.21`, and a `CNAME` for `www` →
+   `cname.vercel-dns.com`. If the domain is registered through Vercel, nothing to do.
+   Wait for the Domains page to show "Valid configuration"; the certificate is automatic.
+3. Supabase → Authentication → URL configuration: Site URL `https://elnunu.com`, and add
+   `https://elnunu.com/auth/callback` to the redirect allow-list (keep the Vercel one). Until
+   this is done, e-mail links land on the old site URL.
+4. Vercel → Settings → Environment variables: `VAPID_SUBJECT=https://elnunu.com` (optional;
+   push subscriptions made on the old host carry on working).
+5. On each phone, re-add the app to the home screen from `elnunu.com` so the icon opens the
+   new address; the old one still works.
 
 ## 3. Adding a household member
 
