@@ -981,5 +981,11 @@ reset role;
 update public.members set photo_path = null where id = :wafa;
 delete from public.push_subscriptions where endpoint like 'https://push.test/%';
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards).'
+-- Signed out (migration 3700): me() with no session is a plain answer, not an error
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+select pg_temp.assert((public.me())->>'error' = 'not_signed_in', 'a call with no session is told to sign in, and touches nothing private');
+reset role;
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
