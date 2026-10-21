@@ -332,11 +332,18 @@ New role: Members → Roles and permissions → *Add a role*, then tick what it 
 New kind of Lana entry (solids, teething…): insert a row in `care_entry_types` with its
 `fields` JSON (a Settings screen for this is in `LATER.md`); no migration is needed.
 
-## 3a. A copy for another family
+## 3a. Another family
 
-One deployment serves one household: its own Supabase project, its own Vercel project,
-the same code. Data never crosses between families because it is never in the same
-database. For a new family:
+Since migration 3900 one deployment holds many homes (`docs/MULTI_HOME.md`): every
+row carries its `household_id`, row security keeps each home to itself, and a
+signed-in account that is in no home can create one with `household_create` (the
+screen for it is the next step). An admin invites people exactly as before, by
+listing their e-mail on the Members screen. The setup script still works too: it
+writes the home named in its file, and `npm run setup:household` on a deployment
+with several homes needs `household.id` or a `household.name` to match.
+
+A separate deployment per family (below) remains possible, and is the stricter choice
+when two families must never share a database at all:
 
 1. **Supabase.** Create a project. Note its URL, the publishable key, the service-role
    key and the JWT secret (Settings → API). Apply the schema with `npx supabase link

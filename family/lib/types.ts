@@ -57,6 +57,8 @@ export interface Presence {
 }
 
 export interface Household {
+  /** The home's id; one deployment holds many homes (docs/MULTI_HOME.md). */
+  id: string;
   name: string;
   timezone: string;
   currency: string;

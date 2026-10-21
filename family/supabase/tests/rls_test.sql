@@ -998,5 +998,77 @@ select pg_temp.assert((public.care_entry_end_client('bbbbbbbb-0000-4000-8000-000
 reset role;
 update public.care_entries set deleted_at = now() where note = 'end once test';
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once).'
+-- Many homes (migration 3900): a second home sees nothing of the first, and an
+-- account with no home can make one. Last, because from here the deployment has
+-- two homes and rows written with no member must name theirs.
+\set khan_home '''00000000-0000-4000-8000-00000000b000'''
+\set haitham  '''00000000-0000-4000-8000-00000000b001'''
+\set zayd     '''00000000-0000-4000-8000-00000000b0a1'''
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000b001', 'haitham@test.local') on conflict do nothing;
+insert into public.household (id, name, timezone) values (:khan_home, 'The Khans', 'Asia/Dubai');
+insert into public.members (id, household_id, user_id, email, display_name, role_id, relationship)
+values (:haitham, :khan_home, '00000000-0000-4000-8000-00000000b001', 'haitham@test.local', 'Haitham', 'admin', 'Parent');
+insert into public.care_subjects (id, household_id, module_id, kind, name, birth_date, sort) values (:zayd, :khan_home, 'lana', 'child', 'Zayd', current_date - 20, 10);
+select id as first_entry from public.care_entries where subject_id = :lana and deleted_at is null order by occurred_at desc limit 1 \gset
+
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans', 'Haitham''s me() is his home');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.me())->'subjects')) = 1 and (public.me())->'subjects'->0->>'name' = 'Zayd', 'and names only his child');
+select pg_temp.assert((select count(*) from public.members) = 1, 'he sees one member: himself');
+select pg_temp.assert((select count(*) from public.household) = 1, 'and one home');
+select pg_temp.assert((select count(*) from public.care_subjects) = 1, 'and one child');
+select pg_temp.assert((select count(*) from public.care_entries) = 0, 'and none of Lana''s entries');
+select pg_temp.assert((select count(*) from public.calendar_events) = 0, 'nor the calendar');
+select pg_temp.assert((select count(*) from public.family_messages) = 0, 'nor the chat');
+select pg_temp.assert((select count(*) from public.shopping_items) = 0, 'nor the shopping list');
+select pg_temp.assert((public.home_summary(:lana))->>'ok' = 'false', 'home_summary for Lana by her id is refused');
+select pg_temp.assert((public.care_entries_list(:lana, now() - interval '7 days', now()))->>'ok' = 'false', 'so is her entry list');
+select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'false', 'and her medicines (a definer function)');
+select pg_temp.assert((public.care_entry_end(:'first_entry', now()))->>'error' = 'not_found', 'and ending her entry by id finds nothing');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now(), null, '{"method":"Bottle","amount_ml":100}'::jsonb, 'cross-home test', null))->>'ok' = 'false', 'and logging for her is refused');
+create temp table zayd_feed as select ((public.care_entry_log(:zayd, 'lana.feed', now(), null, '{"method":"Bottle","amount_ml":100}'::jsonb, 'khan test', null))->>'id')::uuid as id;
+select pg_temp.assert((select household_id from public.care_entries where id = (select id from zayd_feed)) = :khan_home, 'his own entry is stamped with his home without him saying so');
+select pg_temp.assert((public.home_summary(:zayd))->>'ok' = 'true', 'and his home summary works');
+reset role;
+
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.care_subjects where name = 'Zayd') = 0, 'Dana does not see Zayd');
+select pg_temp.assert((select count(*) from public.members where display_name = 'Haitham') = 0, 'nor Haitham');
+select pg_temp.assert((select count(*) from public.care_entries where note = 'khan test') = 0, 'nor his entry');
+select pg_temp.assert((public.home_summary(:zayd))->>'ok' = 'false', 'and cannot ask for Zayd by id');
+select pg_temp.assert((public.me())->'household'->>'name' <> 'The Khans', 'her me() is still her home');
+reset role;
+
+-- An account with no home creates one, becomes its admin, and is still kept out of the others.
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c001', 'newparent@test.local') on conflict do nothing;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.me())->>'error' = 'no_member', 'a new account is in no home');
+select pg_temp.assert((public.household_create('', 'Asia/Dubai', 'Maya'))->>'error' = 'bad_input', 'a home needs a name');
+select pg_temp.assert((public.household_create('Maya''s home', 'Mars/Olympus', 'Maya'))->>'error' = 'bad_input', 'and a real timezone');
+create temp table new_home as select public.household_create('Maya''s home', 'Europe/London', 'Maya', current_date - 3, 'Girl', 'Sara') as r;
+select pg_temp.assert((select r->>'ok' from new_home) = 'true', 'the home is created');
+select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())->'household'->>'name' = 'Maya''s home' and (public.me())->'household'->>'timezone' = 'Europe/London', 'and me() is that home from now on');
+select pg_temp.assert((public.me())->'role'->>'id' = 'admin' and (public.me())->'member'->>'display_name' = 'Sara', 'as its admin, by the name given');
+select pg_temp.assert((public.me())->'subjects'->0->>'name' = 'Maya' and (public.me())->'subjects'->0->>'sex' = 'Girl', 'with the baby made');
+select pg_temp.assert((public.household_create('Another', 'Asia/Dubai', 'X'))->>'error' = 'already_member', 'and cannot make a second one');
+select pg_temp.assert((select count(*) from public.care_entries) = 0 and (select count(*) from public.members) = 1, 'and sees nothing of the other two homes');
+reset role;
+
+-- An e-mail an admin listed joins that home, it does not get a home of its own.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.member_save(null, 'Cousin', 'cousin@test.local', 'family_carer', null, null, true, null))->>'ok' = 'true', 'Mido lists a cousin by e-mail');
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c002', 'cousin@test.local') on conflict do nothing;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c002","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.household_create('Mine', 'Asia/Dubai', 'Nobody'))->>'error' = 'already_member', 'the cousin cannot make a home: the listed e-mail wins');
+select pg_temp.assert((public.me())->'household'->>'id' <> :khan_home and (public.me())->'member'->>'display_name' = 'Cousin', 'and lands in Mido''s home as the listed member');
+reset role;
+update public.care_entries set deleted_at = now() where note in ('khan test', 'cross-home test');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

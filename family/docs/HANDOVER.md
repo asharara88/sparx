@@ -46,7 +46,14 @@ migrations. Do not replace that symlink with a directory.
 
 ## Database shape, in one paragraph
 
-Permissions are data, not code. `members` have a `role`, roles have rows in
+One deployment holds many homes (migration 3900, `docs/MULTI_HOME.md`): `household`
+has a uuid id and many rows, every home-scoped table carries `household_id` with a
+restrictive row-security policy on top of its permission policies, and the helpers
+definer functions trust (`private.subject_module`, `entry_module`, `default_subject`,
+`admin_names`, `subject_names`) answer only for the caller's home. One account is in
+one home. `household_create` makes a home for an account that has none; the
+"Create your home" screen and the audit of every definer function from a second
+home are the next two phases. Permissions are data, not code. `members` have a `role`, roles have rows in
 `permissions` (module, action), and every policy calls `has_permission`. To give
 someone access to something, insert a permission row; no deploy needed. Writes go
 through security-definer RPCs (`care_entry_log`, `activity_tick`,
