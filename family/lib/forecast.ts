@@ -1,11 +1,11 @@
 import type { EntryRow } from "@/lib/types";
 
 /**
- * Lana's next 12 hours, estimated from her last 7 days. Nothing here is logged:
+ * The child's next 12 hours, estimated from the last 7 days. Nothing here is logged:
  * it is a plan to glance at ("a feed around 15:10, a nap around 16:00").
  *
  * Feeds: the median gap between feeds over the last week, bounded to 1.5–4 h,
- * measured separately for the hours Mama is at work (bottles come closer
+ * measured separately for the hours the breastfeeding parent is at work (bottles come closer
  * together) and the rest of the day. Nappies: median gap. Sleeps: median nap
  * length and median awake window. Each falls back to a sensible default when
  * there are fewer than three samples.
@@ -45,7 +45,7 @@ const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x
 /**
  * How full a feed was, 0 (a few sips) to 1 (a proper feed). Breast: minutes on
  * the breast (5 min → 0, 20 min → 1); one side counts as half unless it ran
- * 20 min or more. Bottle: ml against her usual bottle (median of the last week).
+ * 20 min or more. Bottle: ml against the usual bottle (median of the last week).
  * Same rule as private.feed_fullness in the database.
  */
 export function feedFullness(e: Pick<EntryRow, "payload" | "occurred_at" | "ended_at">, entries: EntryRow[] = []): number {
@@ -65,7 +65,7 @@ export function feedFullness(e: Pick<EntryRow, "payload" | "occurred_at" | "ende
 
 /**
  * When the next feed is due: from when the last one ended, shorter after a
- * small feed (half the gap at most, never under an hour). While Mama is away the
+ * small feed (half the gap at most, never under an hour). While the breastfeeding parent is away the
  * bottle interval caps it. Returns null with no feed in the log.
  */
 export function nextFeedAt(entries: EntryRow[], opts: { gapMin: number; awayCapMin?: number; away?: (at: number) => boolean } ): { at: number; fullness: number; last: EntryRow } | null {
@@ -78,12 +78,16 @@ export function nextFeedAt(entries: EntryRow[], opts: { gapMin: number; awayCapM
   return { at: from + Math.max(60, gap) * MIN, fullness, last };
 }
 
-/** "Short feed on the left · she may want the right side soon", or null after a proper feed. */
-export function shortFeedHint(last: Pick<EntryRow, "payload" | "occurred_at" | "ended_at">, fullness: number): string | null {
+/**
+ * "Short feed on the left · she may want the right side soon", or null after a
+ * proper feed. `they` is the child's pronoun (childPronouns(me).they); callers
+ * should pass it, the default only keeps older call sites and tests unchanged.
+ */
+export function shortFeedHint(last: Pick<EntryRow, "payload" | "occurred_at" | "ended_at">, fullness: number, they = "she"): string | null {
   if (fullness >= 0.75) return null;
   const side = last.payload.side;
-  if (last.payload.method === "Breast" && (side === "Left" || side === "Right")) return `Short feed on the ${String(side).toLowerCase()} · she may want the ${side === "Left" ? "right" : "left"} side soon`;
-  return "Small feed · she may be hungry again sooner";
+  if (last.payload.method === "Breast" && (side === "Left" || side === "Right")) return `Short feed on the ${String(side).toLowerCase()} · ${they} may want the ${side === "Left" ? "right" : "left"} side soon`;
+  return `Small feed · ${they} may be hungry again sooner`;
 }
 
 export function forecast(entries: EntryRow[], opts: ForecastOptions = {}): ForecastItem[] {
@@ -117,7 +121,7 @@ export function forecast(entries: EntryRow[], opts: ForecastOptions = {}): Forec
     if (at < end) out.push({ kind, at, due: at <= now });
   };
 
-  // Feeds: the first from how much she took last time, then by the gap that applies at that hour.
+  // Feeds: the first from how much the child took last time, then by the gap that applies at that hour.
   const lastFeed = feeds[feeds.length - 1];
   const step = (at: number) => (away(at) ? feedAway : feedHome);
   let f: number;

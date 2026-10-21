@@ -7,6 +7,7 @@ import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
+import { childName } from "@/lib/names";
 
 export const MOODS = [
   { key: "Happy", face: "😊" },
@@ -15,7 +16,7 @@ export const MOODS = [
   { key: "Unsettled", face: "😢" },
 ] as const;
 
-/** One tap for how she is right now. It lands on the day like any entry, so Patterns can set it against sleep. */
+/** One tap for how the child is right now. It lands on the day like any entry, so Patterns can set it against sleep. */
 export function MoodTap({ subjectId, today, timezone }: { subjectId: string; today: EntryRow[]; timezone: string }) {
   const me = useMe();
   const router = useRouter();
@@ -37,7 +38,7 @@ export function MoodTap({ subjectId, today, timezone }: { subjectId: string; tod
     <section className="card" aria-labelledby="mood-h">
       <div className="flex items-baseline justify-between">
         <h2 id="mood-h" className="font-semibold">
-          How is she right now?
+          How is {childName(me)} right now?
         </h2>
         {moods.length > 0 && <span className="muted text-xs">{moods.length} today</span>}
       </div>

@@ -1,5 +1,5 @@
--- Lana first: a bottle feed takes its milk out of the fridge, and the
--- emergency card has defaults (ambulance, hospital) on Lana's profile.
+-- The child first: a bottle feed takes its milk out of the fridge, and the
+-- emergency card reads its defaults (ambulance, hospital) from the child's profile.
 
 -- Take p_ml of pumped milk out of the stash, oldest safe bottle first
 -- (warmed, then thawed, then fridge by expiry). A bottle used in part keeps
@@ -36,13 +36,6 @@ begin
 end $$;
 grant execute on function public.milk_consume(integer, text) to authenticated, service_role;
 
-do $$
-begin
-  update public.care_subjects
-     set profile = profile || jsonb_build_object(
-       'emergency_ambulance', '998',
-       'emergency_hospital', 'NMC Royal Hospital, Abu Dhabi (Muroor Road)',
-       'emergency_hospital_map', 'https://maps.google.com/?q=NMC+Royal+Hospital+Abu+Dhabi+Muroor+Road',
-       'emergency_notes', 'Blood group O positive. No known allergies. Born 5 June 2026 at 39 weeks.')
-   where id = '00000000-0000-4000-8000-00000000a001' and not (profile ? 'emergency_ambulance');
-end $$;
+-- The emergency card reads care_subjects.profile (emergency_ambulance, emergency_hospital,
+-- emergency_hospital_map, emergency_notes, emergency_papa_phone, emergency_mama_phone);
+-- setup-household.mjs writes the ambulance number, the family fills in the rest.

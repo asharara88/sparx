@@ -37,7 +37,7 @@ insert into public.care_entry_types (id, module_id, key, label, icon, color, sor
    '{"timer": true, "timer_label": "Awake at night"}'::jsonb)
 on conflict (id) do nothing;
 
-update public.members set breastfeeds = true where id = '00000000-0000-4000-8000-000000000002';  -- Dana
+-- Which member breastfeeds is household data (setup-household.mjs, or the Members screen).
 
 -- End an open entry (a running timer). Allowed for editors, or whoever started it.
 create or replace function public.care_entry_end(p_id uuid, p_ended_at timestamptz default now()) returns jsonb
@@ -636,18 +636,9 @@ select v.name, v.category, v.emoji, v.sort from (values
 ) as v(name, category, emoji, sort)
 where not exists (select 1 from public.shelf_items s where lower(s.name) = lower(v.name));
 
-insert into public.shopping_items (name, category, owner_member, store_id, reorder_days, needed, note)
-select v.name, v.category, v.owner, v.store, v.reorder, false, v.note from (values
-  ('Royal Canin cat food',  'cat',   null::uuid,                                   'amazon_ae', 30,   'Fanta''s food. Recurring.'),
-  ('Creatine monohydrate',  'adult', '00000000-0000-4000-8000-000000000001'::uuid, 'amazon_ae', null, null),
-  ('Hydrolysed protein',    'adult', '00000000-0000-4000-8000-000000000001'::uuid, 'amazon_ae', null, null),
-  ('Electrolytes',          'adult', '00000000-0000-4000-8000-000000000001'::uuid, 'noon',      null, null),
-  ('Collagen',              'adult', '00000000-0000-4000-8000-000000000002'::uuid, 'amazon_ae', null, null),
-  ('Probiotics',            'adult', '00000000-0000-4000-8000-000000000002'::uuid, 'amazon_ae', null, null)
-) as v(name, category, owner, store, reorder, note)
-where not exists (select 1 from public.shopping_items i where lower(i.name) = lower(v.name) and i.deleted_at is null);
+-- The shopping list starts empty; the first household's items were seeded here until
+-- migration 3500 (the test suite has its own in tests/01_test_household.sql).
 
--- Lana's night window (drives "Woke up (night)" vs "Up for the day"); editable data.
-update public.care_subjects
-   set settings = settings || '{"night_from": "19:00", "night_to": "07:00"}'::jsonb
- where id = '00000000-0000-4000-8000-00000000a001' and not (settings ? 'night_from');
+-- The child's night window (drives "Woke up (night)" vs "Up for the day") lives in
+-- care_subjects.settings (night_from, night_to); setup-household.mjs writes it, the
+-- app falls back to 19:00 to 07:00.

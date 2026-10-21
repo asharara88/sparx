@@ -135,15 +135,8 @@ begin
 end $$;
 grant execute on function public.medicine_give(uuid, text, timestamptz, text, boolean) to authenticated, service_role;
 
--- Lana's usual ones, so the screen is not empty on day one. Editable in the app.
-insert into public.medicines (subject_id, name, dose, min_gap_hours, note)
-select '00000000-0000-4000-8000-00000000a001', v.name, v.dose, v.gap, v.note
-from (values
-  ('Vitamin D drops', '1 drop (400 IU)', 20, 'Once a day.'),
-  ('Paracetamol (infant)', 'As the doctor wrote', 6, 'Only if the doctor said so. Never more than 4 doses in 24 hours.')
-) as v(name, dose, gap, note)
-where exists (select 1 from public.care_subjects where id = '00000000-0000-4000-8000-00000000a001')
-  and not exists (select 1 from public.medicines where subject_id = '00000000-0000-4000-8000-00000000a001' and lower(name) = lower(v.name));
+-- A child's usual medicines (vitamin D drops, infant paracetamol) are written by
+-- setup-household.mjs when the list is empty, so the screen is not empty on day one.
 
 -- ---------------------------------------------------------------------------
 -- 2. What the assistant remembers: short facts the family told it ("Lana
@@ -205,7 +198,7 @@ grant execute on function public.memory_remove(uuid) to authenticated, service_r
 --    calendar, shopping, house, Fanta or members. Assign it from Members.
 -- ---------------------------------------------------------------------------
 insert into public.roles (id, label, description, sort) values
-  ('sitter', 'Babysitter', 'Logs and views Lana only, can chat and ask the helper. Nothing else in the house.', 25)
+  ('sitter', 'Babysitter', 'Logs and views the child only, can chat and ask the helper. Nothing else in the house.', 25)
 on conflict (id) do nothing;
 insert into public.permissions (role_id, module_id, action, allowed)
 select 'sitter', m.id, a.action,

@@ -3,11 +3,12 @@ import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, ShoppingRequest
 import { can } from "@/lib/types";
 import { addDays, fmtTime, todayYmd } from "@/lib/time";
 import { getBrief } from "@/lib/assistant/brief";
-import { nextNap } from "@/lib/lana-insights";
+import { nextNap } from "@/lib/child-insights";
 import { birthdayMonth } from "@/lib/story";
 import { ageDays as ageDaysOf } from "@/lib/norms";
 import { draftPlan } from "@/lib/plan/draft";
 import { memberClient, serviceClient } from "@/lib/server/member";
+import { childName, childPronouns } from "@/lib/names";
 import { notifyMember, plain } from "./send";
 
 /**
@@ -88,18 +89,18 @@ export async function runDaily(): Promise<CronReport> {
         r.sent ? (report.sent += 1) : (report.skipped += 1);
       }
 
-      // 2b. Sunday: "This week for Lana", written now and pushed, for anyone who sees her log.
+      // 2b. Sunday: "This week for <child>", written now and pushed, for anyone who sees the child's log.
       const localWd = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date());
       if ((localWd === "Sun" || process.env.PLAN_EVERY_DAY === "1") && can(me, "assistant", "view") && can(me, "lana", "view")) {
         const w = await getBrief(client, me, "week", false);
         if (w.ok) {
-          const r = await notifyMember(service, t.member_id, { kind: "brief", key: `brief:week:${w.brief.day}`, title: "This week for Lana", body: plain(w.brief.content, 160), url: "/lana" });
+          const r = await notifyMember(service, t.member_id, { kind: "brief", key: `brief:week:${w.brief.day}`, title: `This week for ${childName(me)}`, body: plain(w.brief.content, 160), url: "/baby" });
           log.push(`week note ${r.sent ? "sent" : r.skipped}`);
           r.sent ? (report.sent += 1) : (report.skipped += 1);
         } else log.push(`week note: ${w.message}`);
       }
 
-      // 2c. Her monthly birthday: the month's story, written now and pushed to everyone who sees her log.
+      // 2c. The child's monthly birthday: the month's story, written now and pushed to everyone who sees the log.
       if (can(me, "assistant", "view") && can(me, "lana", "view")) {
         const { data: sumData } = await client.rpc("home_summary");
         const sum = sumData as HomeSummary | RpcError | null;
@@ -108,7 +109,7 @@ export async function runDaily(): Promise<CronReport> {
         if (m) {
           const st = await getBrief(client, me, "story", false, { month: m });
           if (st.ok) {
-            const r = await notifyMember(service, t.member_id, { kind: "brief", key: `story:${m}`, title: `${sum!.ok ? sum!.subject.name : "She"} is ${m} month${m === 1 ? "" : "s"} old today`, body: plain(st.brief.content, 160), url: `/lana/story/${m}` });
+            const r = await notifyMember(service, t.member_id, { kind: "brief", key: `story:${m}`, title: `${sum!.ok ? sum!.subject.name : childName(me)} is ${m} month${m === 1 ? "" : "s"} old today`, body: plain(st.brief.content, 160), url: `/baby/story/${m}` });
             log.push(`story ${m} ${r.sent ? "sent" : r.skipped}`);
             r.sent ? (report.sent += 1) : (report.skipped += 1);
           } else log.push(`story: ${st.message}`);
@@ -166,18 +167,18 @@ export async function runOften(): Promise<CronReport> {
           }
         }
       }
-      // Lilly's new requests, for reviewers.
+      // Staff's new running-low requests, for reviewers.
       if (can(me, "shopping_review", "edit")) {
         const { data } = await client.rpc("shopping_requests_list", { p_status: "pending" });
         for (const q of (((data as { requests?: ShoppingRequest[] } | null)?.requests ?? []) as ShoppingRequest[]).slice(0, 10)) {
-          const r = await notifyMember(service, t.member_id, { kind: "request", key: `request:${q.id}`, title: `Running low: ${q.item_name}`, body: `${q.created_by_name ?? "Lilly"}${q.note ? ` · ${q.note}` : ""}`, url: "/shopping/requests" });
+          const r = await notifyMember(service, t.member_id, { kind: "request", key: `request:${q.id}`, title: `Running low: ${q.item_name}`, body: `${q.created_by_name ?? "Staff"}${q.note ? ` · ${q.note}` : ""}`, url: "/shopping/requests" });
           if (r.sent) {
             report.sent += 1;
             log.push(`request ${q.item_name}`);
           }
         }
       }
-      // The next nap, about ten minutes before her window closes, for whoever has her log.
+      // The next nap, about ten minutes before the awake window closes, for whoever has the child's log.
       if (can(me, "lana", "view")) {
         const { data: sumData } = await client.rpc("home_summary");
         const sum = sumData as HomeSummary | RpcError | null;
@@ -191,7 +192,7 @@ export async function runOften(): Promise<CronReport> {
           const n = nextNap(entries, ageDaysOf(sum.subject.birth_date, today), now, hourOf);
           if (n && n.at != null && n.at - now <= 15 * 60_000 && n.at - now > -5 * 60_000) {
             const slot = new Date(Math.round(n.at / (5 * 60_000)) * 5 * 60_000).toISOString();
-            const r = await notifyMember(service, t.member_id, { kind: "nap", key: `nap:${slot}`, title: n.isBedtime ? `Bedtime around ${fmtTime(new Date(n.at).toISOString(), tz)}` : `Next nap around ${fmtTime(new Date(n.at).toISOString(), tz)}`, body: `Awake ${n.awakeMin} min; her window is about ${n.windowMin} min (${n.basis}). Start the wind-down.`, url: "/lana" });
+            const r = await notifyMember(service, t.member_id, { kind: "nap", key: `nap:${slot}`, title: n.isBedtime ? `Bedtime around ${fmtTime(new Date(n.at).toISOString(), tz)}` : `Next nap around ${fmtTime(new Date(n.at).toISOString(), tz)}`, body: `Awake ${n.awakeMin} min; ${childPronouns(me).their} window is about ${n.windowMin} min (${n.basis}). Start the wind-down.`, url: "/baby" });
             if (r.sent) {
               report.sent += 1;
               log.push(`nap ${slot}`);

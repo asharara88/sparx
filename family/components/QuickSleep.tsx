@@ -10,7 +10,7 @@ import { WhenChips } from "@/components/WhenChips";
 import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
 import { fromLocalInput } from "@/lib/time";
 
-/** The home-screen shortcut: one big button that starts or ends her sleep. */
+/** The home-screen shortcut: one big button that starts or ends the child's sleep. */
 export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }: { subjectId: string; typeId: string; asleep: OngoingEntry | null; timezone: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);

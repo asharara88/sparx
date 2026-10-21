@@ -32,9 +32,7 @@ insert into public.care_entry_types (id, module_id, key, label, icon, color, sor
   ('fanta.note', 'fanta', 'note', 'Note', '📝', '#525252', 70, false, null, '[]'::jsonb, false, true)
 on conflict (id) do nothing;
 
-update public.care_subjects
-   set profile = profile || '{"sex": "Female", "colour": "Ginger", "spayed": true, "indoor": true, "food": "Royal Canin", "age_note": "About 3 years old"}'::jsonb
- where id = '00000000-0000-4000-8000-00000000a002' and not (profile ? 'spayed');
+-- The pet's profile (sex, colour, spayed, indoor, food, age) is household data: setup-household.mjs or the profile card.
 
 -- Profile card edit (clinic, microchip, insurance…): module edit permission.
 create or replace function public.subject_profile_save(p_subject_id uuid, p_profile jsonb, p_birth_date date default null, p_name text default null)

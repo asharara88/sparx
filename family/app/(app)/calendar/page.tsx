@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { CalendarData, DueItem, EntryRow, HomeSummary, Me, Member, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
+import { childName } from "@/lib/names";
 import { addDays, todayYmd } from "@/lib/time";
 import { CalendarView } from "@/components/CalendarView";
 import { PlanButton } from "@/components/PlanButton";
@@ -30,7 +31,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const canPlan = can(me, "calendar", "add") && can(me, "assistant", "view");
   const data = cal as CalendarData | RpcError;
   if (!data.ok) redirect("/");
-  // Lana's expected feeds, nappies and naps for the rest of today, from her log.
+  // The child's expected feeds, nappies and naps for the rest of today, from the log.
   let week: EntryRow[] | null = null;
   let feedInterval = 180;
   if (from === today && can(me, "lana", "view")) {
@@ -45,7 +46,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <div className="flex flex-col gap-4">
       {canPlan && <PlanButton existing={plan} />}
-      {week && <LanaForecast entries={week} timezone={tz} feedIntervalMin={feedInterval} hours={8} limit={4} title="Lana, expected today" compact />}
+      {week && <LanaForecast entries={week} timezone={tz} feedIntervalMin={feedInterval} hours={8} limit={4} title={`${childName(me)}, expected today`} compact />}
     <CalendarView
       data={data}
       from={from}

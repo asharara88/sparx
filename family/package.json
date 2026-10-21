@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "db:test": "./supabase/tests/run-local.sh",
     "seed:accounts": "node --env-file=.env.local scripts/seed-accounts.mjs",
+    "setup:household": "node --env-file=.env.local scripts/setup-household.mjs",
     "icons": "node scripts/make-icons.mjs",
     "eval:assistant": "node --env-file-if-exists=.env.local scripts/assistant-eval.mjs"
   },

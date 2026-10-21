@@ -5,7 +5,7 @@ import { useState } from "react";
  * Two boobs you tap, named "Left boob" and "Right boob". Left starts the left side, right the right.
  * While feeding, the active one glows, drips and shows the stopwatch; tapping
  * it finishes, tapping the other one switches side. The side that is "due"
- * (opposite to the last feed) wears a little tag so Dana never has to remember.
+ * (opposite to the last feed) wears a little tag so the mother never has to remember.
  */
 export function Boobs({
   active,

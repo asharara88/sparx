@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { EntryRow } from "@/lib/types";
-import { sleepCoach } from "@/lib/lana-insights";
+import { sleepCoach } from "@/lib/child-insights";
 
-/** Her sleep rhythm from the last 14 days: usual nap, best awake window, usual bedtime, one tip. */
+/** The child's sleep rhythm from the last 14 days: usual nap, best awake window, usual bedtime, one tip. */
 export function SleepCoach({ entries, ageDays, timezone }: { entries: EntryRow[]; ageDays: number; timezone: string }) {
   const hourOf = (iso: string) => {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
@@ -21,17 +21,17 @@ export function SleepCoach({ entries, ageDays, timezone }: { entries: EntryRow[]
         Sleep coach
       </h2>
       {!c ? (
-        <p className="muted text-sm">Log a few more sleeps with an end time and her rhythm will show here.</p>
+        <p className="muted text-sm">Log a few more sleeps with an end time and the rhythm will show here.</p>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2">
             <Stat n={c.napMin ? `${c.napMin} min` : "—"} l="usual nap" />
-            <Stat n={c.bestWindowMin ? `${c.bestWindowMin} min` : "—"} l="awake before her best naps" />
+            <Stat n={c.bestWindowMin ? `${c.bestWindowMin} min` : "—"} l="awake before the best naps" />
             <Stat n={c.bedtime ?? "—"} l="usual bedtime" />
           </div>
           <p className="notice text-sm font-semibold">{c.tip}</p>
           <p className="muted text-xs">From {c.naps} daytime naps in the last 14 days. An estimate, not advice.</p>
-          <Link href={`/ask?from=patterns&say=${encodeURIComponent("Look at her sleep over the last two weeks and tell me what to try for better naps and bedtime.")}`} className="btn">
+          <Link href={`/ask?from=patterns&say=${encodeURIComponent("Look at the sleep log over the last two weeks and tell me what to try for better naps and bedtime.")}`} className="btn">
             Talk to the coach
           </Link>
         </>

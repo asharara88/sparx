@@ -6,8 +6,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 
 /**
  * The facts a clinic asks for, readable in five seconds: blood group,
- * allergies, hospital file, insurance, how she was born. Plain keys on
- * Lana's profile, editable by anyone who can edit her log.
+ * allergies, hospital file, insurance, how the child was born. Plain keys on
+ * the child's profile, editable by anyone who can edit the log.
  */
 const FIELDS: { key: string; label: string; unit?: string }[] = [
   { key: "blood_group", label: "Blood group" },

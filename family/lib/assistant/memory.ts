@@ -22,10 +22,35 @@ export interface ChatRecap {
   at: string;
 }
 
-const STOP = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "is", "it", "she", "her", "he", "his", "we", "you", "i", "my", "our", "with", "when", "what", "how", "does", "do", "did", "was", "were", "be", "been", "that", "this", "than", "then", "there", "about", "not", "no", "so", "if", "but", "can", "should", "would", "lana"]);
+const STOP = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "is", "it", "she", "her", "he", "his", "we", "you", "i", "my", "our", "with", "when", "what", "how", "does", "do", "did", "was", "were", "be", "been", "that", "this", "than", "then", "there", "about", "not", "no", "so", "if", "but", "can", "should", "would"]);
 
-export function words(text: string): string[] {
-  return (text.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []).filter((w) => !STOP.has(w));
+/**
+ * A Title-case word that does not open a sentence is read as a name ("When did
+ * Lana last feed?"), so the household's names never have to be listed in code.
+ * Acronyms (NHS) and sentence openers are kept.
+ */
+function looksLikeName(raw: string, text: string, at: number): boolean {
+  if (!/^\p{Lu}\p{Ll}+$/u.test(raw)) return false;
+  const before = text.slice(0, at).trimEnd();
+  return before.length > 0 && !/[.!?؟…:\n]$/.test(before);
+}
+
+/**
+ * The words that carry meaning: lower-cased, with stop words and names dropped.
+ * `names` are the household's subjects and members when the caller has them;
+ * without them, names are guessed from their capitals.
+ */
+export function words(text: string, names: Iterable<string> = []): string[] {
+  const skip = new Set(Array.from(names, (n) => n.toLowerCase()));
+  const out: string[] = [];
+  const re = /[\p{L}\p{N}]{2,}/gu;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const w = m[0].toLowerCase();
+    if (STOP.has(w) || skip.has(w) || looksLikeName(m[0], text, m.index)) continue;
+    out.push(w);
+  }
+  return out;
 }
 
 /** Word-prefix overlap, so "naps" meets "nap" and "feeding" meets "feed". */
@@ -49,11 +74,12 @@ export const MAX_FACTS = 30;
  * past the cap, the ones that share words with the question and the last turns
  * come first, then the newest (memory_list returns newest first).
  */
-export function selectMemories(question: string, history: string[], facts: MemoryFact[], max = MAX_FACTS): MemoryFact[] {
+export function selectMemories(question: string, history: string[], facts: MemoryFact[], max = MAX_FACTS, names: Iterable<string> = []): MemoryFact[] {
   if (facts.length <= max) return facts;
-  const q = new Set(words([question, ...history.slice(-2)].join(" ")));
+  const skip = Array.from(names);
+  const q = new Set(words([question, ...history.slice(-2)].join(" "), skip));
   return [...facts]
-    .map((f, i) => ({ f, score: overlap(words(f.body), q) * 10 + (facts.length - i) / facts.length }))
+    .map((f, i) => ({ f, score: overlap(words(f.body, skip), q) * 10 + (facts.length - i) / facts.length }))
     .sort((a, b) => b.score - a.score)
     .slice(0, max)
     .map((x) => x.f);

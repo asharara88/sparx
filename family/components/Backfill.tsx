@@ -48,7 +48,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // A nudge: nothing fed for well over her usual gap while she was awake.
+  // A nudge: nothing fed for well over the usual gap while the child was awake.
   const hint = useMemo(() => {
     if (pastDay || !feedType) return null;
     const now = Date.now();

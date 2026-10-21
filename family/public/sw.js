@@ -1,7 +1,7 @@
 /* Minimal app-shell cache so the installed app opens offline and queued
    entries can be made. Data always comes from the network. */
 const CACHE = "elnunu-shell-v5";
-const SHELL = ["/", "/lana", "/calendar", "/shopping", "/send", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+const SHELL = ["/", "/baby", "/calendar", "/shopping", "/send", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL).catch(() => {})));

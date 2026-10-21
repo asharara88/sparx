@@ -3,8 +3,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Member, Role } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { useMe } from "@/lib/me-context";
+import { childName } from "@/lib/names";
 
 export function MemberForm({ member, roles, isSelf }: { member: Member | null; roles: Role[]; isSelf: boolean }) {
+  const me = useMe();
   const router = useRouter();
   const [name, setName] = useState(member?.display_name ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
@@ -67,7 +70,7 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       </label>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Relationship</span>
-        <input className="input" value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder="e.g. Dana's mother" />
+        <input className="input" value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder="e.g. the father's mother" />
       </label>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Date of birth (optional)</span>
@@ -76,12 +79,12 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Routine (the assistant reads this)</span>
         <textarea className="input" rows={4} value={routine} onChange={(e) => setRoutine(e.target.value)} placeholder="e.g. Works 9 to 5 on weekdays, 30 minutes each way. Up at 7, out by 8:30. Pumps before leaving." />
-        <span className="muted text-sm">Plain words. Used for “is Dana home?”, the morning brief and the weekly plan.</span>
+        <span className="muted text-sm">Plain words. Used for “is Mama home?”, the morning brief and the weekly plan.</span>
       </label>
       {member && (
         <label className="flex items-center gap-3">
           <input type="checkbox" className="h-7 w-7" checked={breastfeeds} onChange={(e) => setBreastfeeds(e.target.checked)} />
-          <span className="font-semibold">Breastfeeds Lana (shows the breast timer and left/right)</span>
+          <span className="font-semibold">Breastfeeds {childName(me)} (shows the breast timer and left/right)</span>
         </label>
       )}
       {member && !isSelf && (

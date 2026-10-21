@@ -6,6 +6,7 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/time";
+import { childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
 
 /** What the helper has been told to remember. Anyone can add; whoever added it, or an admin, can remove. */
@@ -51,7 +52,7 @@ export function MemoryList({ items, timezone }: { items: MemoryItem[]; timezone:
         <label className="font-semibold" htmlFor="mem">
           Tell the helper something to keep in mind
         </label>
-        <textarea id="mem" className="input min-h-[72px]" maxLength={300} placeholder="e.g. Lana takes a bottle better when it is warm. Wafa likes a short answer." value={body} onChange={(e) => setBody(e.target.value)} />
+        <textarea id="mem" className="input min-h-[72px]" maxLength={300} placeholder={`e.g. ${childName(me)} takes a bottle better when it is warm. Grandma likes a short answer.`} value={body} onChange={(e) => setBody(e.target.value)} />
         <button type="submit" className="btn btn-primary" disabled={body.trim().length < 2 || busy === "add"}>
           Remember this
         </button>

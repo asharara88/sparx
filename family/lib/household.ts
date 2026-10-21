@@ -1,6 +1,6 @@
 /**
  * Work hours as hhmm numbers in household time. Each member's hours live on their row
- * (Members → Work days); these are the fallback when none are set: Dana is out 8:30 to 17:30.
+ * (Members → Work days); these are the fallback when none are set: a 8:30 to 17:30 working day.
  */
 export const WORK_FROM = 830;
 export const WORK_TO = 1730;

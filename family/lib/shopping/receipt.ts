@@ -79,7 +79,7 @@ export async function readReceipt(supabase: SupabaseClient, me: Me, receiptId: s
     fallbacks: "default",
     output_config: { effort: "medium", format: betaZodOutputFormat(ReceiptSchema) },
     system:
-      "You read shop receipts and order-page screenshots (Talabat, Amazon, Noon, Carrefour) for a household in Dubai. Be exact: copy product lines as printed, never invent a line, never merge lines. Amounts are numbers. Skip subtotal, VAT, discount, loyalty, payment, change and balance lines; keep only product lines. If a quantity like '2 x 12.50' is printed, qty is 2 and unit_price 12.50.",
+      `You read shop receipts and order-page screenshots (for example Talabat, Amazon, Noon, Carrefour) for a household whose currency is ${me.household.currency} and whose timezone is ${me.household.timezone}. Be exact: copy product lines as printed, never invent a line, never merge lines. Amounts are numbers. Skip subtotal, VAT, discount, loyalty, payment, change and balance lines; keep only product lines. If a quantity like '2 x 12.50' is printed, qty is 2 and unit_price 12.50.`,
     messages: [
       {
         role: "user",

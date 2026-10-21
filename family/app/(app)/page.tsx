@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
+import { childPronouns, possessive } from "@/lib/names";
 import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
 import { HouseholdCard } from "@/components/HouseholdCard";
 import { BriefCard } from "@/components/BriefCard";
@@ -39,9 +40,9 @@ import { Icon } from "@/components/Icon";
 export const dynamic = "force-dynamic";
 
 /**
- * Home is Lana's place. Her state and the one-tap log come first, then what
- * matters at this hour (bottles while Mama is away, pumping, the handover),
- * then her guide. The rest of the house sits below a divider.
+ * Home is the child's place. Their state and the one-tap log come first, then what
+ * matters at this hour (bottles while the breastfeeding parent is away, pumping,
+ * the handover), then the guide. The rest of the house sits below a divider.
  */
 export default async function HomePage() {
   const supabase = await createClient();
@@ -54,6 +55,7 @@ export default async function HomePage() {
   const tz = me.household.timezone;
   const today = todayYmd(tz);
   const now = new Date();
+  const pr = childPronouns(me);
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
@@ -74,7 +76,7 @@ export default async function HomePage() {
   const milkOk = milkStash && milkStash.ok ? milkStash : null;
   const household = hhData as HouseholdToday | RpcError;
   const staffToday = household.ok ? household.members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
-  // Mama is away: the breastfeeding member works today and it is within her hours.
+  // Mama is away: the breastfeeding member works today and it is within their hours.
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
   const mama = household.ok ? household.members.find((m) => m.breastfeeds) ?? null : null;
   const mamaWorks = !!mama && mama.works_today;
@@ -93,7 +95,7 @@ export default async function HomePage() {
   const tomorrows = calendar && calendar.ok ? calendar.events.filter((e) => e.date === addDays(today, 1)) : [];
   const pending = shopping && shopping.ok ? shopping.pending_requests : 0;
 
-  // Entries from yesterday noon until now: the night and today, for Lana's strip and her current state.
+  // Entries from yesterday noon until now: the night and today, for the child's strip and current state.
   let recent: EntryRow[] = [];
   let lastMilk: string | null = null;
   let pumps: EntryRow[] = [];
@@ -160,7 +162,7 @@ export default async function HomePage() {
           guide: <LanaGuide key="g" entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />,
           brief: can(me, "assistant", "view") ? <BriefCard key="b" hour={hour} /> : null,
           week: can(me, "assistant", "view") && ["Sun", "Mon"].includes(new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(now)) ? <WeekCard key="w" name={summary.subject.name} /> : null,
-          strip: <DayStrip key="s" entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} title="Lana's day so far" />,
+          strip: <DayStrip key="s" entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} title={`${possessive(summary.subject.name)} day so far`} />,
         }
       : {};
   const order =
@@ -192,17 +194,17 @@ export default async function HomePage() {
           {sitter && (
             <section className="card" aria-labelledby="sit-h">
               <h2 id="sit-h" className="text-lg font-semibold">
-                While you are with her
+                While you are with {pr.them}
               </h2>
-              <p className="muted mt-1 text-sm">Everything you need is here: what she has had, when to call, and who to call.</p>
+              <p className="muted mt-1 text-sm">Everything you need is here: what {summary.subject.name} has had, when to call, and who to call.</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <Link href="/lana?tab=handover" className="btn">
+                <Link href="/baby?tab=handover" className="btn">
                   Handover
                 </Link>
-                <Link href="/lana/when-to-call" className="btn">
+                <Link href="/baby/when-to-call" className="btn">
                   When to call
                 </Link>
-                <Link href="/lana/emergency" className="btn">
+                <Link href="/baby/emergency" className="btn">
                   Emergency
                 </Link>
                 <Link href="/ask" className="btn">
@@ -213,16 +215,16 @@ export default async function HomePage() {
           )}
           {order.map((k) => blocks[k])}
           <div className="grid grid-cols-4 gap-2">
-            <Link href="/lana" className="btn">
-              Lana
+            <Link href="/baby" className="btn">
+              {summary.subject.name}
             </Link>
-            <Link href="/lana/milk" className="btn">
+            <Link href="/baby/milk" className="btn">
               Milk
             </Link>
-            <Link href="/lana?tab=handover" className="btn">
+            <Link href="/baby?tab=handover" className="btn">
               Handover
             </Link>
-            <Link href="/lana/doctor" className="btn">
+            <Link href="/baby/doctor" className="btn">
               Doctor
             </Link>
           </div>
@@ -249,7 +251,7 @@ export default async function HomePage() {
       <SuggestionCards suggestions={suggestions} />
       {pending > 0 && can(me, "shopping_review", "edit") && (
         <Link href="/shopping/requests" className="notice notice-warn font-semibold">
-          {pending} running-low {pending === 1 ? "request" : "requests"} from Lilly to check ›
+          {pending} running-low {pending === 1 ? "request" : "requests"} from staff to check ›
         </Link>
       )}
       {attendance && attendance.ok && (attendance.open.length > 0 || (can(me, "members", "edit") && staffToday.length > 0)) && (

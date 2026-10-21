@@ -1,6 +1,6 @@
 import type { ToolContext } from "./tools";
 import { local } from "./tools";
-import { ageOutlook } from "@/lib/lana-insights";
+import { ageOutlook } from "@/lib/child-insights";
 import { can } from "@/lib/types";
 import { formatSituation } from "./situation-format";
 

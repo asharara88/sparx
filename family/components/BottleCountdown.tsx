@@ -22,7 +22,7 @@ export function BottleCountdown({ milk, lastFeedAt, mamaAway, timezone, nextAtIs
   const low = milk.fridge_ml < milk.target_ml;
   const next = milk.bottles.find((b) => b.location === "fridge" && !b.expired);
   return (
-    <Link href="/lana/milk" className={`notice ${mamaAway && minLeft != null && minLeft <= 15 ? "notice-warn" : ""} row-link flex items-center gap-3`}>
+    <Link href="/baby/milk" className={`notice ${mamaAway && minLeft != null && minLeft <= 15 ? "notice-warn" : ""} row-link flex items-center gap-3`}>
       <Icon name="bottle" size={22} className="shrink-0" />
       <span className="min-w-0 grow">
         <span className="block font-semibold">

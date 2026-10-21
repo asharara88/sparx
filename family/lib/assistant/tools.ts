@@ -2,12 +2,12 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssistantProposal, AssistantRef, AssistantSkill, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
 import { selectSkills, skillText, type Selection } from "./skills";
-import { selectMemories, type ChatRecap, type MemoryFact } from "./memory";
+import { MAX_FACTS, selectMemories, type ChatRecap, type MemoryFact } from "./memory";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, fromLocalInput, todayYmd, toLocalInput } from "@/lib/time";
-import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/lana-insights";
+import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
-import { tipsFor } from "@/lib/lana-guide";
+import { tipsFor } from "@/lib/child-guide";
 import type { EntryRow } from "@/lib/types";
 
 /**
@@ -15,7 +15,7 @@ import type { EntryRow } from "@/lib/types";
  * called with the member's own session. Row Level Security therefore decides what
  * the assistant can see, exactly as it decides what the member can see. A tool
  * is only offered when the member has the permission the screen would need, so
- * a home carer's assistant has no Lana tool at all — nothing to leak.
+ * a home carer's assistant has no child-log tool at all — nothing to leak.
  */
 
 export interface SubjectInfo {
@@ -24,6 +24,10 @@ export interface SubjectInfo {
   module_id: string;
   kind: "child" | "pet";
   birth_date: string | null;
+  /** From the profile: "Girl", "Boy", "Female"… or null. */
+  sex?: string | null;
+  /** Pets only, from the profile: "cat", "dog"… or null. */
+  species?: string | null;
 }
 
 export interface ToolContext {
@@ -35,6 +39,8 @@ export interface ToolContext {
   types: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
   routines: { name: string; routine: string }[];
+  /** Every active member: first name, role label and relationship ("Mido's mother"), for the prompt. */
+  people: { name: string; role: string; relationship: string | null }[];
   /** What the family told the assistant to remember, the ones that matter for this question. */
   memories: string[];
   /** All confirmed facts with ids (for forget_memory). */
@@ -128,7 +134,7 @@ function whoIsHome(): AssistantTool {
   return {
     def: {
       name: "who_is_home",
-      description: "Who is in the house today, who is away, and who is working today (staff work days). Use for 'who's home', 'is Lilly working', 'where is Wafa'.",
+      description: "Who is in the house today, who is away, and who is working today (staff work days). Use for 'who's home', 'is the home carer working', 'where is grandma'.",
       input_schema: obj({}),
     },
     run: async (_input, ctx) => {
@@ -200,7 +206,7 @@ function careNow(ctx0: ToolContext): AssistantTool {
     def: {
       name: "care_now",
       description:
-        "The current state of a child's or pet's log: the latest entry of every kind (last feed, nap, diaper, medicine, litter, food…) with when it was and when the next is due, anything still running (asleep, feeding), who has the child, and today's counts and entries. Cheapest first call for 'when did X last…', 'is Lana asleep', 'how many feeds today'.",
+        "The current state of a child's or pet's log: the latest entry of every kind (last feed, nap, diaper, medicine, litter, food…) with when it was and when the next is due, anything still running (asleep, feeding), who has the child, and today's counts and entries. Cheapest first call for 'when did X last…', 'is the baby asleep', 'how many feeds today'.",
       input_schema: obj({ subject: SUBJECT_PROP(ctx0) }, ["subject"]),
     },
     run: async (input, ctx) => {
@@ -276,7 +282,7 @@ function careStats(ctx0: ToolContext): AssistantTool {
     def: {
       name: "care_stats",
       description:
-        "Daily totals for a child over a date range: feeds (breast count/minutes, left/right, bottles and ml, pumped), sleep (total, naps, night, longest stretch, night wake-ups, night feeds), diapers, weight/length/head, milestones. One row per day. Use for 'how did she sleep this week', 'is she drinking more than last week', trends. Up to 92 days.",
+        "Daily totals for a child over a date range: feeds (breast count/minutes, left/right, bottles and ml, pumped), sleep (total, naps, night, longest stretch, night wake-ups, night feeds), diapers, weight/length/head, milestones. One row per day. Use for 'how did the baby sleep this week', 'is the baby drinking more than last week', trends. Up to 92 days.",
       input_schema: obj(
         {
           subject: SUBJECT_PROP(ctx0),
@@ -469,7 +475,7 @@ function proposeShopping(ctx0: ToolContext): AssistantTool {
     def: {
       name: "propose_shopping",
       description: request
-        ? "Prepare a running-low request for the member to confirm: it goes to Mido or Dana to approve onto the list."
+        ? "Prepare a running-low request for the member to confirm: it goes to an admin to approve onto the list."
         : "Prepare a shopping change for the member to confirm: mark an item on the list as needed, or add a new item.",
       input_schema: obj(
         {
@@ -524,7 +530,7 @@ function sleepRhythm(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "sleep_rhythm",
-      description: "A child's sleep rhythm from the last 14 days: usual nap length, the awake window before her longest naps, usual bedtime, naps counted, plus the typical awake window for her age. Use for nap, bedtime and night-waking questions before giving advice.",
+      description: "A child's sleep rhythm from the last 14 days: usual nap length, the awake window before the longest naps, usual bedtime, naps counted, plus the typical awake window for the child's age. Use for nap, bedtime and night-waking questions before giving advice.",
       input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
     },
     run: async (input, ctx) => {
@@ -553,7 +559,7 @@ function ageOutlookTool(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "age_outlook",
-      description: "Which developmental phases a child is in now and which come next (growth spurts, the 4-month sleep change, teething, solids, nap changes), with day counts and the typical awake window. Use for 'is this a regression', 'when do teeth come', 'is she ready for solids'.",
+      description: "Which developmental phases a child is in now and which come next (growth spurts, the 4-month sleep change, teething, solids, nap changes), with day counts and the typical awake window. Use for 'is this a regression', 'when do teeth come', 'is the baby ready for solids'.",
       input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
     },
     run: async (input, ctx) => {
@@ -569,8 +575,8 @@ function dayScheduleTool(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "day_schedule",
-      description: "A gentle day rhythm (naps, feeds, bedtime) from a morning wake time, using her best recent awake window when the log shows one, else the age norm. A guide, not a timetable. Use when asked 'what should her day look like' or to plan naps around Mama's hours.",
-      input_schema: obj({ subject: SUBJECT_PROP(ctx0), wake_time: { type: "string", description: "HH:MM household time she woke up or usually wakes." } }, ["wake_time"]),
+      description: "A gentle day rhythm (naps, feeds, bedtime) from a morning wake time, using the child's best recent awake window when the log shows one, else the age norm. A guide, not a timetable. Use when asked 'what should the day look like' or to plan naps around the breastfeeding parent's hours.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0), wake_time: { type: "string", description: "HH:MM household time the child woke up or usually wakes." } }, ["wake_time"]),
     },
     run: async (input, ctx) => {
       const s = findSubject(ctx, input.subject);
@@ -586,7 +592,7 @@ function dayScheduleTool(ctx0: ToolContext): AssistantTool {
       const ageDays = ageDaysOf(ctx, s);
       const coach = sleepCoach(entries, ageDays, hourOf);
       const sched = daySchedule(Number(m[1]) * 60 + Number(m[2]), ageDays, coach?.bestWindowMin ?? null);
-      const away = ctx.routines.length ? "Mama's work hours are in the routines above; bottles every 2 h while she is away." : undefined;
+      const away = ctx.routines.length ? "The breastfeeding parent's work hours are in the routines above; bottles every 2 h while they are away." : undefined;
       return { subject: s.name, ...sched, note: away };
     },
   };
@@ -606,7 +612,7 @@ function redFlagCheck(ctx0: ToolContext): AssistantTool {
       const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - (d + 6) * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
       if (!r.ok) return r;
       const entries = ((r.entries as EntryRow[]) ?? []);
-      const flags = tipsFor(entries, s.birth_date, ctx.now.getTime(), { timezone: ctx.tz, feedGapMin: ctx.types.find((t) => t.id === `${s.module_id}.feed`)?.due_after_min ?? 180 }).filter((t) => t.level !== "info");
+      const flags = tipsFor(entries, s.birth_date, ctx.now.getTime(), { timezone: ctx.tz, feedGapMin: ctx.types.find((t) => t.id === `${s.module_id}.feed`)?.due_after_min ?? 180, name: s.name, sex: s.sex }).filter((t) => t.level !== "info");
       const fever = entries.filter((e) => Number(e.payload.temp_c ?? e.payload.temperature) >= 38).map((e) => `temperature ${e.payload.temp_c ?? e.payload.temperature} °C at ${local(e.occurred_at, ctx.tz)}`);
       return { subject: s.name, days: d, entries: entries.length, flags: [...flags.map((t) => ({ level: t.level, title: t.title, detail: t.body })), ...fever.map((f) => ({ level: "red", title: f }))], ok: flags.length === 0 && fever.length === 0, note: entries.length <= 5 ? "Too little logged to judge." : undefined };
     },
@@ -632,7 +638,7 @@ function recentChats(): AssistantTool {
   return {
     def: {
       name: "recent_chats",
-      description: "The member's last few saved chats with you: title, date and the last question and answer. Use to pick up where an earlier chat left off ('last time we talked about her naps').",
+      description: "The member's last few saved chats with you: title, date and the last question and answer. Use to pick up where an earlier chat left off ('last time we talked about the naps').",
       input_schema: obj({}),
     },
     run: async (_input, ctx) => {
@@ -701,7 +707,7 @@ function remember(): AssistantTool {
   return {
     def: {
       name: "propose_memory",
-      description: "Prepare a short fact for the household helper to keep for everyone, after the member confirms: preferences, what works for Lana, how someone likes answers. Call this when the member says 'remember that…', 'keep in mind…', 'from now on…'. One plain sentence, under 300 characters, no times or amounts that belong in the log.",
+      description: "Prepare a short fact for the household helper to keep for everyone, after the member confirms: preferences, what works for the child, how someone likes answers. Call this when the member says 'remember that…', 'keep in mind…', 'from now on…'. One plain sentence, under 300 characters, no times or amounts that belong in the log.",
       input_schema: obj({ body: { type: "string", description: "The fact, as one plain sentence." } }, ["body"]),
     },
     run: async (input, ctx) => {
@@ -758,21 +764,36 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
   return list;
 }
 
+/** The role's label ("Family carer"), else its id made readable ("family_carer" → "family carer"). */
+function roleLabel(roleId: string, roles: { id: string; label: string }[]): string {
+  return roles.find((r) => r.id === roleId)?.label ?? roleId.replace(/_/g, " ");
+}
+
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null } = {}): Promise<ToolContext> {
-  const [{ data: subjects }, { data: types }, { data: members }, { data: memData }, { data: skillData }, { data: recapData }] = await Promise.all([
-    supabase.from("care_subjects").select("id,name,module_id,kind,birth_date").eq("is_active", true).order("sort"),
+  type MemberRow = { display_name: string; routine: string | null; role_id: string; relationship: string | null };
+  type SubjectRow = Omit<SubjectInfo, "sex" | "species"> & { profile: Record<string, unknown> | null };
+  const [{ data: subjects }, { data: types }, { data: members }, { data: roles }, { data: memData }, { data: skillData }, { data: recapData }] = await Promise.all([
+    supabase.from("care_subjects").select("id,name,module_id,kind,birth_date,profile").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
-    supabase.from("members").select("display_name,routine").eq("is_active", true).not("routine", "is", null).order("display_name"),
+    supabase.from("members").select("display_name,routine,role_id,relationship").eq("is_active", true).order("display_name"),
+    supabase.from("roles").select("id,label"),
     supabase.rpc("memory_list"),
     supabase.rpc("skill_list", { p_all: false }),
     supabase.rpc("ask_chat_recaps", { p_limit: 6 }),
   ]);
+  const subs: SubjectInfo[] = (((subjects as SubjectRow[] | null) ?? []) as SubjectRow[]).map(({ profile, ...s }) => ({
+    ...s,
+    sex: typeof profile?.sex === "string" ? profile.sex : null,
+    species: typeof profile?.species === "string" ? profile.species : null,
+  }));
+  const people = ((members as MemberRow[] | null) ?? []).map((m) => ({ name: m.display_name, routine: m.routine, relationship: m.relationship, role: roleLabel(m.role_id, (roles as { id: string; label: string }[] | null) ?? []) }));
+  // Names are noise when matching memories to a question: the household's subjects and members.
+  const names = [...subs.map((s) => s.name), ...people.map((p) => p.name)];
   const facts = (((memData as { ok?: boolean; items?: MemoryFact[] } | null)?.items ?? []) as MemoryFact[]).map((m) => ({ id: m.id, body: m.body, created_at: m.created_at, by: m.by }));
-  const memories = selectMemories(opts.question ?? "", opts.history ?? [], facts).map((m) => `[${m.id.slice(0, 8)}] ${m.body}`);
+  const memories = selectMemories(opts.question ?? "", opts.history ?? [], facts, MAX_FACTS, names).map((m) => `[${m.id.slice(0, 8)}] ${m.body}`);
   const recaps = ((recapData as { ok?: boolean; items?: ChatRecap[] } | null)?.items ?? []) as ChatRecap[];
   const skills = (((skillData as { ok?: boolean; items?: AssistantSkill[] } | null)?.items ?? []) as AssistantSkill[]).map((s) => ({ ...s, triggers: Array.isArray(s.triggers) ? s.triggers : [] }));
-  const subs = (subjects as SubjectInfo[]) ?? [];
   const child = subs.find((s) => s.kind === "child" && s.birth_date);
   const ageDays = child?.birth_date ? Math.floor((now.getTime() - Date.parse(child.birth_date)) / 86_400_000) : null;
   const selection = selectSkills(opts.question ?? "", skills, { ageDays, history: opts.history });
@@ -790,7 +811,8 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     now,
     subjects: subs,
     types: (types as EntryType[]) ?? [],
-    routines: (((members as { display_name: string; routine: string | null }[] | null) ?? []).filter((m) => m.routine) as { display_name: string; routine: string }[]).map((m) => ({ name: m.display_name, routine: m.routine })),
+    routines: people.filter((p): p is typeof p & { routine: string } => !!p.routine).map((p) => ({ name: p.name, routine: p.routine })),
+    people: people.map(({ name, role, relationship }) => ({ name, role, relationship })),
     memories,
     refs: {},
     proposals: [],

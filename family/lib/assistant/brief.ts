@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Brief, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
-import { ageOutlook } from "@/lib/lana-insights";
+import { ageOutlook } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
 import { storyMonth } from "@/lib/story";
 import { buildTools, loadContext } from "./tools";

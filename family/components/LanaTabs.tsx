@@ -9,14 +9,14 @@ export const LANA_TABS = [
 ] as const;
 export type LanaTab = (typeof LANA_TABS)[number]["id"];
 
-/** The segmented control at the top of Lana's section. Server-rendered links. */
+/** The segmented control at the top of the child's section. Server-rendered links. */
 export function LanaTabs({ active, day }: { active: LanaTab; day?: string }) {
   return (
-    <nav aria-label="Lana sections" className="grid grid-cols-5 gap-1 rounded-2xl bg-[var(--card-2)] p-1">
+    <nav aria-label="Child sections" className="grid grid-cols-5 gap-1 rounded-2xl bg-[var(--card-2)] p-1">
       {LANA_TABS.map((t) => (
         <Link
           key={t.id}
-          href={t.id === "today" && day ? `/lana?tab=today&d=${day}` : `/lana?tab=${t.id}`}
+          href={t.id === "today" && day ? `/baby?tab=today&d=${day}` : `/baby?tab=${t.id}`}
           aria-current={active === t.id ? "page" : undefined}
           className={`rounded-xl py-2.5 text-center text-sm font-bold no-underline ${active === t.id ? "bg-[var(--card)] shadow-[var(--shadow)]" : "muted"}`}
         >

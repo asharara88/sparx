@@ -363,14 +363,8 @@ begin
 end $$;
 grant execute on function public.routines_list(uuid) to authenticated, service_role;
 
--- Fanta's starting routines (edit on her page).
-insert into public.care_routines (id, subject_id, label, every_days, type_id, payload, sort) values
-  ('00000000-0000-4000-8000-00000000c001', '00000000-0000-4000-8000-00000000a002', 'Litter full change', 7,  'fanta.litter',    '{"kind":"Full change"}', 10),
-  ('00000000-0000-4000-8000-00000000c002', '00000000-0000-4000-8000-00000000a002', 'Brush',              3,  null,              '{}',                     20),
-  ('00000000-0000-4000-8000-00000000c003', '00000000-0000-4000-8000-00000000a002', 'Flea and tick',      30, 'fanta.treatment', '{"kind":"Flea & tick"}', 30),
-  ('00000000-0000-4000-8000-00000000c004', '00000000-0000-4000-8000-00000000a002', 'Deworming',          90, 'fanta.treatment', '{"kind":"Deworming"}',   40),
-  ('00000000-0000-4000-8000-00000000c005', '00000000-0000-4000-8000-00000000a002', 'Weigh her',          14, null,              '{}',                     50)
-on conflict (id) do nothing;
+-- A pet's starting routines (litter, brushing, flea and tick, deworming, weighing) are
+-- written by setup-household.mjs when a pet is set up; edit them on the pet's page.
 
 -- ---------------------------------------------------------------------------
 -- 6. Saved Ask chats: a member's own threads, messages kept as JSON on the row.

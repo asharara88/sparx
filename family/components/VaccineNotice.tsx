@@ -8,7 +8,7 @@ export function VaccineNotice({ item, timezone }: { item: DueItem; timezone: str
   const when = item.due_on ? fmtDate(`${item.due_on}T12:00:00Z`, "UTC", { day: "numeric", month: "short" }) : "";
   void timezone;
   return (
-    <Link href="/lana/vaccines" className={`notice ${item.overdue ? "notice-danger" : "notice-accent"} row-link flex items-center gap-3`}>
+    <Link href="/baby/vaccines" className={`notice ${item.overdue ? "notice-danger" : "notice-accent"} row-link flex items-center gap-3`}>
       <Icon name="syringe" size={20} className="shrink-0" />
       <span className="flex-1">
         <span className="font-semibold">

@@ -3,11 +3,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Subject } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { possessive } from "@/lib/names";
 import { Icon } from "./Icon";
 
+// {n} is the ambulance number from the profile; {child} the child's name in that language.
 const T = {
-  call: { en: "Call 998 ambulance", ar: "اتصل بالإسعاف ٩٩٨", ru: "Скорая 998" },
-  doctor: { en: "Lana's doctor", ar: "دكتور لانا", ru: "Врач Ланы" },
+  call: { en: "Call {n} ambulance", ar: "اتصل بالإسعاف {n}", ru: "Скорая {n}" },
+  doctor: { en: "{child's} doctor", ar: "دكتور {child}", ru: "Врач {child}" },
   hospital: { en: "Hospital", ar: "المستشفى", ru: "Больница" },
   papa: { en: "Papa", ar: "بابا", ru: "Папа" },
   mama: { en: "Mama", ar: "ماما", ru: "Мама" },
@@ -33,12 +35,14 @@ const tel = (n: string) => `tel:${n.replace(/[^\d+]/g, "")}`;
 export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; lang: Lang; canEdit: boolean }) {
   const router = useRouter();
   const p = (subject.profile ?? {}) as Record<string, string | undefined>;
-  const t = (k: keyof typeof T) => T[k][lang];
+  const ambulance = p.emergency_ambulance || "998";
+  // The child's name in the member's language when the household gave one, else the main name.
+  const childName = ((subject.profile?.names as Record<string, string> | undefined)?.[lang]) || subject.name;
+  const t = (k: keyof typeof T) => T[k][lang].replace("{n}", ambulance).replace("{child's}", possessive(childName)).replace("{child}", childName);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Record<string, string>>(Object.fromEntries(FIELDS.map(([k]) => [k, p[k] ?? ""])));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const ambulance = p.emergency_ambulance || "998";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -74,7 +78,7 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
   return (
     <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-col gap-3">
       <a href={tel(ambulance)} className="flex items-center justify-center gap-3 rounded-3xl bg-[var(--danger)] p-6 text-2xl font-bold text-white shadow-[var(--shadow)] active:scale-[0.98]">
-        <Icon name="phone" size={30} /> {t("call").replace("998", ambulance)}
+        <Icon name="phone" size={30} /> {t("call")}
       </a>
       <CallRow label={t("doctor")} name={p.doctor_name} phone={p.doctor_tollfree || p.doctor_phone} />
       <CallRow label={t("papa")} phone={p.emergency_papa_phone} />

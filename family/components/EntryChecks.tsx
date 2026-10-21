@@ -5,13 +5,16 @@ import type { EntryRow } from "@/lib/types";
 import { checkEntries, type CheckFlag } from "@/lib/entry-checks";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { fmtDateTime, fmtTime } from "@/lib/time";
+import { useMe } from "@/lib/me-context";
+import { childName, possessive } from "@/lib/names";
 
 /**
  * "Does this look right?" One card per suspicious entry, with the fix the
- * data supports. Shown on Home (the first two) and on Lana's Today (all).
+ * data supports. Shown on Home (the first two) and on the child's Today (all).
  * Every decision is one tap and audited.
  */
 export function EntryChecks({ entries, timezone, limit, canDelete }: { entries: EntryRow[]; timezone: string; limit?: number; canDelete: boolean }) {
+  const me = useMe();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -63,8 +66,8 @@ export function EntryChecks({ entries, timezone, limit, canDelete }: { entries: 
         </div>
       ))}
       {all.length > flags.length && (
-        <a href="/lana" className="muted px-1 text-sm">
-          {all.length - flags.length} more to check on Lana's page ›
+        <a href="/baby" className="muted px-1 text-sm">
+          {all.length - flags.length} more to check on {possessive(childName(me))} page ›
         </a>
       )}
       {msg && (

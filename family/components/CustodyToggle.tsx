@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
+import { childName } from "@/lib/names";
 
-/** "Who has Lana" — one tap to open, one tap to choose. */
+/** "Who has the child" — one tap to open, one tap to choose. */
 export function CustodyToggle({
   subjectId,
   custody,
@@ -38,7 +39,8 @@ export function CustodyToggle({
     if ((data as { ok: boolean })?.ok) router.refresh();
   }
 
-  const label = custody?.name ? `With ${custody.member_id === me.member.id ? "me" : custody.name}` : "Who has her?";
+  const name = childName(me);
+  const label = custody?.name ? `With ${custody.member_id === me.member.id ? "me" : custody.name}` : `Who has ${name}?`;
   if (!allowed) return <span className="chip">{label}</span>;
 
   return (
@@ -48,7 +50,7 @@ export function CustodyToggle({
       </button>
       {open && (
         <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg">
-          <p className="muted px-2 py-1 text-sm">Who has Lana now?</p>
+          <p className="muted px-2 py-1 text-sm">Who has {name} now?</p>
           {members.length === 0 && <p className="px-2 py-2">Loading…</p>}
           {members.map((m) => (
             <button

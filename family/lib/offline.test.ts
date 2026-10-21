@@ -45,7 +45,7 @@ test("mergeOngoing shows a queued start as running and hides a server timer with
   enqueue({ op: "end", client_id: "e1", entry_id: "srv-1", start_client_id: null, ended_at: "2026-10-21T02:00:00.000Z", queued_at: "x" });
   enqueue({ op: "log", client_id: "s1", subject_id: "lana", type_id: "lana.sleep", occurred_at: "2026-10-21T02:10:00.000Z", ended_at: null, payload: {}, note: null, queued_at: "x" });
   enqueue({ op: "log", client_id: "d1", subject_id: "lana", type_id: "lana.diaper", occurred_at: "2026-10-21T02:11:00.000Z", ended_at: "2026-10-21T02:11:00.000Z", payload: {}, note: null, queued_at: "x" });
-  enqueue({ op: "log", client_id: "other", subject_id: "fanta", type_id: "fanta.food", occurred_at: "2026-10-21T02:12:00.000Z", ended_at: null, payload: {}, note: null, queued_at: "x" });
+  enqueue({ op: "log", client_id: "other", subject_id: "other", type_id: "other.note", occurred_at: "2026-10-21T02:12:00.000Z", ended_at: null, payload: {}, note: null, queued_at: "x" });
   const merged = mergeOngoing([sleep, feed], "lana", readQueue(), "Wafa");
   assert.deepEqual(
     merged.map((e) => e.id),

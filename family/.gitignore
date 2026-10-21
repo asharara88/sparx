@@ -4,6 +4,8 @@ out/
 .env
 .env.local
 .env.*.local
+# the household's own setup file (names, e-mails); only the example is tracked
+household.json
 *.tsbuildinfo
 next-env.d.ts
 .vercel
