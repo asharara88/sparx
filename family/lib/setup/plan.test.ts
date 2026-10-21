@@ -67,6 +67,23 @@ test("planMembers: matching by id wins over e-mail and name; an unknown id stops
   assert.ok(planMembers(cfg, existing(), HOME).errors.some((e) => e.includes("no member in this home has id")));
 });
 
+test("planMembers: an e-mail that is another member's stops the run instead of rewriting that member", () => {
+  // Noor's entry given Haitham's e-mail, no ids: the e-mail says Haitham, the name says Noor.
+  const cfg = base();
+  cfg.members[1].email = "haitham@example.com";
+  const p = planMembers(cfg, existing(), HOME);
+  assert.ok(p.errors.some((e) => e.includes("Noor") && e.includes("belongs to Haitham") && e.includes("matches Noor")), p.errors.join("; "));
+  assert.ok(!p.members.some((m) => m.found?.display_name === "Haitham" && m.row.display_name === "Noor"), "Haitham's row is not planned as Noor");
+  // The same with Noor's id given: the id names the row, and the e-mail is still refused.
+  cfg.members[1].id = "00000000-0000-4000-8000-000000000002";
+  const q = planMembers(cfg, existing(), HOME);
+  assert.ok(q.errors.some((e) => e.includes("Noor") && e.includes("belongs to Haitham")), q.errors.join("; "));
+  // A new member with a new e-mail and a new name is simply inserted.
+  const fresh = base();
+  fresh.members.push({ name: "Teta", email: "teta@example.com", role: "family_carer" });
+  assert.deepEqual(planMembers(fresh, existing(), HOME).errors, []);
+});
+
 test("planMembers: a deactivated member comes back only with active: true; active: false deactivates", () => {
   const cfg = base();
   cfg.members.push({ name: "Old sitter", email: "sitter@example.com", role: "sitter" });

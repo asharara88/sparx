@@ -77,7 +77,7 @@ export default async function HomePage() {
   const milkOk = milkStash && milkStash.ok ? milkStash : null;
   const household = hhData as HouseholdToday | RpcError;
   const staffToday = household.ok ? household.members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
-  // Mama is away: the breastfeeding member works today and it is within their hours.
+  // The away parent (breastfeeding, else the working parent) works today and it is within their hours.
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
   const mama = household.ok ? awayParent(household.members) : null;
   const mamaWorks = !!mama && mama.works_today;
@@ -154,7 +154,7 @@ export default async function HomePage() {
       ? {
           countdown: milkOk ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} timezone={tz} nextAtIso={nextBottle ? new Date(nextBottle.at).toISOString() : null} /> : null,
           thaw: milkOk ? <ThawReminder key="th" milk={milkOk} entries={week} timezone={tz} opts={thawOpts} /> : null,
-          plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} /> : null,
+          plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} /> : null,
           pump: showPump ? <PumpTarget key="pt" pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} /> : null,
           handover:
             mamaWorks && (part === "away" || part === "evening") && hhm >= from ? (

@@ -3,11 +3,12 @@ import type { MilkData } from "@/lib/types";
 import { fmtTime } from "@/lib/time";
 
 /**
- * Planned bottles until Mama is back, against what is in the fridge. One
- * bottle every interval from the next due time, each the size of the last
- * bottle. Says how many freezer bags to thaw if the fridge will run short.
+ * Planned bottles until the away parent (`name`) is back, against what is in
+ * the fridge. One bottle every interval from the next due time, each the size
+ * of the last bottle. Says how many freezer bags to thaw if the fridge will run
+ * short.
  */
-export function FridgePlan({ milk, lastFeedAt, backAtIso, bottleMl, timezone }: { milk: MilkData; lastFeedAt: string | null; backAtIso: string; bottleMl: number; timezone: string }) {
+export function FridgePlan({ milk, lastFeedAt, backAtIso, bottleMl, timezone, name }: { milk: MilkData; lastFeedAt: string | null; backAtIso: string; bottleMl: number; timezone: string; name: string }) {
   const interval = (milk.bottle_interval_min || 120) * 60_000;
   const now = Date.now();
   const back = Date.parse(backAtIso);
@@ -29,7 +30,7 @@ export function FridgePlan({ milk, lastFeedAt, backAtIso, bottleMl, timezone }: 
   }
   return (
     <section className={`card flex flex-col gap-1 ${short > 0 ? "border border-[var(--warn)]" : ""}`} aria-labelledby="plan-h">
-      <h2 id="plan-h" className="section-title">Until Mama is back</h2>
+      <h2 id="plan-h" className="section-title">Until {name} is back</h2>
       <p>
         <b>{planned.length}</b> bottle{planned.length === 1 ? "" : "s"} of about {bottleMl} ml planned: {planned.map((t) => fmtTime(new Date(t).toISOString(), timezone)).join(", ")}.
       </p>

@@ -4,7 +4,9 @@
 // rules and the validation without a database.
 //
 // Matching, in order: `id` (a member row's uuid, printed by every run), else the
-// e-mail, else the name. A row that is linked to a sign-in account keeps that link:
+// e-mail, else the name; an entry whose e-mail and name point at two different
+// members, or whose e-mail is another member's, stops the run rather than guess.
+// A row that is linked to a sign-in account keeps that link:
 // changing its e-mail is refused unless the member says `relink: true`, which drops
 // the old link so --accounts can make the new one. A deactivated member comes back
 // only with `active: true`; `active: false` deactivates. Members in the home but not
@@ -65,11 +67,26 @@ export function planMembers(cfg, existing, homeId) {
   const members = [];
   for (const m of cfg.members ?? []) {
     const email = norm(m.email);
+    const byMail = (email && byEmail.get(email)) || null;
+    const named = byName.get(norm(m.name)) ?? null;
     let found = null;
     if (m.id) {
       found = byId.get(m.id) ?? null;
       if (!found) errors.push(`member ${m.name}: no member in this home has id ${m.id}`);
-    } else found = (email && byEmail.get(email)) || byName.get(norm(m.name)) || null;
+    } else {
+      // The e-mail and the name must agree: a file entry that names one member with another's
+      // e-mail would otherwise rewrite the e-mail's owner as the named person, keeping their account.
+      if (byMail && named && byMail.id !== named.id) {
+        errors.push(`member ${m.name}: the e-mail ${email} belongs to ${byMail.display_name}, and the name matches ${named.display_name}; give the member's id, or fix the e-mail`);
+        continue; // no plan entry from either row
+      }
+      found = byMail ?? named;
+    }
+    // Whoever the entry turned out to be, the e-mail may not be another member's.
+    if (found && byMail && byMail.id !== found.id) {
+      errors.push(`member ${m.name}: the e-mail ${email} belongs to ${byMail.display_name}`);
+      continue;
+    }
     if (found && taken.has(found.id)) errors.push(`member ${m.name}: matches the same row as another member in the file (${found.display_name})`);
     if (found) taken.add(found.id);
 

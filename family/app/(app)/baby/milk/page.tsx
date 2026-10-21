@@ -50,7 +50,7 @@ export default async function MilkPage() {
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby" title="Milk stash" subtitle="What is in the fridge and freezer, oldest first. A bottle feed takes its milk out by itself." />
       {can(me, "lana", "add") && <MilkScan timezone={tz} />}
-      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} />}
+      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} />}
       <MilkStash data={milk} timezone={me.household.timezone} />
       <MilkInsights milk={milk} entries={history} timezone={tz} thaw={thaw} />
     </div>
