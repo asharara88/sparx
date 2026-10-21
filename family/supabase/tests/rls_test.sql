@@ -1124,6 +1124,26 @@ select pg_temp.assert(
     where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create')) = 0,
   'every definer function in public belongs to app_rls, except the four that must see across homes');
+select pg_temp.assert(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
+      and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
+                            'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home')) = 0,
+  'and so does every data-reading helper in private');
+select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
+-- The receipt matcher is one of those helpers: it must not find another home's item.
+select name as first_item from public.shopping_items where deleted_at is null and household_id = (select id from public.household where name = 'Our home') order by name limit 1 \gset
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((private.match_item(:'first_item')).o_item is not null, 'Mido''s receipt line matches his home''s item');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((private.match_item(:'first_item')).o_item is null, 'the same words match nothing from the Khans'' home');
+select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'a chat photo under the home folder is accepted');
+select pg_temp.assert((public.chat_send('', 'chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'and the old shape still is');
+select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/receipts/x.jpg'))->>'error' = 'bad_photo', 'but not another folder');
+reset role;
 
 -- Running many homes (migration 4100): shared definitions change only from the first home; backups per home
 select pg_temp.act_as(:mido);

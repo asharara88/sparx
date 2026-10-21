@@ -18,6 +18,9 @@ do $$ begin
 end $$;
 grant app_rls to postgres;
 grant usage on schema public, private, auth to app_rls;
+-- Giving a function to app_rls needs the new owner to hold CREATE on the function's schema
+-- (a rule a superuser never meets; hosted Supabase's postgres is not one).
+grant create on schema public, private to app_rls;
 grant select on auth.users to app_rls;
 grant all on all tables in schema public to app_rls;
 grant usage, select on all sequences in schema public to app_rls;
@@ -78,17 +81,25 @@ create policy household_home on public.household as restrictive for all to authe
   using (id = private.current_household_id()) with check (id = private.current_household_id());
 
 -- ---------------------------------------------------------------------------
--- 3. Ownership: every definer function in public, except the ones that must see across homes
+-- 3. Ownership: every definer function in public and private, except the ones that must see across homes
 -- ---------------------------------------------------------------------------
+-- In private, the helpers that read a home's data (subject_module, match_item, learn_reorder,
+-- suggest, admin_names…) go to app_rls as well. What stays with postgres there: the home
+-- helpers the policies themselves use, the audit writer (a refused call from an account in
+-- no home writes a row with no home), the auth trigger and the module-filling triggers, and
+-- seed_home, which household_create fills a brand-new home with.
 do $$
 declare
   f record;
   v_keep text[] := array['current_member_id', 'has_permission', 'link_current_user', 'household_create', 'me'];
+  v_keep_private text[] := array['current_household_id', 'only_household_id', 'home_for_new_rows', 'audit_write',
+    'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home'];
 begin
   for f in
     select p.oid::regprocedure as sig, p.proname
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public' and p.prosecdef and not (p.proname = any (v_keep))
+     where p.prosecdef and ((n.nspname = 'public' and not (p.proname = any (v_keep)))
+                         or (n.nspname = 'private' and not (p.proname = any (v_keep_private))))
   loop
     execute format('alter function %s owner to app_rls', f.sig);
   end loop;

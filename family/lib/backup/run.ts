@@ -96,7 +96,23 @@ export async function backupHome(db: SupabaseClient, home: string, photos: strin
   return { path: folder, rows, size, tables, photos: photos.length, removed };
 }
 
-/** Every home's backup, in one run. The report sums them; `homes` has each. */
+/** One home's backup now: what "Back up now" on the Audit screen runs, for the caller's home only. */
+export async function runBackupFor(home: string, db: SupabaseClient = serviceClient()): Promise<BackupReport> {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  const { data, error } = await db.from("household").select("id").order("created_at");
+  if (error) throw new Error(`homes: ${error.message}`);
+  const ids = ((data as { id: string }[] | null) ?? []).map((h) => h.id);
+  if (!ids.includes(home)) throw new Error("no such home");
+  const all = await listPhotos(db);
+  return backupHome(db, home, photosOf(all, home, ids[0]), stamp);
+}
+
+/** The photos a home owns: its own folder, and for the first home what was there before many homes. */
+function photosOf(all: string[], home: string, first: string): string[] {
+  return all.filter((p) => p.startsWith(`home-${home}/`) || (home === first && !p.startsWith("home-")));
+}
+
+/** Every home's backup, in one run: the nightly cron. The report sums them; `homes` has each. */
 export async function runBackup(db: SupabaseClient = serviceClient()): Promise<BackupReport & { homes: Record<string, BackupReport> }> {
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
   const { data, error } = await db.from("household").select("id").order("created_at");
@@ -106,8 +122,7 @@ export async function runBackup(db: SupabaseClient = serviceClient()): Promise<B
   const sum: BackupReport = { path: `run-${stamp}`, rows: 0, size: 0, tables: {}, photos: all.length, removed: 0 };
   const ids = ((data as { id: string }[] | null) ?? []).map((h) => h.id);
   for (const id of ids) {
-    const photos = all.filter((p) => p.startsWith(`home-${id}/`) || (id === ids[0] && !p.startsWith("home-")));
-    const r = await backupHome(db, id, photos, stamp);
+    const r = await backupHome(db, id, photosOf(all, id, ids[0]), stamp);
     homes[id] = r;
     sum.rows += r.rows;
     sum.size += r.size;

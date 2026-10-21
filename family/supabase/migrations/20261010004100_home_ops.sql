@@ -159,3 +159,22 @@ create policy photos_read on storage.objects for select to authenticated
 drop policy if exists photos_add on storage.objects;
 create policy photos_add on storage.objects for insert to authenticated
   with check (bucket_id = 'photos' and public.has_permission('photos', 'add') and private.photo_in_my_home(name));
+
+-- chat_send checked the photo path's shape; the shape has a home folder in front now.
+create or replace function public.chat_send(p_body text, p_photo_path text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_body text := coalesce(btrim(p_body), '');
+begin
+  if not private.authz('chat', 'add', 'family_messages') then return private.denied(); end if;
+  if v_body = '' and nullif(btrim(p_photo_path), '') is null then
+    return jsonb_build_object('ok', false, 'error', 'empty', 'message', 'Write something or add a photo.');
+  end if;
+  if p_photo_path is not null and p_photo_path !~ '^(home-[0-9a-f-]{36}/)?chat/[0-9a-f-]{36}\.[a-z0-9]{1,5}$' then
+    return jsonb_build_object('ok', false, 'error', 'bad_photo', 'message', 'That photo path is not allowed.');
+  end if;
+  insert into public.family_messages (author, body, photo_path)
+  values (public.current_member_id(), v_body, nullif(btrim(p_photo_path), ''))
+  returning id into v_id;
+  return jsonb_build_object('ok', true, 'id', v_id);
+end $$;
+alter function public.chat_send(text, text) owner to app_rls;

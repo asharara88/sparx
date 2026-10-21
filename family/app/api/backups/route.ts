@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { serviceClient } from "@/lib/server/member";
-import { runBackup } from "@/lib/backup/run";
+import { runBackupFor } from "@/lib/backup/run";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -34,12 +34,13 @@ export async function GET(req: Request) {
   return NextResponse.redirect(data.signedUrl);
 }
 
-/** POST → run a backup now (audit viewers only). The nightly cron does the same. */
+/** POST → run a backup of the caller's home now (audit viewers only). The nightly cron does every home. */
 export async function POST() {
-  if (!(await admin())) return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
+  const me = await admin();
+  if (!me) return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ ok: false, error: "not_configured", message: "SUPABASE_SERVICE_ROLE_KEY is not set on the server." }, { status: 503 });
   try {
-    const r = await runBackup();
+    const r = await runBackupFor(me.household.id);
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     return NextResponse.json({ ok: false, error: "failed", message: e instanceof Error ? e.message : String(e) }, { status: 500 });

@@ -53,7 +53,12 @@ const homeRow = given({
 const homes = await ok(admin.from("household").select("id, name"));
 const peopled = new Set((await ok(admin.from("members").select("household_id"))).map((m) => m.household_id));
 // By id, by name, else the home nobody is in yet (a fresh deployment is seeded with one).
-const home = (hh.id && homes.find((h) => h.id === hh.id)) || homes.find((h) => h.name === hh.name) || homes.find((h) => !peopled.has(h.id)) || null;
+// Two homes may share a name; then the file must say which by id, or the script could write
+// a family's members into a stranger's home.
+const sameName = homes.filter((h) => h.name === hh.name);
+if (!hh.id && sameName.length > 1) fail(`${sameName.length} homes are named "${hh.name}" (${sameName.map((h) => h.id).join(", ")}); set household.id to say which.`);
+if (hh.id && !homes.some((h) => h.id === hh.id)) fail(`No home has id ${hh.id}.`);
+const home = (hh.id && homes.find((h) => h.id === hh.id)) || sameName[0] || homes.find((h) => !peopled.has(h.id)) || null;
 const homeId = home
   ? (await ok(admin.from("household").update(homeRow).eq("id", home.id).select("id").single())).id
   : (await ok(admin.from("household").insert(homeRow).select("id").single())).id;
