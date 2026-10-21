@@ -1,5 +1,14 @@
-# Pipeline CI: typecheck + full vitest suite. ffmpeg is installed so the real
-# render/probe/clip paths run instead of gracefully skipping.
+# Two jobs, one per app in the repo.
+#
+# test: the YouTube studio pipeline at the repo root. typecheck + full vitest
+#   suite; ffmpeg is installed so the real render/probe/clip paths run instead of
+#   gracefully skipping.
+# family: the elnunu family app in family/. typecheck, the unit tests, and the
+#   whole Supabase schema (family/supabase/migrations/*.sql) applied in order to
+#   a fresh Postgres followed by supabase/tests/rls_test.sql, the Step 1 to 6
+#   database checks. The Supabase GitHub integration applies those migrations to
+#   the household's project when a change lands on main, so a migration that does
+#   not apply, or a policy that lets the wrong role read, has to fail here first.
 name: CI
 
 on:
@@ -22,3 +31,40 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+  family:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: family
+    services:
+      postgres:
+        # Same major as the local test runner; the household project runs 17 and
+        # the migrations use nothing newer than 16 (pg_trgm is in contrib).
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # The unit tests run on node's own test runner with --experimental-strip-types.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: family/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Migrations + RLS checks against a fresh Postgres
+        env:
+          PGPASSWORD: postgres
+          PSQL: psql -h localhost -U postgres
+        run: npm run db:test
