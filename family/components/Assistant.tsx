@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
-import { dateWords, fmtTime } from "@/lib/time";
+import { dateWords } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
-import { speechLang, type Lang } from "@/lib/i18n";
+import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
 import { recapOf } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
 
@@ -110,11 +110,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         .filter(([, v]) => v !== null && v !== "" && v !== undefined)
         .map(([k, v]) => (k === "amount_ml" ? `${v} ml` : k === "amount_g" ? `${v} g` : k === "duration_min" ? `${v} min` : String(v)))
         .join(", ");
-      return `${c.type_label}${details ? `, ${details}` : ""}, ${c.subject_name}, ${fmtTime(c.occurred_at, tz)}${c.ended_at ? ` to ${fmtTime(c.ended_at, tz)}` : ""}.`;
+      return `${c.type_label}${details ? `, ${details}` : ""}, ${c.subject_name}, ${spokenWhen(c.occurred_at, tz, lang)}${c.ended_at ? ` ${t(lang, "to")} ${spokenWhen(c.ended_at, tz, lang)}` : ""}.`;
     }
     if (p.kind === "end_timer" && p.end_timer) {
       const c = p.end_timer;
-      return `${c.type_label} ${c.subject_name}, ${fmtTime(c.since, tz)} to ${fmtTime(c.ended_at, tz)}.`;
+      return `${c.type_label} ${c.subject_name}, ${spokenWhen(c.since, tz, lang)} ${t(lang, "to")} ${spokenWhen(c.ended_at, tz, lang)}.`;
     }
     return p.summary.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\s+·\s+/g, ", ").trim();
   }
@@ -350,29 +350,31 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   async function confirm(p: AssistantProposal) {
     setPstate((s) => ({ ...s, [p.id]: { status: "saving" } }));
     const supabase = supabaseBrowser();
-    let result = "Saved.";
+    // What is said (and shown) after the tap, in the member's language.
+    const savedWord = `${t(lang, "saved")}.`;
+    let result = savedWord;
     const saved = (href: string | undefined, note: string) => {
       result = note;
       setPstate((s) => ({ ...s, [p.id]: { status: "saved", href, note } }));
     };
-    const offline = "Saved on this phone; it will send when you are back online.";
+    const offline = t(lang, "savedOffline");
     try {
       if (p.kind === "care_entry" && p.care_entry) {
         const c = p.care_entry;
         const r = await sendOrQueue(supabase, { client_id: newClientId(), subject_id: c.subject_id, type_id: c.type_id, occurred_at: c.occurred_at, ended_at: c.ended_at, payload: c.payload, note: c.note });
         if (r.status === "error") throw new Error(r.message);
-        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? "Saved." : offline);
+        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? savedWord : offline);
       } else if (p.kind === "end_timer" && p.end_timer) {
         const c = p.end_timer;
         const r = await endOrQueue(supabase, c.entry_id, c.ended_at);
         if (r.status === "error") throw new Error(r.message);
-        saved(r.status === "saved" ? `/entry/${c.entry_id}` : undefined, r.status === "saved" ? "Ended." : offline);
+        saved(r.status === "saved" ? `/entry/${c.entry_id}` : undefined, r.status === "saved" ? t(lang, "ended") : offline);
       } else if (p.kind === "calendar_event" && p.calendar_event) {
         const c = p.calendar_event;
         const { data, error } = await supabase.rpc("calendar_save", { p_id: null, p_title: c.title, p_kind: c.kind, p_starts_at: c.starts_at, p_ends_at: c.ends_at, p_all_day: c.all_day, p_visibility: "household", p_assigned_to: null, p_note: c.note, p_repeat: "none", p_repeat_until: null });
         const res = data as { ok: boolean; message?: string } | null;
-        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
-        saved("/calendar", "On the calendar.");
+        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? t(lang, "couldNotSave"));
+        saved("/calendar", t(lang, "onCalendar"));
       } else if (p.kind === "shopping" && p.shopping) {
         const c = p.shopping;
         let call;
@@ -381,23 +383,23 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         else call = supabase.rpc("shopping_item_save", { p_id: null, p_name: c.item_name, p_needed: true, p_note: c.note });
         const { data, error } = await call;
         const res = data as { ok: boolean; message?: string; id?: string } | null;
-        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
-        saved(c.via === "request" ? "/send" : "/shopping", c.via === "request" ? "Sent for approval." : "On the list.");
+        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? t(lang, "couldNotSave"));
+        saved(c.via === "request" ? "/send" : "/shopping", c.via === "request" ? t(lang, "sentForApproval") : t(lang, "onList"));
       } else if (p.kind === "plan" && p.plan) {
         const { data, error } = await supabase.rpc("coach_plan_start", { p_subject_id: p.plan.subject_id, p_goal: p.plan.goal, p_steps: p.plan.steps });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not start the plan.");
-        saved("/", "Plan started. Today's step is on Home.");
+        saved("/", t(lang, "planStarted"));
       } else if (p.kind === "forget" && p.forget) {
         const { data, error } = await supabase.rpc("memory_remove", { p_id: p.forget.id });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not forget it.");
-        saved("/ask/memory", "Forgotten.");
+        saved("/ask/memory", t(lang, "forgotten"));
       } else if (p.kind === "memory" && p.memory) {
         const { data, error } = await supabase.rpc("memory_add", { p_body: p.memory.body });
         const res = data as { ok: boolean; message?: string } | null;
-        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
-        saved("/ask/memory", "Remembered.");
+        if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? t(lang, "couldNotSave"));
+        saved("/ask/memory", t(lang, "remembered"));
       } else {
         throw new Error("I do not know how to save that.");
       }
@@ -405,7 +407,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       if (aloud || talkRef.current) say(result, () => talkRef.current && startListeningRef.current());
       router.refresh();
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Could not save.";
+      const message = e instanceof Error ? e.message : t(lang, "couldNotSave");
       setPstate((s) => ({ ...s, [p.id]: { status: "error", message } }));
       if (aloud || talkRef.current) say(message);
     }

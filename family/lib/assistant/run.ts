@@ -6,6 +6,7 @@ import { buildTools, loadContext, type AssistantTool, type ToolContext } from ".
 import { systemBlocks } from "./prompt";
 import { loadSituation } from "./situation";
 import { anthropicOptions, modelConfigured } from "@/lib/server/anthropic";
+import { isAbort, withTimeout } from "./wait";
 
 /**
  * The agent loop. One question in, one answer out, with as many tool rounds
@@ -18,7 +19,9 @@ import { anthropicOptions, modelConfigured } from "@/lib/server/anthropic";
  *    "could not finish";
  *  - text streams to the phone as it is written; a round that turns out to be
  *    a tool round is reset on the client so what is shown is what is saved;
- *  - every call is audited: question, skills, tools, answer, proposals, tokens.
+ *  - every call is audited: question, skills, tools, answer, proposals, tokens;
+ *  - when the member ends the conversation the request's signal aborts, and
+ *    that stops the model stream, the wait on any tool, and the next round.
  */
 
 export const MODEL = process.env.ASSISTANT_MODEL ?? "claude-opus-5-5";
@@ -48,6 +51,8 @@ export interface RunInput {
   screen?: string | null;
   /** Called as the answer is written and as tools run; the route streams these. */
   onEvent?: (e: AssistantEvent) => void;
+  /** Aborts when the member ends the conversation or the connection drops: no more model calls or tool rounds. */
+  signal?: AbortSignal;
 }
 
 /** Sum of usage over the tool-use loop; what the audit row records. */
@@ -97,7 +102,7 @@ function statusFor(calls: Anthropic.Beta.BetaToolUseBlock[]): string {
   return `${STATUS[first] ?? "Looking"}…`;
 }
 
-export async function askAssistant({ supabase, me, turns, question, screen = null, onEvent }: RunInput): Promise<AssistantReply | RpcError> {
+export async function askAssistant({ supabase, me, turns, question, screen = null, onEvent, signal }: RunInput): Promise<AssistantReply | RpcError> {
   const t0 = Date.now();
   const emit = (e: AssistantEvent) => {
     try {
@@ -114,13 +119,25 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
     return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
   }
 
-  const history = turns.filter((t) => t.role === "user").map((t) => t.text);
-  const ctx = await loadContext(supabase, me, new Date(), { question, history, screen });
-  ctx.situation = await loadSituation(ctx).catch(() => "");
-  const tools = buildTools(ctx);
-  const byName = new Map(tools.map((t) => [t.def.name, t]));
   const usage = emptyUsage();
   const toolLog: { name: string; input: unknown; ok: boolean }[] = [];
+  // The member ended it (or the connection dropped): stop here, record what was spent, say so.
+  const stopped = async (): Promise<RpcError> => {
+    usage.ms = Date.now() - t0;
+    await audit(supabase, "ask", { p_question: question, p_answer: "(stopped by the member)", p_tools: toolLog, p_proposals: [], p_usage: usage });
+    return { ok: false, error: "cancelled", message: "Stopped." };
+  };
+
+  const history = turns.filter((t) => t.role === "user").map((t) => t.text);
+  if (signal?.aborted) return stopped();
+  const ctx = await loadContext(supabase, me, new Date(), { question, history, screen });
+  ctx.signal = signal;
+  // A conversation ended during the context reads goes no further: no situation snapshot, no model.
+  if (signal?.aborted) return stopped();
+  ctx.situation = await loadSituation(ctx).catch(() => "");
+  if (signal?.aborted) return stopped();
+  const tools = buildTools(ctx);
+  const byName = new Map(tools.map((t) => [t.def.name, t]));
   const system = systemBlocks(ctx);
   const defs = tools.map((t) => t.def);
 
@@ -132,8 +149,10 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
   let answer = "";
   let refused = false;
   for (let round = 0; round < MAX_ROUNDS; round++) {
+    if (signal?.aborted) return stopped();
     const last = round === MAX_ROUNDS - 1;
-    const stream = client().beta.messages.stream({
+    const stream = client().beta.messages.stream(
+      {
       model: MODEL,
       max_tokens: MAX_TOKENS,
       betas: ["server-side-fallback-2026-07-01"],
@@ -141,12 +160,37 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
       output_config: { effort: EFFORT },
       system,
       tools: defs,
-      // The last round must answer in words: no more tools.
-      ...(last ? { tool_choice: { type: "none" as const } } : {}),
-      messages,
-    });
+        // The last round must answer in words: no more tools.
+        ...(last ? { tool_choice: { type: "none" as const } } : {}),
+        messages,
+      },
+      // The same signal the route got from the connection: an End tap aborts the stream itself.
+      signal ? { signal } : undefined,
+    );
     stream.on("text", (delta) => emit({ type: "delta", text: delta }));
-    const res = await stream.finalMessage();
+    // What this round has cost so far, in case it is stopped before its final message:
+    // the input is counted at message_start, the output grows with each message_delta.
+    const partial = { input_tokens: 0, output_tokens: 0, cache_read: 0, cache_write: 0 };
+    stream.on("streamEvent", (ev) => {
+      if (ev.type === "message_start") {
+        partial.input_tokens = ev.message.usage.input_tokens;
+        partial.cache_read = ev.message.usage.cache_read_input_tokens ?? 0;
+        partial.cache_write = ev.message.usage.cache_creation_input_tokens ?? 0;
+      } else if (ev.type === "message_delta") partial.output_tokens = ev.usage.output_tokens;
+    });
+    let res: Anthropic.Beta.BetaMessage;
+    try {
+      res = await stream.finalMessage();
+    } catch (e) {
+      if (isAbort(e, signal)) {
+        usage.input_tokens += partial.input_tokens;
+        usage.output_tokens += partial.output_tokens;
+        usage.cache_read += partial.cache_read;
+        usage.cache_write += partial.cache_write;
+        return stopped();
+      }
+      throw e;
+    }
     addUsage(usage, res);
 
     if (res.stop_reason === "refusal") {
@@ -167,7 +211,8 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
     emit({ type: "reset" });
     emit({ type: "status", text: statusFor(calls) });
     messages.push({ role: "assistant", content: res.content });
-    const results = await Promise.all(calls.map((call) => runTool(byName.get(call.name), call, ctx)));
+    const results = await Promise.all(calls.map((call) => runTool(byName.get(call.name), call, ctx, signal)));
+    if (signal?.aborted) return stopped();
     for (let i = 0; i < calls.length; i++) {
       usage.tool_calls += 1;
       toolLog.push({ name: calls[i].name, input: calls[i].input, ok: !results[i].is_error });
@@ -190,28 +235,13 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
   return reply;
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${what} took too long`)), ms);
-    p.then(
-      (v) => {
-        clearTimeout(t);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(t);
-        reject(e);
-      },
-    );
-  });
-}
-
 /** A tool result the model can read: an object, capped in size; errors flagged so it can say so. */
-async function runTool(tool: AssistantTool | undefined, call: Anthropic.Beta.BetaToolUseBlock, ctx: ToolContext): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
+async function runTool(tool: AssistantTool | undefined, call: Anthropic.Beta.BetaToolUseBlock, ctx: ToolContext, signal?: AbortSignal): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
   if (!tool) return { type: "tool_result", tool_use_id: call.id, is_error: true, content: `Unknown tool ${call.name}` };
+  if (signal?.aborted) return { type: "tool_result", tool_use_id: call.id, is_error: true, content: "stopped" };
   try {
     const input = (call.input && typeof call.input === "object" ? call.input : {}) as Record<string, unknown>;
-    const out = await withTimeout(tool.run(input, ctx), TOOL_TIMEOUT_MS, call.name);
+    const out = await withTimeout(tool.run(input, ctx), TOOL_TIMEOUT_MS, call.name, signal);
     const isErr = !!(out && typeof out === "object" && ("error" in (out as object) || (out as { ok?: boolean }).ok === false));
     let content = JSON.stringify(out ?? null);
     if (content.length > TOOL_RESULT_MAX_CHARS) content = `${content.slice(0, TOOL_RESULT_MAX_CHARS)}… [cut: too much data; ask for a shorter range or a smaller question]`;

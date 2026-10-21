@@ -35,6 +35,8 @@ export interface ToolContext {
   me: Me;
   tz: string;
   now: Date;
+  /** Set when the member ends the conversation: every RPC a tool makes is cut short with it. */
+  signal?: AbortSignal;
   subjects: SubjectInfo[];
   types: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
@@ -71,7 +73,8 @@ export interface AssistantTool {
 type Rpc = { ok: boolean; message?: string; error?: string } & Record<string, unknown>;
 
 async function rpc(ctx: ToolContext, name: string, args: Record<string, unknown>): Promise<Rpc> {
-  const { data, error } = await ctx.supabase.rpc(name, args);
+  const q = ctx.supabase.rpc(name, args);
+  const { data, error } = await (ctx.signal ? q.abortSignal(ctx.signal) : q);
   if (error) return { ok: false, error: "rpc_failed", message: error.message };
   return (data as Rpc) ?? { ok: false, error: "empty" };
 }
