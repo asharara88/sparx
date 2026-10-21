@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { VaccineItem, VaccinesData } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ageLabel } from "@/lib/norms";
+import { dateWords } from "@/lib/time";
 import { Icon } from "./Icon";
 
 /**
@@ -23,7 +24,7 @@ function statusOf(items: VaccineItem[]): Visit["status"] {
   return "upcoming";
 }
 
-const fmt = (ymd: string | null) => (ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
+const fmt = (ymd: string | null) => (ymd ? dateWords(new Date(`${ymd}T12:00:00Z`), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
 
 export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { subjectId: string; data: VaccinesData; timezone: string; canAdd: boolean; canEdit: boolean }) {
   void timezone;

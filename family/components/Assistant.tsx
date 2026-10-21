@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
+import { dateWords } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
@@ -427,7 +428,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                 <li key={c.id} className="row">
                   <a href={`/ask?c=${c.id}`} className={`row-link min-w-0 grow ${c.id === chatId ? "font-semibold text-[var(--accent)]" : ""}`}>
                     <span className="block truncate">{c.title}</span>
-                    <span className="muted block text-xs">{new Date(c.updated_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    <span className="muted block text-xs">{dateWords(new Date(c.updated_at), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: me.household.timezone })}</span>
                   </a>
                   <button type="button" className="icon-btn m-0 text-[var(--muted)]" aria-label="Remove chat" onClick={() => window.confirm("Remove this chat?") && removeChat(c.id)}>
                     <Icon name="x" size={18} />
