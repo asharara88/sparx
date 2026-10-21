@@ -1070,5 +1070,60 @@ select pg_temp.assert((public.me())->'household'->>'id' <> :khan_home and (publi
 reset role;
 update public.care_entries set deleted_at = now() where note in ('khan test', 'cross-home test');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes).'
+-- Definer functions see one home too (migration 4000): rows made in Mido's home,
+-- then every definer function that takes an id, called from the Khans' with those ids.
+select pg_temp.act_as(:dana);
+set role authenticated;
+select (public.note_save(null, 'cross-home note', false, false))->>'id' as x_note \gset
+select (public.milk_add(100, 'fridge', now(), 'cross-home bottle'))->>'id' as x_bottle \gset
+select (public.medicine_save(null, :lana, 'Cross-home medicine', 6, null, null))->>'id' as x_med \gset
+select (public.chat_send('cross-home message', null))->>'id' as x_msg \gset
+select (public.memory_add('Cross-home memory: the bottle is warmer on Tuesdays'))->>'id' as x_mem \gset
+select (public.coach_plan_start(:lana, 'Cross-home goal', '[{"day":1,"step":"one"},{"day":2,"step":"two"}]'::jsonb))->>'id' as x_plan \gset
+select pg_temp.assert((public.bag_toggle('00000000-0000-4000-8000-00000000d001', true))->>'ok' = 'true', 'Dana ticks a bag item');
+select pg_temp.assert(:'x_note' is not null and :'x_bottle' is not null and :'x_med' is not null and :'x_msg' is not null and :'x_mem' is not null and :'x_plan' is not null, 'and makes a note, a bottle, a medicine, a message, a memory and a plan');
+reset role;
+
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.bag_reset())->>'ok' = 'true', 'Haitham resets his own bag');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items') i where i->>'body' like 'Cross-home memory%') = 0, 'his memory list has none of hers');
+select pg_temp.assert((public.note_remove(:'x_note'))->>'ok' = 'false', 'her note cannot be removed by id');
+select pg_temp.assert((public.milk_consume(100, null))->'used' = '[]'::jsonb, 'her fridge is not his to drink from: his is empty');
+select pg_temp.assert((public.medicine_remove(:'x_med'))->>'ok' = 'false', 'her medicine cannot be removed by id');
+select pg_temp.assert((public.chat_remove(:'x_msg'))->>'ok' = 'false', 'nor her message');
+select pg_temp.assert((public.memory_remove(:'x_mem'))->>'ok' = 'false', 'nor her memory');
+select pg_temp.assert((public.coach_plan_stop(:'x_plan'))->>'ok' = 'false', 'nor her plan stopped');
+select pg_temp.assert((public.member_photo_save(:wafa, 'members/x.jpg'))->>'ok' = 'false', 'nor Wafa''s photo set');
+select pg_temp.assert((select (public.current_presence(:wafa)).id) is null, 'nor Wafa''s presence read');
+select pg_temp.assert((public.attendance_toggle(:lilly))->>'ok' = 'false', 'nor Lilly clocked in');
+select pg_temp.assert((public.care_entry_check(:'first_entry', 'ok', null))->>'ok' = 'false', 'nor Lana''s entry checked');
+select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'false', 'nor her medicines listed');
+select pg_temp.assert((public.coach_plan_active(:lana))->>'ok' = 'false' or (public.coach_plan_active(:lana))->'plan' is null, 'nor her plan seen');
+reset role;
+-- and, seen from above, nothing of hers moved
+select pg_temp.assert((select checked from public.bag_items where id = '00000000-0000-4000-8000-00000000d001') = true, 'Dana''s tick is still there after his reset');
+select pg_temp.assert((select deleted_at from public.notes where id = :'x_note') is null, 'her note is still there');
+select pg_temp.assert((select used_at from public.milk_bottles where id = :'x_bottle') is null, 'her bottle is unused');
+select pg_temp.assert((select is_active from public.medicines where id = :'x_med'), 'her medicine is still active');
+select pg_temp.assert((select deleted_at from public.family_messages where id = :'x_msg') is null, 'her message is still there');
+select pg_temp.assert((select deleted_at from public.assistant_memories where id = :'x_mem') is null, 'her memory is still there');
+select pg_temp.assert((select status from public.coach_plans where id = :'x_plan') = 'active', 'her plan is still active');
+select pg_temp.assert((select photo_path from public.members where id = :wafa) is null, 'Wafa''s photo is unchanged');
+update public.notes set deleted_at = now() where id = :'x_note';
+update public.milk_bottles set deleted_at = now() where id = :'x_bottle';
+update public.medicines set is_active = false where id = :'x_med';
+update public.family_messages set deleted_at = now() where id = :'x_msg';
+update public.assistant_memories set deleted_at = now() where id = :'x_mem';
+update public.coach_plans set status = 'stopped' where id = :'x_plan';
+update public.bag_items set checked = false where id = '00000000-0000-4000-8000-00000000d001';
+
+-- And it stays that way: a future definer function left with postgres would bypass the home policy.
+select pg_temp.assert(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
+      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create')) = 0,
+  'every definer function in public belongs to app_rls, except the four that must see across homes');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

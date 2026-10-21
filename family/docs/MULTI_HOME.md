@@ -20,13 +20,21 @@ nothing of any other.
   `household_id = private.current_household_id()`, on top of its existing
   permission policies. Restrictive policies AND with the others, so nothing
   that was forbidden is now allowed, and nothing from another home is visible.
-- **Definer functions scope themselves.** Supabase's `postgres` role bypasses
-  row security, so functions marked `security definer` do not get the policy for
-  free. The helpers they trust (`private.subject_module`, `private.entry_module`,
-  `private.default_subject`, `private.admin_names`, `private.subject_names`) only
-  answer for the caller's home, which closes the common path (a subject or entry
-  id from another home comes back as "not found"). Phase 3 tries every definer
-  function from a second home and fixes what is left.
+- **Definer functions see one home too.** Supabase's `postgres` role bypasses
+  row security, so a function marked `security definer` owned by it would not
+  get the policy. Since migration 4000 every definer function in `public`
+  belongs to `app_rls`, a role row security applies to: inside them the home
+  policy filters every read and write, and a permissive policy for `app_rls`
+  gives them, within that home, all the power they had. Four stay with
+  `postgres` because they must see across homes: `current_member_id`,
+  `has_permission`, `link_current_user`, `household_create`. The helpers in
+  `private` (`subject_module`, `entry_module`, `default_subject`,
+  `admin_names`, `subject_names`) also answer only for the caller's home.
+  **A new definer function must be given to `app_rls`** (`alter function …
+  owner to app_rls`); the database suite fails if one is left with `postgres`.
+  Composite foreign keys (`household_id, member_id` and `household_id,
+  subject_id`) mean a row cannot point at a member or child of another home
+  whoever writes it.
 - **Shared definitions stay shared** for now: roles, the permission matrix,
   modules, entry types, presence states, the vaccine schedule, activities,
   stores and the helper's skills are one set for the deployment. An admin
@@ -56,9 +64,11 @@ nothing of any other.
    cross-home checks, the setup script explicit about the home.
 2. **The screens:** "Create your home" for an account that is in no home;
    login copy; README and handover for self-serve.
-3. **The audit:** every definer RPC called from another home with the first
-   home's ids, fixed as found; backups and the push cron per home; shared
-   definitions per home or locked.
+3. **The audit** (migration 4000): every definer function owned by `app_rls`;
+   each id-taking RPC called from a second home with the first home's ids in
+   the suite, all refused; composite home foreign keys. Still open: backups
+   and the push cron per home (both use the service role across homes today);
+   shared definitions per home or locked.
 4. **Later:** one account in several homes with a switcher; a home's own
    subdomain or name on the login screen; deleting a home.
 
