@@ -2,7 +2,7 @@
 // Runs the helper's eval set against a running app and prints a table.
 //   npm run eval:assistant                 (all cases, against http://localhost:3000)
 //   npm run eval:assistant -- --ids teething,fever_young
-//   EVAL_URL=https://sparx-tsom.vercel.app npm run eval:assistant
+//   EVAL_URL=https://elnunu.com npm run eval:assistant
 // Needs CRON_SECRET in the environment (or .env.local); the server needs the
 // service role key and JWT secret, as the cron does. Each case is one real
 // model call, so it costs money: run it when a prompt or a skill changes.

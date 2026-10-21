@@ -54,7 +54,7 @@ hands it to the SDK as `ANTHROPIC_IDENTITY_TOKEN`. Leave the key variables unset
 | `VAPID_PUBLIC_KEY` | no | Generated once with `npx web-push generate-vapid-keys`. Already generated; see the setup note. | Me → Notifications cannot subscribe. |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | no | Same value as `VAPID_PUBLIC_KEY` (the browser needs it). | Same. |
 | `VAPID_PRIVATE_KEY` | **yes** | From the same generation. | Pushes fail to send. |
-| `VAPID_SUBJECT` | no | `mailto:` + your e-mail, or `https://sparx-tsom.vercel.app`. | Push services reject the sender. |
+| `VAPID_SUBJECT` | no | `mailto:` + your e-mail, or `https://elnunu.com`. | Push services reject the sender. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **yes** | Supabase → Settings → API → `service_role` secret. | The cron cannot read subscriptions or write notifications. |
 | `SUPABASE_JWT_SECRET` | **yes** | Supabase → Settings → API → JWT Settings → JWT Secret. | The cron cannot act as each member, so no brief, no reminders, no weekly plan. |
 | `CRON_SECRET` | **yes** | Any long random string. Already generated; see the setup note. Vercel sends it as `Authorization: Bearer` on cron calls. | The cron route refuses every call. |
