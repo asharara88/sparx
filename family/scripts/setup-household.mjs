@@ -37,18 +37,20 @@ const ok = async (p) => {
 // ---- household ---------------------------------------------------------------
 const hh = cfg.household ?? {};
 if (!hh.name) fail("household.name is required.");
+// Columns with a database default are only sent when the file sets them.
+const given = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 await ok(
   admin.from("household").upsert(
-    {
+    given({
       id: true,
       name: hh.name,
       timezone: hh.timezone ?? "Asia/Dubai",
       currency: hh.currency ?? "AED",
       notes: hh.notes ?? null,
-      milk_target_ml: hh.milk_target_ml ?? null,
-      bottle_interval_min: hh.bottle_interval_min ?? null,
+      milk_target_ml: hh.milk_target_ml,
+      bottle_interval_min: hh.bottle_interval_min,
       hidden_modules: hh.hidden_modules ?? ["shopping"],
-    },
+    }),
     { onConflict: "id" },
   ),
 );
@@ -75,9 +77,10 @@ for (const m of cfg.members ?? []) {
     work_from: m.work_from ?? null,
     work_to: m.work_to ?? null,
     routine: m.routine ?? null,
-    lang: m.lang ?? null,
+    lang: m.lang ?? "en",
     is_active: true,
   };
+  if (!["en", "ar", "ru"].includes(row.lang)) fail(`member ${m.name}: lang must be en, ar or ru`);
   const saved = found
     ? await ok(admin.from("members").update(row).eq("id", found.id).select("id, display_name, email, user_id").single())
     : await ok(admin.from("members").insert(row).select("id, display_name, email, user_id").single());
@@ -97,7 +100,7 @@ if (!members.some((m) => m.cfg.role === "admin")) fail("at least one member must
 async function subject(kind, moduleId, s, sort) {
   if (!s || !s.name) return null;
   const { name, birth_date = null, names = {}, night_from, night_to, ...profile } = s;
-  const found = await ok(admin.from("care_subjects").select("id, profile, settings").eq("kind", kind).order("sort").limit(1));
+  const found = await ok(admin.from("care_subjects").select("id, profile, settings").eq("kind", kind).eq("is_active", true).order("sort").limit(1));
   const row = {
     module_id: moduleId,
     kind,

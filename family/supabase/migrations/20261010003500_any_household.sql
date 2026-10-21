@@ -12,7 +12,7 @@ language sql stable security definer set search_path = public as $$
     from public.members where role_id = 'admin' and is_active
 $$;
 
--- The care subjects by name only (no profile, no medical data), for every member.
+-- The active care subjects by name only (no profile, no medical data), for every member.
 create or replace function private.subject_names() returns jsonb
 language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -20,6 +20,7 @@ language sql stable security definer set search_path = public as $$
            'birth_date', s.birth_date, 'names', coalesce(s.profile->'names', '{}'::jsonb),
            'sex', s.profile->>'sex') order by s.sort, s.name), '[]'::jsonb)
     from public.care_subjects s
+   where s.is_active
 $$;
 
 create or replace function public.me() returns jsonb

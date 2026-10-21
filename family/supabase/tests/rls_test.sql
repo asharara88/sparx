@@ -919,6 +919,19 @@ select pg_temp.assert((public.activity_done_list(:lana, current_date - 30, curre
 select pg_temp.assert((select count(*) from public.activities where is_active) >= 140, 'the play library has grown');
 reset role;
 
+-- Any household (migration 3500): me() names the active subjects for every member
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.me())->'subjects') s where s->>'kind' = 'child' and s->>'name' = 'Lana') = 1, 'Lilly, who cannot see the log, still gets the child''s name from me()');
+select pg_temp.assert((select s ? 'profile' from jsonb_array_elements((public.me())->'subjects') s limit 1) = false, 'and no profile with it');
+reset role;
+insert into public.care_subjects (id, module_id, kind, name, is_active, sort) values ('00000000-0000-4000-8000-00000000a009', 'lana', 'child', 'Archived', false, 1);
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.me())->'subjects') s where s->>'name' = 'Archived') = 0, 'an archived subject is not named');
+reset role;
+delete from public.care_subjects where id = '00000000-0000-4000-8000-00000000a009';
+
 -- Timers (migration 3400): one open timer per type, end by client_id, custody that expires
 select pg_temp.act_as(:dana);
 set role authenticated;
