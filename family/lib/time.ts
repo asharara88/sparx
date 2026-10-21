@@ -123,12 +123,44 @@ export function toLocalInput(iso: string, tz: string): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
-/** Inverse of toLocalInput: wall-clock in tz -> ISO instant. */
+/**
+ * A time the helper was given, in the household's clock: "2026-10-11",
+ * "2026-10-11 14:10", "2026-10-11T14:10" or an ISO instant. Null when it is
+ * none of those, so a misheard or malformed time is a question back, never
+ * "now" by accident.
+ */
+export function parseHouseholdTime(s: string | null | undefined, tz: string): string | null {
+  const t = (s ?? "").trim();
+  if (!t) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/.exec(t);
+  if (!m) return null;
+  const [, y, mo, d, hh = "00", mm = "00", offset] = m;
+  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm)));
+  // A 13th month or a 32nd day rolls over in Date; the round trip catches it.
+  if (date.toISOString().slice(0, 16) !== `${y}-${mo}-${d}T${hh}:${mm}`) return null;
+  if (offset) {
+    const instant = new Date(t); // an offset like +24:00 or +99:99 passes the regex but not Date
+    return isNaN(instant.getTime()) ? null : instant.toISOString();
+  }
+  return fromLocalInput(`${y}-${mo}-${d}T${hh}:${mm}`, tz);
+}
+
+/**
+ * Inverse of toLocalInput: wall-clock in tz -> ISO instant. The zone's offset is
+ * taken at that wall time, not at midnight, so a time on a daylight-saving
+ * changeover day lands where the clock said (a time inside the skipped hour
+ * resolves to the instant the clock showed next).
+ */
 export function fromLocalInput(local: string, tz: string): string {
   const [datePart, timePart] = local.split("T");
+  const [y, m, d] = datePart.split("-").map(Number);
   const [hh, mm] = (timePart ?? "00:00").split(":").map(Number);
-  const midnight = zonedMidnight(datePart, tz);
-  return new Date(midnight.getTime() + (hh * 60 + mm) * 60000).toISOString();
+  const wall = Date.UTC(y, m - 1, d, hh, mm, 0);
+  // First guess with the offset at that wall time read as UTC, then once more with
+  // the offset at the instant that guess gave: two passes settle a changeover.
+  let instant = wall - tzOffsetMinutes(new Date(wall), tz) * 60000;
+  instant = wall - tzOffsetMinutes(new Date(instant), tz) * 60000;
+  return new Date(instant).toISOString();
 }
 
 export function describePayload(payload: Record<string, unknown>): string {

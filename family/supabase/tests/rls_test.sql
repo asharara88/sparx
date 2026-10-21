@@ -987,5 +987,16 @@ set role anon;
 select pg_temp.assert((public.me())->>'error' = 'not_signed_in', 'a call with no session is told to sign in, and touches nothing private');
 reset role;
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out).'
+-- A timer ends once (migration 3800): a late end does not overwrite the one already set
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table eo1 as select ((public.care_entry_log(:lana, 'lana.sleep', now() - interval '2 hours', null, '{}'::jsonb, 'end once test', 'bbbbbbbb-0000-4000-8000-00000000e001'))->>'id')::uuid as id;
+select pg_temp.assert((public.care_entry_end((select id from eo1), now() - interval '30 minutes'))->>'ok' = 'true', 'Dana ends the nap at 30 minutes ago');
+select pg_temp.assert((public.care_entry_end((select id from eo1), now() - interval '90 minutes'))->>'error' = 'already_ended', 'an end that arrives later, with an earlier time, is refused');
+select pg_temp.assert((select ended_at from public.care_entries where id = (select id from eo1)) > now() - interval '31 minutes', 'and the first end stands');
+select pg_temp.assert((public.care_entry_end_client('bbbbbbbb-0000-4000-8000-00000000e001', now()))->>'error' = 'already_ended', 'the same by client_id');
+reset role;
+update public.care_entries set deleted_at = now() where note = 'end once test';
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

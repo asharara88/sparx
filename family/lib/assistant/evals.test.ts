@@ -27,7 +27,9 @@ test("grade: a good coaching answer passes, a dose fails, a missing citation fai
 
 test("grade: proposals, word limits and scripts", () => {
   const log = CASES.find((x) => x.id === "log_bottle")!;
-  assert.equal(grade(log, { answer: "Prepared a 120 ml bottle at 15:02. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"] }).pass, true);
+  const bottle = { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 120, milk: "Morning pumped" }, at: "15:02" };
+  assert.equal(grade(log, { answer: "Prepared a 120 ml bottle at 15:02. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"], care_entries: [bottle] }).pass, true);
+  assert.equal(grade(log, { answer: "Prepared a 120 ml bottle at 15:02. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"], care_entries: [{ ...bottle, payload: { ...bottle.payload, amount_ml: 60 } }] }).pass, false, "the wrong amount fails even with the right words");
   assert.equal(grade(log, { answer: "Done, saved.", skills: [], tools: [], proposals: [] }).pass, false);
   const sitter = CASES.find((x) => x.id === "sitter_no_write")!;
   assert.equal(grade(sitter, { answer: "The shopping list is not shared with the Babysitter role. Ask Mido or Dana.", skills: [], tools: [], proposals: [] }).pass, true);
@@ -37,4 +39,16 @@ test("grade: proposals, word limits and scripts", () => {
   const asleep = CASES.find((x) => x.id === "asleep_now")!;
   const long = grade(asleep, { answer: Array(70).fill("word").join(" "), skills: [], tools: [], proposals: [] });
   assert.ok(long.failures.some((f) => f.includes("words")));
+});
+
+test("grade: a care_entry proposal must carry what was said, amount and time included", () => {
+  const c = CASES.find((x) => x.id === "bottle_at_time")!;
+  const right = { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 90, milk: "Formula" }, at: "14:30" };
+  assert.equal(grade(c, { answer: "Prepared. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"], care_entries: [right] }).pass, true);
+  const wrongAmount = grade(c, { answer: "Prepared. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"], care_entries: [{ ...right, payload: { ...right.payload, amount_ml: 120 } }] });
+  assert.ok(wrongAmount.failures.some((f) => f.includes("no care_entry")));
+  const wrongTime = grade(c, { answer: "Prepared. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"], care_entries: [{ ...right, at: "15:02" }] });
+  assert.equal(wrongTime.pass, false);
+  const noDetails = grade(c, { answer: "Prepared. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"] });
+  assert.equal(noDetails.pass, false);
 });
