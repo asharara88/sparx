@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { windowStats } from "./handover.ts";
-import type { EntryRow } from "./types.ts";
+import type { EntryRow, HouseholdMember } from "./types.ts";
 
 const row = (type_id: string, occurred_at: string, ended_at: string | null = null, payload: Record<string, unknown> = {}): EntryRow =>
   ({ id: occurred_at, type_id, occurred_at, ended_at, payload, note: null, subject_id: "s" }) as unknown as EntryRow;
@@ -45,4 +45,39 @@ test("feeds and nappies count by when they happened", () => {
     to,
   );
   assert.deepEqual(s, { bottles: 2, ml: 270, breast: 1, diapers: 1, naps: 0, napMin: 0 });
+});
+
+test("awayParent: the breastfeeding parent, else the parent with work hours, else nobody", async () => {
+  const { awayParent } = await import("./handover.ts");
+  const m = (name: string, extra: Partial<HouseholdMember> = {}): HouseholdMember =>
+    ({ id: name, name, role_id: "family_carer", relationship: null, presence: null, works_today: true, work_days: [], ...extra }) as HouseholdMember;
+  const noor = m("Noor", { role_id: "admin", relationship: "Parent", breastfeeds: true, work_days: [1, 2], work_from: "08:30", work_to: "17:30" });
+  const haitham = m("Haitham", { role_id: "admin", relationship: "Parent", work_days: [0, 1, 2, 3, 4], work_from: "07:00", work_to: "16:00" });
+  const maria = m("Maria", { role_id: "home_carer", relationship: "Household staff", work_days: [0, 2], work_from: "08:00", work_to: "18:00" });
+  assert.equal(awayParent([haitham, noor, maria])?.name, "Noor", "the one marked breastfeeds wins");
+  assert.equal(awayParent([maria, haitham])?.name, "Haitham", "no breastfeeds flag: the parent with work hours, not the staff");
+  const nursingAtHome = m("Noor", { role_id: "admin", relationship: "Parent", breastfeeds: true, work_days: [] });
+  assert.equal(awayParent([nursingAtHome, haitham, maria])?.name, "Haitham", "a nursing parent with no work days does not hide the parent who works");
+  assert.equal(awayParent([nursingAtHome, maria]), null, "nursing at home and nobody else working: no away parent");
+  const dad = m("Dad", { relationship: "Father", work_days: [1], work_from: "09:00", work_to: "17:00" });
+  assert.equal(awayParent([maria, dad])?.name, "Dad", "a father by relationship counts as a parent");
+  const noorOffToday = { ...noor, works_today: false };
+  assert.equal(awayParent([noorOffToday, haitham, maria])?.name, "Haitham", "the nursing parent is off today and the father works: his day is the one followed");
+  assert.equal(awayParent([noorOffToday, { ...haitham, works_today: false }])?.name, "Noor", "nobody works today: the nursing parent, for tomorrow's plan");
+  assert.equal(awayParent([{ ...haitham, works_today: false }, { ...dad, works_today: false }])?.name, "Haitham", "nobody works today and nobody nurses: whoever leaves earliest");
+  assert.equal(awayParent([maria, m("Teta", { relationship: "Haitham's mother" })]), null, "nobody with work hours, no away parent");
+  assert.equal(awayParent([m("Mido", { role_id: "admin", work_days: [1] })]), null, "work days without hours are not enough");
+});
+
+test("awayParentOn: each day is judged on its own, so tomorrow's parent can differ from today's", async () => {
+  const { awayParentOn } = await import("./handover.ts");
+  const m = (name: string, extra: Partial<HouseholdMember> = {}): HouseholdMember =>
+    ({ id: name, name, role_id: "admin", relationship: "Parent", presence: null, works_today: true, work_days: [], ...extra }) as HouseholdMember;
+  const mum = m("Mum", { breastfeeds: true, work_days: [1, 2], work_from: "08:30", work_to: "17:30" });
+  const dad = m("Dad", { work_days: [3, 4], work_from: "07:00", work_to: "16:00" });
+  assert.equal(awayParentOn([dad, mum], 1)?.name, "Mum", "Monday is Mum's");
+  assert.equal(awayParentOn([dad, mum], 3)?.name, "Dad", "Wednesday is Dad's, although Mum nurses");
+  const nobody = awayParentOn([dad, mum], 6);
+  assert.equal(nobody?.name, "Mum", "a day nobody works still names the nursing parent");
+  assert.equal(nobody?.work_days.includes(6), false, "and the callers see she is not away that day");
 });

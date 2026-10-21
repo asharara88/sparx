@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { awayParent, awayParentOn } from "@/lib/handover";
 import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { childPronouns, possessive } from "@/lib/names";
@@ -76,9 +77,9 @@ export default async function HomePage() {
   const milkOk = milkStash && milkStash.ok ? milkStash : null;
   const household = hhData as HouseholdToday | RpcError;
   const staffToday = household.ok ? household.members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
-  // Mama is away: the breastfeeding member works today and it is within their hours.
+  // The away parent (breastfeeding, else the working parent) works today and it is within their hours.
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
-  const mama = household.ok ? household.members.find((m) => m.breastfeeds) ?? null : null;
+  const mama = household.ok ? awayParent(household.members) : null;
   const mamaWorks = !!mama && mama.works_today;
   const from = hhmm(mama?.work_from, WORK_FROM);
   const to = hhmm(mama?.work_to, WORK_TO);
@@ -141,8 +142,13 @@ export default async function HomePage() {
   const bottleGapMin = milkOk?.bottle_interval_min ?? 120;
   // While Mama is away the bottle interval is the gap, shortened after a small bottle.
   const nextBottle = mamaAway ? nextFeedAt(week, { gapMin: bottleGapMin, awayCapMin: bottleGapMin, away: awayAt }) : null;
-  const awayTomorrow = !!mama && mama.work_days.includes(new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay());
-  const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(to / 100) * 60 + (to % 100)) - (Math.floor(from / 100) * 60 + (from % 100)), intervalMin: bottleGapMin, hour };
+  // Tomorrow has its own away parent: two parents who work on different days each get their day.
+  const tomorrowWd = new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay();
+  const tomorrowsParent = household.ok ? awayParentOn(household.members, tomorrowWd) : null;
+  const awayTomorrow = !!tomorrowsParent && tomorrowsParent.work_days.includes(tomorrowWd);
+  const tFrom = hhmm(tomorrowsParent?.work_from, WORK_FROM);
+  const tTo = hhmm(tomorrowsParent?.work_to, WORK_TO);
+  const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(tTo / 100) * 60 + (tTo % 100)) - (Math.floor(tFrom / 100) * 60 + (tFrom % 100)), intervalMin: bottleGapMin, hour };
   const aroundTheHouse = suggestions.length > 0 || (pending > 0 && can(me, "shopping_review", "edit")) || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok) || can(me, "shopping", "view");
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
@@ -153,7 +159,7 @@ export default async function HomePage() {
       ? {
           countdown: milkOk ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} timezone={tz} nextAtIso={nextBottle ? new Date(nextBottle.at).toISOString() : null} /> : null,
           thaw: milkOk ? <ThawReminder key="th" milk={milkOk} entries={week} timezone={tz} opts={thawOpts} /> : null,
-          plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} /> : null,
+          plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} /> : null,
           pump: showPump ? <PumpTarget key="pt" pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} /> : null,
           handover:
             mamaWorks && (part === "away" || part === "evening") && hhm >= from ? (

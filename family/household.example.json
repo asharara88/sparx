@@ -1,5 +1,5 @@
 {
-  "$comment": "Copy to household.json, fill in, then: npm run setup:household -- household.json --accounts. Everything here can be changed in the app afterwards. Roles: admin (parents), family_carer (grandparents, relatives), home_carer (staff), sitter (babysitter: the child's log, the chat and the helper only). Presence: lives_here, staying_with_us, visiting_today, away. Work days: 0 = Sunday. hidden_modules hides whole sections for everyone (shopping).",
+  "$comment": "Copy to household.json, fill in, then: npm run setup:household -- household.json --accounts. Everything here can be changed in the app afterwards. Roles: admin (parents), family_carer (grandparents, relatives), home_carer (staff), sitter (babysitter: the child's log, the chat and the helper only). Presence: lives_here, staying_with_us, visiting_today, away. Work days: 0 = Sunday. hidden_modules hides whole sections for everyone (shopping). Members match by id (every run prints each member's id; put it in the file to make the row stable), else by e-mail, else by name. A member linked to a sign-in account keeps it: to move them to a new e-mail add \"relink\": true. A deactivated member comes back only with \"active\": true; \"active\": false deactivates. Members in the home but not in this file are listed and left alone unless household.deactivate_missing is true. The parent whose work hours drive the handover and the fridge plan is the one marked breastfeeds when she has work days, else a parent with work days and hours; on a day only one of them works, that one. Dates are YYYY-MM-DD, times HH:MM; a field left \"\" is not set.",
   "household": {
     "name": "Our home",
     "timezone": "Asia/Dubai",
@@ -7,7 +7,8 @@
     "notes": "",
     "milk_target_ml": 400,
     "bottle_interval_min": 180,
-    "hidden_modules": ["shopping"]
+    "hidden_modules": ["shopping"],
+    "deactivate_missing": false
   },
   "child": {
     "name": "Omar",

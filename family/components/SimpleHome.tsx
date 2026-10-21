@@ -8,7 +8,7 @@ import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
-import { dirOf, fmtAgo, speechLang, t, type Lang } from "@/lib/i18n";
+import { dirOf, fmtAgo, optionLabel, speechLang, t, type Lang } from "@/lib/i18n";
 import { child, childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
 import { ListenButton } from "@/components/ListenButton";
@@ -70,7 +70,8 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   // A quick bottle is the same milk as the last one (the full form does the same); none known, none claimed.
   const lastMilk = recent.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle" && typeof e.payload.milk === "string")?.payload.milk as string | undefined;
   // The milk in the bottle: the household's options, the last bottle's as the default, one tap to change.
-  const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
+  const milkField = feedType?.fields.find((f) => f.key === "milk") ?? null;
+  const milkOptions = (milkField?.options ?? []) as string[];
   const milkChosen = milkPick ?? (lastMilk && milkOptions.includes(lastMilk) ? lastMilk : null);
   const lastFeed = last["lana.feed"];
   const lastDiaper = last["lana.diaper"];
@@ -205,7 +206,7 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
               <div className="flex flex-wrap justify-center gap-2">
                 {milkOptions.map((m) => (
                   <button key={m} type="button" role="radio" aria-checked={milkChosen === m} className={`btn ${milkChosen === m ? "btn-primary" : ""}`} style={{ minHeight: 56, fontSize: "1.15rem" }} onClick={() => setMilkPick(m)}>
-                    {m}
+                    {optionLabel(lang, m, milkField)}
                   </button>
                 ))}
               </div>

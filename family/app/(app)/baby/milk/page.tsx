@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { awayParent, awayParentOn } from "@/lib/handover";
 import type { Me, MilkData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { MilkStash } from "@/components/MilkStash";
@@ -28,7 +29,7 @@ export default async function MilkPage() {
   if (!milk.ok) redirect("/");
   const hh = hhData as HouseholdToday | RpcError;
   const summary = sumData as HomeSummary | RpcError;
-  const mama = hh.ok ? hh.members.find((m) => m.breastfeeds) ?? null : null;
+  const mama = hh.ok ? awayParent(hh.members) : null;
   const now = new Date();
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
   const from = hhmm(mama?.work_from, WORK_FROM);
@@ -36,8 +37,13 @@ export default async function MilkPage() {
   const away = !!mama && mama.works_today && hhm >= from && hhm <= to;
   const dayStart = Date.parse(dayRange(today, tz).from);
   const backAt = new Date(dayStart + (Math.floor(to / 100) * 60 + (to % 100)) * 60_000).toISOString();
-  const awayTomorrow = !!mama && mama.work_days.includes(new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay());
-  const thaw = { awayTomorrow, awayMinutes: (Math.floor(to / 100) * 60 + (to % 100)) - (Math.floor(from / 100) * 60 + (from % 100)), intervalMin: milk.bottle_interval_min, hour: Math.floor(hhm / 100) };
+  // Tomorrow has its own away parent: two parents who work on different days each get their day.
+  const tomorrowWd = new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay();
+  const tomorrowsParent = hh.ok ? awayParentOn(hh.members, tomorrowWd) : null;
+  const awayTomorrow = !!tomorrowsParent && tomorrowsParent.work_days.includes(tomorrowWd);
+  const tFrom = hhmm(tomorrowsParent?.work_from, WORK_FROM);
+  const tTo = hhmm(tomorrowsParent?.work_to, WORK_TO);
+  const thaw = { awayTomorrow, awayMinutes: (Math.floor(tTo / 100) * 60 + (tTo % 100)) - (Math.floor(tFrom / 100) * 60 + (tFrom % 100)), intervalMin: milk.bottle_interval_min, hour: Math.floor(hhm / 100) };
   let lastBottleMl = 120;
   let lastFeedAt: string | null = null;
   if (summary.ok) {
@@ -49,7 +55,7 @@ export default async function MilkPage() {
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby" title="Milk stash" subtitle="What is in the fridge and freezer, oldest first. A bottle feed takes its milk out by itself." />
       {can(me, "lana", "add") && <MilkScan timezone={tz} />}
-      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} />}
+      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} />}
       <MilkStash data={milk} timezone={me.household.timezone} />
       <MilkInsights milk={milk} entries={history} timezone={tz} thaw={thaw} />
     </div>
