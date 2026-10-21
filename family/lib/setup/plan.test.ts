@@ -48,8 +48,9 @@ test("validateConfig: every typed value the script writes is checked, so a bad d
   bad.members[1].work_from = "8:30";
   bad.members[2].birth_date = "01/02/1990";
   bad.members[2].email = "maria at example";
+  bad.members[2].work_days = [1, 1, 3];
   const errors = validateConfig(bad);
-  for (const want of ["child: birth_date", "child: night_from", "household.timezone", "bottle_interval_min", "Noor: work_from", "Maria: birth_date", "not an e-mail"]) {
+  for (const want of ["child: birth_date", "child: night_from", "household.timezone", "bottle_interval_min", "Noor: work_from", "Maria: birth_date", "not an e-mail", "Maria: work_days lists a day twice"]) {
     assert.ok(errors.some((e) => e.includes(want)), `${want} is refused: ${errors.join("; ")}`);
   }
   // Fields left blank in the file are simply not given.

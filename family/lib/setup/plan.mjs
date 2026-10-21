@@ -88,6 +88,8 @@ export function validateConfig(cfg) {
     typed(who, m, ["birth_date"], ["work_from", "work_to"]);
     if (m.work_days != null && !Array.isArray(m.work_days)) errors.push(`${who}: work_days must be a list of days, 0 (Sunday) to 6`);
     if (Array.isArray(m.work_days) && m.work_days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) errors.push(`${who}: work_days are 0 (Sunday) to 6`);
+    // One row per weekday: a day listed twice would fail the insert after the member's old schedule was already removed.
+    if (Array.isArray(m.work_days) && new Set(m.work_days).size !== m.work_days.length) errors.push(`${who}: work_days lists a day twice`);
     const n = norm(m.name);
     if (n && names.has(n)) errors.push(`${who}: the name appears twice in the file`);
     if (n) names.add(n);

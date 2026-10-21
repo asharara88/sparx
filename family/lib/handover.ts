@@ -28,9 +28,23 @@ export interface WindowStats {
  * to their return. Nobody with work days: no away parent.
  */
 export function awayParent(members: HouseholdMember[]): HouseholdMember | null {
+  return pickAway(members, (m) => m.works_today);
+}
+
+/**
+ * The same choice for another day of the week (0 = Sunday): who is away
+ * tomorrow, or on a day being looked back at. Two parents who work on
+ * different days each get their own day, so the evening thaw reminder follows
+ * whoever leaves tomorrow, not whoever left today.
+ */
+export function awayParentOn(members: HouseholdMember[], weekday: number): HouseholdMember | null {
+  return pickAway(members, (m) => m.work_days.includes(weekday));
+}
+
+function pickAway(members: HouseholdMember[], worksThatDay: (m: HouseholdMember) => boolean): HouseholdMember | null {
   const parent = (m: HouseholdMember) => m.role_id === "admin" || /\b(parent|mother|father|mum|mom|dad|mama|papa|baba)\b/i.test(m.relationship ?? "");
   const candidates = members.filter((m) => m.work_days.length > 0 && ((m.breastfeeds ?? false) || (parent(m) && !!(m.work_from || m.work_to))));
-  const rank = (m: HouseholdMember) => (m.works_today ? 0 : 2) + (m.breastfeeds ? 0 : 1);
+  const rank = (m: HouseholdMember) => (worksThatDay(m) ? 0 : 2) + (m.breastfeeds ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b) || (a.work_from ?? "99:99").localeCompare(b.work_from ?? "99:99"));
   return candidates[0] ?? null;
 }

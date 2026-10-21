@@ -68,3 +68,16 @@ test("awayParent: the breastfeeding parent, else the parent with work hours, els
   assert.equal(awayParent([maria, m("Teta", { relationship: "Haitham's mother" })]), null, "nobody with work hours, no away parent");
   assert.equal(awayParent([m("Mido", { role_id: "admin", work_days: [1] })]), null, "work days without hours are not enough");
 });
+
+test("awayParentOn: each day is judged on its own, so tomorrow's parent can differ from today's", async () => {
+  const { awayParentOn } = await import("./handover.ts");
+  const m = (name: string, extra: Partial<HouseholdMember> = {}): HouseholdMember =>
+    ({ id: name, name, role_id: "admin", relationship: "Parent", presence: null, works_today: true, work_days: [], ...extra }) as HouseholdMember;
+  const mum = m("Mum", { breastfeeds: true, work_days: [1, 2], work_from: "08:30", work_to: "17:30" });
+  const dad = m("Dad", { work_days: [3, 4], work_from: "07:00", work_to: "16:00" });
+  assert.equal(awayParentOn([dad, mum], 1)?.name, "Mum", "Monday is Mum's");
+  assert.equal(awayParentOn([dad, mum], 3)?.name, "Dad", "Wednesday is Dad's, although Mum nurses");
+  const nobody = awayParentOn([dad, mum], 6);
+  assert.equal(nobody?.name, "Mum", "a day nobody works still names the nursing parent");
+  assert.equal(nobody?.work_days.includes(6), false, "and the callers see she is not away that day");
+});
