@@ -266,6 +266,13 @@ they see "Your e-mail is not on the household list yet" and nothing else.
 npm run db:test          # creates a scratch DB, runs migrations + supabase/tests/rls_test.sql
 ```
 
+The same run is the `family` job of the repo's GitHub Actions workflow
+(`.github/workflows/ci.yml`): every pull request and every push to `main` applies the whole
+migrations folder to a fresh Postgres 16 and runs the RLS checks, after the app's typecheck and
+unit tests. Since the Supabase integration applies migrations to the household's project when a
+change lands on `main`, a migration that does not apply fails there before it reaches the
+project.
+
 Against the real project instead: `SKIP_STUB=1 PSQL="psql '<connection string>'" ./supabase/tests/run-local.sh`
 (this writes test rows; use it on a fresh project only).
 
