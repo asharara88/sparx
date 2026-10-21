@@ -164,11 +164,27 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
       signal ? { signal } : undefined,
     );
     stream.on("text", (delta) => emit({ type: "delta", text: delta }));
+    // What this round has cost so far, in case it is stopped before its final message:
+    // the input is counted at message_start, the output grows with each message_delta.
+    const partial = { input_tokens: 0, output_tokens: 0, cache_read: 0, cache_write: 0 };
+    stream.on("streamEvent", (ev) => {
+      if (ev.type === "message_start") {
+        partial.input_tokens = ev.message.usage.input_tokens;
+        partial.cache_read = ev.message.usage.cache_read_input_tokens ?? 0;
+        partial.cache_write = ev.message.usage.cache_creation_input_tokens ?? 0;
+      } else if (ev.type === "message_delta") partial.output_tokens = ev.usage.output_tokens;
+    });
     let res: Anthropic.Beta.BetaMessage;
     try {
       res = await stream.finalMessage();
     } catch (e) {
-      if (isAbort(e, signal)) return stopped();
+      if (isAbort(e, signal)) {
+        usage.input_tokens += partial.input_tokens;
+        usage.output_tokens += partial.output_tokens;
+        usage.cache_read += partial.cache_read;
+        usage.cache_write += partial.cache_write;
+        return stopped();
+      }
       throw e;
     }
     addUsage(usage, res);

@@ -223,8 +223,13 @@ export function spokenWhen(iso: string, tz: string, lang: Lang | undefined, now:
   const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(d);
   const ymd = (x: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(x);
   const day = ymd(d);
-  if (day === ymd(now)) return time;
-  if (day === ymd(new Date(now.getTime() - 86_400_000))) return `${t(lang, "yesterday")} ${time}`;
+  const today = ymd(now);
+  if (day === today) return time;
+  // Yesterday by the household's calendar, not "24 hours ago": on the day after a
+  // daylight-saving change that lands two dates back.
+  const [y, m, dd] = today.split("-").map(Number);
+  const yesterday = new Date(Date.UTC(y, m - 1, dd - 1)).toISOString().slice(0, 10);
+  if (day === yesterday) return `${t(lang, "yesterday")} ${time}`;
   // The day's words in Intl's order, separated by spaces (as lib/time's dateWords does, in this locale).
   const words = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", timeZone: tz })
     .formatToParts(d)
