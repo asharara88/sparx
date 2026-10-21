@@ -38,7 +38,7 @@ export default async function MePage() {
           <p className="muted text-sm">Ask Mido or Dana to change these.</p>
         </div>
       )}
-      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "maintenance", "view") || can(me, "assistant", "view") || can(me, "fanta", "view") || can(me, "notes", "view") || can(me, "shopping", "view")) && (
+      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "assistant", "view") || can(me, "notes", "view") || can(me, "shopping", "view")) && (
         <div className="grid grid-cols-2 gap-3">
           {can(me, "shopping", "view") && <Tile href="/shopping" icon="cart" label="Shopping" />}
           {can(me, "assistant", "view") && <Tile href="/ask" icon="chat" label="Ask" />}
@@ -51,8 +51,6 @@ export default async function MePage() {
           {can(me, "assistant", "view") && <Tile href="/ask/memory" icon="sparkles" label="Helper memory" />}
           {can(me, "assistant", "edit") && <Tile href="/ask/skills" icon="clipboard" label="Helper skills" />}
           {can(me, "lana", "view") && <Tile href="/lana/emergency" icon="bell" label="Emergency" />}
-          {can(me, "maintenance", "view") && <Tile href="/house" icon="house" label="The house" />}
-          {can(me, "fanta", "view") && <Tile href="/fanta" icon="cat" label="Fanta" />}
           {can(me, "members", "edit") && <Tile href="/members" icon="users" label="Members" />}
           {can(me, "audit", "view") && <Tile href="/audit" icon="clipboard" label="Audit log" />}
         </div>

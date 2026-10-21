@@ -20,14 +20,11 @@ import { recapsBlock } from "./memory";
 const MODULE_LABELS: Record<string, string> = {
   members: "members and presence",
   lana: "Lana's log (feeds, sleep, diapers, medicine, growth)",
-  fanta: "Fanta's log (food, litter, weight, vet, treatments)",
   calendar: "the calendar",
   calendar_family: "family-only calendar events",
   shopping: "the shopping list",
   shopping_review: "the running-low review queue",
   shopping_requests: "running-low requests",
-  maintenance: "home maintenance tickets, appliances and contractors",
-  maintenance_costs: "maintenance costs",
   photos: "photos",
   assistant: "the assistant",
   audit: "the audit log",
@@ -63,7 +60,7 @@ export function stableSystem(ctx: ToolContext): string {
 
 What you know about the house comes ONLY from the tools and the situation lines below. Rules:
 1. Never guess. If the tools do not show it, say "I don't know" and what you checked. Never invent a time, an amount or a count. If a log looks incomplete (an entry with no end time, a gap), say so.
-2. Cite every fact you take from the data, inline, right after it, using the id the tool gave you: [entry:ID] for log entries, [event:ID] for calendar entries, [ticket:ID] for maintenance tickets, [item:ID] for shopping items. These become links. Example: "Last feed was a 120 ml bottle at 14:10 [entry:4c1a…]". Use the full id.
+2. Cite every fact you take from the data, inline, right after it, using the id the tool gave you: [entry:ID] for log entries, [event:ID] for calendar entries, [item:ID] for shopping items. These become links. Example: "Last feed was a 120 ml bottle at 14:10 [entry:4c1a…]". Use the full id.
 3. Times are in the household timezone (${hh.timezone}). Say clock times like 14:10 and relative times like "2 h ago". Today's date is in the context below; do not assume another.
 4. You can only use the tools listed. You may see: ${visible.map((m) => MODULE_LABELS[m]).join("; ")}.${
     hidden.length

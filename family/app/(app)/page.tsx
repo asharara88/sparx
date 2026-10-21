@@ -1,19 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, MaintenanceOverview, Me, MilkData, NotesData, RoutinesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
+import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
 import { HouseholdCard } from "@/components/HouseholdCard";
-import { FantaCard } from "@/components/FantaCard";
-import { HouseCard } from "@/components/HouseCard";
 import { BriefCard } from "@/components/BriefCard";
 import { SuggestionCards } from "@/components/SuggestionCards";
 import { NotesBoard } from "@/components/NotesBoard";
 import { AttendanceButton } from "@/components/AttendanceButton";
 import { BottleCountdown } from "@/components/BottleCountdown";
 import { VaccineNotice } from "@/components/VaccineNotice";
-import { RoutineTiles } from "@/components/RoutineTiles";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { SimpleHome } from "@/components/SimpleHome";
 import { LanaHero } from "@/components/LanaHero";
@@ -60,29 +57,21 @@ export default async function HomePage() {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  const { data: fantaSubj } = can(me, "fanta", "view")
-    ? await supabase.from("care_subjects").select("id").eq("module_id", "fanta").eq("is_active", true).order("sort").limit(1).maybeSingle()
-    : { data: null };
-  const fantaId = (fantaSubj as { id: string } | null)?.id ?? null;
-  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: fantaData }, { data: dueData }, { data: houseData }, { data: sugData }, { data: notesData }, { data: attData }, { data: milkData }, { data: routData }] = await Promise.all([
+  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: dueData }, { data: sugData }, { data: notesData }, { data: attData }, { data: milkData }] = await Promise.all([
     supabase.rpc("household_today"),
     can(me, "lana", "view") ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
     can(me, "calendar", "view") ? supabase.rpc("calendar_list", { p_from: today, p_to: addDays(today, 1) }) : Promise.resolve({ data: null }),
     can(me, "shopping_review", "view") ? supabase.rpc("shopping_list") : Promise.resolve({ data: null }),
-    fantaId ? supabase.rpc("home_summary", { p_subject_id: fantaId }) : Promise.resolve({ data: null }),
-    can(me, "fanta", "view") || can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
-    can(me, "maintenance", "view") ? supabase.rpc("maintenance_overview") : Promise.resolve({ data: null }),
+    can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
     supabase.rpc("suggestions_refresh"),
     can(me, "notes", "view") ? supabase.rpc("notes_list", { p_limit: 5 }) : Promise.resolve({ data: null }),
     supabase.rpc("attendance_today"),
     can(me, "lana", "view") ? supabase.rpc("milk_list") : Promise.resolve({ data: null }),
-    fantaId ? supabase.rpc("routines_list", { p_subject_id: fantaId }) : Promise.resolve({ data: null }),
   ]);
   const notes = notesData as NotesData | RpcError | null;
   const attendance = attData as AttendanceData | RpcError | null;
   const milkStash = milkData as MilkData | RpcError | null;
   const milkOk = milkStash && milkStash.ok ? milkStash : null;
-  const routines = routData as RoutinesData | RpcError | null;
   const household = hhData as HouseholdToday | RpcError;
   const staffToday = household.ok ? household.members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
   // Mama is away: the breastfeeding member works today and it is within her hours.
@@ -96,9 +85,7 @@ export default async function HomePage() {
   const atLocal = (h: number) => new Date(dayStart + (Math.floor(h / 100) * 60 + (h % 100)) * 60_000).toISOString();
   const part: "morning" | "away" | "evening" | "night" = hour < 6 || hour >= 21 ? "night" : mamaWorks && hhm < from ? "morning" : mamaAway ? "away" : "evening";
   const suggestions = ((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[];
-  const fanta = fantaData as HomeSummary | RpcError | null;
   const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];
-  const house = houseData as MaintenanceOverview | RpcError | null;
   const summary = sumData as HomeSummary | RpcError | null;
   const calendar = calData as CalendarData | RpcError | null;
   const shopping = shopData as ShoppingData | RpcError | null;
@@ -121,9 +108,7 @@ export default async function HomePage() {
   }
 
   if (me.member.simple_mode && summary && summary.ok) {
-    const foodType = fanta && fanta.ok ? fanta.types.find((t) => t.key === "food") : null;
-    const foodDefault = (foodType?.fields.find((f) => f.key === "food")?.default as string | undefined) ?? "½ wet pouch";
-    return <SimpleHome summary={summary} recent={recent} milk={milkOk} fantaFood={fanta && fanta.ok && foodType ? { subjectId: fanta.subject.id, typeId: foodType.id, food: foodDefault } : null} />;
+    return <SimpleHome summary={summary} recent={recent} milk={milkOk} />;
   }
 
   const lastFeedAt = summary && summary.ok ? (summary.last["lana.feed"]?.ended_at ?? summary.last["lana.feed"]?.occurred_at ?? null) : null;
@@ -156,7 +141,7 @@ export default async function HomePage() {
   const nextBottle = mamaAway ? nextFeedAt(week, { gapMin: bottleGapMin, awayCapMin: bottleGapMin, away: awayAt }) : null;
   const awayTomorrow = !!mama && mama.work_days.includes(new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay());
   const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(to / 100) * 60 + (to % 100)) - (Math.floor(from / 100) * 60 + (from % 100)), intervalMin: bottleGapMin, hour };
-  const aroundTheHouse = suggestions.length > 0 || (pending > 0 && can(me, "shopping_review", "edit")) || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok) || (fanta && fanta.ok) || (house && house.ok) || can(me, "shopping", "view");
+  const aroundTheHouse = suggestions.length > 0 || (pending > 0 && can(me, "shopping_review", "edit")) || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok) || can(me, "shopping", "view");
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
 
@@ -305,9 +290,6 @@ export default async function HomePage() {
         </section>
       )}
       {notes && notes.ok && <NotesBoard notes={notes.notes} compact />}
-      {fanta && fanta.ok && <FantaCard summary={fanta} due={due} compact />}
-      {routines && routines.ok && routines.routines.some((r) => r.days_left != null && r.days_left <= 0) && <RoutineTiles routines={routines.routines.filter((r) => r.days_left != null && r.days_left <= 0)} module="fanta" />}
-      {house && house.ok && <HouseCard data={house} />}
       {can(me, "shopping", "view") && (
         <Link href="/shopping" className="row-link card-flat flex items-center gap-3">
           <Icon name="cart" size={20} />

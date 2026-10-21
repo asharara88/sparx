@@ -248,7 +248,7 @@ function careEntries(ctx0: ToolContext): AssistantTool {
           subject: SUBJECT_PROP(ctx0),
           from: { type: "string", description: "Start, 'YYYY-MM-DD' (midnight) or 'YYYY-MM-DD HH:MM', household time." },
           to: { type: "string", description: "End (exclusive), same format. Omit for now." },
-          type: { type: "string", description: "Optional: only this entry type id, e.g. lana.feed, lana.sleep, fanta.food." },
+          type: { type: "string", description: "Optional: only this entry type id, e.g. lana.feed, lana.sleep." },
         },
         ["subject", "from"],
       ),
@@ -303,7 +303,7 @@ function dueSoon(): AssistantTool {
   return {
     def: {
       name: "due_soon",
-      description: "What is due or overdue for the children and pets you can see: next vaccination, deworming, flea treatment (from the last treatment's 'next due'), and timed things like the next meal or litter change. Use for 'what's due for Fanta', 'when is the next vaccination'.",
+      description: "What is due or overdue: the next vaccination, a check-up, or anything else with a due date. Use for 'when is the next vaccination', 'is anything overdue'.",
       input_schema: obj({ days_ahead: { type: "integer", description: "How far ahead to look. Default 30." } }),
     },
     run: async (input, ctx) => {
@@ -349,40 +349,6 @@ function shoppingList(): AssistantTool {
             last_bought: i.last_bought_on ?? undefined,
             last_price: i.last_price ?? undefined,
             note: i.note ?? undefined,
-          };
-        }),
-      };
-    },
-  };
-}
-
-function house(): AssistantTool {
-  return {
-    def: {
-      name: "house",
-      description: "Home maintenance: open tickets (what is broken, where, status, priority, which contractor), and recently closed ones. Use for 'is the AC fixed', 'who is coming to fix the dishwasher', 'anything urgent in the house'.",
-      input_schema: obj({ status: { type: "string", description: "open (default), in_progress, waiting, done, or all." } }),
-    },
-    run: async (input, ctx) => {
-      const status = String(input.status ?? "open");
-      const r = await rpc(ctx, "tickets_list", { p_status: status === "all" ? null : status });
-      if (!r.ok) return r;
-      return {
-        costs_visible: r.costs_visible,
-        tickets: ((r.tickets as Record<string, unknown>[]) ?? []).slice(0, 50).map((t) => {
-          ctx.refs[t.id as string] = { href: `/house/tickets/${t.id}`, label: String(t.title) };
-          return {
-            id: t.id,
-            title: t.title,
-            where: t.location ?? undefined,
-            status: t.status,
-            priority: t.priority,
-            appliance: t.asset_name ?? undefined,
-            contractor: t.contractor_name ?? undefined,
-            opened: local(t.created_at as string, ctx.tz),
-            opened_by: t.opened_by_name ?? undefined,
-            closed: local(t.closed_at as string | null, ctx.tz) ?? undefined,
-            ...(r.costs_visible ? { cost_total: t.cost_total } : {}),
           };
         }),
       };
@@ -783,7 +749,6 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
     list.push(dueSoon());
   }
   if (can(me, "shopping", "view") || can(me, "shopping_requests", "add")) list.push(shoppingList());
-  if (can(me, "maintenance", "view")) list.push(house());
   if (can(me, "assistant", "add")) {
     if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx));
     if (ctx.subjects.some((s) => s.kind === "child" && can(me, s.module_id, "add"))) list.push(proposePlan(ctx));

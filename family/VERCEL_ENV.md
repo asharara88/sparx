@@ -67,7 +67,6 @@ for bottle reminders between the daily runs.
 
 | Variable | Notes |
 |---|---|
-| `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN` (Sensitive) | Read-only Home Assistant user with a long-lived token. Shows nursery readings on the hub card (Nanit through `ha-nanit`). |
 | `PLAN_EVERY_DAY=1` | Draft the weekly plan every day instead of Sundays, while trying it out. |
 
 ## 5. Never set on Vercel

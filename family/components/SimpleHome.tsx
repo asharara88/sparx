@@ -25,7 +25,7 @@ function recognitionCtor(): (new () => Recognition) | null {
  * Bottle (three amounts), Diaper (wet / dirty / both), Asleep or Woke up, Note (spoken or typed).
  * Every label in her language; Arabic reads right to left.
  */
-export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null; fantaFood: { subjectId: string; typeId: string; food: string } | null }) {
+export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null }) {
   const me = useMe();
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
@@ -96,15 +96,6 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
   async function endSleep(e: OngoingEntry) {
     setBusy(true);
     const r = await endOrQueue(supabaseBrowser(), e.id, new Date().toISOString());
-    setBusy(false);
-    if (r.status === "error") return setMsg(r.message);
-    setMsg(r.status === "queued" ? L("savedOffline") : L("saved"));
-    router.refresh();
-  }
-  async function fanta() {
-    if (!fantaFood) return;
-    setBusy(true);
-    const r = await sendOrQueue(supabaseBrowser(), { client_id: newClientId(), subject_id: fantaFood.subjectId, type_id: fantaFood.typeId, occurred_at: new Date().toISOString(), ended_at: null, payload: { food: fantaFood.food }, note: null });
     setBusy(false);
     if (r.status === "error") return setMsg(r.message);
     setMsg(r.status === "queued" ? L("savedOffline") : L("saved"));
@@ -184,7 +175,6 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
           <Big icon="diaper" label={L("diaper")} onClick={() => setPanel("diaper")} />
           {openSleep ? <Big icon="sun" label={L("wokeUp")} onClick={() => endSleep(openSleep)} /> : <Big icon="zzz" label={L("fellAsleep")} onClick={() => log(sleepType, {}, false)} />}
           <Big icon="note" label={L("note")} onClick={() => setPanel("note")} />
-          {fantaFood && can(me, "fanta", "add") && <Big icon="cat" label={L("fantaFed")} onClick={fanta} />}
           {can(me, "assistant", "view") && (
             <Link href="/ask" className="btn flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
               <Icon name="mic" size={36} />
