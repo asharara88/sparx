@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EntryRow, EntryType, OngoingEntry, Subject } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { newClientId } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueue, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { Boobs } from "./Boobs";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
@@ -26,7 +26,7 @@ type State =
 export function LanaNow({
   subject,
   types,
-  ongoing,
+  ongoing: serverOngoing,
   recent,
   timezone,
   lastMilk,
@@ -50,6 +50,15 @@ export function LanaNow({
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
+  // Timers waiting on this phone count as running too (read after mount, so the
+  // server-rendered screen and the first client render agree).
+  const [queue, setQueue] = useState<QueuedOp[]>([]);
+  useEffect(() => {
+    setQueue(readQueue());
+    return onQueueChange(() => setQueue(readQueue()));
+  }, []);
+  const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
+  const queuedRef = useRef(false);
 
   const canAdd = can(me, "lana", "add");
   const flags = me.member as unknown as Record<string, boolean>;
@@ -100,28 +109,40 @@ export function LanaNow({
     if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
     return res;
   }
+  // Starts and ends go through the offline queue: with no signal the tap is kept on the
+  // phone and sent later, and the screen shows the timer as running meanwhile.
   async function start(type: EntryType | undefined, payload: Record<string, unknown> = {}, endedAt: string | null = null) {
     if (!type) throw new Error("That kind of entry is switched off.");
-    return rpc("care_entry_log", {
-      p_subject_id: subject.id,
-      p_type_id: type.id,
-      p_occurred_at: nowIso,
-      p_ended_at: endedAt,
-      p_payload: payload,
-      p_note: null,
-      p_client_id: newClientId(),
+    const r = await sendOrQueue(supabaseBrowser(), {
+      client_id: newClientId(),
+      subject_id: subject.id,
+      type_id: type.id,
+      occurred_at: nowIso,
+      ended_at: endedAt,
+      payload,
+      note: null,
     });
+    if (r.status === "error") throw new Error(r.message);
+    if (r.status === "queued") queuedRef.current = true;
+    return r;
   }
   async function end(entry: OngoingEntry) {
-    const at = Date.parse(whenIso) > Date.parse(entry.occurred_at) ? whenIso : new Date().toISOString();
-    return rpc("care_entry_end", { p_id: entry.id, p_ended_at: at });
+    if (Date.parse(whenIso) < Date.parse(entry.occurred_at)) {
+      throw new Error(`That is before it started at ${fmtTime(entry.occurred_at, timezone)}. Pick a later time.`);
+    }
+    const r = await endOrQueue(supabaseBrowser(), entry.id, whenIso);
+    if (r.status === "error") throw new Error(r.message);
+    if (r.status === "queued") queuedRef.current = true;
+    return r;
   }
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(true);
     setMsg(null);
+    queuedRef.current = false;
     try {
       await fn();
-      setMsg(isEarlier(when) ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label);
+      const base = isEarlier(when) ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
+      setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
       setWhen(NOW);
       router.refresh();
     } catch (e) {
@@ -280,8 +301,9 @@ export function LanaNow({
                   disabled={busy || !canAdd}
                   onClick={() =>
                     run(`Bottle ${ml} ml saved.`, async () => {
-                      await start(feedType, { method: "Bottle", milk, amount_ml: ml }, nowIso);
-                      if (!/formula/i.test(milk)) {
+                      const saved = await start(feedType, { method: "Bottle", milk, amount_ml: ml }, nowIso);
+                      // The fridge count is best effort: it is skipped while the feed waits on the phone.
+                      if (saved.status === "saved" && !/formula/i.test(milk)) {
                         const r = await rpc("milk_consume", { p_ml: ml, p_note: null });
                         const short = Number((r as { short_ml?: number }).short_ml ?? 0);
                         if (short > 0) setMsg(`Bottle ${ml} ml saved. The fridge was ${short} ml short.`);
@@ -308,8 +330,8 @@ export function LanaNow({
                     disabled={busy || !canAdd}
                     onClick={() =>
                       run(`Pumped ${ml} ml, in the fridge.`, async () => {
-                        await start(pumpType, { amount_ml: ml }, nowIso);
-                        await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
+                        const saved = await start(pumpType, { amount_ml: ml }, nowIso);
+                        if (saved.status === "saved") await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
                       })
                     }
                   >

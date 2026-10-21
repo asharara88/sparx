@@ -919,5 +919,32 @@ select pg_temp.assert((public.activity_done_list(:lana, current_date - 30, curre
 select pg_temp.assert((select count(*) from public.activities where is_active) >= 140, 'the play library has grown');
 reset role;
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty).'
+-- Timers (migration 3400): one open timer per type, end by client_id, custody that expires
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table tm1 as select (public.care_entry_log(:lana, 'lana.sleep', now() - interval '20 minutes', null, '{}'::jsonb, 'timers test', 'bbbbbbbb-0000-4000-8000-000000000001')) as r;
+select pg_temp.assert((select r->>'ok' = 'true' and r->>'open' is null from tm1), 'Dana starts a sleep timer');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '5 minutes', null, '{}'::jsonb, 'timers test', 'bbbbbbbb-0000-4000-8000-000000000002'))->>'open' = 'true', 'a second "fell asleep" (other phone, double tap) hands back the running timer');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '5 minutes', null, '{}'::jsonb, 'timers test', 'bbbbbbbb-0000-4000-8000-000000000002'))->>'id' = (select r->>'id' from tm1), 'with the same id');
+select pg_temp.assert((select count(*) from public.care_entries where note = 'timers test' and deleted_at is null) = 1, 'and nothing new was written');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '3 hours', now() - interval '2 hours', '{}'::jsonb, 'timers test', 'bbbbbbbb-0000-4000-8000-000000000003'))->>'ok' = 'true', 'a finished nap logged after the fact is not blocked by the open timer');
+select pg_temp.assert((public.care_entry_end_client('bbbbbbbb-0000-4000-8000-000000000001', now() - interval '25 minutes'))->>'error' = 'bad_time', 'ending by client_id before the start is refused');
+select pg_temp.assert((public.care_entry_end_client('bbbbbbbb-0000-4000-8000-000000000001', now()))->>'ok' = 'true', 'the timer ends by the client_id it was started with');
+select pg_temp.assert((public.care_entry_end_client('bbbbbbbb-0000-4000-8000-00000000ffff', now()))->>'error' = 'not_found', 'an end for a start that has not arrived says so');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now(), null, '{}'::jsonb, 'timers test', 'bbbbbbbb-0000-4000-8000-000000000004'))->>'open' is null, 'once ended, a new sleep can start');
+reset role;
+-- custody set 13 hours ago no longer attributes; a fresh one does
+select public.custody_set(:lana, :wafa);
+update public.care_custody set since = now() - interval '13 hours' where subject_id = :lana;
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table cu1 as select ((public.care_entry_log(:lana, 'lana.diaper', now(), null, '{"kind":"Wet"}'::jsonb, 'timers test', null))->>'id')::uuid as id;
+select pg_temp.assert((select attributed_to from public.care_entries where id = (select id from cu1)) = :dana, 'a stale "who has her" (13 h old) attributes the entry to the logger');
+select pg_temp.assert((public.custody_set(:lana, :wafa))->>'ok' = 'true', 'Dana hands over to Wafa now');
+create temp table cu2 as select ((public.care_entry_log(:lana, 'lana.diaper', now(), null, '{"kind":"Wet"}'::jsonb, 'timers test', null))->>'id')::uuid as id;
+select pg_temp.assert((select attributed_to from public.care_entries where id = (select id from cu2)) = :wafa, 'and a fresh one attributes to Wafa');
+reset role;
+update public.care_entries set deleted_at = now() where note = 'timers test';
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

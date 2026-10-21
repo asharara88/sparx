@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OngoingEntry } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { newClientId } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueue, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
@@ -11,24 +11,34 @@ import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
 import { fromLocalInput } from "@/lib/time";
 
 /** The home-screen shortcut: one big button that starts or ends her sleep. */
-export function QuickSleep({ subjectId, typeId, asleep, timezone }: { subjectId: string; typeId: string; asleep: OngoingEntry | null; timezone: string }) {
+export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }: { subjectId: string; typeId: string; asleep: OngoingEntry | null; timezone: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [when, setWhen] = useState<When>(NOW);
+  // A sleep started with no signal is still on this phone; it counts as asleep.
+  const [queue, setQueue] = useState<QueuedOp[]>([]);
+  useEffect(() => {
+    setQueue(readQueue());
+    return onQueueChange(() => setQueue(readQueue()));
+  }, []);
+  const asleep = mergeOngoing(serverAsleep ? [serverAsleep] : [], subjectId, queue).find((e) => e.type_id === typeId) ?? null;
+
   async function go() {
-    setBusy(true);
     setMsg(null);
     const sb = supabaseBrowser();
-    let at = whenToIso(when, Date.now(), (l) => fromLocalInput(l, timezone));
-    if (asleep && Date.parse(at) <= Date.parse(asleep.occurred_at)) at = new Date().toISOString();
-    const { data, error } = asleep
-      ? await sb.rpc("care_entry_end", { p_id: asleep.id, p_ended_at: at })
-      : await sb.rpc("care_entry_log", { p_subject_id: subjectId, p_type_id: typeId, p_occurred_at: at, p_ended_at: null, p_payload: {}, p_note: null, p_client_id: newClientId() });
-    const res = data as { ok: boolean; message?: string } | null;
+    const at = whenToIso(when, Date.now(), (l) => fromLocalInput(l, timezone));
+    if (asleep && Date.parse(at) < Date.parse(asleep.occurred_at)) {
+      return setMsg(`That is before the sleep started at ${fmtTime(asleep.occurred_at, timezone)}. Pick a later time.`);
+    }
+    setBusy(true);
+    const r = asleep
+      ? await endOrQueue(sb, asleep.id, at)
+      : await sendOrQueue(sb, { client_id: newClientId(), subject_id: subjectId, type_id: typeId, occurred_at: at, ended_at: null, payload: {}, note: null });
     setBusy(false);
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    setMsg(`${asleep ? "Woke up, saved" : "Sleep started"}${isEarlier(when) ? ` as of ${fmtTime(at, timezone)}` : ""}.`);
+    if (r.status === "error") return setMsg(r.message);
+    const base = `${asleep ? "Woke up, saved" : "Sleep started"}${isEarlier(when) ? ` as of ${fmtTime(at, timezone)}` : ""}.`;
+    setMsg(r.status === "queued" ? `${base} Saved on this phone; it will send when back online.` : base);
     setWhen(NOW);
     router.refresh();
   }

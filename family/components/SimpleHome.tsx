@@ -6,7 +6,7 @@ import type { EntryRow, EntryType, HomeSummary, MilkData, OngoingEntry } from "@
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { newClientId } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueue, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
 import { dirOf, fmtAgo, speechLang, t, type Lang } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
@@ -30,7 +30,14 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
   const L = (k: Parameters<typeof t>[1]) => t(lang, k);
-  const { subject, types, ongoing, timezone, last } = summary;
+  const { subject, types, ongoing: serverOngoing, timezone, last } = summary;
+  // A sleep started with no signal is still on this phone; it counts as running.
+  const [queue, setQueue] = useState<QueuedOp[]>([]);
+  useEffect(() => {
+    setQueue(readQueue());
+    return onQueueChange(() => setQueue(readQueue()));
+  }, []);
+  const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
   const [panel, setPanel] = useState<null | "bottle" | "diaper" | "note">(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,32 +85,29 @@ export function SimpleHome({ summary, recent, milk, fantaFood }: { summary: Home
     setBusy(true);
     setMsg(null);
     const nowIso = new Date().toISOString();
-    const { data, error } = await supabaseBrowser().rpc("care_entry_log", { p_subject_id: subject.id, p_type_id: type.id, p_occurred_at: nowIso, p_ended_at: ended ? nowIso : null, p_payload: payload, p_note: noteText, p_client_id: newClientId() });
+    const r = await sendOrQueue(supabaseBrowser(), { client_id: newClientId(), subject_id: subject.id, type_id: type.id, occurred_at: nowIso, ended_at: ended ? nowIso : null, payload, note: noteText });
     setBusy(false);
-    const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    setMsg(L("saved"));
+    if (r.status === "error") return setMsg(r.message);
+    setMsg(r.status === "queued" ? L("savedOffline") : L("saved"));
     setPanel(null);
     setNote("");
     router.refresh();
   }
   async function endSleep(e: OngoingEntry) {
     setBusy(true);
-    const { data, error } = await supabaseBrowser().rpc("care_entry_end", { p_id: e.id, p_ended_at: new Date().toISOString() });
+    const r = await endOrQueue(supabaseBrowser(), e.id, new Date().toISOString());
     setBusy(false);
-    const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    setMsg(L("saved"));
+    if (r.status === "error") return setMsg(r.message);
+    setMsg(r.status === "queued" ? L("savedOffline") : L("saved"));
     router.refresh();
   }
   async function fanta() {
     if (!fantaFood) return;
     setBusy(true);
-    const { data, error } = await supabaseBrowser().rpc("care_entry_log", { p_subject_id: fantaFood.subjectId, p_type_id: fantaFood.typeId, p_occurred_at: new Date().toISOString(), p_ended_at: null, p_payload: { food: fantaFood.food }, p_note: null, p_client_id: newClientId() });
+    const r = await sendOrQueue(supabaseBrowser(), { client_id: newClientId(), subject_id: fantaFood.subjectId, type_id: fantaFood.typeId, occurred_at: new Date().toISOString(), ended_at: null, payload: { food: fantaFood.food }, note: null });
     setBusy(false);
-    const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    setMsg(L("saved"));
+    if (r.status === "error") return setMsg(r.message);
+    setMsg(r.status === "queued" ? L("savedOffline") : L("saved"));
     router.refresh();
   }
   function listen() {
