@@ -3,8 +3,8 @@ import { ageDays, ageLabel, checkDay } from "@/lib/norms";
 import { Icon } from "./Icon";
 
 /**
- * Lana's totals against what is typical for her age. One row per measure,
- * a red pill where she fell short on a finished day. Today only shows "so far".
+ * The child's totals against what is typical for the age. One row per measure,
+ * a red pill where the child fell short on a finished day. Today only shows "so far".
  */
 export function AgeCheck({
   totals,
@@ -13,6 +13,7 @@ export function AgeCheck({
   complete,
   title,
   subtitle,
+  name = "the baby",
 }: {
   totals: DayTotals;
   birthDate: string | null;
@@ -20,12 +21,14 @@ export function AgeCheck({
   complete: boolean;
   title: string;
   subtitle?: string;
+  /** The child's name, for the column header. */
+  name?: string;
 }) {
   if (!birthDate) {
     return (
       <section className="card">
         <h2 className="section-title">{title}</h2>
-        <p className="muted text-sm">Add her date of birth on her profile to compare with her age.</p>
+        <p className="muted text-sm">Add the date of birth on the profile to compare with what is typical for the age.</p>
       </section>
     );
   }
@@ -51,7 +54,7 @@ export function AgeCheck({
         <thead className="muted text-left text-xs uppercase tracking-wide">
           <tr>
             <th className="py-1 font-semibold">Measure</th>
-            <th className="py-1 text-right font-semibold">Lana</th>
+            <th className="py-1 text-right font-semibold">{name}</th>
             <th className="py-1 text-right font-semibold">Typical</th>
             <th className="py-1 text-right font-semibold">
               <span className="sr-only">Status</span>

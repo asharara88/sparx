@@ -229,29 +229,42 @@ npx supabase link --project-ref qjqekazawirrpwnwgbhd   # project "home" in org L
 npx supabase db push                    # applies supabase/migrations/* in order
 ```
 
-What `db push` creates: tables `household, roles, modules, permissions, members,
+What `db push` creates: the tables (`household, roles, modules, permissions, members,
 presence_states, presence, work_schedules, audit_log, care_subjects, care_entry_types,
-care_entries, care_custody`, the RLS policies, the RPC functions the app calls, and the
-seed: Mido & Dana (admin), Wafa & Luda (family carer), Lilly (home carer, works
-Tue/Wed/Fri/Sat/Sun), presence, Lana (born 5 June 2026), and Lana's entry types.
+care_entries, care_custody` and the later ones), the RLS policies, the RPC functions the app
+calls, and the shared starting data: roles, modules, the permission matrix, presence states
+and the child's entry types. Nothing about a particular family is in the migrations; the
+household itself comes next.
 
 Auth settings in the Supabase dashboard (Authentication → URL configuration):
 - Site URL: `https://elnunu.com`
 - Redirect URLs: `https://elnunu.com/auth/callback`, `https://sparx-tsom.vercel.app/auth/callback`
   and `http://localhost:3000/auth/callback`
 
-### Create the five sign-in accounts
+### Set up the household (once per family)
+
+The household's name, the people and the child come from one file, written to
+the project by a script from your machine. Every value can be changed in the app later;
+run the script again after editing the file and it updates what changed.
 
 ```bash
-cp .env.example .env.local     # fill NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-                               # SUPABASE_SERVICE_ROLE_KEY and MEMBER_EMAILS
-npm run seed:accounts
+cp .env.example .env.local        # fill NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+                                  # and SUPABASE_SERVICE_ROLE_KEY
+cp household.example.json household.json   # names, roles, e-mails, the child's name and birthday
+npm run setup:household -- household.json --accounts
 ```
 
-Mido's e-mail is already in the seed. The script creates an auth user per member and the
-database trigger links it to the member row by e-mail. Anyone can also just create an
-account with e-mail and password; if their e-mail matches a member row they are linked on first sign-in, if not
-they see "Your e-mail is not on the household list yet" and nothing else.
+`household.json` is ignored by git. The example file documents every field: roles (`admin`,
+`family_carer`, `home_carer`, `sitter`), presence, work days, who breastfeeds, work hours, the
+child's name in Arabic and Russian for the simple screen, night window, ambulance number,
+blood group, doctor. With `--accounts` the script creates a sign-in account for every member
+with an e-mail and links it; each person then uses "Forgot password" on the sign-in screen to
+choose their first password. Without it, anyone who creates an account with a listed e-mail is
+linked on first sign-in; an e-mail that is not on the list sees "Your e-mail is not on the
+household list yet" and nothing else.
+
+The child's log keeps the internal module key `lana` (the first household's name, now just
+an id in SQL and permission checks); every screen shows the name from the data.
 
 ### Verify the database on its own (optional, any machine with Postgres 16)
 
@@ -306,25 +319,54 @@ request's own origin), so attaching the domain is configuration only:
 
 1. Members → **+ Add**. Name, e-mail, role, relationship. Save.
 2. Tell them to open the app and sign in with that e-mail. That is all; the first sign-in
-   links the account. (Or run `npm run seed:accounts` with their name in `MEMBER_EMAILS`.)
+   links the account. (Or add them to `household.json` and run `npm run setup:household --
+   household.json --accounts` again.)
 3. For staff, set *Work days* on their member page. For anyone, set *Presence*.
 
 New role: Members → Roles and permissions → *Add a role*, then tick what it may do.
 New kind of Lana entry (solids, teething…): insert a row in `care_entry_types` with its
 `fields` JSON (a Settings screen for this is in `LATER.md`); no migration is needed.
 
+## 3a. A copy for another family
+
+One deployment serves one household: its own Supabase project, its own Vercel project,
+the same code. Data never crosses between families because it is never in the same
+database. For a new family:
+
+1. **Supabase.** Create a project. Note its URL, the publishable key, the service-role
+   key and the JWT secret (Settings → API). Apply the schema with `npx supabase link
+   --project-ref <ref> && npx supabase db push` from `family/`, or connect the GitHub
+   integration to a fork of this repo (section 1A).
+2. **Household.** `household.json` for that family, then `npm run setup:household --
+   household.json --accounts` with that project's values in `.env.local`.
+3. **Auth.** Authentication → URL configuration: Site URL and the `/auth/callback`
+   redirect for the address the app will live at. Authentication → Providers → Email:
+   keep "Confirm email" on, or switch sign-ups off and rely on `--accounts`.
+4. **Vercel.** New project from the repo, root directory `family`, the variables in
+   `VERCEL_ENV.md` (the two public Supabase values at least; the assistant, push and cron
+   ones to taste), then a domain if they want one.
+5. **Phones.** Open the address, sign in, Add to Home Screen.
+
+`.env.local` and `household.json` are per family and never committed. The vaccine
+schedule shipped is the Abu Dhabi one; a family elsewhere edits it in the app
+(Members → Entry types is not it; the vaccine book has its own admin rows in
+`vaccine_schedule`).
+
 ## 4. Where things are
 
 ```
 supabase/migrations/   20261010000100_foundation.sql   members, roles, permissions, presence, audit, RLS
                        20261010000200_care_log.sql     subjects, entry types, entries, custody, RPCs
-                       20261010000300_seed_household.sql
+                       20261010000300_seed_household.sql  roles, modules, permission matrix, entry types (no family data)
                        20261010000400_step2.sql        timers, calendar, shopping, requests, photos bucket
-supabase/tests/        rls_test.sql (Step 1 checks as SQL), run-local.sh, local auth stub
-app/(app)/             home, lana/, calendar, shopping/, send, members/, audit, me
-components/            EntryForm (renders `fields`), LanaCard, CustodyToggle, PermissionGrid…
-lib/                   supabase clients, offline queue, time helpers, types
-scripts/               seed-accounts.mjs, make-icons.mjs
+                       …                                one file per release since; 3500 = any household
+supabase/tests/        rls_test.sql (the database checks), 01_test_household.sql (the household the
+                       checks act as), run-local.sh, local auth stub, demo_data.sql
+app/(app)/             home, baby/, calendar, shopping/, send, members/, audit, me
+components/            EntryForm (renders `fields`), LanaNow (the child's one-tap screen), CustodyToggle…
+lib/                   supabase clients, offline queue, names (the child from data), time helpers, types
+scripts/               setup-household.mjs, seed-accounts.mjs, make-icons.mjs
+household.example.json the household file to copy and fill in
 ```
 
 ## 5. Known limits in this step

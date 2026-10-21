@@ -10,9 +10,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#fff9f0",
     theme_color: "#4b203f",
     shortcuts: [
-      { name: "Sleep timer", short_name: "Sleep", url: "/lana/quick/sleep", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Log a feed", short_name: "Feed", url: "/lana/log/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Log a diaper", short_name: "Diaper", url: "/lana/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Sleep timer", short_name: "Sleep", url: "/baby/quick/sleep", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Log a feed", short_name: "Feed", url: "/baby/log/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Log a diaper", short_name: "Diaper", url: "/baby/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Ask the helper", short_name: "Ask", url: "/ask", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
     icons: [

@@ -75,8 +75,8 @@ const STATUS: Record<string, string> = {
   care_now: "Checking the log",
   care_entries: "Reading the log",
   care_stats: "Adding up the week",
-  sleep_rhythm: "Looking at her sleep rhythm",
-  age_outlook: "Checking her age",
+  sleep_rhythm: "Looking at the sleep rhythm",
+  age_outlook: "Checking the age",
   day_schedule: "Working out the day",
   red_flag_check: "Checking for warning signs",
   coach_plan: "Reading the plan",
@@ -108,7 +108,7 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
   };
   if (!can(me, "assistant", "view")) {
     await audit(supabase, "ask", { p_question: question, p_allowed: false });
-    return { ok: false, error: "not_allowed", message: "The assistant is not switched on for your role. Ask Mido or Dana." };
+    return { ok: false, error: "not_allowed", message: "The assistant is not switched on for your role. Ask an admin." };
   }
   if (!assistantConfigured()) {
     return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
@@ -152,7 +152,7 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
     if (res.stop_reason === "refusal") {
       refused = true;
       emit({ type: "reset" });
-      answer = "I can't help with that one. Try asking it another way, or ask Mido or Dana.";
+      answer = "I can't help with that one. Try asking it another way, or ask an admin.";
       break;
     }
     const text = res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("\n").trim();

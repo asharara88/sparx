@@ -1,0 +1,34 @@
+{
+  "$comment": "Copy to household.json, fill in, then: npm run setup:household -- household.json --accounts. Everything here can be changed in the app afterwards. Roles: admin (parents), family_carer (grandparents, relatives), home_carer (staff), sitter (babysitter: the child's log, the chat and the helper only). Presence: lives_here, staying_with_us, visiting_today, away. Work days: 0 = Sunday. hidden_modules hides whole sections for everyone (shopping).",
+  "household": {
+    "name": "Our home",
+    "timezone": "Asia/Dubai",
+    "currency": "AED",
+    "notes": "",
+    "milk_target_ml": 400,
+    "bottle_interval_min": 180,
+    "hidden_modules": ["shopping"]
+  },
+  "child": {
+    "name": "Omar",
+    "birth_date": "2026-10-01",
+    "sex": "Boy",
+    "names": { "ar": "عمر", "ru": "Омар" },
+    "night_from": "19:00",
+    "night_to": "07:00",
+    "emergency_ambulance": "998",
+    "emergency_hospital": "",
+    "emergency_hospital_map": "",
+    "blood_group": "",
+    "allergies": "",
+    "doctor_name": "",
+    "doctor_hospital": "",
+    "doctor_phone": ""
+  },
+  "members": [
+    { "name": "Haitham", "email": "haitham@example.com", "role": "admin", "relationship": "Parent", "presence": "lives_here" },
+    { "name": "Noor", "email": "noor@example.com", "role": "admin", "relationship": "Parent", "breastfeeds": true, "work_from": "08:30", "work_to": "17:30", "routine": "" },
+    { "name": "Teta", "email": "", "role": "family_carer", "relationship": "Haitham's mother", "presence": "staying_with_us", "lang": "ar" },
+    { "name": "Maria", "email": "", "role": "home_carer", "relationship": "Household staff", "work_days": [0, 2, 3, 5, 6], "presence": "away" }
+  ]
+}

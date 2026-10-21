@@ -18,8 +18,8 @@ function friendly(message: string): string {
 }
 
 /**
- * Sign in with e-mail and password. First time: "Create account" with the e-mail Mido or
- * Dana put on the household list. "Forgot password" and "e-mail me a link" use the same
+ * Sign in with e-mail and password. First time: "Create account" with the e-mail an admin
+ * put on the household list. "Forgot password" and "e-mail me a link" use the same
  * one-time link mechanism and land on /auth/callback.
  */
 export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
@@ -87,7 +87,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
   const title = mode === "signin" ? "Sign in" : mode === "signup" ? "Create your account" : mode === "forgot" ? "Forgot password" : "E-mail me a link";
   const hint =
     mode === "signin" ? "Your e-mail and password." :
-    mode === "signup" ? "Use the e-mail Mido or Dana put on the household list, and choose a password." :
+    mode === "signup" ? "Use the e-mail an admin put on the household list, and choose a password." :
     mode === "forgot" ? "We will e-mail you a link to choose a new password." :
     "No password needed: we send a one-time link to your e-mail.";
 

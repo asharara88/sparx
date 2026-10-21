@@ -40,7 +40,7 @@ export function FridgePlan({ milk, lastFeedAt, backAtIso, bottleMl, timezone }: 
         <p className="notice notice-warn text-sm">
           {short} ml short. {thaw.length > 0 ? `Thaw ${thaw.length} freezer bag${thaw.length === 1 ? "" : "s"} (${thaw.map((b) => `${b.amount_ml} ml`).join(", ")}) now.` : "No freezer milk either: formula for the last bottle."}
           {" "}
-          <Link href="/lana/milk" className="underline">
+          <Link href="/baby/milk" className="underline">
             Milk stash
           </Link>
         </p>

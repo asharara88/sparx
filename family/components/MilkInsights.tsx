@@ -29,7 +29,7 @@ export function MilkInsights({ milk, entries, timezone, thaw }: { milk: MilkData
         ) : (
           <>
             <p className={`notice ${soon ? "notice-warn" : f.until == null ? "notice-ok" : ""} font-semibold`}>
-              {f.until != null ? `Fridge milk lasts until about ${fmtDate(new Date(f.until).toISOString(), timezone, { weekday: "short" })} ${fmtTime(new Date(f.until).toISOString(), timezone)}` : "Pumping is keeping up with her bottles."}
+              {f.until != null ? `Fridge milk lasts until about ${fmtDate(new Date(f.until).toISOString(), timezone, { weekday: "short" })} ${fmtTime(new Date(f.until).toISOString(), timezone)}` : "Pumping is keeping up with the bottles."}
             </p>
             <p className="muted text-sm">
               Bottles use about {f.usePerDay} ml a day · pumps add about {f.pumpPerDay} ml a day.
@@ -75,7 +75,7 @@ export function ThawReminder({ milk, entries, timezone, opts }: { milk: MilkData
   const plan = thawPlan(milk.bottles, entries, opts);
   if (!plan || (plan.picks.length === 0 && !plan.short)) return null;
   return (
-    <Link href="/lana/milk" className="notice notice-warn row-link flex items-start gap-3 no-underline">
+    <Link href="/baby/milk" className="notice notice-warn row-link flex items-start gap-3 no-underline">
       <Icon name="droplet" size={22} className="mt-0.5 shrink-0" />
       <span className="min-w-0 grow">
         <span className="block text-xs font-bold uppercase tracking-wide opacity-75">Tonight, for tomorrow</span>

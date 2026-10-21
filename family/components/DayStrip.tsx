@@ -2,7 +2,7 @@ import type { EntryRow } from "@/lib/types";
 import { fmtDuration, minutesBetween, zonedMidnight } from "@/lib/time";
 
 /**
- * Lana's 24 hours as two 12-hour rows (night 0–12, day 12–24): sleep in
+ * The child's 24 hours as two 12-hour rows (night 0–12, day 12–24): sleep in
  * purple, awake-at-night in light purple, breastfeeds blue with L/R, bottles
  * light blue with ml, diapers green dots, medicine red dots.
  */

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { EntryType, Me } from "@/lib/types";
 import { can } from "@/lib/types";
+import { childName, possessive } from "@/lib/names";
 import { EntryTypesAdmin } from "@/components/EntryTypesAdmin";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -19,7 +20,7 @@ export default async function EntryTypesPage() {
       <EntryTypesAdmin
         types={(data as EntryType[] | null) ?? []}
         modules={[
-          { id: "lana", label: "Lana's log" },
+          { id: "lana", label: `${possessive(childName(me))} log` },
         ]}
       />
     </div>

@@ -27,7 +27,7 @@ export function RequestQueue({ pending, history, timezone }: { pending: Shopping
 
   return (
     <>
-      {pending.length === 0 && <p className="muted">Nothing waiting. Lilly's taps and photos show up here.</p>}
+      {pending.length === 0 && <p className="muted">Nothing waiting. The home carer's taps and photos show up here.</p>}
       {pending.map((r) => (
         <section key={r.id} className="card flex flex-col gap-3">
           <div>

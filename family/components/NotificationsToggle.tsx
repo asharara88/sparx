@@ -80,7 +80,7 @@ export function NotificationsToggle() {
   return (
     <div className="card">
       <h2 className="text-lg font-semibold">Notifications</h2>
-      <p className="muted mt-1 text-sm">The morning brief at 7, things to approve, a reminder before an appointment{me.role.id === "admin" ? ", Lilly's running-low requests, urgent tickets" : ""}.</p>
+      <p className="muted mt-1 text-sm">The morning brief at 7, things to approve, a reminder before an appointment{me.role.id === "admin" ? ", the home carer's running-low requests, urgent tickets" : ""}.</p>
       {here === "unsupported" && <p className="mt-2">{KEY ? "This browser cannot receive notifications." : "Notifications are not set up on the server yet."}</p>}
       {here === "blocked" && <p className="mt-2">Notifications are blocked for this site. Allow them in the phone's settings, then come back.</p>}
       {ios && !standalone && here !== "on" && <p className="mt-2 text-sm">On iPhone, first add the app to the Home Screen (Share → Add to Home Screen) and open it from there; then switch notifications on.</p>}

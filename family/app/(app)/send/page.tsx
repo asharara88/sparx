@@ -9,7 +9,7 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-/** Lilly's screen: tap what is running low, or send a photo. Plus today's events that affect her. */
+/** The home carer's screen: tap what is running low, or send a photo. Plus today's events that affect them. */
 export default async function SendPage() {
   const supabase = await createClient();
   const { data: meData } = await supabase.rpc("me");

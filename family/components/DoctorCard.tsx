@@ -9,7 +9,7 @@ import { Icon } from "./Icon";
 /**
  * The paediatrician's card: who, where, one tap to call or book, and a
  * running list of questions for the next visit. Everything is a plain key on
- * Lana's profile, so anyone who can edit her log can correct it.
+ * the child's profile, so anyone who can edit the log can correct it.
  */
 const FIELDS: { key: string; label: string; type?: "tel" | "url" | "textarea"; hint?: string }[] = [
   { key: "doctor_name", label: "Doctor" },
@@ -170,7 +170,7 @@ export function DoctorCard({ subject, canEdit }: { subject: Subject; canEdit: bo
         {msg && !editing && <p className="text-[var(--danger)]">{msg}</p>}
       </section>
 
-      <Link href="/lana/log/appointment" className="btn btn-secondary">
+      <Link href="/baby/log/appointment" className="btn btn-secondary">
         <Icon name="plus" size={18} /> Log a visit
       </Link>
     </div>

@@ -1,12 +1,17 @@
 /**
  * The simple screen and the voice helper in English, Arabic and Russian. Only what those two
  * surfaces say; the rest of the app stays in English. Keep keys short and sentences plain.
+ *
+ * The child's name is never in a string: `{child}` is filled in from the household's data
+ * (the name in that language when the household gave one). Where Arabic or Russian changes
+ * with the child's sex, the string for a boy sits under the same key with `_m`; the default
+ * reads for a girl, as the first household's did.
  */
 export type Lang = "en" | "ar" | "ru";
 
 const STRINGS = {
   en: {
-    title: "Lana",
+    title: "{child}",
     asleep: "Asleep since",
     awake: "Awake",
     awakeSince: "Awake since",
@@ -40,16 +45,22 @@ const STRINGS = {
     sleepyNow: "Probably sleepy now",
     sleepySoon: "Sleepy soon",
     listen: "Listen to today",
-    todayText: "Today Lana had {feeds} feeds, {diapers} diaper changes and {sleeps} sleeps.",
+    todayText: "Today {child} had {feeds} feeds, {diapers} diaper changes and {sleeps} sleeps.",
     asleepNow: "She is asleep now.",
+    asleepNow_m: "He is asleep now.",
     awakeNow: "She is awake now.",
+    awakeNow_m: "He is awake now.",
   },
   ar: {
-    title: "لانا",
+    title: "{child}",
     asleep: "نائمة منذ",
+    asleep_m: "نائم منذ",
     awake: "مستيقظة",
+    awake_m: "مستيقظ",
     awakeSince: "مستيقظة منذ",
+    awakeSince_m: "مستيقظ منذ",
     feeding: "ترضع",
+    feeding_m: "يرضع",
     lastFeed: "آخر رضعة",
     lastDiaper: "آخر حفاض",
     bottle: "رضّاعة",
@@ -58,7 +69,9 @@ const STRINGS = {
     dirty: "متسخ",
     both: "الاثنان",
     fellAsleep: "نامت",
+    fellAsleep_m: "نام",
     wokeUp: "استيقظت",
+    wokeUp_m: "استيقظ",
     note: "ملاحظة",
     noteHint: "قولي أو اكتبي ما حدث",
     save: "حفظ",
@@ -74,17 +87,24 @@ const STRINGS = {
     listening: "أستمع…",
     ago: "مضت",
     milkInFridge: "في الثلاجة",
-    hungryNow: "لانا غالبًا جعانة دلوقتي",
-    hungrySoon: "لانا هتجوع قريب",
-    sleepyNow: "لانا غالبًا نعسانة دلوقتي",
-    sleepySoon: "لانا هتنعس قريب",
-    listen: "اسمعي يوم لانا",
-    todayText: "النهارده لانا رضعت {feeds} مرات، واتغير لها البامبرز {diapers} مرات، ونامت {sleeps} مرات.",
+    hungryNow: "{child} غالبًا جعانة دلوقتي",
+    hungryNow_m: "{child} غالبًا جعان دلوقتي",
+    hungrySoon: "{child} هتجوع قريب",
+    hungrySoon_m: "{child} هيجوع قريب",
+    sleepyNow: "{child} غالبًا نعسانة دلوقتي",
+    sleepyNow_m: "{child} غالبًا نعسان دلوقتي",
+    sleepySoon: "{child} هتنعس قريب",
+    sleepySoon_m: "{child} هينعس قريب",
+    listen: "اسمعي يوم {child}",
+    todayText: "النهارده {child} رضعت {feeds} مرات، واتغير لها البامبرز {diapers} مرات، ونامت {sleeps} مرات.",
+    todayText_m: "النهارده {child} رضع {feeds} مرات، واتغير له البامبرز {diapers} مرات، ونام {sleeps} مرات.",
     asleepNow: "هي نايمة دلوقتي.",
+    asleepNow_m: "هو نايم دلوقتي.",
     awakeNow: "هي صاحية دلوقتي.",
+    awakeNow_m: "هو صاحي دلوقتي.",
   },
   ru: {
-    title: "Лана",
+    title: "{child}",
     asleep: "Спит с",
     awake: "Не спит",
     awakeSince: "Не спит с",
@@ -97,7 +117,9 @@ const STRINGS = {
     dirty: "Грязный",
     both: "Оба",
     fellAsleep: "Уснула",
+    fellAsleep_m: "Уснул",
     wokeUp: "Проснулась",
+    wokeUp_m: "Проснулся",
     note: "Заметка",
     noteHint: "Скажите или напишите, что случилось",
     save: "Сохранить",
@@ -113,21 +135,37 @@ const STRINGS = {
     listening: "Слушаю…",
     ago: "назад",
     milkInFridge: "в холодильнике",
-    hungryNow: "Лана, наверное, голодна",
+    hungryNow: "{child}, наверное, голодна",
+    hungryNow_m: "{child}, наверное, голоден",
     hungrySoon: "Скоро захочет есть",
-    sleepyNow: "Лана, наверное, хочет спать",
+    sleepyNow: "{child}, наверное, хочет спать",
     sleepySoon: "Скоро захочет спать",
     listen: "Послушать про сегодня",
-    todayText: "Сегодня Лана поела {feeds} раз, подгузник меняли {diapers} раз, она спала {sleeps} раз.",
+    todayText: "Сегодня {child} поела {feeds} раз, подгузник меняли {diapers} раз, она спала {sleeps} раз.",
+    todayText_m: "Сегодня {child} поел {feeds} раз, подгузник меняли {diapers} раз, он спал {sleeps} раз.",
     asleepNow: "Сейчас она спит.",
+    asleepNow_m: "Сейчас он спит.",
     awakeNow: "Сейчас она не спит.",
+    awakeNow_m: "Сейчас он не спит.",
   },
 } as const;
 
-export type Key = keyof (typeof STRINGS)["en"];
+export type Key = keyof (typeof STRINGS)["en"] extends infer K ? Exclude<K, `${string}_m`> : never;
 
-export function t(lang: Lang | undefined, key: Key): string {
-  return STRINGS[lang ?? "en"][key] ?? STRINGS.en[key];
+export interface Vars {
+  /** The child's name in this language. */
+  child?: string;
+  /** "Girl" or "Boy" (anything else reads as the default form). */
+  sex?: string | null;
+  [k: string]: string | number | null | undefined;
+}
+
+/** A string in the member's language with the names filled in; falls back to English. */
+export function t(lang: Lang | undefined, key: Key, vars: Vars = {}): string {
+  const table = STRINGS[lang ?? "en"] as Record<string, string>;
+  const male = /^(boy|male|m)$/i.test(String(vars.sex ?? ""));
+  const raw = (male && table[`${key}_m`]) || table[key] || (male && (STRINGS.en as Record<string, string>)[`${key}_m`]) || STRINGS.en[key];
+  return raw.replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] == null ? (k === "child" ? "the baby" : m) : String(vars[k])));
 }
 export const LANGS: { id: Lang; label: string; speech: string; dir: "ltr" | "rtl" }[] = [
   { id: "en", label: "English", speech: "en-GB", dir: "ltr" },

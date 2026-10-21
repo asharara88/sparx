@@ -9,9 +9,10 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { fmtTime } from "@/lib/time";
 import { dirOf, fmtAgo, speechLang, t, type Lang } from "@/lib/i18n";
+import { child, childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
 import { ListenButton } from "@/components/ListenButton";
-import { awakeWindow } from "@/lib/lana-insights";
+import { awakeWindow } from "@/lib/child-insights";
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 function recognitionCtor(): (new () => Recognition) | null {
@@ -21,15 +22,16 @@ function recognitionCtor(): (new () => Recognition) | null {
 }
 
 /**
- * The simple screen for a grandmother: what Lana is doing, and four huge buttons.
+ * The simple screen for a grandmother: what the child is doing, and four huge buttons.
  * Bottle (three amounts), Diaper (wet / dirty / both), Asleep or Woke up, Note (spoken or typed).
- * Every label in her language; Arabic reads right to left.
+ * Every label in the member's language; Arabic reads right to left.
  */
 export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null }) {
   const me = useMe();
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
-  const L = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const vars = { child: childName(me, lang), sex: child(me)?.sex };
+  const L = (k: Parameters<typeof t>[1]) => t(lang, k, vars);
   const { subject, types, ongoing: serverOngoing, timezone, last } = summary;
   // A sleep started with no signal is still on this phone; it counts as running.
   const [queue, setQueue] = useState<QueuedOp[]>([]);
@@ -64,7 +66,7 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const lastDiaper = last["lana.diaper"];
   const now = Date.now();
   const minutesSince = (iso: string) => (now - new Date(iso).getTime()) / 60000;
-  // Likely hungry (from how much she took last time) and likely sleepy (awake window for her age).
+  // Likely hungry (from how much the child took last time) and likely sleepy (awake window for the age).
   const hints: string[] = [];
   const due = lastFeed?.next_due ? Date.parse(lastFeed.next_due) : null;
   if (due != null) {

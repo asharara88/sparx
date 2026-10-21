@@ -6,17 +6,19 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { childPronouns } from "@/lib/names";
 
-/** Play ideas for her age, a tick each. The next age band shows below as "coming". */
+/** Play ideas for the child's age, a tick each. The next age band shows below as "coming". */
 export function Activities({ subjectId, items, compact = false }: { subjectId: string; items: Activity[]; compact?: boolean }) {
   const me = useMe();
+  const pr = childPronouns(me);
   const router = useRouter();
   const canTick = can(me, "lana", "add");
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const now = items.filter((a) => a.band === "now");
   const coming = items.filter((a) => a.band === "coming");
-  // Three a day, rotating through what she has not tried yet so the same three do not sit there for a month.
+  // Three a day, rotating through what the child has not tried yet so the same three do not sit there for a month.
   const pending = now.filter((a) => !a.done_on);
   const offset = pending.length ? (Math.floor(Date.now() / 86_400_000) * 3) % pending.length : 0;
   const shown = compact ? [...pending.slice(offset), ...pending.slice(0, offset)].slice(0, 3) : now;
@@ -64,9 +66,9 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
       <section className="card" aria-labelledby="play-h">
         <div className="flex items-baseline justify-between">
           <h2 id="play-h" className="font-semibold">
-            Play ideas for her age
+            Play ideas for {pr.their} age
           </h2>
-          <a href="/lana/activities" className="text-sm font-semibold text-[var(--accent)]">
+          <a href="/baby/activities" className="text-sm font-semibold text-[var(--accent)]">
             All ›
           </a>
         </div>
@@ -81,7 +83,7 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
   return (
     <div className="flex flex-col gap-4">
       <section className="card">
-        <h2 className="font-semibold">For her age now</h2>
+        <h2 className="font-semibold">For {pr.their} age now</h2>
         <p className="muted text-sm">
           {now.filter((a) => a.done_on).length} of {now.length} tried. Tap the tick when you have done one; tap the title for why it helps.
         </p>
@@ -103,7 +105,7 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
           </ul>
         </section>
       )}
-      <p className="muted text-xs">Ideas drawn from NHS Start for Life, AAP HealthyChildren and CDC milestones. Play is not a test: skip anything she is not in the mood for.</p>
+      <p className="muted text-xs">Ideas drawn from NHS Start for Life, AAP HealthyChildren and CDC milestones. Play is not a test: skip anything {pr.they} {pr.is} not in the mood for.</p>
     </div>
   );
 }

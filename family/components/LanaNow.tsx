@@ -12,9 +12,10 @@ import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
 import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
 import { fromLocalInput } from "@/lib/time";
+import { possessive } from "@/lib/names";
 
 /**
- * Lana's screen follows her state: asleep, awake, feeding, awake at night.
+ * The child's screen follows the child's state: asleep, awake, feeding, awake at night.
  * Every tap logs straight away. Timers are open entries (no end time yet).
  */
 type State =
@@ -76,7 +77,7 @@ export function LanaNow({
   const whenIso = whenToIso(when, now.getTime(), (l) => fromLocalInput(l, timezone));
   const nowIso = whenIso;
 
-  // ---- what is Lana doing right now?
+  // ---- what is the child doing right now?
   const openSleep = ongoing.find((e) => e.type_id === sleepType?.id);
   const openFeed = ongoing.find((e) => e.type_id === feedType?.id);
   const openWake = ongoing.find((e) => e.type_id === wakeType?.id);
@@ -245,7 +246,7 @@ export function LanaNow({
         <div className="grid grid-cols-1 gap-3">
           <Big
             onClick={() =>
-              run(isNight ? "Night wake-up started." : "Good morning, Lana.", async () => {
+              run(isNight ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
                 await end(state.entry);
                 if (isNight && wakeType) await start(wakeType, {});
               })
@@ -374,7 +375,7 @@ export function LanaNow({
         </>
       )}
 
-      {!canAdd && <p className="muted text-sm">You can see Lana's day but not log it.</p>}
+      {!canAdd && <p className="muted text-sm">You can see {possessive(subject.name)} day but not log it.</p>}
     </section>
   );
 }

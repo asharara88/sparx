@@ -70,6 +70,19 @@ export interface Household {
   hidden_modules?: string[];
 }
 
+/** A care subject by name only (no profile), visible to every member whatever their role. */
+export interface SubjectName {
+  id: string;
+  module_id: string;
+  kind: "child" | "pet";
+  name: string;
+  birth_date: string | null;
+  /** The name in other languages, e.g. { ar: "لانا", ru: "Лана" }. */
+  names: Record<string, string>;
+  /** "Girl", "Boy", or null when not set. */
+  sex: string | null;
+}
+
 export interface Me {
   ok: true;
   /** True while an admin is viewing the app as this member (read only). */
@@ -80,6 +93,8 @@ export interface Me {
   presence: Presence | null;
   work_days: number[];
   household: Household;
+  /** The child and the pet, by name. Absent from older sessions until the page reloads. */
+  subjects?: SubjectName[];
 }
 
 export interface RpcError {
@@ -285,8 +300,8 @@ export interface CalendarData {
 // ---- Step 2: shopping -------------------------------------------------------
 export const CATEGORIES = [
   { id: "groceries", label: "Groceries", icon: "🛒" },
-  { id: "baby", label: "Lana", icon: "👶" },
-  { id: "cat", label: "Fanta", icon: "🐈" },
+  { id: "baby", label: "Baby", icon: "👶" },
+  { id: "cat", label: "Pet", icon: "🐈" },
   { id: "home", label: "Home", icon: "🏠" },
   { id: "adult", label: "Supplements", icon: "💪" },
 ] as const;
@@ -449,7 +464,7 @@ export interface ShoppingProposal {
   item_id: string | null;
   item_name: string;
   note: string | null;
-  /** needed: tick an existing item · new: add to the list · request: Lilly's queue */
+  /** needed: tick an existing item · new: add to the list · request: the staff running-low queue */
   via: "needed" | "new" | "request";
 }
 
@@ -461,7 +476,7 @@ export interface AssistantProposal {
   care_entry?: CareEntryProposal;
   calendar_event?: CalendarEventProposal;
   shopping?: ShoppingProposal;
-  /** A fact for the helper to keep ("Lana takes a bottle better when it is warm"). */
+  /** A fact for the helper to keep ("the baby takes a bottle better when it is warm"). */
   memory?: { body: string };
   /** A remembered fact to drop, because it is wrong or out of date. */
   forget?: { id: string; body: string };

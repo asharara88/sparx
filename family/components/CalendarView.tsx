@@ -84,7 +84,7 @@ export function CalendarView({
             {due
               .filter((d) => d.due_on === day.date.slice(0, 10))
               .map((d) => (
-                <Link key={d.label + d.due_at} href={d.kind === "vaccine" ? "/lana/vaccines" : "/lana"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
+                <Link key={d.label + d.due_at} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
                   {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
                 </Link>
               ))}
@@ -250,7 +250,7 @@ function EventForm({
           </button>
         </div>
       )}
-      {staffKind && <p className="muted text-sm">Guests, deliveries and contractor visits are always shown to Lilly.</p>}
+      {staffKind && <p className="muted text-sm">Guests, deliveries and contractor visits are always shown to staff.</p>}
       <div className="flex flex-wrap gap-2" role="group" aria-label="Repeat">
         {(["none", "daily", "weekly"] as const).map((r) => (
           <button key={r} type="button" className="chip" aria-pressed={repeat === r} onClick={() => setRepeat(r)}>

@@ -3,6 +3,7 @@ import type { ToolContext } from "./tools";
 import { local } from "./tools";
 import { can } from "@/lib/types";
 import { fmtDate } from "@/lib/time";
+import { childName, possessive } from "@/lib/names";
 import { coreBlock, routedBlock, skillIndex } from "./skills";
 import { recapsBlock } from "./memory";
 
@@ -13,48 +14,70 @@ import { recapsBlock } from "./memory";
  *     on the clock or the question.
  *  2. skills (cached 5 min): the skills the router picked for this question.
  *     A thread about sleep keeps hitting the same block.
- *  3. volatile (never cached): the time, who is asking, where she is right
- *     now (the situation snapshot) and which screen they came from.
+ *  3. volatile (never cached): the time, who is asking, where the child is
+ *     right now (the situation snapshot) and which screen they came from.
  */
 
-const MODULE_LABELS: Record<string, string> = {
-  members: "members and presence",
-  lana: "Lana's log (feeds, sleep, diapers, medicine, growth)",
-  calendar: "the calendar",
-  calendar_family: "family-only calendar events",
-  shopping: "the shopping list",
-  shopping_review: "the running-low review queue",
-  shopping_requests: "running-low requests",
-  photos: "photos",
-  assistant: "the assistant",
-  audit: "the audit log",
-};
+/** The child's name: from the subjects this member may see, else from me() (visible to everyone). */
+function namesOf(ctx: ToolContext): { child: string } {
+  return {
+    child: ctx.subjects.find((s) => s.kind === "child")?.name ?? childName(ctx.me),
+  };
+}
 
-const SCREEN_LABELS: Record<string, string> = {
-  home: "the Home screen",
-  lana: "Lana's Today screen",
-  patterns: "Lana's Patterns screen (sleep and feed patterns)",
-  milk: "the Milk stash screen",
-  plan: "the coach plan card",
-  calendar: "the calendar",
-  shopping: "the shopping list",
-  house: "the House screen",
-  simple: "the simple home screen (large buttons, their own language)",
-};
+function moduleLabels(ctx: ToolContext): Record<string, string> {
+  const { child } = namesOf(ctx);
+  return {
+    members: "members and presence",
+    lana: `${possessive(child)} log (feeds, sleep, diapers, medicine, growth)`,
+    calendar: "the calendar",
+    calendar_family: "family-only calendar events",
+    shopping: "the shopping list",
+    shopping_review: "the running-low review queue",
+    shopping_requests: "running-low requests",
+    photos: "photos",
+    assistant: "the assistant",
+    audit: "the audit log",
+  };
+}
+
+function screenLabels(ctx: ToolContext): Record<string, string> {
+  const { child } = namesOf(ctx);
+  return {
+    home: "the Home screen",
+    lana: `${possessive(child)} Today screen`,
+    patterns: `${possessive(child)} Patterns screen (sleep and feed patterns)`,
+    milk: "the Milk stash screen",
+    plan: "the coach plan card",
+    calendar: "the calendar",
+    shopping: "the shopping list",
+    house: "the House screen",
+    simple: "the simple home screen (large buttons, their own language)",
+  };
+}
+
+/** "Mido (Parent, admin)", "Wafa (Mido's mother, family carer)", "Lilly (staff)". */
+function describePerson(p: ToolContext["people"][number]): string {
+  const role = p.role.toLowerCase();
+  return `${p.name} (${[p.relationship, role].filter(Boolean).join(", ")})`;
+}
 
 export function stableSystem(ctx: ToolContext): string {
   const me = ctx.me;
   const hh = me.household;
+  const MODULE_LABELS = moduleLabels(ctx);
   const visible = Object.keys(MODULE_LABELS).filter((m) => can(me, m, "view"));
   const hidden = Object.keys(MODULE_LABELS).filter((m) => !can(me, m, "view") && m !== "assistant");
   const subjects = ctx.subjects
     .map((s) => {
       const ts = ctx.types.filter((t) => t.module_id === s.module_id);
       const born = s.birth_date ? `, born ${s.birth_date}` : "";
-      return `- ${s.name} (${s.kind === "child" ? "the baby" : "the cat"}${born}; module "${s.module_id}"). Entry types: ${ts.map((t) => `${t.id}=${t.label}`).join(", ")}.`;
+      const what = s.kind === "child" ? "the child" : "the pet";
+      return `- ${s.name} (${what}${born}; module "${s.module_id}"). Entry types: ${ts.map((t) => `${t.id}=${t.label}`).join(", ")}.`;
     })
     .join("\n");
   const hasChild = ctx.subjects.some((s) => s.kind === "child");
+  const people = ctx.people.map(describePerson).join(", ");
 
   return `You are the household helper for ${hh.name}. You talk to one member of the household at a time on their phone, often one-handed, sometimes at 3 am, sometimes aged 70. Plain English, short sentences, no jargon, no emojis in sentences. Answer first, detail after.
 
@@ -64,20 +87,20 @@ What you know about the house comes ONLY from the tools and the situation lines 
 3. Times are in the household timezone (${hh.timezone}). Say clock times like 14:10 and relative times like "2 h ago". Today's date is in the context below; do not assume another.
 4. You can only use the tools listed. You may see: ${visible.map((m) => MODULE_LABELS[m]).join("; ")}.${
     hidden.length
-      ? ` You may NOT see: ${hidden.map((m) => MODULE_LABELS[m]).join("; ")}. If asked about any of those, say plainly that it is not shared with the "${me.role.label}" role, and to ask Mido or Dana. Do not hint at what it might contain.`
+      ? ` You may NOT see: ${hidden.map((m) => MODULE_LABELS[m]).join("; ")}. If asked about any of those, say plainly that it is not shared with the "${me.role.label}" role, and to ask an admin. Do not hint at what it might contain.`
       : ""
   }
 5. You never save anything yourself. When asked to log, add, note, record or flag something, call the matching propose_* tool once with the details, then say what you prepared and that they should tap Confirm. If something needed is missing (which breast, how many ml, which kind), ask one short question instead of proposing. If you are not offered a propose tool, say you can only read for this role.
-6. The situation lines in the context already hold the latest state (asleep or awake, last feed, next due, today's counts). Use them for "is she asleep" and "when is the next feed" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs.
+6. The situation lines in the context already hold the latest state (asleep or awake, last feed, next due, today's counts). Use them for "is the baby asleep" and "when is the next feed" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs.
 7. Speech is transcribed: "120 mil" means 120 ml, "left boob" means breastfeed on the left, "poo" means a dirty diaper, "both" means wet and dirty. Resolve these quietly.
 8. Keep answers under about 80 words unless asked for a summary or coaching. Lists are fine. Never pad. In a conversation, build on what was said before; do not repeat the situation back unless asked.
 9. Health questions: report what the log says and coach from the skills; no diagnoses, no medicine names or doses; red flags go to the doctor.
-10. Match the person: the grandmothers get one clear thing to do in their language; the parents get the why too. If a question is outside the skills and the log (the news, a recipe, homework), say in one line that you only help with the house and ${hasChild ? "the baby" : "the family"}.
+10. Match the person: carers and staff get one clear thing to do in their language; the parents and admins get the why too. If a question is outside the skills and the log (the news, a recipe, homework), say in one line that you only help with the house and ${hasChild ? "the baby" : "the family"}.
 
 People and logs you may see:
-${subjects || "- (no child or pet logs are shared with this role)"}
-Members use their first names: Mido and Dana (the parents, admins), Wafa and Luda (the grandmothers, family carers), Lilly (the home carer, staff).${
-    ctx.routines.length ? `\n\nRoutines the family told us (use them for "is Dana home", "when is she back"; the log and calendar win if they disagree):\n${ctx.routines.map((r) => `- ${r.name}: ${r.routine}`).join("\n")}` : ""
+${subjects || "- (the child's log is not shared with this role)"}
+Members use their first names${people ? `: ${people}` : ""}.${
+    ctx.routines.length ? `\n\nRoutines the family told us (use them for "is someone home", "when are they back"; the log and calendar win if they disagree):\n${ctx.routines.map((r) => `- ${r.name}: ${r.routine}`).join("\n")}` : ""
   }${hh.notes ? `\n\nHousehold notes: ${hh.notes}` : ""}${
     hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day.` : ""
   }${
@@ -91,6 +114,7 @@ export function skillsSystem(ctx: ToolContext): string {
 
 export function volatileSystem(ctx: ToolContext): string {
   const me = ctx.me;
+  const SCREEN_LABELS = screenLabels(ctx);
   const nowLocal = local(ctx.now.toISOString(), ctx.tz);
   const weekday = fmtDate(ctx.now.toISOString(), ctx.tz, { weekday: "long" });
   const lang = me.member.lang === "ar" ? " Answer in simple Arabic (keep numbers, times and names as they are)." : me.member.lang === "ru" ? " Answer in simple Russian (keep numbers, times and names as they are)." : "";

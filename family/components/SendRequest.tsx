@@ -63,7 +63,7 @@ export function SendRequest({
       });
       const res = data as { ok: boolean; message?: string } | null;
       if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not send.");
-      setDone("Sent. Mido or Dana will see it.");
+      setDone("Sent. An admin will see it.");
       setFile(null);
       setNote("");
       if (fileRef.current) fileRef.current.value = "";

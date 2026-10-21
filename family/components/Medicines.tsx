@@ -11,7 +11,7 @@ import { Icon } from "@/components/Icon";
 
 /**
  * Each medicine with the hours that must pass between doses. "Given" logs it in
- * Lana's log; if the gap has not passed the button asks a second time and says
+ * the child's log; if the gap has not passed the button asks a second time and says
  * when the next dose is allowed. The app only checks the gap, never the amount.
  */
 export function Medicines({ subjectId, items, timezone, compact = false }: { subjectId: string; items: Medicine[]; timezone: string; compact?: boolean }) {
@@ -72,7 +72,7 @@ export function Medicines({ subjectId, items, timezone, compact = false }: { sub
           Medicine
         </h2>
         {compact ? (
-          <Link href="/lana/medicine" className="text-sm font-semibold text-[var(--accent)]">
+          <Link href="/baby/medicine" className="text-sm font-semibold text-[var(--accent)]">
             All medicine ›
           </Link>
         ) : (

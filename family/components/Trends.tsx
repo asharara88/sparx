@@ -3,10 +3,12 @@ import { GrowthChart } from "@/components/GrowthChart";
 import { useMemo, useState } from "react";
 import type { DailyStats, DayStats } from "@/lib/types";
 import { fmtDuration } from "@/lib/time";
+import { useMe } from "@/lib/me-context";
+import { childName, childPronouns } from "@/lib/names";
 import { AgeCheck } from "./AgeCheck";
 
 /**
- * Lana's trends: sleep, nights, feeds, diapers and weight, one bar per day.
+ * The child's trends: sleep, nights, feeds, diapers and weight, one bar per day.
  * Plain SVG, no chart library. Nights belong to the day they start on.
  */
 const RANGES = [
@@ -20,6 +22,7 @@ const h = (min: number) => `${(min / 60).toFixed(1)} h`;
 const mean = (days: DayStats[], k: keyof DayStats) => avg(days.map((d) => Number(d[k] ?? 0)));
 
 export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: string; birthDate: string | null }) {
+  const me = useMe();
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("2w");
   const span = RANGES.find((r) => r.key === range)!.days;
   const all = stats.days;
@@ -81,8 +84,9 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           birthDate={birthDate}
           day={thisWeek[thisWeek.length - 1].day}
           complete
-          title="This week against her age"
+          title={`This week against ${childPronouns(me).their} age`}
           subtitle="Average per day over the last 7 full days."
+          name={childName(me)}
         />
       )}
 

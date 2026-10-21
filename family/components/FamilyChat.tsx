@@ -10,8 +10,8 @@ import { Photo } from "./Photo";
 
 /**
  * One shared stream for the whole house: short messages and photos. Polls every
- * few seconds while the tab is visible, so a photo Lilly posts shows up on
- * Dana's phone without a refresh. Anyone deletes their own; admins delete any.
+ * few seconds while the tab is visible, so a photo the home carer posts shows up on
+ * a parent's phone without a refresh. Anyone deletes their own; admins delete any.
  */
 export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessage[]; timezone: string; canPost: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initial);

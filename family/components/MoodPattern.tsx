@@ -5,7 +5,7 @@ const GOOD = new Set(["Happy", "Calm"]);
 
 /**
  * Mood against sleep, day by day: the faces tapped each day beside how much
- * she slept, and the plain reading of the two together.
+ * the child slept, and the plain reading of the two together.
  */
 export function MoodPattern({ entries, days, stats, timezone }: { entries: EntryRow[]; days: string[]; stats: DayStats[]; timezone: string }) {
   const dayOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
@@ -27,8 +27,8 @@ export function MoodPattern({ entries, days, stats, timezone }: { entries: Entry
     const share = (xs: typeof rows) => xs.reduce((a, r) => a + r.good, 0) / Math.max(1, xs.reduce((a, r) => a + r.n, 0));
     const lo = share(lowSleep);
     const hi = share(highSleep);
-    if (hi - lo >= 0.25) reading = `On her shorter-sleep days ${Math.round(lo * 100)}% of taps were happy or calm; on longer-sleep days ${Math.round(hi * 100)}%. Sleep shows in her mood.`;
-    else if (lo - hi >= 0.25) reading = `Her happier days were not her longer-sleep days this week; something else sets her mood more than sleep right now.`;
+    if (hi - lo >= 0.25) reading = `On the shorter-sleep days ${Math.round(lo * 100)}% of taps were happy or calm; on longer-sleep days ${Math.round(hi * 100)}%. Sleep shows in the mood.`;
+    else if (lo - hi >= 0.25) reading = `The happier days were not the longer-sleep days this week; something else sets the mood more than sleep right now.`;
     else reading = `Mood and sleep moved together only loosely this week.`;
   }
   const fmt = (min: number | null) => (min == null ? "" : `${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ""}`.trim());
@@ -57,7 +57,7 @@ export function MoodPattern({ entries, days, stats, timezone }: { entries: Entry
           ))}
         </tbody>
       </table>
-      <p className="muted mt-2 text-sm">{reading ?? "Tap her mood a few times a day for three days or more and the pattern shows here."}</p>
+      <p className="muted mt-2 text-sm">{reading ?? "Tap the mood a few times a day for three days or more and the pattern shows here."}</p>
     </section>
   );
 }

@@ -5,7 +5,7 @@ import { CustodyToggle } from "./CustodyToggle";
 import { ProfileMenu } from "./ProfileMenu";
 import { Mark } from "./Brand";
 
-/** Lana at the top of Home: her photo, her age, who has her, and your own menu. */
+/** The child at the top of Home: photo, age, who has the child, and your own menu. */
 export function LanaHero({ summary, me, today, dateLine }: { summary: HomeSummary; me: Me; today: string; dateLine: string }) {
   const s = summary.subject;
   const photo = (s.profile?.photo_path as string | undefined) ?? null;

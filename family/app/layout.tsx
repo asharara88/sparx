@@ -5,7 +5,7 @@ import { RegisterSW } from "@/components/RegisterSW";
 export const metadata: Metadata = {
   metadataBase: new URL("https://elnunu.com"),
   title: "elnunu",
-  description: "elnunu: care, together. A shared view of your baby's day: Lana's log, the helper, who is home, and the house.",
+  description: "elnunu: care, together. A shared view of your baby's day: the little one's log, the helper, who is home, and the house.",
   manifest: "/manifest.webmanifest",
   applicationName: "elnunu",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "elnunu" },

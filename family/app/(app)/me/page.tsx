@@ -35,7 +35,7 @@ export default async function MePage() {
         <div className="card">
           <h2 className="text-lg font-semibold">Your work days</h2>
           <p className="mt-1">{me.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>
-          <p className="muted text-sm">Ask Mido or Dana to change these.</p>
+          <p className="muted text-sm">Ask an admin to change these.</p>
         </div>
       )}
       {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "assistant", "view") || can(me, "notes", "view") || can(me, "shopping", "view")) && (
@@ -43,14 +43,14 @@ export default async function MePage() {
           {can(me, "shopping", "view") && <Tile href="/shopping" icon="cart" label="Shopping" />}
           {can(me, "assistant", "view") && <Tile href="/ask" icon="chat" label="Ask" />}
           {can(me, "notes", "view") && <Tile href="/notes" icon="note" label="Notes" />}
-          {can(me, "lana", "view") && <Tile href="/lana/milk" icon="bottle" label="Milk stash" />}
-          {can(me, "lana", "view") && <Tile href="/lana/vaccines" icon="syringe" label="Vaccines" />}
-          {can(me, "lana", "view") && <Tile href="/lana/medicine" icon="clock" label="Medicine" />}
-          {can(me, "lana", "view") && <Tile href="/lana/activities" icon="sparkles" label="Play" />}
-          {can(me, "lana", "view") && <Tile href="/lana/doctor" icon="phone" label="Doctor" />}
+          {can(me, "lana", "view") && <Tile href="/baby/milk" icon="bottle" label="Milk stash" />}
+          {can(me, "lana", "view") && <Tile href="/baby/vaccines" icon="syringe" label="Vaccines" />}
+          {can(me, "lana", "view") && <Tile href="/baby/medicine" icon="clock" label="Medicine" />}
+          {can(me, "lana", "view") && <Tile href="/baby/activities" icon="sparkles" label="Play" />}
+          {can(me, "lana", "view") && <Tile href="/baby/doctor" icon="phone" label="Doctor" />}
           {can(me, "assistant", "view") && <Tile href="/ask/memory" icon="sparkles" label="Helper memory" />}
           {can(me, "assistant", "edit") && <Tile href="/ask/skills" icon="clipboard" label="Helper skills" />}
-          {can(me, "lana", "view") && <Tile href="/lana/emergency" icon="bell" label="Emergency" />}
+          {can(me, "lana", "view") && <Tile href="/baby/emergency" icon="bell" label="Emergency" />}
           {can(me, "members", "edit") && <Tile href="/members" icon="users" label="Members" />}
           {can(me, "audit", "view") && <Tile href="/audit" icon="clipboard" label="Audit log" />}
         </div>

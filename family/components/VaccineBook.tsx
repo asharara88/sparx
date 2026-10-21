@@ -85,7 +85,7 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
 
   return (
     <div className="flex flex-col gap-3">
-      {!data.birth_date && <p className="notice notice-warn">Add her date of birth on her profile and the dates will fill in.</p>}
+      {!data.birth_date && <p className="notice notice-warn">Add the date of birth on the profile and the dates will fill in.</p>}
       <section className="card flex items-center gap-3">
         <Icon name="syringe" size={24} className="shrink-0" />
         <div className="flex-1">

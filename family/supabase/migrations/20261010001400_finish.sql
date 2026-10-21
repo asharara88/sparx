@@ -56,9 +56,7 @@ begin
   );
 end $$;
 
--- Dana: 8:30 out, 17:30 back (her routine says so).
-insert into public.members (id, display_name, role_id) values ('00000000-0000-4000-8000-000000000002', 'Dana', 'admin')
-on conflict (id) do update set work_from = coalesce(public.members.work_from, '08:30'), work_to = coalesce(public.members.work_to, '17:30');
+-- Work hours per member are household data (Members → Work days, or setup-household.mjs).
 
 -- ---------------------------------------------------------------------------
 -- 2. The handover bag: a checklist that resets for the next outing

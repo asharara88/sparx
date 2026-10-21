@@ -22,7 +22,7 @@ function recognitionCtor(): (new () => Recognition) | null {
 }
 
 /**
- * One mic on Home: say "she drank 90 ml" or "wet nappy" and it goes to Ask,
+ * One mic on Home: say "drank 90 ml" or "wet nappy" and it goes to Ask,
  * which prepares the entry for a one-tap Confirm. Nothing is saved from here.
  */
 export function SayIt() {

@@ -16,5 +16,8 @@ for f in migrations/*.sql; do
   echo "== $f"
   $PSQL -v ON_ERROR_STOP=1 -q -f "$f"
 done
+# The household the checks act as (the live project gets its own from scripts/setup-household.mjs).
+echo "== tests/01_test_household.sql"
+$PSQL -v ON_ERROR_STOP=1 -q -f tests/01_test_household.sql
 echo "== tests/rls_test.sql"
 $PSQL -v ON_ERROR_STOP=1 -f tests/rls_test.sql

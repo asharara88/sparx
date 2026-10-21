@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { EntryRow, HomeSummary } from "@/lib/types";
 import { ago, fmtTime } from "@/lib/time";
+import { possessive } from "@/lib/names";
 import { CustodyToggle } from "./CustodyToggle";
 import { LanaNow } from "./LanaNow";
 import { DayStrip } from "./DayStrip";
@@ -50,19 +51,19 @@ export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSum
           {milk.pumped > 0 ? ` · about ${Math.max(0, milk.pumped - milk.given)} ml left` : ""}
         </p>
       )}
-      <DayStrip entries={recent} day={today} timezone={timezone} nowIso={now.toISOString()} title="Lana's day so far" />
+      <DayStrip entries={recent} day={today} timezone={timezone} nowIso={now.toISOString()} title={`${possessive(subject.name)} day so far`} />
 
       <div className="grid grid-cols-4 gap-2">
-        <Link href="/lana/milk" className="btn">
+        <Link href="/baby/milk" className="btn">
           Milk
         </Link>
-        <Link href="/lana" className="btn">
+        <Link href="/baby" className="btn">
           Day by day
         </Link>
-        <Link href="/lana/trends" className="btn">
+        <Link href="/baby/trends" className="btn">
           Trends
         </Link>
-        <Link href="/lana/handover" className="btn">
+        <Link href="/baby/handover" className="btn">
           Handover
         </Link>
       </div>
@@ -73,7 +74,7 @@ export function LanaCard({ summary, recent, lastMilk, milk }: { summary: HomeSum
           .map((t, i) => (
             <span key={t.id}>
               {i > 0 ? " · " : ""}
-              <Link href={`/lana/log/${t.key}`} className="underline">
+              <Link href={`/baby/log/${t.key}`} className="underline">
                 {t.icon} {t.label}
               </Link>
             </span>

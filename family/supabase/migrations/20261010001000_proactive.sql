@@ -344,8 +344,5 @@ begin
 end $$;
 grant execute on function public.member_save(uuid, text, text, text, date, text, boolean, text) to authenticated, service_role;
 
--- What the family told us so far (editable in Members → Household).
-update public.members set routine = 'Works 9 to 5 on weekdays, about 30 minutes each way. Up around 7, out of the house by 8:30. In that window: a 10–15 minute morning walk (longer if she is up earlier), about 30 minutes to get ready, and she pumps and feeds Lana before leaving. The morning pump is when we know how many bottles are in the fridge for the day.'
- where id = '00000000-0000-4000-8000-000000000002' and routine is null;
-update public.household set notes = 'We aim to have about 400 ml of pumped milk in the fridge for the day. That is usually more than Lana needs; the extra is a safety margin.'
- where notes is null;
+-- Routines and household notes are what the family tells the app (Members → Household,
+-- or setup-household.mjs); no starting text here.

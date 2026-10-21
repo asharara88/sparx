@@ -368,7 +368,7 @@ declare
 begin
   if not public.has_permission('shopping', 'edit') then
     perform private.audit_write('shopping', 'edit', false, 'receipts', p_id::text);
-    return private.denied('Only Mido or Dana can apply a receipt to the list.');
+    return private.denied('Only an admin can apply a receipt to the list.');
   end if;
   -- Lock the receipt: a double tap or a retry waits here, then sees 'applied' and is refused.
   select * into v_r from public.receipts where id = p_id for update;
@@ -474,7 +474,7 @@ declare
 begin
   if not public.has_permission('shopping', 'edit') then
     perform private.audit_write('shopping', 'edit', false, 'cart_runs', p_id::text);
-    return private.denied('Only Mido or Dana can close a cart.');
+    return private.denied('Only an admin can close a cart.');
   end if;
   select * into v_run from public.cart_runs where id = p_id for update;
   if v_run.id is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { AskChat, Me } from "@/lib/types";
 import { can } from "@/lib/types";
+import { childName } from "@/lib/names";
 import { Assistant } from "@/components/Assistant";
 
 export const dynamic = "force-dynamic";
@@ -14,13 +15,14 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
     return (
       <div className="card mt-4">
         <h1 className="page-title">Ask</h1>
-        <p className="mt-2">The assistant is not switched on for your role. Ask Mido or Dana.</p>
+        <p className="mt-2">The assistant is not switched on for your role. Ask an admin.</p>
       </div>
     );
   }
+  const child = childName(me);
   const s: string[] = [];
   if (q && q.trim()) s.push(q.trim().slice(0, 200));
-  if (can(me, "lana", "view")) s.push("When did Lana last feed?", "How did Lana sleep last night?");
+  if (can(me, "lana", "view")) s.push(`When did ${child} last feed?`, `How did ${child} sleep last night?`);
   if (can(me, "calendar", "view")) s.push("Who's home on Thursday?", "What's on tomorrow?");
   if (can(me, "shopping", "view") || can(me, "shopping_requests", "add")) s.push("What's running low?");
   if (can(me, "assistant", "add") && can(me, "lana", "add")) s.push("Log a 120 ml bottle now");

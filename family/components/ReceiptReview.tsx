@@ -185,7 +185,7 @@ export function ReceiptReview({ detail, items, stores }: { detail: ReceiptDetail
         </p>
       )}
       {!locked && lines.length > 0 && (
-        <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={apply} disabled={busy !== null || !canEdit} title={canEdit ? "" : "Only Mido or Dana can apply a receipt"}>
+        <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={apply} disabled={busy !== null || !canEdit} title={canEdit ? "" : "Only an admin can apply a receipt"}>
           Apply to the list ({matched} {matched === 1 ? "item" : "items"})
         </button>
       )}

@@ -10,7 +10,7 @@ import { ago } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 
 /**
- * The notes board: short notes for the house ("Lana liked the pear", "plumber Thursday").
+ * The notes board: short notes for the house ("the baby liked the pear", "plumber Thursday").
  * "Just for me" keeps a note private to its author (a grandmother's own log).
  * compact = the home-screen card: a few notes and a quick line to add one.
  */

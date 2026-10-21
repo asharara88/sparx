@@ -6,12 +6,16 @@ is the state of play and the things only someone with the accounts can do.
 
 ## What it is
 
-A private app for one household's day: the baby's log (feeds, sleep, nappies,
+A private app for a household's day: the baby's log (feeds, sleep, nappies,
 growth, medicine), who is home, the helper, the milk stash, and a Claude-powered
-assistant that answers questions and proposes entries. Five people use it: two
-parents, two grandmothers and the home carer. It is a Next.js 16 PWA on Vercel with
-a Supabase Postgres behind it. It is not a product; there is no sign-up, no
-marketing, no second household.
+assistant that answers questions and proposes entries. In the first household five
+people use it: two parents, two grandmothers and the home carer. It is a Next.js 16
+PWA on Vercel with a Supabase Postgres behind it. It is not a product with sign-up or
+marketing; it is one deployment per family. Since migration 3500 the code knows no
+family: a household (its name, members, the child, a pet) is written to its own
+Supabase project by `scripts/setup-household.mjs` from a `household.json`, and every
+screen takes the names from the data. A second family gets its own Supabase project
+and Vercel project from the same repo (README, "A copy for another family").
 
 ## Where everything lives
 
@@ -19,17 +23,18 @@ marketing, no second household.
 |---|---|
 | Code | `asharara88/sparx`, folder `family` (the repo root holds unrelated pipeline work) |
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
-| Current address | `https://sparx-tsom.vercel.app` |
-| Intended address | `https://elnunu.com` (registered, not yet attached) |
+| Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 33 files, applied in filename order |
+| Migrations | `supabase/migrations`, 35 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
 
 1. Branch from `main`, change files under `family`, open a pull request.
-2. Vercel builds a preview; the `test` GitHub check runs the unit tests.
-3. Squash-merge to `main`. Vercel deploys production.
+2. Vercel builds a preview; the `family` GitHub check runs the typecheck, the unit tests
+   and the whole migrations folder plus the database checks against a fresh Postgres
+   (`test` is the unrelated pipeline at the repo root).
+3. Merge to `main`. Vercel deploys production.
 4. On that same push the **Supabase GitHub integration** applies any new file in
    `supabase/migrations` to the live database. The check is called
    *Supabase Preview*. Watch it: a green merge with a failed Supabase check means
@@ -59,29 +64,40 @@ Done and live:
   assistant with skills and memory, push notifications, the daily cron.
 - Branding as elnunu, plum and ivory, self-hosted fonts, icons and manifest.
 - The full Lovable history, 5 June to 20 October, imported as real entries
-  (migration `…3200`). The family's earlier playground app can be closed.
+  (migration `…3200` at the time; the data is in the project and its nightly
+  backups, the file is now a stub). The family's earlier playground app can be closed.
 - Shopping switched off for the household (migration `…3300`). The code is still
   there; only the switch is off.
 - Fanta the cat, the house (tickets, appliances, contractors) and the Home Assistant
   hub are **deleted from the app**. The app is baby care only. Their database tables
   still exist and hold the old rows; nothing reads them.
+- elnunu.com attached. CI runs the database checks on every pull request.
+- Timers go through the offline queue; one open timer per type; custody expires
+  after 12 hours (migration `…3400`).
+- Any household: the first family's rows were taken out of the migrations (members,
+  the child, the doctor, the history, the shopping list, routines) and the
+  schema seeds only shared data. The live project still holds all of it, because
+  those migrations had already run there. Editing applied migrations is otherwise
+  never done; this was the one deliberate exception, to get personal data out of
+  the repo. Git history still contains the old files: if the repo is ever shared
+  with another family, rewrite history or start a fresh repo.
 
 Open:
 
-- **elnunu.com is not attached.** Steps are in `../README.md` under
-  "Domain: elnunu.com". Needs the Vercel dashboard, the registrar's DNS, and the
-  Supabase auth URL settings. Nothing in the code hard-codes a host.
 - **Cron runs once a day.** Vercel's free plan allows one daily schedule. The
   "often" cron (nap reminders through the day) exists in the code and needs Pro.
 - **The assistant eval has never been run** against the deployed app. It costs
   real model calls: `EVAL_URL=… npm run eval:assistant` with `CRON_SECRET` set.
-- **No CI job runs the database tests.** They pass locally
-  (`supabase/tests/run-local.sh`, needs Postgres 16 and a `postgres` user) but
-  nothing runs them on a pull request.
-- Groceries (the shopping list, receipts, the cart, Lilly's requests) is the last
-  non-baby area still in the code. Removing it is entangled with the Send screen and
-  the assistant's shopping tools, so it was left for a second pass.
-- The dropped tables (tickets, assets, contractors, Fanta's subject and entries,
+- **Confirm e-mail.** The sign-up trigger links an auth user to a member row by
+  e-mail at the moment the auth row is created, before any confirmation. Keep
+  "Confirm email" on in Supabase Auth, or switch public sign-ups off and create
+  accounts with `setup-household.mjs --accounts`. Not yet confirmed in the dashboard.
+- **View-as hardening** (next PR): a few own-row RPCs (remove note, chat, memory;
+  photo; push subscription) still accept the previewed member as "me".
+- Groceries (the shopping list, receipts, the cart, the home carer's requests) is
+  the last non-baby area still in the code. Removing it is entangled with the Send
+  screen and the assistant's shopping tools, so it was left for a second pass.
+- The dropped tables (tickets, assets, contractors, the pet's subject and entries,
   hub entities) could be removed with a new migration once nobody wants the history.
 
 ## Access, and what is currently broken
@@ -94,7 +110,7 @@ do on its own.
 | GitHub | Works. Branches, pull requests, merges, check statuses. |
 | Supabase GitHub integration | Works. This is how migrations reach the live database. |
 | Supabase connector (direct SQL) | **Broken.** Every call returns "You do not have permission to perform this action". The connected account no longer sees the organisation that owns `home`. |
-| Vercel connector | **Broken for this project.** The token's account lists zero teams, so the team holding `sparx-tsom` returns 403. Domains, env vars and logs cannot be read or changed. |
+| Vercel connector | **Read-only, partly.** It lists the team's projects, domains and deployments, but environment variables and integrations return 403 ("no permission"): a scope the connector install lacks, not a team grant. Env vars have to be changed by a person. |
 | Browser control | Not available. Sessions run in a cloud container with no connection to anyone's browser. |
 
 To repair the two connectors: claude.ai, Settings, Connectors, reconnect Supabase
@@ -120,7 +136,7 @@ npm run dev                     # http://localhost:3000
 Checks before any push:
 
 ```bash
-npm test                        # 56 unit tests, no network
+npm test                        # unit tests, no network
 npx tsc --noEmit
 npx next build
 ```
@@ -132,17 +148,23 @@ service postgresql start
 su postgres -c "cd $PWD && ./supabase/tests/run-local.sh"
 ```
 
-They build a scratch database called `family_test`, apply every migration, then
-assert the permission rules by acting as each member. The last line prints the
-number of assertions and the number of policies exercised.
+They build a scratch database called `family_test`, apply every migration, load the
+test household (`supabase/tests/01_test_household.sql`: Mido, Dana, Wafa, Luda, Lilly,
+Lana and Fanta with fixed ids, the household every check acts as), then assert the
+permission rules by acting as each member. The same run is the `family` CI job.
 
-Note for migration authors: `…3200` is guarded by
-`if current_database() = 'family_test' then return;` so the half-megabyte history
-import does not slow the test run. Follow that pattern for any other bulk data.
+Note for migration authors: bulk data does not belong in a migration. A household's
+own data goes through `setup-household.mjs`; the test household lives in `tests/`.
 
 ## Conventions worth keeping
 
-- No names of family members in code. Members are rows; the seed names them once.
+- No names of family members, the child or the pet in code or in migrations. Members
+  and care subjects are rows written by `setup-household.mjs`; screens take names
+  from `me.subjects` through `lib/names.ts` (`childName`, `petName`, `possessive`,
+  `childPronouns`), and the simple screen's strings take `{child}` from `t(lang, key,
+  vars)` with gendered Arabic and Russian variants. The internal module ids `lana`
+  (child) and `fanta` (pet) and the entry-type ids `lana.feed` and so on are keys,
+  not names; they stay.
 - Every schema change is a new migration file. Never edit an applied one.
 - New writes get an RPC with a permission check, not a table policy alone.
 - Pure logic goes in `lib/` with a `.test.ts` beside it and no `@/` imports, so the
@@ -152,6 +174,6 @@ import does not slow the test run. Follow that pattern for any other bulk data.
 ## If you are an assistant session picking this up
 
 Work in `family`. Open a draft pull request, wait for the Vercel status and the
-`test` check on the head commit, then squash-merge and confirm the *Supabase
-Preview* check on the merge commit. The owner's standing instruction is to merge
-without asking once both are green, and not to paste preview links into replies.
+`family` check on the head commit, then merge and confirm the *Supabase Preview*
+check on the merge commit. The owner's standing instruction is to merge without
+asking once both are green, and not to paste preview links into replies.

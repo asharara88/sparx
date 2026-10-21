@@ -171,7 +171,7 @@ begin
   select * into v_member from public.members where user_id = auth.uid() and is_active;
   if v_member.id is null then
     return jsonb_build_object('ok', false, 'error', 'no_member',
-      'message', 'Your e-mail is not on the household list yet. Ask Mido or Dana to add you.');
+      'message', 'Your e-mail is not on the household list yet. Ask an admin to add you.');
   end if;
   return jsonb_build_object(
     'ok', true,

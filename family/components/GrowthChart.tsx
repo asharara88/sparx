@@ -7,8 +7,8 @@ const LABEL: Record<GrowthKind, { title: string; unit: string }> = {
 };
 
 /**
- * Her measurements on the WHO girls' curves: the 3rd to 97th percentile band,
- * the median, and her points, with the percentile of the latest one.
+ * The child's measurements on the WHO girls' curves: the 3rd to 97th percentile band,
+ * the median, and the child's points, with the percentile of the latest one.
  */
 export function GrowthChart({ kind, points, birthDate }: { kind: GrowthKind; points: { day: string; value: number }[]; birthDate: string }) {
   const c = GIRLS[kind];
@@ -38,7 +38,7 @@ export function GrowthChart({ kind, points, birthDate }: { kind: GrowthKind; poi
       <h2 className="font-semibold">{LABEL[kind].title}</h2>
       <p className="muted text-sm">
         {last.value} {LABEL[kind].unit} on {last.day}
-        {pct != null ? `, ${percentileLabel(pct)} for a girl her age` : ""}.
+        {pct != null ? `, ${percentileLabel(pct)} for a girl of this age` : ""}.
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={`${LABEL[kind].title} against the WHO curves`}>
         <polygon points={band} fill="var(--accent-soft)" opacity="0.8" />
