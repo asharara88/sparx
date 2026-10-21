@@ -8,6 +8,7 @@ import { MeProvider } from "@/lib/me-context";
 import { Nav } from "@/components/Nav";
 import { NotConfigured } from "@/components/NotConfigured";
 import { SignOutButton } from "@/components/SignOutButton";
+import { CreateHome } from "@/components/CreateHome";
 import { OfflineFlusher } from "@/components/OfflineFlusher";
 import { PreviewBanner } from "@/components/PreviewBanner";
 
@@ -24,6 +25,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data, error } = await supabase.rpc("me");
   const me = data as Me | RpcError | null;
+
+  // In no home yet: make one, or wait to be added (docs/MULTI_HOME.md).
+  if (me && !me.ok && me.error === "no_member") return <CreateHome email={auth.user.email ?? null} />;
 
   if (error || !me || !me.ok) {
     return (
