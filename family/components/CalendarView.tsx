@@ -115,11 +115,6 @@ export function CalendarView({
                           {e.repeat !== "none" ? ` · ${e.repeat}` : ""}
                           {e.note ? ` · ${e.note}` : ""}
                         </span>
-                        {e.kind === "guest" && can(me, "shopping", "view") && (
-                          <Link href="/shopping" className="mt-1 block text-sm font-semibold text-[var(--accent)]">
-                            Add what you need to the shopping list ›
-                          </Link>
-                        )}
                       </button>
                     </li>
                   );

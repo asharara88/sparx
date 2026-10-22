@@ -61,7 +61,6 @@ export async function draftPlan(supabase: SupabaseClient, me: Me): Promise<{ ok:
     calendar: await run("calendar", { from, to }),
     who_is_home_today: await run("who_is_home", {}),
     due: await run("due_soon", { days_ahead: 14 }),
-    running_low: await run("shopping_list", { only_needed: true }),
   };
 
   const t0 = Date.now();
@@ -78,7 +77,7 @@ export async function draftPlan(supabase: SupabaseClient, me: Me): Promise<{ ok:
     messages: [
       {
         role: "user",
-        content: `Draft the plan for ${from} to ${to} for ${me.member.display_name}. Propose calendar entries ONLY where the data calls for one: a vet or doctor visit for something due (on a day someone is home), a contractor visit for an open ticket on a day with no guests, a shopping run when several things are running low, a reminder the day before a treatment is due, cover when the carer is off. Never invent events, never move existing ones, never duplicate an entry already on the calendar. At most 6 entries. Times in ${tz}, HH:MM or null. Keep the summary short and plain.\n\nDATA:\n${JSON.stringify(data)}`,
+        content: `Draft the plan for ${from} to ${to} for ${me.member.display_name}. Propose calendar entries ONLY where the data calls for one: a doctor visit for something due (on a day someone is home), a reminder the day before a vaccine or a treatment is due, cover when the carer is off. Never invent events, never move existing ones, never duplicate an entry already on the calendar. At most 6 entries. Times in ${tz}, HH:MM or null. Keep the summary short and plain.\n\nDATA:\n${JSON.stringify(data)}`,
       },
     ],
   });

@@ -3,19 +3,20 @@ import Link from "next/link";
 import type { AssistantRef } from "@/lib/types";
 
 /**
- * Renders assistant text. Citations like [entry:ID], [event:ID], [ticket:ID],
- * [item:ID] become links to the thing the answer came from. Lines starting with
- * "- " or "• " become a list; "**bold**" is honoured; nothing else is parsed.
+ * Renders assistant text. Citations like [entry:ID] and [event:ID] become links
+ * to the thing the answer came from (a kind the app no longer has is shown as
+ * plain text). Lines starting with "- " or "• " become a list; "**bold**" is
+ * honoured; nothing else is parsed.
  */
 const CITE = /\[(entry|event|ticket|item):([\w-]{1,40})[^\]]*\]/g;
 
-function hrefFor(kind: string, id: string, refs: Record<string, AssistantRef>): { href: string; label: string } {
+function hrefFor(kind: string, id: string, refs: Record<string, AssistantRef>): { href: string; label: string } | null {
+  // The kind decides first: an older chat may still carry a saved ref to a screen that is gone.
+  if (kind !== "entry" && kind !== "event") return null;
   const r = refs[id];
   if (r) return r;
   if (kind === "entry") return { href: `/entry/${id}`, label: "open" };
-  if (kind === "event") return { href: "/calendar", label: "calendar" };
-  if (kind === "ticket") return { href: `/house/tickets/${id}`, label: "ticket" };
-  return { href: `/shopping/${id}`, label: "item" };
+  return { href: "/calendar", label: "calendar" };
 }
 
 function inline(text: string, refs: Record<string, AssistantRef>, keyBase: string): React.ReactNode[] {
@@ -25,11 +26,17 @@ function inline(text: string, refs: Record<string, AssistantRef>, keyBase: strin
   for (const m of text.matchAll(CITE)) {
     const start = m.index ?? 0;
     if (start > last) out.push(...bold(text.slice(last, start), `${keyBase}-t${n}`));
-    const { href, label } = hrefFor(m[1], m[2], refs);
+    const ref = hrefFor(m[1], m[2], refs);
     out.push(
-      <Link key={`${keyBase}-c${n}`} href={href} className="cite">
-        {label}
-      </Link>,
+      ref ? (
+        <Link key={`${keyBase}-c${n}`} href={ref.href} className="cite">
+          {ref.label}
+        </Link>
+      ) : (
+        <span key={`${keyBase}-c${n}`} className="cite">
+          {m[1]}
+        </span>
+      ),
     );
     last = start + m[0].length;
     n += 1;

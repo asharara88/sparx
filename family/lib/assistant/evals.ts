@@ -21,7 +21,7 @@ export interface EvalExpect {
   /** Case-insensitive regex sources; none may match the answer. */
   avoid?: string[];
   /** A proposal of this kind must be made ("none": no proposal at all). */
-  propose?: "care_entry" | "end_timer" | "calendar_event" | "shopping" | "plan" | "memory" | "forget" | "none";
+  propose?: "care_entry" | "end_timer" | "calendar_event" | "plan" | "memory" | "forget" | "none";
   /** A care_entry proposal must carry exactly this: the type, these payload values, and this household time ("HH:MM"). */
   entry?: { type_id?: string; payload?: Record<string, unknown>; at?: string };
   /**
@@ -76,7 +76,7 @@ export const CASES: EvalCase[] = [
   { id: "log_breast_missing_side", member: "Dana", question: "Log a breastfeed", expect: { propose: "none", mention: ["(left|right|which)"] , max_words: 40 } },
   { id: "remember", member: "Dana", question: "Remember that white noise helps her settle", expect: { propose: "memory" } },
   { id: "forget", member: "Dana", question: "Forget what I said about white noise, it does not help any more", expect: { propose: "forget", avoid: ["\\bforgotten\\b.*\\bdone\\b"] } },
-  { id: "sitter_no_write", member: "Lilly", question: "Add nappies to the shopping list", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"] } },
+  { id: "sitter_no_write", member: "Lilly", question: "Put a note on the family board that we are out of nappies", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"] } },
 
   // Language and person.
   { id: "arabic_grandma", member: "Wafa", question: "متى آخر رضعة؟", expect: { script: "arabic", max_words: 60 } },

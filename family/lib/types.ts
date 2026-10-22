@@ -318,85 +318,6 @@ export interface CalendarData {
   days: CalendarDay[];
 }
 
-// ---- Step 2: shopping -------------------------------------------------------
-export const CATEGORIES = [
-  { id: "groceries", label: "Groceries", icon: "🛒" },
-  { id: "baby", label: "Baby", icon: "👶" },
-  { id: "cat", label: "Pet", icon: "🐈" },
-  { id: "home", label: "Home", icon: "🏠" },
-  { id: "adult", label: "Supplements", icon: "💪" },
-] as const;
-export type Category = (typeof CATEGORIES)[number]["id"];
-
-export interface Store {
-  id: string;
-  label: string;
-  url: string | null;
-  sort: number;
-}
-
-export interface ShelfItem {
-  id: string;
-  name: string;
-  category: Category;
-  emoji: string | null;
-  sort: number;
-  is_active: boolean;
-}
-
-export interface ShoppingItem {
-  id: string;
-  name: string;
-  category: Category;
-  needed: boolean;
-  owner_member: string | null;
-  owner_name: string | null;
-  store_id: string | null;
-  store_label: string | null;
-  product_url: string | null;
-  quantity_on_hand: string | null;
-  size: string | null;
-  size_changed_on: string | null;
-  last_bought_on: string | null;
-  last_price: number | null;
-  last_price_store: string | null;
-  reorder_days: number | null;
-  reorder_days_learned: number | null;
-  substitution: Substitution;
-  purchases: number;
-  aliases: string[];
-  note: string | null;
-  photo_path: string | null;
-  due: string | null;
-}
-
-export interface ShoppingData {
-  ok: true;
-  items: ShoppingItem[];
-  shelf: ShelfItem[];
-  stores: Store[];
-  pending_requests: number;
-  receipts_to_check: number;
-  open_carts: number;
-}
-
-export interface ShoppingRequest {
-  id: string;
-  item_name: string;
-  note: string | null;
-  photo_path: string | null;
-  status: "pending" | "approved" | "rejected";
-  shelf_item_id: string | null;
-  category: Category | null;
-  emoji: string | null;
-  created_by: string | null;
-  created_by_name: string | null;
-  created_at: string;
-  reviewed_by_name: string | null;
-  reviewed_at: string | null;
-  item_id: string | null;
-}
-
 // ---- trends (care_daily_stats)
 export interface DayStats {
   day: string;
@@ -457,7 +378,7 @@ export interface Attachment {
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
-export type ProposalKind = "care_entry" | "end_timer" | "calendar_event" | "shopping" | "memory" | "forget" | "plan";
+export type ProposalKind = "care_entry" | "end_timer" | "calendar_event" | "memory" | "forget" | "plan";
 
 /** "She woke up": the running timer the helper found, and when it should end. */
 export interface EndTimerProposal {
@@ -490,15 +411,6 @@ export interface CalendarEventProposal {
   note: string | null;
 }
 
-export interface ShoppingProposal {
-  /** An existing list item to mark as needed, or null to add / request a new one. */
-  item_id: string | null;
-  item_name: string;
-  note: string | null;
-  /** needed: tick an existing item · new: add to the list · request: the staff running-low queue */
-  via: "needed" | "new" | "request";
-}
-
 /** Something the assistant wants to save. Nothing is written until the member taps Confirm. */
 export interface AssistantProposal {
   id: string;
@@ -507,7 +419,6 @@ export interface AssistantProposal {
   care_entry?: CareEntryProposal;
   end_timer?: EndTimerProposal;
   calendar_event?: CalendarEventProposal;
-  shopping?: ShoppingProposal;
   /** A fact for the helper to keep ("the baby takes a bottle better when it is warm"). */
   memory?: { body: string };
   /** A remembered fact to drop, because it is wrong or out of date. */
@@ -569,136 +480,9 @@ export interface Brief {
   refs?: Record<string, AssistantRef>;
 }
 
-// ---- Step 5: the shopping loop ---------------------------------------------
-export type Substitution = "none" | "same_brand" | "any_brand";
-export const SUBSTITUTIONS: { id: Substitution; label: string; hint: string }[] = [
-  { id: "same_brand", label: "Same brand only", hint: "Another size of the same brand is fine; no other brand." },
-  { id: "any_brand", label: "Any brand", hint: "Same thing, any brand, same size or close." },
-  { id: "none", label: "Exactly this", hint: "Only this product. Otherwise leave it out." },
-];
-
-export type ReceiptStatus = "new" | "read" | "applied" | "discarded";
-export type LineMatch = "auto" | "confirmed" | "added" | "skipped" | "unmatched";
-
-export interface Receipt {
-  id: string;
-  store_id: string | null;
-  store_name: string | null;
-  store_label: string | null;
-  bought_on: string | null;
-  total: number | null;
-  currency: string | null;
-  photo_path: string;
-  status: ReceiptStatus;
-  note: string | null;
-  created_at: string;
-  created_by_name: string | null;
-  applied_at: string | null;
-}
-
-export interface ReceiptLine {
-  id: string;
-  line_no: number;
-  text: string;
-  qty: number | null;
-  unit_price: number | null;
-  line_total: number | null;
-  item_id: string | null;
-  item_name: string | null;
-  match: LineMatch;
-  confidence: number | null;
-}
-
-export interface ReceiptDetail {
-  ok: true;
-  receipt: Receipt;
-  lines: ReceiptLine[];
-}
-
-export interface ReceiptRow {
-  id: string;
-  store: string | null;
-  bought_on: string | null;
-  total: number | null;
-  currency: string | null;
-  status: ReceiptStatus;
-  created_at: string;
-  photo_path: string;
-  lines: number;
-  unmatched: number;
-}
-
-export interface Purchase {
-  id: string;
-  bought_on: string;
-  store: string | null;
-  qty: number | null;
-  price: number | null;
-  receipt_id: string | null;
-  line: string | null;
-}
-
-export interface CartManifestItem {
-  item_id: string;
-  name: string;
-  size: string | null;
-  quantity: number;
-  product_url: string | null;
-  last_price: number | null;
-  substitution: Substitution;
-  note: string | null;
-  aliases: string[];
-}
-
-export interface CartManifest {
-  store: { id: string; label: string; url: string | null };
-  currency: string;
-  rules: { stop_at_checkout: true; never_pay: true; report: string };
-  items: CartManifestItem[];
-}
-
-export type CartResult = "found" | "substituted" | "missing";
-export interface CartReportItem {
-  item_id: string;
-  result: CartResult;
-  product?: string | null;
-  price?: number | null;
-  note?: string | null;
-}
-export interface CartReport {
-  summary: string | null;
-  items: CartReportItem[];
-}
-
-export type CartStatus = "prepared" | "reported" | "done" | "cancelled";
-export interface CartRun {
-  id: string;
-  store_id: string;
-  store_label: string;
-  store_url: string | null;
-  status: CartStatus;
-  manifest: CartManifest;
-  report: CartReport | null;
-  note: string | null;
-  created_at: string;
-  created_by_name: string | null;
-  reported_at: string | null;
-  done_at: string | null;
-}
-
-export interface CartRunRow {
-  id: string;
-  store_label: string;
-  status: CartStatus;
-  created_at: string;
-  items: number;
-  found: number;
-  substituted: number;
-  missing: number;
-}
-
 // ---- Step 6: the proactive layer -------------------------------------------
-export type SuggestionKind = "reorder" | "due" | "plan" | "request" | "ticket";
+/** The kinds the app still shows. Older rows may carry "reorder", "request" or "ticket" (migration 4400 closed them); the cards skip those. */
+export type SuggestionKind = "due" | "plan";
 export interface PlanEntry {
   title: string;
   kind: EventKind;

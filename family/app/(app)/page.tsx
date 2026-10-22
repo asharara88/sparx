@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { awayParent, awayParentOn } from "@/lib/handover";
-import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, ShoppingData, Suggestion } from "@/lib/types";
+import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, Suggestion } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { childPronouns, possessive } from "@/lib/names";
 import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
@@ -51,7 +51,8 @@ export default async function HomePage() {
   const me = meData as Me | null;
   if (!me || !me.ok) redirect("/login");
   // Staff get the simplest screen in the product.
-  if (!can(me, "lana", "view") && can(me, "shopping_requests", "add")) redirect("/send");
+  // Someone without the child's log (staff who only clock in) gets their own Today screen.
+  if (!can(me, "lana", "view")) redirect("/send");
 
   const tz = me.household.timezone;
   const today = todayYmd(tz);
@@ -60,11 +61,10 @@ export default async function HomePage() {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: shopData }, { data: dueData }, { data: sugData }, { data: notesData }, { data: attData }, { data: milkData }] = await Promise.all([
+  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: dueData }, { data: sugData }, { data: notesData }, { data: attData }, { data: milkData }] = await Promise.all([
     supabase.rpc("household_today"),
     can(me, "lana", "view") ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
     can(me, "calendar", "view") ? supabase.rpc("calendar_list", { p_from: today, p_to: addDays(today, 1) }) : Promise.resolve({ data: null }),
-    can(me, "shopping_review", "view") ? supabase.rpc("shopping_list") : Promise.resolve({ data: null }),
     can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
     supabase.rpc("suggestions_refresh"),
     can(me, "notes", "view") ? supabase.rpc("notes_list", { p_limit: 5 }) : Promise.resolve({ data: null }),
@@ -91,10 +91,8 @@ export default async function HomePage() {
   const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];
   const summary = sumData as HomeSummary | RpcError | null;
   const calendar = calData as CalendarData | RpcError | null;
-  const shopping = shopData as ShoppingData | RpcError | null;
   const todays = calendar && calendar.ok ? calendar.events.filter((e) => e.date === today) : [];
   const tomorrows = calendar && calendar.ok ? calendar.events.filter((e) => e.date === addDays(today, 1)) : [];
-  const pending = shopping && shopping.ok ? shopping.pending_requests : 0;
 
   // Entries from yesterday noon until now: the night and today, for the child's strip and current state.
   let recent: EntryRow[] = [];
@@ -149,7 +147,7 @@ export default async function HomePage() {
   const tFrom = hhmm(tomorrowsParent?.work_from, WORK_FROM);
   const tTo = hhmm(tomorrowsParent?.work_to, WORK_TO);
   const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(tTo / 100) * 60 + (tTo % 100)) - (Math.floor(tFrom / 100) * 60 + (tFrom % 100)), intervalMin: bottleGapMin, hour };
-  const aroundTheHouse = suggestions.length > 0 || (pending > 0 && can(me, "shopping_review", "edit")) || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok) || can(me, "shopping", "view");
+  const aroundTheHouse = suggestions.length > 0 || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok);
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
 
@@ -255,11 +253,6 @@ export default async function HomePage() {
         </h2>
       )}
       <SuggestionCards suggestions={suggestions} />
-      {pending > 0 && can(me, "shopping_review", "edit") && (
-        <Link href="/shopping/requests" className="notice notice-warn font-semibold">
-          {pending} running-low {pending === 1 ? "request" : "requests"} from staff to check ›
-        </Link>
-      )}
       {attendance && attendance.ok && (attendance.open.length > 0 || (can(me, "members", "edit") && staffToday.length > 0)) && (
         <div className="flex flex-wrap items-center gap-2 px-1">
           {attendance.open.map((o) => (
@@ -298,13 +291,6 @@ export default async function HomePage() {
         </section>
       )}
       {notes && notes.ok && <NotesBoard notes={notes.notes} compact />}
-      {can(me, "shopping", "view") && (
-        <Link href="/shopping" className="row-link card-flat flex items-center gap-3">
-          <Icon name="cart" size={20} />
-          <span className="flex-1 font-semibold">Shopping list</span>
-          <Icon name="forward" size={18} className="muted" />
-        </Link>
-      )}
     </div>
   );
 }

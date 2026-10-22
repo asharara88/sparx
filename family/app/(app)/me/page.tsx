@@ -41,9 +41,8 @@ export default async function MePage() {
           <p className="muted text-sm">Ask an admin to change these.</p>
         </div>
       )}
-      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "assistant", "view") || can(me, "notes", "view") || can(me, "shopping", "view")) && (
+      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "assistant", "view") || can(me, "notes", "view") || can(me, "lana", "view")) && (
         <div className="grid grid-cols-2 gap-3">
-          {can(me, "shopping", "view") && <Tile href="/shopping" icon="cart" label="Shopping" />}
           {can(me, "assistant", "view") && <Tile href="/ask" icon="chat" label="Ask" />}
           {can(me, "notes", "view") && <Tile href="/notes" icon="note" label="Notes" />}
           {can(me, "lana", "view") && <Tile href="/baby/milk" icon="bottle" label="Milk stash" />}

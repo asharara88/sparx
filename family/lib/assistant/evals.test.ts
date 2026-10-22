@@ -32,7 +32,7 @@ test("grade: proposals, word limits and scripts", () => {
   assert.equal(grade(log, { answer: "Prepared a 120 ml bottle at 15:02. Tap Confirm.", skills: [], tools: ["propose_care_entry"], proposals: ["care_entry"], care_entries: [{ ...bottle, payload: { ...bottle.payload, amount_ml: 60 } }] }).pass, false, "the wrong amount fails even with the right words");
   assert.equal(grade(log, { answer: "Done, saved.", skills: [], tools: [], proposals: [] }).pass, false);
   const sitter = CASES.find((x) => x.id === "sitter_no_write")!;
-  assert.equal(grade(sitter, { answer: "The shopping list is not shared with the Babysitter role. Ask Mido or Dana.", skills: [], tools: [], proposals: [] }).pass, true);
+  assert.equal(grade(sitter, { answer: "The family board is not shared with the Babysitter role. Ask Mido or Dana.", skills: [], tools: [], proposals: [] }).pass, true);
   const ar = CASES.find((x) => x.id === "arabic_grandma")!;
   assert.equal(grade(ar, { answer: "آخر رضعة الساعة 14:10، 120 مل.", skills: [], tools: ["care_now"], proposals: [] }).pass, true);
   assert.equal(grade(ar, { answer: "The last feed was at 14:10, 120 ml.", skills: [], tools: ["care_now"], proposals: [] }).pass, false);

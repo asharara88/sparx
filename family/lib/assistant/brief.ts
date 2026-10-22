@@ -96,7 +96,6 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
     who_is_home: await run("who_is_home", {}),
     calendar: await run("calendar", { from: kind === "morning" ? day : day, to: addDays(day, 1) }),
     due_soon: await run("due_soon", { days_ahead: 7 }),
-    shopping_running_low: await run("shopping_list", { only_needed: true }),
   };
   for (const s of ctx.subjects) {
     if (!can(me, s.module_id, "view")) continue;

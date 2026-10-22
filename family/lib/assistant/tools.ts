@@ -339,43 +339,6 @@ function dueSoon(): AssistantTool {
   };
 }
 
-function shoppingList(): AssistantTool {
-  return {
-    def: {
-      name: "shopping_list",
-      description: "The shared shopping list: what is marked as needed now, what is probably running out (by reorder interval), with owner, usual shop, size, last bought and last price; plus how many running-low requests are waiting for review.",
-      input_schema: obj({ only_needed: { type: "boolean", description: "True to return only items marked needed or due. Default false (everything)." } }),
-    },
-    run: async (input, ctx) => {
-      const r = await rpc(ctx, "shopping_list", {});
-      if (!r.ok) return r;
-      const today = todayYmd(ctx.tz, ctx.now);
-      let items = (r.items as Record<string, unknown>[]) ?? [];
-      if (input.only_needed) items = items.filter((i) => i.needed || (i.due && String(i.due) <= today));
-      return {
-        pending_requests: r.pending_requests,
-        items: items.map((i) => {
-          ctx.refs[i.id as string] = { href: `/shopping/${i.id}`, label: String(i.name) };
-          return {
-            id: i.id,
-            name: i.name,
-            category: i.category,
-            needed: i.needed,
-            probably_out_by: i.due ?? undefined,
-            owner: i.owner_name ?? undefined,
-            shop: i.store_label ?? undefined,
-            size: i.size ?? undefined,
-            quantity_on_hand: i.quantity_on_hand ?? undefined,
-            last_bought: i.last_bought_on ?? undefined,
-            last_price: i.last_price ?? undefined,
-            note: i.note ?? undefined,
-          };
-        }),
-      };
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Proposals — nothing is written here. The UI shows a card; the member confirms.
 // ---------------------------------------------------------------------------
@@ -543,48 +506,6 @@ function proposeCalendarEvent(): AssistantTool {
   };
 }
 
-function proposeShopping(ctx0: ToolContext): AssistantTool {
-  const request = !can(ctx0.me, "shopping", "add") && can(ctx0.me, "shopping_requests", "add");
-  return {
-    def: {
-      name: "propose_shopping",
-      description: request
-        ? "Prepare a running-low request for the member to confirm: it goes to an admin to approve onto the list."
-        : "Prepare a shopping change for the member to confirm: mark an item on the list as needed, or add a new item.",
-      input_schema: obj(
-        {
-          item_name: { type: "string", description: "What is needed, as the member said it." },
-          note: { type: "string", description: "Optional: size, brand, how many." },
-        },
-        ["item_name"],
-      ),
-    },
-    run: async (input, ctx) => {
-      const name = String(input.item_name ?? "").trim();
-      if (!name) return { error: "no_name" };
-      let itemId: string | null = null;
-      let via: "needed" | "new" | "request" = request ? "request" : "new";
-      if (!request) {
-        const r = await rpc(ctx, "shopping_list", {});
-        const items = ((r.items as Record<string, unknown>[]) ?? []).filter((i) => String(i.name).toLowerCase() === name.toLowerCase() || String(i.name).toLowerCase().includes(name.toLowerCase()));
-        if (items.length === 1) {
-          itemId = items[0].id as string;
-          via = "needed";
-        }
-      }
-      const p: AssistantProposal = {
-        id: newId(),
-        kind: "shopping",
-        summary: via === "request" ? `🛒 Ask for ${name}${input.note ? ` (${input.note})` : ""}` : via === "needed" ? `🛒 Mark "${name}" as needed` : `🛒 Add "${name}" to the list${input.note ? ` (${input.note})` : ""}`,
-        shopping: { item_id: itemId, item_name: name, note: (input.note as string) || null, via },
-      };
-      ctx.proposals.push(p);
-      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT saved yet." };
-    },
-  };
-}
-
-/** The tools this member may use, in a fixed order (a stable list caches). */
 function coachPlan(ctx0: ToolContext): AssistantTool {
   return {
     def: {
@@ -828,12 +749,10 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
     list.push(recentChats());
     list.push(dueSoon());
   }
-  if (can(me, "shopping", "view") || can(me, "shopping_requests", "add")) list.push(shoppingList());
   if (can(me, "assistant", "add")) {
     if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx), proposeEndTimer(ctx));
     if (ctx.subjects.some((s) => s.kind === "child" && can(me, s.module_id, "add"))) list.push(proposePlan(ctx));
     if (can(me, "calendar", "add")) list.push(proposeCalendarEvent());
-    if (can(me, "shopping", "add") || can(me, "shopping_requests", "add")) list.push(proposeShopping(ctx));
   }
   return list;
 }
