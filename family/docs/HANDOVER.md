@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 51 files, applied in filename order |
+| Migrations | `supabase/migrations`, 52 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -123,10 +123,13 @@ Open:
 - **Cron runs once a day.** Vercel's free plan allows one daily schedule. The
   "often" cron (nap reminders through the day) exists in the code and needs Pro,
   plus a schedule for `/api/cron/often` in `vercel.json`. The daily route runs
-  its three jobs apart (pushes, the backup, the file cleanups; migration 4900):
-  each checks its own keys and catches its own failure, and the Audit screen
-  shows each job's last run (`job_runs`). A failed job makes the route answer
-  500, which Vercel's cron log shows.
+  its four jobs apart (pushes, the backup, the file cleanups, the timers left on;
+  migrations 5100 and 5200): each checks its own keys and catches its own failure,
+  and the Audit screen shows each job's last run (`job_runs`). A failed job makes
+  the route answer 500, which Vercel's cron log shows. A timer nobody ended (a
+  breastfeed, a sleep) is closed at a cap after 12 hours with a note on the entry;
+  the home screen never shows one older than a day as running, and a new start
+  closes one left on since yesterday instead of handing it back.
 - **The assistant eval has never been run** against the deployed app. It costs
   real model calls: `EVAL_URL=… npm run eval:assistant` with `CRON_SECRET` set.
 - **Confirm e-mail.** The sign-up trigger links an auth user to a member row by

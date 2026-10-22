@@ -1174,5 +1174,34 @@ set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'Our home' and (public.me())->>'homes' = '2', 'Mido is at home, still listed in the Khans');
 reset role;
 
+-- Timers left on (migration 5200). In this test household only sleep and the night wake-up are
+-- timers (the feed type's has_end is off here); live, a breastfeed is one too and gets the 20 min cap.
+reset role;
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000001', :lana, 'lana', 'lana.wake', now() - interval '2 days', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(
+  not exists (select 1 from jsonb_array_elements((public.home_summary())->'ongoing') o
+               where o->>'id' = (select id::text from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000001')),
+  'a timer left on for more than a day is not running on the home screen');
+select pg_temp.assert(pg_temp.fails('select public.timers_close_forgotten()'), 'the nightly timers job is the server''s, not a member''s');
+reset role;
+set role service_role;
+select pg_temp.assert((public.timers_close_forgotten())->>'closed' = '1', 'the nightly job closes the night wake-up left on for two days');
+reset role;
+select pg_temp.assert((select ended_at = occurred_at + interval '1 hour' and note like '%Timer left on; end set to 1 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000001'),
+  'a wake-up left on ends 1 h after it started, with a note');
+-- A new start closes a timer of its type left on since yesterday instead of handing it back.
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000002', :lana, 'lana', 'lana.sleep', now() - interval '30 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now(), null, '{}', null, 'cccccccc-0000-4000-8000-000000000003'))->>'ok' = 'true', 'a new sleep can start while one was left on since yesterday');
+select pg_temp.assert((select ended_at = occurred_at + interval '12 hours' and note like '%Timer left on; end set to 12 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000002'),
+  'the sleep left on ends 12 h after it started, with a note, instead of being handed back');
+reset role;
+update public.care_entries set ended_at = now() where client_id = 'cccccccc-0000-4000-8000-000000000003';
+
 \echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

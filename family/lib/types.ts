@@ -671,7 +671,7 @@ export interface BackupRow {
 
 /** The last run of one of the daily cron's jobs (`job_runs_list`). */
 export interface JobRun {
-  job: "pushes" | "backup" | "cleanups";
+  job: "pushes" | "backup" | "cleanups" | "timers";
   last_at: string;
   last_status: "ok" | "failed" | "not_configured";
   last_ms: number | null;

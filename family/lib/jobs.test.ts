@@ -9,6 +9,7 @@ test("each job needs only its own keys: no push keys means no pushes, but the ba
   assert.deepEqual(missingFor("pushes", service), ["SUPABASE_JWT_SECRET", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]);
   assert.deepEqual(missingFor("backup", service), []);
   assert.deepEqual(missingFor("cleanups", service), []);
+  assert.deepEqual(missingFor("timers", service), []);
   assert.deepEqual(missingFor("backup", {}), ["SUPABASE_SERVICE_ROLE_KEY"]);
   assert.deepEqual(missingFor("pushes", pushes), []);
 });

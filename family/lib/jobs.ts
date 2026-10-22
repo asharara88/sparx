@@ -1,17 +1,19 @@
 /**
- * The daily cron's jobs, run apart. Pushes, the backup and the file cleanups each
+ * The daily cron's jobs, run apart. Pushes, the backup, the file cleanups and the
+ * timers left on each
  * have their own configuration and their own failure: one missing key or one
  * thrown error stops that job, never the others. No imports here: the node test
  * runner loads this file.
  */
-export type JobName = "pushes" | "backup" | "cleanups";
-export const JOBS: readonly JobName[] = ["pushes", "backup", "cleanups"];
+export type JobName = "pushes" | "backup" | "cleanups" | "timers";
+export const JOBS: readonly JobName[] = ["pushes", "backup", "cleanups", "timers"];
 
 /** What each job needs set on the server. */
 const NEEDS: Record<JobName, readonly string[]> = {
   pushes: ["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_JWT_SECRET", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"],
   backup: ["SUPABASE_SERVICE_ROLE_KEY"],
   cleanups: ["SUPABASE_SERVICE_ROLE_KEY"],
+  timers: ["SUPABASE_SERVICE_ROLE_KEY"],
 };
 
 export function missingFor(job: JobName, env: Record<string, string | undefined>): string[] {

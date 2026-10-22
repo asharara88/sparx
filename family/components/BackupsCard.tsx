@@ -8,7 +8,7 @@ import { apiFetch } from "@/lib/supabase/client";
 
 const mb = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
-const JOB_LABEL: Record<JobRun["job"], string> = { pushes: "Notifications", backup: "Backup", cleanups: "File cleanup" };
+const JOB_LABEL: Record<JobRun["job"], string> = { pushes: "Notifications", backup: "Backup", cleanups: "File cleanup", timers: "Timers left on" };
 
 /** One line per job of the nightly run: when it last ran, whether it went well, and if not, why. */
 function LastRuns({ runs, tz }: { runs: JobRun[]; tz: string }) {

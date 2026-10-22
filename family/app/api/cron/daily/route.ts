@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Vercel cron, early morning. Three jobs, run apart: the pushes (briefs, open
- * suggestions, the Sunday plan), the nightly backup of every home, and the file
- * cleanup of deleted homes. Each has its own configuration check and its own
+ * Vercel cron, early morning. Four jobs, run apart: the pushes (briefs, open
+ * suggestions, the Sunday plan), the nightly backup of every home, the file
+ * cleanup of deleted homes, and the timers left on. Each has its own configuration check and its own
  * failure: a missing push key or a thrown push error never stops the backup or
  * the cleanups. Each job's last run is recorded in job_runs (the Audit screen
  * shows it). Needs CRON_SECRET.
@@ -40,6 +40,16 @@ export async function GET(req: Request) {
     await runJob("cleanups", env, async () => {
       const r = await runHomeCleanups(serviceClient());
       return { pending: r.pending, done: r.done, failed: r.failed, results: r.results };
+    }),
+  );
+  // Timers nobody ended (a breastfeed, a sleep) are closed at a cap after 12 hours, with a note on the entry.
+  outcomes.push(
+    await runJob("timers", env, async () => {
+      const { data, error } = await serviceClient().rpc("timers_close_forgotten");
+      if (error) throw new Error(error.message);
+      const r = data as { ok: boolean; message?: string; closed?: number; entries?: unknown[] } | null;
+      if (!r?.ok) throw new Error(r?.message ?? "The database refused.");
+      return { closed: r.closed ?? 0, entries: r.entries ?? [] };
     }),
   );
 
