@@ -1188,6 +1188,9 @@ select pg_temp.assert(
                where o->>'id' = (select id::text from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000001')),
   'a timer left on for more than a day is not running on the home screen');
 select pg_temp.assert(pg_temp.fails('select public.timers_close_forgotten()'), 'the nightly timers job is the server''s, not a member''s');
+select pg_temp.assert((private.timers_close_forgotten(interval '0', null))->>'error' = 'not_allowed', 'nor can a member reach every home through the helper');
+select pg_temp.assert((private.timers_close_forgotten(interval '0', :lana))->>'error' = 'not_allowed', 'nor shorten the day-old rule');
+select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :zayd))->>'error' = 'not_allowed', 'nor reach a child of another home');
 reset role;
 -- As the server: its own key, no member behind it (the production cron), so no home in scope.
 select set_config('request.jwt.claims', '{"role":"service_role"}', false);
