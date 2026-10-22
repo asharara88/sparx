@@ -10,6 +10,7 @@ import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
+import { retireProposals, type ProposalState } from "@/lib/assistant/retire";
 import { recapOf } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
 
@@ -36,7 +37,6 @@ interface Msg {
 }
 export type ChatSummary = Pick<AskChat, "id" | "title" | "updated_at">;
 
-type ProposalState = { status: "pending" } | { status: "saving" } | { status: "saved"; href?: string; note: string } | { status: "dropped" } | { status: "error"; message: string };
 
 /** This tab's unsaved chat, kept per member so a sign-in after someone else on the same phone starts clean. */
 const storeKey = (memberId: string) => `family.ask.v1.${memberId}`;
@@ -126,13 +126,14 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       setMsgs(ms);
       const st: Record<string, ProposalState> = {};
       for (const m of ms) for (const [k, v] of Object.entries(m.states ?? {})) st[k] = v.status === "saving" ? { status: "pending" } : v;
-      setPstate(st);
+      // A card of a kind the app no longer has (an older chat) is not offered for confirming.
+      setPstate(retireProposals(ms, st));
     } else {
       try {
         const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "null") as { msgs: Msg[]; pstate: Record<string, ProposalState>; chatId?: string | null } | null;
         if (saved?.msgs) {
           setMsgs(saved.msgs);
-          setPstate(saved.pstate ?? {});
+          setPstate(retireProposals(saved.msgs, saved.pstate ?? {}));
           setChatId(saved.chatId ?? null);
         }
       } catch {
