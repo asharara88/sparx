@@ -21,9 +21,13 @@ insert into public.retired_rows (household_id, table_name, row) select household
 insert into public.retired_rows (household_id, table_name, row) select household_id, 'medicines', to_jsonb(t) from public.medicines t where subject_id in (select id from pet_subjects);
 insert into public.retired_rows (household_id, table_name, row) select household_id, 'vaccinations', to_jsonb(t) from public.vaccinations t where subject_id in (select id from pet_subjects);
 insert into public.retired_rows (household_id, table_name, row) select household_id, 'coach_plans', to_jsonb(t) from public.coach_plans t where subject_id in (select id from pet_subjects);
+-- A plan's check-ins would go by cascade with the plan; keep them first.
+insert into public.retired_rows (household_id, table_name, row) select c.household_id, 'coach_checkins', to_jsonb(c) from public.coach_checkins c where c.plan_id in (select id from public.coach_plans where subject_id in (select id from pet_subjects));
 insert into public.retired_rows (household_id, table_name, row) select household_id, 'activity_done', to_jsonb(t) from public.activity_done t where subject_id in (select id from pet_subjects);
 insert into public.retired_rows (household_id, table_name, row) select household_id, 'care_routines', to_jsonb(t) from public.care_routines t;
-insert into public.retired_rows (household_id, table_name, row) select null, 'care_entry_types', to_jsonb(t) from public.care_entry_types t where module_id = 'fanta';
+-- Shared definitions have no home of their own: filed under the first home, like the archived stores (4600), so a backup carries them.
+insert into public.retired_rows (household_id, table_name, row) select private.platform_home(), 'care_entry_types', to_jsonb(t) from public.care_entry_types t where module_id = 'fanta';
+insert into public.retired_rows (household_id, table_name, row) select private.platform_home(), 'vaccine_schedule', to_jsonb(t) from public.vaccine_schedule t where kind = 'pet';
 
 -- ---------------------------------------------------------------------------
 -- 2. The rows, the routines, the module
@@ -43,6 +47,8 @@ drop table if exists public.care_routines;
 
 delete from public.care_subjects where id in (select id from pet_subjects);
 delete from public.care_entry_types where module_id = 'fanta';
+-- A deployment may have added pet rows to the shared vaccine schedule; they must go before the check below narrows.
+delete from public.vaccine_schedule where kind = 'pet';
 -- The module leaves the roles matrix; its permission rows go by cascade. Audit rows keep the id as text.
 delete from public.modules where id = 'fanta';
 update public.household set hidden_modules = array_remove(hidden_modules, 'fanta') where 'fanta' = any(hidden_modules);
