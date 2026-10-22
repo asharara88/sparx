@@ -11,11 +11,12 @@ import type { AssistantRef } from "@/lib/types";
 const CITE = /\[(entry|event|ticket|item):([\w-]{1,40})[^\]]*\]/g;
 
 function hrefFor(kind: string, id: string, refs: Record<string, AssistantRef>): { href: string; label: string } | null {
+  // The kind decides first: an older chat may still carry a saved ref to a screen that is gone.
+  if (kind !== "entry" && kind !== "event") return null;
   const r = refs[id];
   if (r) return r;
   if (kind === "entry") return { href: `/entry/${id}`, label: "open" };
-  if (kind === "event") return { href: "/calendar", label: "calendar" };
-  return null;
+  return { href: "/calendar", label: "calendar" };
 }
 
 function inline(text: string, refs: Record<string, AssistantRef>, keyBase: string): React.ReactNode[] {
