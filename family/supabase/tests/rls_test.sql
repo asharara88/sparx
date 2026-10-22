@@ -1192,6 +1192,20 @@ select pg_temp.assert((private.timers_close_forgotten(interval '0', null))->>'er
 select pg_temp.assert((private.timers_close_forgotten(interval '0', :lana))->>'error' = 'not_allowed', 'nor shorten the day-old rule');
 select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :zayd))->>'error' = 'not_allowed', 'nor reach a child of another home');
 reset role;
+-- Nor a member who may not log for the child (the carer's role, with logging taken away for the check), nor a view-as preview.
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action = 'add';
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :lana))->>'error' = 'not_allowed', 'nor can a member who may not log for the child');
+reset role;
+update public.permissions set allowed = true where role_id = 'home_carer' and module_id = 'lana' and action = 'add';
+select pg_temp.preview_as(:mido, :lilly);
+set role authenticated;
+select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :lana))->>'error' = 'not_allowed', 'nor a view-as preview, which is read only');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+reset role;
 -- As the server: its own key, no member behind it (the production cron), so no home in scope.
 select set_config('request.jwt.claims', '{"role":"service_role"}', false);
 set role service_role;

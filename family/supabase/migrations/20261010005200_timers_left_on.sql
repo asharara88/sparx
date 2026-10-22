@@ -13,11 +13,13 @@ create or replace function private.timers_close_forgotten(p_after interval, p_su
 language plpgsql security definer set search_path = public as $$
 declare v_rows jsonb;
 begin
-  -- Anyone but the server may only reach the subject of the home they are in, and only
-  -- for a timer left on since yesterday: the rule care_entry_log applies.
+  -- Anyone but the server may only reach a child of the home they are in and may log for,
+  -- never from a read-only preview, and only for a timer left on since yesterday: the rule
+  -- care_entry_log applies.
   if coalesce(current_setting('role', true), '') <> 'service_role' then
-    if p_subject_id is null or p_after < interval '24 hours'
-       or not exists (select 1 from public.care_subjects s where s.id = p_subject_id and s.household_id = private.current_household_id()) then
+    if p_subject_id is null or p_after < interval '24 hours' or private.read_only_preview()
+       or not exists (select 1 from public.care_subjects s where s.id = p_subject_id and s.household_id = private.current_household_id())
+       or not private.authz(private.subject_module(p_subject_id), 'add', 'care_entries', p_subject_id::text) then
       return private.denied();
     end if;
   end if;
