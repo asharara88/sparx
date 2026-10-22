@@ -1,4 +1,4 @@
--- Demo data for screenshots and local play: two weeks of Lana's log, Fanta,
+-- Demo data for screenshots and local play: two weeks of Lana's log,
 -- notes, chat, milk, calendar, vaccines. Run after the
 -- migrations on a local database built by run-local.sh (needs the stub).
 --   su postgres -c "psql -d family_shots -v ON_ERROR_STOP=1 -f supabase/tests/demo_data.sql"
@@ -24,7 +24,6 @@ end $$;
 \set wafa  '''00000000-0000-4000-8000-000000000003'''
 \set lilly '''00000000-0000-4000-8000-000000000005'''
 \set lana  '''00000000-0000-4000-8000-00000000a001'''
-\set fanta '''00000000-0000-4000-8000-00000000a002'''
 
 -- Lana: fourteen days, as Dana (breast) and Lilly (bottles on weekdays)
 select pg_temp.act_as(:dana);
@@ -113,19 +112,9 @@ select public.note_save(null, 'Formula tin opened Monday. Finish within 4 weeks.
 select public.note_save(null, 'Call insurance about the policy expiry on Lana''s card.', true, false);
 reset role;
 
--- Fanta
+-- Wafa's preferences
 select pg_temp.act_as(:wafa);
 set role authenticated;
-select public.care_entry_log(:fanta, 'fanta.food', (current_date + time '07:30') at time zone 'Asia/Dubai', null, '{"food":"½ wet pouch"}');
-select public.care_entry_log(:fanta, 'fanta.food', (current_date - 1 + time '19:00') at time zone 'Asia/Dubai', null, '{"food":"½ wet pouch"}');
-select public.care_entry_log(:fanta, 'fanta.food', (current_date - 1 + time '07:30') at time zone 'Asia/Dubai', null, '{"food":"Dry food","amount_g":30}');
-select public.care_entry_log(:fanta, 'fanta.litter', (current_date + time '08:00') at time zone 'Asia/Dubai', null, '{"kind":"Scooped"}');
-select public.care_entry_log(:fanta, 'fanta.weight', (current_date - 20 + time '10:00') at time zone 'Asia/Dubai', null, '{"weight_kg":4.1}');
-select public.care_entry_log(:fanta, 'fanta.weight', (current_date - 50 + time '10:00') at time zone 'Asia/Dubai', null, '{"weight_kg":4.0}');
-select public.care_entry_log(:fanta, 'fanta.treatment', (current_date - 24 + time '10:00') at time zone 'Asia/Dubai', null, jsonb_build_object('kind', 'Flea & tick', 'product', 'Bravecto', 'next_due', (current_date + 66)::text));
-select public.care_entry_log(:fanta, 'fanta.treatment', (current_date - 80 + time '10:00') at time zone 'Asia/Dubai', null, jsonb_build_object('kind', 'Deworming', 'product', 'Milbemax', 'next_due', (current_date + 10)::text));
-select public.routine_done(id, current_date - 2) from public.care_routines where label like 'Brush%';
-select public.routine_done(id, current_date - 9) from public.care_routines where label like 'Litter%';
 select public.me_prefs_save('ar', true, null, false);
 reset role;
 \o

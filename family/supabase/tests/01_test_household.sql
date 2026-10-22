@@ -37,24 +37,12 @@ on conflict do nothing;
 
 insert into public.care_subjects (id, module_id, kind, name, birth_date, profile, settings, sort) values
   ('00000000-0000-4000-8000-00000000a001', 'lana',  'child', 'Lana',  '2026-06-05',
-   '{"sex": "Girl", "emergency_ambulance": "998"}'::jsonb, '{"night_from": "19:00", "night_to": "07:00"}'::jsonb, 10),
-  ('00000000-0000-4000-8000-00000000a002', 'fanta', 'pet',   'Fanta', null,
-   '{"species": "cat", "sex": "Female", "colour": "Ginger", "spayed": true, "indoor": true, "food": "Royal Canin", "age_note": "About 3 years old"}'::jsonb,
-   '{}'::jsonb, 20)
+   '{"sex": "Girl", "emergency_ambulance": "998"}'::jsonb, '{"night_from": "19:00", "night_to": "07:00"}'::jsonb, 10)
 on conflict (id) do nothing;
 
 update public.modules set label = 'Lana''s log' where id = 'lana';
-update public.modules set label = 'Fanta''s log' where id = 'fanta';
 
 insert into public.medicines (subject_id, name, dose, min_gap_hours, note) values
   ('00000000-0000-4000-8000-00000000a001', 'Vitamin D drops', '1 drop (400 IU)', 20, 'Once a day.'),
   ('00000000-0000-4000-8000-00000000a001', 'Paracetamol (infant)', 'As the doctor wrote', 6, 'Only if the doctor said so. Never more than 4 doses in 24 hours.')
 on conflict do nothing;
-
-insert into public.care_routines (id, subject_id, label, every_days, type_id, payload, sort) values
-  ('00000000-0000-4000-8000-00000000c001', '00000000-0000-4000-8000-00000000a002', 'Litter full change', 7,  'fanta.litter',    '{"kind":"Full change"}', 10),
-  ('00000000-0000-4000-8000-00000000c002', '00000000-0000-4000-8000-00000000a002', 'Brush',              3,  null,              '{}',                     20),
-  ('00000000-0000-4000-8000-00000000c003', '00000000-0000-4000-8000-00000000a002', 'Flea and tick',      30, 'fanta.treatment', '{"kind":"Flea & tick"}', 30),
-  ('00000000-0000-4000-8000-00000000c004', '00000000-0000-4000-8000-00000000a002', 'Deworming',          90, 'fanta.treatment', '{"kind":"Deworming"}',   40),
-  ('00000000-0000-4000-8000-00000000c005', '00000000-0000-4000-8000-00000000a002', 'Weigh her',          14, null,              '{}',                     50)
-on conflict (id) do nothing;

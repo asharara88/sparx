@@ -12,7 +12,7 @@ assistant that answers questions and proposes entries. In the first household fi
 people use it: two parents, two grandmothers and the home carer. It is a Next.js 16
 PWA on Vercel with a Supabase Postgres behind it. It is not a product with sign-up or
 marketing; it is one deployment per family. Since migration 3500 the code knows no
-family: a household (its name, members, the child, a pet) is written to its own
+family: a household (its name, members, the child) is written to its own
 Supabase project by `scripts/setup-household.mjs` from a `household.json`, and every
 screen takes the names from the data. A second family gets its own Supabase project
 and Vercel project from the same repo (README, "A copy for another family").
@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 47 files, applied in filename order |
+| Migrations | `supabase/migrations`, 48 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -70,7 +70,7 @@ through security-definer RPCs (`care_entry_log`, `activity_tick`,
 `assistant_brief_save` and so on) so the client never writes tables directly. The
 baby's log is `care_entries`, keyed by `client_id` so a retry or an import can
 never double-insert. `household.hidden_modules` switches whole sections off; it
-currently holds `{fanta}`, though Fanta's screens have since been deleted outright.
+is empty now that every removed area has left the database.
 
 ## State as of this handover
 
@@ -90,7 +90,8 @@ Done and live:
   the tables and functions were dropped too (migration 4600, rows archived).
 - Fanta the cat, the house (tickets, appliances, contractors) and the Home Assistant
   hub are **deleted from the app**. The app is baby care only. The house's and the
-  hub's tables are dropped (4600, rows archived); the cat's rows are still there.
+  hub's tables are dropped (4600) and so are the cat's subject, entry types, entries
+  and the routines feature only it used (4800); every row is archived.
 - elnunu.com attached. CI runs the database checks on every pull request.
 - Timers go through the offline queue; one open timer per type; custody expires
   after 12 hours (migration `…3400`).
@@ -132,10 +133,9 @@ Open:
 - The retired tables are gone (migration 4600): the shopping set, the house
   (tickets, assets, contractors) and the hub, with their functions, modules and
   permission rows. Every row they held is kept as JSON in `public.retired_rows`
-  (service role only); drop that table once nobody wants the history at all.
-  The pet's subject, entry types and entries are still in the database under the
-  hidden `fanta` module; removing them is a separate decision, since the setup
-  script and the names helper still know about a pet.
+  (service role only), as are the pet's rows and the routines (4800); drop that
+  table once nobody wants the history at all. A care subject is a child now
+  (`care_subjects.kind`).
 
 ## Access, and what is currently broken
 
@@ -184,8 +184,8 @@ su postgres -c "cd $PWD && ./supabase/tests/run-local.sh"
 ```
 
 They build a scratch database called `family_test`, apply every migration, load the
-test household (`supabase/tests/01_test_household.sql`: Mido, Dana, Wafa, Luda, Lilly,
-Lana and Fanta with fixed ids, the household every check acts as), then assert the
+test household (`supabase/tests/01_test_household.sql`: Mido, Dana, Wafa, Luda, Lilly
+and Lana with fixed ids, the household every check acts as), then assert the
 permission rules by acting as each member. The same run is the `family` CI job.
 
 Note for migration authors: bulk data does not belong in a migration. A household's
@@ -193,13 +193,12 @@ own data goes through `setup-household.mjs`; the test household lives in `tests/
 
 ## Conventions worth keeping
 
-- No names of family members, the child or the pet in code or in migrations. Members
-  and care subjects are rows written by `setup-household.mjs`; screens take names
-  from `me.subjects` through `lib/names.ts` (`childName`, `petName`, `possessive`,
-  `childPronouns`), and the simple screen's strings take `{child}` from `t(lang, key,
-  vars)` with gendered Arabic and Russian variants. The internal module ids `lana`
-  (child) and `fanta` (pet) and the entry-type ids `lana.feed` and so on are keys,
-  not names; they stay.
+- No names of family members or the child in code or in migrations. Members and
+  care subjects are rows written by `setup-household.mjs`; screens take names from
+  `me.subjects` through `lib/names.ts` (`childName`, `possessive`, `childPronouns`),
+  and the simple screen's strings take `{child}` from `t(lang, key, vars)` with
+  gendered Arabic and Russian variants. The internal module id `lana` (the child)
+  and the entry-type ids `lana.feed` and so on are keys, not names; they stay.
 - Every schema change is a new migration file. Never edit an applied one.
 - New writes get an RPC with a permission check, not a table policy alone.
 - Pure logic goes in `lib/` with a `.test.ts` beside it and no `@/` imports, so the

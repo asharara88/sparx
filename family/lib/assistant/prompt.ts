@@ -67,8 +67,7 @@ export function stableSystem(ctx: ToolContext): string {
     .map((s) => {
       const ts = ctx.types.filter((t) => t.module_id === s.module_id);
       const born = s.birth_date ? `, born ${s.birth_date}` : "";
-      const what = s.kind === "child" ? "the child" : "the pet";
-      return `- ${s.name} (${what}${born}; module "${s.module_id}"). Entry types: ${ts.map((t) => `${t.id}=${t.label}`).join(", ")}.`;
+      return `- ${s.name} (the child${born}; module "${s.module_id}"). Entry types: ${ts.map((t) => `${t.id}=${t.label}`).join(", ")}.`;
     })
     .join("\n");
   const hasChild = ctx.subjects.some((s) => s.kind === "child");
