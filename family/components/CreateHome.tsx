@@ -49,11 +49,27 @@ export function CreateHome({ email, another = false }: { email: string | null; a
       p_child_sex: sex,
       p_display_name: yourName.trim() || null,
     });
+    const res = data as { ok: boolean; message?: string; household_id?: string } | null;
+    if (error || !res?.ok) {
+      setBusy(false);
+      return setMsg(res?.message ?? error?.message ?? "Could not create the home.");
+    }
+    // A second home: this device switches to it (the cookie every request carries), then the whole app
+    // reloads for it. The form stays busy until the reload, so a slow switch cannot be submitted twice.
+    // If the switch does not go through, this device would reload showing the old home, so say so instead.
+    if (another) {
+      if (res.household_id) {
+        const switched = await fetch("/api/home/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ household_id: res.household_id }) })
+          .then((r) => r.ok)
+          .catch(() => false);
+        if (!switched) {
+          setBusy(false);
+          return setMsg(`${homeName.trim() || "The home"} is made, but this phone could not switch to it. Pick it from the list of homes on your Me screen.`);
+        }
+      }
+      return window.location.assign("/");
+    }
     setBusy(false);
-    const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not create the home.");
-    // A second home: the account now runs as it, so the whole app reloads for it.
-    if (another) return window.location.assign("/");
     router.refresh();
   }
 

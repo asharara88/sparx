@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 44 files, applied in filename order |
+| Migrations | `supabase/migrations`, 45 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -55,9 +55,13 @@ function belongs to `app_rls`, a role row security applies to, so a function can
 reach another home by accident (4000); backups, push notifications and the photos
 bucket are per home, and the roles, matrix, entry types and helper skills every home
 shares change only from the first home (4100). One account can be in several homes,
-one member row in each, and runs as its chosen one (`home_switch`; the switcher on
-the Me screen); `household_create` makes a home, from the "Create your home" screen
-or "Create another home"; an admin deletes a home by typing its name (4300).
+one member row in each; every request names the home its screen shows (the
+`elnunu_home` cookie, sent as the `x-home` header) and the database honours it only
+for a home the account is in, with the account's chosen home (`home_switch`; the
+switcher on the Me screen) as what a new device starts from (4300, 4500);
+`household_create` makes a home, from the "Create your home" screen or "Create
+another home"; an admin deletes a home by typing its name, and the file cleanup is
+a retried job (`home_cleanups`, the daily cron).
 Permissions are data, not code. `members` have a `role`, roles have rows in
 `permissions` (module, action), and every policy calls `has_permission`. To give
 someone access to something, insert a permission row; no deploy needed. Writes go
