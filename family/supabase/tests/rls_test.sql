@@ -436,14 +436,12 @@ select pg_temp.assert(
 -- ============================================================================
 select pg_temp.act_as(:mido);
 set role authenticated;
--- An item bought 40 days ago with a 30-day interval and not on the list: a reorder suggestion.
+-- Shopping left the app (migration 4400): an item overdue for reorder makes no card any more, and no card of a retired kind stays open.
 update public.shopping_items set last_bought_on = current_date - 40, reorder_days = 30, needed = false where name = 'Collagen';
 select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true', 'refresh runs');
-select pg_temp.assert(exists (select 1 from public.suggestions where member_id = :mido and kind = 'reorder' and status = 'open' and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')), 'Collagen is suggested for reorder');
-select pg_temp.assert((select count(*) from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')) = 1 and (public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')) = 1, 'refreshing twice does not duplicate');
-select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')), 'approve', 7, null))->>'status' = 'approved', 'approve a reorder');
-select pg_temp.assert((select needed from public.shopping_items where name = 'Collagen'), 'approving puts Collagen on the list');
-select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'reorder:' || (select id from public.shopping_items where name = 'Collagen')), 'approve', 7, null))->>'error' = 'decided', 'cannot decide twice');
+select pg_temp.assert(not exists (select 1 from public.suggestions where member_id = :mido and kind in ('reorder', 'request', 'ticket') and status in ('open', 'dismissed')), 'no reorder, request or ticket card is made or left open');
+select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :mido and kind = 'reorder') = 0, 'refreshing again makes none either');
+select pg_temp.assert(not (select needed from public.shopping_items where name = 'Collagen'), 'and nothing touched the list');
 -- A plan draft: dismiss snoozes it, a fresh draft reopens it, approving chosen entries writes the calendar.
 select pg_temp.assert((public.suggestion_put('reorder', 'x', 'x', null, null, '{}'))->>'error' = 'bad_kind', 'only plans can be put by the app');
 select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the week', 'Two things', '/calendar', jsonb_build_object('type', 'plan', 'entries', jsonb_build_array(
@@ -457,6 +455,7 @@ select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the 
   jsonb_build_object('title', 'Vet for Fanta', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
   jsonb_build_object('title', 'Big shop', 'kind', 'plan', 'date', (current_date + 4)::text, 'time', null, 'note', null)))))->>'ok' = 'true', 'a new draft reopens it');
 select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'approve', 7, '{"entries":[0]}'))->>'entries' = '1', 'approving with one entry ticked writes one');
+select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'approve', 7, null))->>'error' = 'decided', 'cannot decide twice');
 select pg_temp.assert(exists (select 1 from public.calendar_events where title = 'Vet for Fanta' and kind = 'appointment'), 'the ticked entry is on the calendar');
 select pg_temp.assert(not exists (select 1 from public.calendar_events where title = 'Big shop'), 'the unticked one is not');
 -- Push: subscribe, status, unsubscribe; notifications are unique per key.

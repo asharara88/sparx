@@ -7,12 +7,14 @@ import { EVENT_KINDS } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon, type IconName } from "@/components/Icon";
 
-const APPROVE: Record<Suggestion["kind"], string> = { reorder: "Add to the list", due: "Open", request: "Review", ticket: "Open", plan: "Put on the calendar" };
-const ICON: Record<Suggestion["kind"], IconName> = { reorder: "cart", due: "syringe", request: "inbox", ticket: "flame", plan: "calendar" };
+const APPROVE: Record<Suggestion["kind"], string> = { due: "Open", plan: "Put on the calendar" };
+const ICON: Record<Suggestion["kind"], IconName> = { due: "syringe", plan: "calendar" };
+const SHOWN = new Set<string>(["due", "plan"]);
 
 /**
  * Approve / dismiss cards: what the data suggests doing today. Approving performs
  * the action with the member's own permissions; "Not now" keeps it quiet for a week.
+ * A card of a kind the app no longer has (shopping, the house) is not shown.
  */
 export function SuggestionCards({ suggestions, title = "Suggested" }: { suggestions: Suggestion[]; title?: string }) {
   const router = useRouter();
@@ -20,7 +22,7 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<Record<string, Set<number>>>({});
-  const list = suggestions.filter((s) => !gone.has(s.id));
+  const list = suggestions.filter((s) => SHOWN.has(s.kind) && !gone.has(s.id));
   if (list.length === 0) return null;
 
   async function decide(s: Suggestion, decision: "approve" | "dismiss") {
@@ -33,7 +35,7 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
     setGone((g) => new Set(g).add(s.id));
     if (decision === "approve") {
       if (s.kind === "plan") setMsg((m) => ({ ...m, done: `${res.entries ?? 0} ${res.entries === 1 ? "entry" : "entries"} put on the calendar.` }));
-      if ((s.kind === "due" || s.kind === "request" || s.kind === "ticket") && s.href) router.push(s.href);
+      if (s.kind === "due" && s.href) router.push(s.href);
     }
     router.refresh();
   }

@@ -77,7 +77,8 @@ export async function runDaily(): Promise<CronReport> {
 
       // 2. Things to approve.
       const { data: sug } = await client.rpc("suggestions_refresh");
-      const open = (((sug as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).filter((s) => s.kind !== "plan");
+      // Only the kinds the app still shows (older rows may carry retired kinds).
+      const open = (((sug as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).filter((s) => s.kind === "due");
       if (open.length > 0) {
         const r = await notifyMember(service, t.member_id, {
           kind: "suggestions",

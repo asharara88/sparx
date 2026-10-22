@@ -481,7 +481,8 @@ export interface Brief {
 }
 
 // ---- Step 6: the proactive layer -------------------------------------------
-export type SuggestionKind = "reorder" | "due" | "plan" | "request" | "ticket";
+/** The kinds the app still shows. Older rows may carry "reorder", "request" or "ticket" (migration 4400 closed them); the cards skip those. */
+export type SuggestionKind = "due" | "plan";
 export interface PlanEntry {
   title: string;
   kind: EventKind;
