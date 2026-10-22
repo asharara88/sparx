@@ -497,7 +497,7 @@ export interface Suggestion {
   title: string;
   body: string | null;
   href: string | null;
-  action: { type: "item_needed"; item_id: string } | { type: "open"; subject_id?: string; module_id?: string } | { type: "plan"; entries: PlanEntry[]; summary?: string } | null;
+  action: { type: "open"; subject_id?: string; module_id?: string } | { type: "plan"; entries: PlanEntry[]; summary?: string } | null;
   status: "open" | "approved" | "dismissed" | "done";
   created_at: string;
 }

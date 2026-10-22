@@ -1,6 +1,6 @@
 "use client";
 /**
- * Read the text off a photo on the phone (appliance labels, receipts, notes).
+ * Read the text off a photo on the phone (a note, a label, a prescription).
  * Tesseract is loaded from a CDN only when first needed (a few MB, cached by
  * the browser afterwards). Nothing is sent anywhere.
  */

@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 45 files, applied in filename order |
+| Migrations | `supabase/migrations`, 46 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -69,7 +69,7 @@ through security-definer RPCs (`care_entry_log`, `activity_tick`,
 `assistant_brief_save` and so on) so the client never writes tables directly. The
 baby's log is `care_entries`, keyed by `client_id` so a retry or an import can
 never double-insert. `household.hidden_modules` switches whole sections off; it
-currently holds `{shopping,fanta}`, though Fanta's screens have since been deleted outright.
+currently holds `{fanta}`, though Fanta's screens have since been deleted outright.
 
 ## State as of this handover
 
@@ -85,11 +85,11 @@ Done and live:
 - Shopping switched off for the household (migration `…3300`), and on 22 October
   its code (the list, the staff's running-low requests, receipts, the cart
   hand-off, the assistant's shopping tools) taken out of the app. The carer's
-  `/send` screen is now "Today": clock-in and the day's events. The tables and
-  functions stay, like the other removed areas.
+  `/send` screen is now "Today": clock-in and the day's events. Later that day
+  the tables and functions were dropped too (migration 4600, rows archived).
 - Fanta the cat, the house (tickets, appliances, contractors) and the Home Assistant
-  hub are **deleted from the app**. The app is baby care only. Their database tables
-  still exist and hold the old rows; nothing reads them.
+  hub are **deleted from the app**. The app is baby care only. The house's and the
+  hub's tables are dropped (4600, rows archived); the cat's rows are still there.
 - elnunu.com attached. CI runs the database checks on every pull request.
 - Timers go through the offline queue; one open timer per type; custody expires
   after 12 hours (migration `…3400`).
@@ -128,11 +128,13 @@ Open:
   sign-out and view-as form posts refuse cross-site requests. The database still
   honours a `preview_mode: 'full'` claim in `has_permission` that nothing mints;
   harmless, and a candidate for removal.
-- The dropped tables (tickets, assets, contractors, the pet's subject and entries,
-  hub entities, and now the shopping set: `shopping_items`, `shopping_requests`,
-  `shelf_items`, `receipts`, `receipt_lines`, `purchases`, `cart_runs`, `stores`)
-  could be removed with a new migration once nobody wants the history. The
-  database suite still exercises their functions until then.
+- The retired tables are gone (migration 4600): the shopping set, the house
+  (tickets, assets, contractors) and the hub, with their functions, modules and
+  permission rows. Every row they held is kept as JSON in `public.retired_rows`
+  (service role only); drop that table once nobody wants the history at all.
+  The pet's subject, entry types and entries are still in the database under the
+  hidden `fanta` module; removing them is a separate decision, since the setup
+  script and the names helper still know about a pet.
 
 ## Access, and what is currently broken
 

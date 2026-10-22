@@ -60,7 +60,7 @@ const homeRow = given({
   notes: hh.notes ?? null,
   milk_target_ml: hh.milk_target_ml,
   bottle_interval_min: hh.bottle_interval_min,
-  hidden_modules: hh.hidden_modules ?? ["shopping"],
+  hidden_modules: hh.hidden_modules ?? [],
 });
 const homes = await ok(admin.from("household").select("id, name"));
 const peopled = new Set((await ok(admin.from("members").select("household_id"))).map((m) => m.household_id));

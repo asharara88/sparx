@@ -47,7 +47,7 @@ function myHome(): Promise<string> {
 }
 
 /** Upload a photo from a file input. Returns the storage path to keep on the row. */
-export async function uploadPhoto(file: File, folder: "entries" | "subjects" | "members" | "chat" | "tickets" | "assets"): Promise<string> {
+export async function uploadPhoto(file: File, folder: "entries" | "subjects" | "members" | "chat"): Promise<string> {
   const home = await myHome();
   const blob = await downscale(file);
   const ext = blob === file ? (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg" : "jpg";
