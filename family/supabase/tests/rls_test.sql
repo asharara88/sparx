@@ -83,6 +83,8 @@ select pg_temp.assert((public.work_days_set(:lilly, array[0,2,3,5,6]::smallint[]
 select pg_temp.assert((public.permission_set('admin', 'members', 'edit', false))->>'error' = 'lockout', 'an admin cannot lock their own role out of Members');
 select pg_temp.assert((public.member_save(null, 'Test Helper', 'helper@test.local', 'home_carer', null, 'Temp', true))->>'ok' = 'true', 'Mido adds a member from the UI path');
 select pg_temp.assert((public.audit_recent(50))->>'ok' = 'true', 'Mido can read the audit log');
+select pg_temp.assert((public.job_runs_list())->>'ok' = 'true' and jsonb_array_length((public.job_runs_list())->'runs') = 0, 'and the nightly jobs'' record, empty before the first run');
+select pg_temp.assert(pg_temp.fails('select * from public.job_runs'), 'the record itself is the server''s, not a member''s');
 reset role;
 
 -- ---------------------------------------------------------------- as Lilly (home carer)
@@ -103,6 +105,7 @@ exception when insufficient_privilege then
 end $$;
 select pg_temp.assert((select count(*) from public.members) = 1 and (select display_name from public.members) = 'Lilly', 'Lilly sees only herself in members');
 select pg_temp.assert((public.audit_recent(10))->>'error' = 'not_allowed', 'Lilly cannot read the audit log');
+select pg_temp.assert((public.job_runs_list())->>'error' = 'not_allowed', 'nor the nightly jobs'' record');
 select pg_temp.assert((public.work_days_set(:lilly, array[1]::smallint[]))->>'error' = 'not_allowed', 'Lilly cannot change her own work days');
 select pg_temp.assert((public.presence_set(:lilly, 'visiting_today', null, null, null))->>'ok' = 'true', 'Lilly can set her own presence');
 select pg_temp.assert((public.presence_set(:mido, 'away', null, null, null))->>'error' = 'not_allowed', 'Lilly cannot set Mido''s presence');
@@ -951,14 +954,15 @@ update public.bag_items set checked = false where id = '00000000-0000-4000-8000-
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
-      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete')) = 0,
-  'every definer function in public belongs to app_rls, except the seven that must see across homes');
+      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete',
+                            'timers_close_forgotten')) = 0,
+  'every definer function in public belongs to app_rls, except the eight that must see across homes');
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
                             'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home',
-                            'preview_member_id')) = 0,
+                            'preview_member_id', 'timers_close_forgotten')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
 -- And none of them may reach into the auth schema: the token is read through public.current_member_id()
@@ -1165,11 +1169,62 @@ select pg_temp.assert(pg_temp.fails('insert into public.care_subjects (module_id
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->>'homes' = '1', 'Haitham is back to one home');
+select pg_temp.assert((public.job_runs_list())->>'error' = 'not_allowed', 'the nightly jobs'' record is the platform home''s; another home does not read it');
 reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'Our home' and (public.me())->>'homes' = '2', 'Mido is at home, still listed in the Khans');
 reset role;
+
+-- Timers left on (migration 5200). In this test household only sleep and the night wake-up are
+-- timers (the feed type's has_end is off here); live, a breastfeed is one too and gets the 20 min cap.
+reset role;
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000001', :lana, 'lana', 'lana.wake', now() - interval '2 days', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(
+  not exists (select 1 from jsonb_array_elements((public.home_summary())->'ongoing') o
+               where o->>'id' = (select id::text from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000001')),
+  'a timer left on for more than a day is not running on the home screen');
+select pg_temp.assert(pg_temp.fails('select public.timers_close_forgotten()'), 'the nightly timers job is the server''s, not a member''s');
+select pg_temp.assert((private.timers_close_forgotten(interval '0', null))->>'error' = 'not_allowed', 'nor can a member reach every home through the helper');
+select pg_temp.assert((private.timers_close_forgotten(interval '0', :lana))->>'error' = 'not_allowed', 'nor shorten the day-old rule');
+select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :zayd))->>'error' = 'not_allowed', 'nor reach a child of another home');
+reset role;
+-- Nor a member who may not log for the child (the carer's role, with logging taken away for the check), nor a view-as preview.
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action = 'add';
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :lana))->>'error' = 'not_allowed', 'nor can a member who may not log for the child');
+reset role;
+update public.permissions set allowed = true where role_id = 'home_carer' and module_id = 'lana' and action = 'add';
+select pg_temp.preview_as(:mido, :lilly);
+set role authenticated;
+select pg_temp.assert((private.timers_close_forgotten(interval '24 hours', :lana))->>'error' = 'not_allowed', 'nor a view-as preview, which is read only');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+reset role;
+-- As the server: its own key, no member behind it (the production cron), so no home in scope.
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+set role service_role;
+select pg_temp.assert((public.timers_close_forgotten())->>'closed' = '1', 'the nightly job closes the night wake-up left on for two days, with no member behind it');
+reset role;
+select pg_temp.assert((select ended_at = occurred_at + interval '1 hour' and note like '%Timer left on; end set to 1 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000001'),
+  'a wake-up left on ends 1 h after it started, with a note');
+-- A new start closes a timer of its type left on since yesterday instead of handing it back.
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000002', :lana, 'lana', 'lana.sleep', now() - interval '30 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana)),
+  ('cccccccc-0000-4000-8000-000000000004', :lana, 'lana', 'lana.wake', now() - interval '30 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now(), null, '{}', null, 'cccccccc-0000-4000-8000-000000000003'))->>'ok' = 'true', 'a new sleep can start while one was left on since yesterday');
+select pg_temp.assert((select ended_at is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000004'), 'only a timer of the same type is closed by the new start; the wake-up left on is not touched');
+select pg_temp.assert((select ended_at = occurred_at + interval '12 hours' and note like '%Timer left on; end set to 12 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000002'),
+  'the sleep left on ends 12 h after it started, with a note, instead of being handed back');
+reset role;
+update public.care_entries set ended_at = now() where client_id in ('cccccccc-0000-4000-8000-000000000003', 'cccccccc-0000-4000-8000-000000000004');
 
 \echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

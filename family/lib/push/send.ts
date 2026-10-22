@@ -16,7 +16,11 @@ export function pushConfigured(): boolean {
 }
 function setup() {
   if (configured) return;
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:home@example.com", process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || "mailto:home@example.com",
+    process.env.VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  );
   configured = true;
 }
 
@@ -31,46 +35,99 @@ interface Sub {
  * Returns how many phones got it. 0 with `skipped: "sent"` when the key was already sent,
  * `skipped: "no_phones"` when the member has no active subscription.
  */
-export async function notifyMember(service: SupabaseClient, memberId: string, n: Notice): Promise<{ sent: number; skipped?: "sent" | "no_phones" | "not_configured" }> {
+/** `failed`: phones the push service refused or could not be reached; a delivery problem, not a skip. */
+export async function notifyMember(
+  service: SupabaseClient,
+  memberId: string,
+  n: Notice,
+): Promise<{
+  sent: number;
+  failed?: number;
+  skipped?: "sent" | "no_phones" | "not_configured";
+}> {
   if (!pushConfigured()) return { sent: 0, skipped: "not_configured" };
   setup();
   // The service role is in no home, so the row says whose home it is for.
-  const { data: who } = await service.from("members").select("household_id").eq("id", memberId).maybeSingle();
+  const { data: who } = await service
+    .from("members")
+    .select("household_id")
+    .eq("id", memberId)
+    .maybeSingle();
   const home = (who as { household_id: string } | null)?.household_id;
   if (!home) return { sent: 0, skipped: "no_phones" };
   // Dedupe first: the unique (member_id, key) is the lock.
   const { data: ins, error: insErr } = await service
     .from("notifications")
-    .insert({ household_id: home, member_id: memberId, kind: n.kind, key: n.key, title: n.title, body: n.body ?? null, url: n.url ?? null })
+    .insert({
+      household_id: home,
+      member_id: memberId,
+      kind: n.kind,
+      key: n.key,
+      title: n.title,
+      body: n.body ?? null,
+      url: n.url ?? null,
+    })
     .select("id")
     .maybeSingle();
   if (insErr || !ins) return { sent: 0, skipped: "sent" };
 
-  const { data: subs } = await service.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("member_id", memberId).eq("is_active", true);
+  const { data: subs } = await service
+    .from("push_subscriptions")
+    .select("id,endpoint,p256dh,auth")
+    .eq("member_id", memberId)
+    .eq("is_active", true);
   const list = (subs as Sub[] | null) ?? [];
   if (list.length === 0) {
-    await service.from("notifications").update({ result: { phones: 0 } }).eq("id", ins.id);
+    await service
+      .from("notifications")
+      .update({ result: { phones: 0 } })
+      .eq("id", ins.id);
     return { sent: 0, skipped: "no_phones" };
   }
-  const payload = JSON.stringify({ title: n.title, body: n.body ?? "", url: n.url ?? "/", tag: n.kind });
+  const payload = JSON.stringify({
+    title: n.title,
+    body: n.body ?? "",
+    url: n.url ?? "/",
+    tag: n.kind,
+  });
   let sent = 0;
+  let failed = 0;
   const results: Record<string, string> = {};
   for (const s of list) {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 6 * 3600, urgency: "normal" });
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        payload,
+        { TTL: 6 * 3600, urgency: "normal" },
+      );
       sent += 1;
       results[s.id] = "ok";
-      await service.from("push_subscriptions").update({ last_ok_at: new Date().toISOString() }).eq("id", s.id);
+      await service
+        .from("push_subscriptions")
+        .update({ last_ok_at: new Date().toISOString() })
+        .eq("id", s.id);
     } catch (e) {
       const status = (e as { statusCode?: number }).statusCode;
       results[s.id] = `error ${status ?? ""}`.trim();
+      failed += 1;
       // 404 / 410: the phone unsubscribed or the browser dropped it; stop trying.
-      if (status === 404 || status === 410) await service.from("push_subscriptions").update({ is_active: false, failed_at: new Date().toISOString() }).eq("id", s.id);
-      else await service.from("push_subscriptions").update({ failed_at: new Date().toISOString() }).eq("id", s.id);
+      if (status === 404 || status === 410)
+        await service
+          .from("push_subscriptions")
+          .update({ is_active: false, failed_at: new Date().toISOString() })
+          .eq("id", s.id);
+      else
+        await service
+          .from("push_subscriptions")
+          .update({ failed_at: new Date().toISOString() })
+          .eq("id", s.id);
     }
   }
-  await service.from("notifications").update({ result: { phones: list.length, sent, results } }).eq("id", ins.id);
-  return { sent };
+  await service
+    .from("notifications")
+    .update({ result: { phones: list.length, sent, results } })
+    .eq("id", ins.id);
+  return failed ? { sent, failed } : { sent };
 }
 
 /** Strip the assistant's citation markers for a notification body. */

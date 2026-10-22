@@ -1,15 +1,41 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { BackupRow } from "@/lib/types";
+import type { BackupRow, JobRun } from "@/lib/types";
 import { fmtDateTime } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 import { apiFetch } from "@/lib/supabase/client";
 
 const mb = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
-/** The nightly backups: when, how many rows, and a download of each table. */
-export function BackupsCard({ rows }: { rows: BackupRow[] }) {
+const JOB_LABEL: Record<JobRun["job"], string> = { pushes: "Notifications", backup: "Backup", cleanups: "File cleanup", timers: "Timers left on" };
+
+/** One line per job of the nightly run: when it last ran, whether it went well, and if not, why. */
+function LastRuns({ runs, tz }: { runs: JobRun[]; tz: string }) {
+  if (runs.length === 0) return <p className="muted text-sm">The nightly jobs have not run yet.</p>;
+  return (
+    <ul className="flex flex-col gap-1 text-sm" aria-label="Last nightly run">
+      {runs.map((r) => (
+        <li key={r.job} className="flex items-start gap-2">
+          <Icon name={r.last_status === "ok" ? "check" : "x"} size={16} className={`mt-0.5 shrink-0 ${r.last_status === "ok" ? "muted" : "text-[var(--danger)]"}`} />
+          <span className="min-w-0">
+            <span className="font-semibold">{JOB_LABEL[r.job]}</span> <span className="muted">· {fmtDateTime(r.last_at, tz)}</span>
+            {r.last_status === "ok" ? null : (
+              <span className="block">
+                {r.last_status === "failed" ? "Failed" : "Not configured"}
+                {r.last_error ? `: ${r.last_error}` : ""}
+                {r.last_ok_at ? ` (last went well ${fmtDateTime(r.last_ok_at, tz)})` : ""}
+              </span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The nightly backups: when, how many rows, and a download of each table; and the state of the nightly jobs. */
+export function BackupsCard({ rows, runs = [], tz }: { rows: BackupRow[]; runs?: JobRun[]; tz: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -39,6 +65,7 @@ export function BackupsCard({ rows }: { rows: BackupRow[] }) {
         </button>
       </div>
       <p className="muted text-sm">Every night at 03:00 your home&apos;s data is saved as compressed JSON, one file per table, with a list of the photos. The newest 8 are kept.</p>
+      <LastRuns runs={runs} tz={tz} />
       {rows.length === 0 ? (
         <p className="muted text-sm">No backup yet. The first one runs tonight, or tap “Back up now”.</p>
       ) : (
