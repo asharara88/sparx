@@ -10,6 +10,7 @@ import {
   onQueueChange,
   readQueueFor,
   sendOrQueue,
+  type QueuedEntry,
   type QueuedOp,
 } from "@/lib/offline";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
@@ -31,7 +32,7 @@ export function QuickFeed({
   typeId,
   types,
   ongoing: serverOngoing,
-  lastSide,
+  lastBreast,
   counts,
   timezone,
 }: {
@@ -39,7 +40,8 @@ export function QuickFeed({
   typeId: string;
   types: EntryType[];
   ongoing: OngoingEntry[];
-  lastSide: Side | null;
+  /** The newest breastfeed the server knows, for the suggested next side. */
+  lastBreast: { side: Side; at: string } | null;
   counts: { Left: number; Right: number };
   timezone: string;
 }) {
@@ -67,6 +69,22 @@ export function QuickFeed({
   const minutes = feeding
     ? Math.max(0, minutesBetween(feeding.occurred_at, new Date().toISOString()))
     : 0;
+  // A breastfeed logged on this phone with no signal is only in the queue; it is the last side too.
+  const queuedBreast = queue
+    .filter((x): x is QueuedEntry => (x.op ?? "log") === "log")
+    .filter(
+      (x) =>
+        x.subject_id === subjectId &&
+        x.type_id === typeId &&
+        sideOf(x.payload) !== null,
+    )
+    .sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))[0];
+  const lastSide: Side | null =
+    queuedBreast &&
+    (!lastBreast ||
+      Date.parse(queuedBreast.occurred_at) > Date.parse(lastBreast.at))
+      ? sideOf(queuedBreast.payload)
+      : (lastBreast?.side ?? null);
   const suggested: Side | null =
     lastSide === "Left" ? "Right" : lastSide === "Right" ? "Left" : null;
 

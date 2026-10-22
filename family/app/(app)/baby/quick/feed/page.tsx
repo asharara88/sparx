@@ -34,7 +34,21 @@ export default async function QuickFeedPage() {
   const ongoing = summary.ongoing.filter((e) => e.type_id === feedType.id);
   const open = ongoing[0] ?? null;
   const last = summary.last[feedType.id] ?? null;
-  const lastSide = last ? sideOf(last.payload) : null;
+  // The side to suggest comes from the newest breastfeed, which a bottle since does not change.
+  const { data: breastRows } = await supabase
+    .from("care_entries")
+    .select("occurred_at, payload")
+    .eq("subject_id", summary.subject.id)
+    .eq("type_id", feedType.id)
+    .eq("payload->>method", "Breast")
+    .is("deleted_at", null)
+    .order("occurred_at", { ascending: false })
+    .limit(1);
+  const lastBreast =
+    (breastRows?.[0] as
+      | { occurred_at: string; payload: Record<string, unknown> }
+      | undefined) ?? null;
+  const lastSide = lastBreast ? sideOf(lastBreast.payload) : null;
   const counts = { Left: 0, Right: 0 };
   for (const e of summary.today_entries) {
     if (e.type_id !== feedType.id) continue;
@@ -58,7 +72,11 @@ export default async function QuickFeedPage() {
         typeId={feedType.id}
         types={summary.types}
         ongoing={ongoing}
-        lastSide={lastSide}
+        lastBreast={
+          lastBreast && lastSide
+            ? { side: lastSide, at: lastBreast.occurred_at }
+            : null
+        }
         counts={counts}
         timezone={tz}
       />

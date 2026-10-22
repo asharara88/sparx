@@ -23,7 +23,10 @@ export function setManualNight(on: boolean) {
 /** Per phone: "0" switches the automatic night screen off (Me screen). */
 export const NIGHT_PREF_KEY = "family.night.auto";
 export const NIGHT_PREF_EVENT = "family:night-pref";
+/** The choice for this tab when storage is blocked (private mode): it lasts until the tab closes. */
+let tabChoice: boolean | null = null;
 export function autoNightEnabled(): boolean {
+  if (tabChoice !== null) return tabChoice;
   try {
     return localStorage.getItem(NIGHT_PREF_KEY) !== "0";
   } catch {
@@ -31,10 +34,11 @@ export function autoNightEnabled(): boolean {
   }
 }
 export function setAutoNightEnabled(on: boolean) {
+  tabChoice = on;
   try {
     localStorage.setItem(NIGHT_PREF_KEY, on ? "1" : "0");
   } catch {
-    /* private mode: the choice lasts until the tab closes */
+    /* storage blocked: tabChoice carries it */
   }
   window.dispatchEvent(new Event(NIGHT_PREF_EVENT));
 }
