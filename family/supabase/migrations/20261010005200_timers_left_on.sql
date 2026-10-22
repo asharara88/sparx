@@ -40,7 +40,7 @@ begin
        set ended_at = e.occurred_at + t.cap,
            note = concat_ws(' ', nullif(e.note, ''), 'Timer left on; end set to ' || t.cap_text || '.'),
            updated_at = now()
-      from t where e.id = t.id
+      from t where e.id = t.id and e.ended_at is null -- still open: a hand that ended it meanwhile wins
     returning e.id, e.type_id, e.subject_id, e.occurred_at, e.ended_at)
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'type_id', type_id, 'subject_id', subject_id, 'occurred_at', occurred_at, 'ended_at', ended_at)), '[]'::jsonb)
     into v_rows from u;
