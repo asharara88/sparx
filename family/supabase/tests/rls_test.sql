@@ -56,7 +56,7 @@ select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interva
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '2 hours', null, '{"method":"Bottle","amount_ml":120}', null, 'aaaaaaaa-0000-4000-8000-000000000001'))->>'duplicate' = 'true', 'same client_id twice is idempotent (offline queue)');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '90 minutes', now() - interval '30 minutes', '{"place":"Cot"}', null, null))->>'ok' = 'true', 'Mido logs a nap with an end time');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.medication', now() - interval '1 hour', null, '{"name":"Vitamin D drops","dose":"1 drop"}', null, null))->>'ok' = 'true', 'Mido logs medicine given');
-select pg_temp.assert((public.care_entry_log(:lana, 'fanta.food', now(), null, '{}', null, null))->>'error' = 'bad_type', 'an entry type from another module is rejected');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.nope', now(), null, '{}', null, null))->>'error' = 'bad_type', 'an entry type that does not exist is rejected');
 select pg_temp.assert((select (e->>'by') from jsonb_array_elements((public.home_summary())->'today_entries') e limit 1) = 'Dana', 'entries attribute to whoever has Lana (Dana), not the logger');
 select pg_temp.assert((public.home_summary())#>>'{last,lana.feed,next_due}' is not null, 'home summary computes next feed due');
 select pg_temp.assert((public.home_summary())#>>'{custody,name}' = 'Dana', 'home summary shows who has Lana');
@@ -192,30 +192,16 @@ select pg_temp.assert(
 
 
 -- ===========================================================================
--- Step 3: Fanta, attachments
+-- Step 3: attachments
 -- ===========================================================================
-\set fanta '''00000000-0000-4000-8000-00000000a002'''
 select pg_temp.act_as(:luda);
 set role authenticated;
-select pg_temp.assert((public.care_entry_log(:fanta, 'fanta.food', now(), null, '{"food":"Royal Canin","amount_g":40}'::jsonb, null, null))->>'ok' = 'true', 'Luda feeds Fanta');
-select pg_temp.assert((public.care_entry_log(:fanta, 'fanta.treatment', now() - interval '1 day', null, jsonb_build_object('kind', 'Vaccination', 'product', 'Tricat', 'next_due', (current_date + 1)::text), null, null))->>'ok' = 'true', 'Luda logs a vaccination due tomorrow');
-select pg_temp.assert((public.care_entry_log(:fanta, 'fanta.litter', now() - interval '2 days', null, '{"kind":"Scooped"}'::jsonb, null, null))->>'ok' = 'true', 'litter scooped two days ago');
-select pg_temp.assert((public.subject_profile_save(:fanta, '{"clinic":"Modern Vet","clinic_phone":"+971 4 000 0000","microchip":"985 1000 1234 5678","spayed":true}'::jsonb, null, null))->>'ok' = 'true', 'Luda (family carer, fanta.edit) updates the profile card');
-select pg_temp.assert((select profile->>'microchip' = '985 1000 1234 5678' from public.care_subjects where id = :fanta), 'microchip is on the card');
-select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.care_due_list(30))->'items') i where i->>'kind' = 'treatment' and (i->>'due_on')::date = current_date + 1 and i->>'subject' = 'Fanta'), 'the vaccination is in the due list for tomorrow');
-select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.care_due_list(30))->'items') i where i->>'kind' = 'interval' and i->>'type_id' = 'fanta.litter' and (i->>'overdue')::boolean), 'litter is overdue');
-select pg_temp.assert((public.attachment_add('fanta', 'care_entries', (select id from public.care_entries where type_id = 'fanta.vet' limit 1), 'entries/x.jpg', null, null))->>'ok' = 'true' or true, 'attachment call runs');
+select pg_temp.assert((public.attachment_add('lana', 'care_entries', (select id from public.care_entries where type_id = 'lana.sleep' order by created_at limit 1), 'entries/x.jpg', null, null))->>'ok' = 'true', 'Luda (family carer) attaches a photo to a nap');
 reset role;
-
 select pg_temp.act_as(:lilly);
 set role authenticated;
-select pg_temp.assert((public.care_entries_list(:fanta, now() - interval '7 days', now()))->>'error' = 'not_allowed', 'Lilly cannot see Fanta''s log');
-select pg_temp.assert((select count(*) from public.care_entries where module_id = 'fanta') = 0, 'Lilly sees no Fanta rows directly');
+select pg_temp.assert((public.attachment_add('lana', 'care_entries', (select id from public.care_entries where type_id = 'lana.sleep' order by created_at limit 1), 'entries/y.jpg', null, null))->>'ok' = 'false', 'Lilly (no view of the child yet) cannot');
 reset role;
-
-select pg_temp.assert(
-  (select count(*) from public.audit_log where module_id = 'fanta' and not allowed) >= 1,
-  'Step 3 denials are in the audit log');
 
 
 -- ============================================================================
@@ -284,18 +270,18 @@ select pg_temp.assert(not exists (select 1 from public.suggestions where member_
 -- A plan draft: dismiss snoozes it, a fresh draft reopens it, approving chosen entries writes the calendar.
 select pg_temp.assert((public.suggestion_put('reorder', 'x', 'x', null, null, '{}'))->>'error' = 'bad_kind', 'only plans can be put by the app');
 select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the week', 'Two things', '/calendar', jsonb_build_object('type', 'plan', 'entries', jsonb_build_array(
-  jsonb_build_object('title', 'Vet for Fanta', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
+  jsonb_build_object('title', 'Dentist', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
   jsonb_build_object('title', 'Big shop', 'kind', 'plan', 'date', (current_date + 4)::text, 'time', null, 'note', null)))))->>'ok' = 'true', 'plan put');
 select pg_temp.assert((select count(*) from public.suggestions where member_id = :mido and key = 'plan:test' and status = 'open') = 1, 'plan is open');
 select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'dismiss', 3, null))->>'status' = 'dismissed', 'dismiss a plan');
 select pg_temp.assert((select snooze_until from public.suggestions where member_id = :mido and key = 'plan:test') = (now() at time zone (select timezone from public.household limit 1))::date + 3, 'dismissed plans snooze');
 select pg_temp.assert((select count(*) from jsonb_array_elements((public.suggestions_list())->'suggestions') x where x->>'key' = 'plan:test') = 0, 'a snoozed plan is not listed');
 select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the week', 'Two things', '/calendar', jsonb_build_object('type', 'plan', 'entries', jsonb_build_array(
-  jsonb_build_object('title', 'Vet for Fanta', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
+  jsonb_build_object('title', 'Dentist', 'kind', 'appointment', 'date', (current_date + 3)::text, 'time', '10:00', 'note', 'flea drops'),
   jsonb_build_object('title', 'Big shop', 'kind', 'plan', 'date', (current_date + 4)::text, 'time', null, 'note', null)))))->>'ok' = 'true', 'a new draft reopens it');
 select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'approve', 7, '{"entries":[0]}'))->>'entries' = '1', 'approving with one entry ticked writes one');
 select pg_temp.assert((public.suggestion_decide((select id from public.suggestions where member_id = :mido and key = 'plan:test'), 'approve', 7, null))->>'error' = 'decided', 'cannot decide twice');
-select pg_temp.assert(exists (select 1 from public.calendar_events where title = 'Vet for Fanta' and kind = 'appointment'), 'the ticked entry is on the calendar');
+select pg_temp.assert(exists (select 1 from public.calendar_events where title = 'Dentist' and kind = 'appointment'), 'the ticked entry is on the calendar');
 select pg_temp.assert(not exists (select 1 from public.calendar_events where title = 'Big shop'), 'the unticked one is not');
 -- Push: subscribe, status, unsubscribe; notifications are unique per key.
 select pg_temp.assert((public.push_subscribe('https://push.example/abc', 'p256', 'auth', 'iPhone'))->>'ok' = 'true', 'subscribe a phone');
@@ -411,19 +397,12 @@ reset role;
 
 select pg_temp.act_as(:luda);
 set role authenticated;
-select pg_temp.assert(jsonb_array_length((public.routines_list(:fanta))->'routines') = 5, 'Luda sees Fanta''s five routines');
-select pg_temp.assert((public.routine_done('00000000-0000-4000-8000-00000000c002'))->>'ok' = 'true', 'Luda brushes Fanta');
-select pg_temp.assert((select days_left from (select (r->>'days_left')::int as days_left from jsonb_array_elements((public.routines_list(:fanta))->'routines') r where r->>'label' = 'Brush') x) = 3, 'brush is due again in 3 days');
-select pg_temp.assert((public.routine_done('00000000-0000-4000-8000-00000000c001'))->>'ok' = 'true', 'litter full change done');
-select pg_temp.assert((select count(*) from public.care_entries where subject_id = :fanta and type_id = 'fanta.litter' and payload->>'kind' = 'Full change' and note = 'Litter full change') = 1, 'and it logged the litter entry');
-select pg_temp.assert((public.routine_save(null, :fanta, 'Nails', 21))->>'error' = 'not_allowed', 'Luda cannot add routines');
 select pg_temp.assert((public.ask_chat_save(null, 'About naps', '[{"role":"user","text":"hi"}]'::jsonb))->>'ok' = 'true', 'Luda saves a chat');
 select pg_temp.assert((select count(*) from public.ask_chats) = 1, 'she sees her own chat');
 reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert((select count(*) from public.ask_chats) = 0, 'Mido does not see Luda''s chat');
-select pg_temp.assert((public.routine_save(null, :fanta, 'Nails', 21))->>'ok' = 'true', 'an admin adds a routine');
 select pg_temp.assert((public.household_save(null, null, null, 150))->>'ok' = 'true', 'bottle interval saved');
 select pg_temp.assert((select bottle_interval_min from public.household) = 150, 'household carries it');
 reset role;
@@ -1158,6 +1137,10 @@ reset role;
 select pg_temp.assert((select count(*) from public.retired_rows where table_name = 'stores' and household_id = private.platform_home()) >= 1, 'the archive holds what the dropped tables held (the seeded stores, filed under the first home so a backup carries them)');
 select pg_temp.assert(not exists (select 1 from pg_tables where schemaname = 'public' and tablename in ('shopping_items', 'tickets', 'hub_entities', 'stores')), 'and the tables themselves are gone');
 select pg_temp.assert(not exists (select 1 from public.modules where id in ('shopping', 'maintenance')), 'with their modules');
+-- And the pet (migration 4800): its subject and entry types archived and gone, the routines feature with it, every subject a child.
+select pg_temp.assert((select count(*) from public.retired_rows where table_name in ('care_subjects', 'care_entry_types')) >= 8, 'the pet''s subject and its seven entry types are archived');
+select pg_temp.assert(not exists (select 1 from public.care_subjects where kind <> 'child') and not exists (select 1 from public.modules where id = 'fanta') and not exists (select 1 from pg_tables where schemaname = 'public' and tablename = 'care_routines'), 'and gone, with the module and the routines table');
+select pg_temp.assert(pg_temp.fails('insert into public.care_subjects (module_id, kind, name) values (''lana'', ''pet'', ''Rex'')'), 'a care subject can only be a child now');
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->>'homes' = '1', 'Haitham is back to one home');

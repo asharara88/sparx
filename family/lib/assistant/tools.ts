@@ -22,7 +22,7 @@ export interface SubjectInfo {
   id: string;
   name: string;
   module_id: string;
-  kind: "child" | "pet";
+  kind: "child";
   birth_date: string | null;
   /** From the profile: "Girl", "Boy", "Female"… or null. */
   sex?: string | null;
@@ -220,7 +220,7 @@ function careNow(ctx0: ToolContext): AssistantTool {
     def: {
       name: "care_now",
       description:
-        "The current state of a child's or pet's log: the latest entry of every kind (last feed, nap, diaper, medicine, litter, food…) with when it was and when the next is due, anything still running (asleep, feeding), who has the child, and today's counts and entries. Cheapest first call for 'when did X last…', 'is the baby asleep', 'how many feeds today'.",
+        "The current state of the child's log: the latest entry of every kind (last feed, nap, diaper, medicine…) with when it was and when the next is due, anything still running (asleep, feeding), who has the child, and today's counts and entries. Cheapest first call for 'when did X last…', 'is the baby asleep', 'how many feeds today'.",
       input_schema: obj({ subject: SUBJECT_PROP(ctx0) }, ["subject"]),
     },
     run: async (input, ctx) => {
@@ -262,7 +262,7 @@ function careEntries(ctx0: ToolContext): AssistantTool {
     def: {
       name: "care_entries",
       description:
-        "Every log entry for a child or pet between two moments (feeds, sleeps, diapers, medicine, notes, food, litter, vet…), newest first. Use for a day, a night, or 'the last three feeds'. For 'last X' prefer care_now. Window: at most 14 days.",
+        "Every log entry for the child between two moments (feeds, sleeps, diapers, medicine, notes, appointments…), newest first. Use for a day, a night, or 'the last three feeds'. For 'last X' prefer care_now. Window: at most 14 days.",
       input_schema: obj(
         {
           subject: SUBJECT_PROP(ctx0),

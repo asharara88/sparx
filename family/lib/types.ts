@@ -76,7 +76,7 @@ export interface Household {
 export interface SubjectName {
   id: string;
   module_id: string;
-  kind: "child" | "pet";
+  kind: "child";
   name: string;
   birth_date: string | null;
   /** The name in other languages, e.g. { ar: "لانا", ru: "Лана" }. */
@@ -99,7 +99,7 @@ export interface Me {
   presence: Presence | null;
   work_days: number[];
   household: Household;
-  /** The child and the pet, by name. Absent from older sessions until the page reloads. */
+  /** The children, by name. Absent from older sessions until the page reloads. */
   subjects?: SubjectName[];
 }
 
@@ -177,7 +177,7 @@ export interface OngoingEntry {
 export interface Subject {
   id: string;
   module_id: string;
-  kind: "child" | "pet";
+  kind: "child";
   name: string;
   birth_date: string | null;
   profile: Record<string, unknown>;
