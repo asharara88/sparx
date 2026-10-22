@@ -18,7 +18,7 @@
 -- ---------------------------------------------------------------------------
 create table if not exists public.retired_rows (
   id            bigserial primary key,
-  -- The home the row belonged to, so a home's share goes with the home when it is deleted; null for shared rows (stores).
+  -- The home the row belonged to, so a home's share goes with the home when it is deleted (shared rows go to the first home).
   household_id  uuid references public.household (id) on delete cascade,
   table_name    text not null,
   row           jsonb not null,
@@ -29,7 +29,8 @@ alter table public.retired_rows enable row level security;
 revoke all on public.retired_rows from public, anon, authenticated;
 grant select, insert, update, delete on public.retired_rows to service_role;
 
-insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'stores', to_jsonb(t) from public.stores t;
+-- stores was a shared table (no home of its own): its rows go to the first home, which owns what every home shares, so a backup carries them.
+insert into public.retired_rows (household_id, table_name, row) select private.platform_home(), 'stores', to_jsonb(t) from public.stores t;
 insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shelf_items', to_jsonb(t) from public.shelf_items t;
 insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shopping_items', to_jsonb(t) from public.shopping_items t;
 insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shopping_item_aliases', to_jsonb(t) from public.shopping_item_aliases t;

@@ -1144,7 +1144,7 @@ select pg_temp.assert(pg_temp.fails('select * from public.home_cleanups'), 'the 
 -- The rows of the dropped shopping and house tables (migration 4600) were kept, and are the server's too.
 select pg_temp.assert(pg_temp.fails('select * from public.retired_rows'), 'the archive of retired rows is not a member''s to read');
 reset role;
-select pg_temp.assert((select count(*) from public.retired_rows where table_name = 'stores') >= 1, 'the archive holds what the dropped tables held (the seeded stores)');
+select pg_temp.assert((select count(*) from public.retired_rows where table_name = 'stores' and household_id = private.platform_home()) >= 1, 'the archive holds what the dropped tables held (the seeded stores, filed under the first home so a backup carries them)');
 select pg_temp.assert(not exists (select 1 from pg_tables where schemaname = 'public' and tablename in ('shopping_items', 'tickets', 'hub_entities', 'stores')), 'and the tables themselves are gone');
 select pg_temp.assert(not exists (select 1 from public.modules where id in ('shopping', 'maintenance')), 'with their modules');
 select pg_temp.act_as(:haitham);
