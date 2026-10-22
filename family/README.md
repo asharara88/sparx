@@ -179,9 +179,9 @@ household*); nothing in the code is tied to these people.
 
 - The shopping list, the staff's running-low requests, receipts read by the model and the
   "fill a cart" hand-off were built in this step and taken out of the app on 22 October
-  2026: the app is the baby's day. Their tables, functions and permission rows are still in
-  the database (`shopping_items`, `shopping_requests`, `receipts`, `cart_runs`, the
-  `shopping*` modules), as with the other removed areas; nothing reads them.
+  2026: the app is the baby's day. Their tables, functions, modules and permission rows
+  left the database with migration 4600, together with the house (tickets, assets,
+  contractors) and the hub; every row they held is kept as JSON in `private.retired_rows`.
 - Photos are shrunk on the phone before upload (longest side 1600 px), for every photo type.
 
 ## 0. Brand
@@ -363,7 +363,7 @@ schedule shipped is the Abu Dhabi one; a family elsewhere edits it in the app
 supabase/migrations/   20261010000100_foundation.sql   members, roles, permissions, presence, audit, RLS
                        20261010000200_care_log.sql     subjects, entry types, entries, custody, RPCs
                        20261010000300_seed_household.sql  roles, modules, permission matrix, entry types (no family data)
-                       20261010000400_step2.sql        timers, calendar, shopping, requests, photos bucket
+                       20261010000400_step2.sql        timers, calendar, photos bucket (and shopping, dropped in 4600)
                        …                                one file per release since; 3500 = any household
 supabase/tests/        rls_test.sql (the database checks), 01_test_household.sql (the household the
                        checks act as), run-local.sh, local auth stub, demo_data.sql

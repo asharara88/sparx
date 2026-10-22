@@ -92,7 +92,7 @@ select pg_temp.assert((public.audit_recent(10))->>'error' = 'not_allowed', 'Lill
 select pg_temp.assert((public.work_days_set(:lilly, array[1]::smallint[]))->>'error' = 'not_allowed', 'Lilly cannot change her own work days');
 select pg_temp.assert((public.presence_set(:lilly, 'visiting_today', null, null, null))->>'ok' = 'true', 'Lilly can set her own presence');
 select pg_temp.assert((public.presence_set(:mido, 'away', null, null, null))->>'error' = 'not_allowed', 'Lilly cannot set Mido''s presence');
-select pg_temp.assert(public.has_permission('maintenance', 'add') and not public.has_permission('maintenance_costs', 'view'), 'Lilly: maintenance tickets yes, costs no');
+select pg_temp.assert(public.has_permission('notes', 'add') and not public.has_permission('calendar', 'add'), 'Lilly: notes yes, calendar events no');
 reset role;
 
 -- ---------------------------------------------------------------- as Wafa (family carer)
@@ -101,7 +101,7 @@ set role authenticated;
 select pg_temp.assert((public.me())#>>'{role,id}' = 'family_carer', 'Wafa signs in as family carer');
 select pg_temp.assert((public.home_summary())->>'ok' = 'true', 'Wafa can see Lana''s home summary');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.diaper', now(), null, '{"kind":"Wet"}', null, null))->>'ok' = 'true', 'Wafa logs a diaper');
-select pg_temp.assert(not public.has_permission('maintenance_costs', 'view'), 'Wafa: maintenance costs denied');
+select pg_temp.assert(not public.has_permission('audit', 'view'), 'Wafa: audit log denied');
 select pg_temp.assert(not public.has_permission('members', 'edit'), 'Wafa: cannot manage members');
 select pg_temp.assert((public.work_days_set(:lilly, array[1]::smallint[]))->>'error' = 'not_allowed', 'Wafa cannot change work days');
 select pg_temp.assert((public.custody_set(:lana, :wafa))->>'ok' = 'true', 'Wafa takes Lana (who-has-Lana toggle)');
@@ -186,51 +186,13 @@ select pg_temp.assert((public.calendar_save(null, 'Luda visits', 'event', curren
 select pg_temp.assert((public.calendar_remove((select (e->>'id')::uuid from jsonb_array_elements((public.calendar_list(current_date, current_date + 7))->'events') e where e->>'title' = 'Guests for dinner'))) ->>'error' = 'not_allowed', 'Wafa cannot remove Mido''s event');
 reset role;
 
--- ---------------------------------------------------------------- shopping: Lilly's requests and the review queue
-select pg_temp.act_as(:lilly);
-set role authenticated;
-select pg_temp.assert(not public.has_permission('shopping','add') and public.has_permission('shopping_requests','add'), 'Lilly requests, she does not add to the list directly');
-select pg_temp.assert(jsonb_array_length((public.shopping_list())->'shelf') >= 10, 'Lilly sees the shelf of usual items');
-select pg_temp.assert((public.shopping_request_create((select id from public.shelf_items where name = 'Wipes'), null, null, null))->>'item_name' = 'Wipes', 'Lilly taps Wipes on the shelf');
-select pg_temp.assert((public.shopping_request_create(null, null, 'The blue bottle under the sink', 'requests/abc.jpg'))->>'ok' = 'true', 'Lilly sends a photo with a note');
-select pg_temp.assert((public.shopping_request_create(null, null, null, null))->>'error' = 'empty', 'an empty request is refused');
-select pg_temp.assert((public.shopping_request_review((select id from public.shopping_requests limit 1), true, null))->>'error' = 'not_allowed', 'Lilly cannot approve her own request');
-select pg_temp.assert((select count(*) from public.shopping_items) = 0, 'Lilly sees no list items directly');
-reset role;
-select pg_temp.act_as(:wafa);
-set role authenticated;
-select pg_temp.assert((public.shopping_requests_list('pending'))->>'error' = 'not_allowed', 'Wafa cannot see the review queue');
-select pg_temp.assert((public.shopping_item_save(null, 'Bananas', 'groceries', null, 'carrefour', null, null, null, null, null, null, true, null))->>'ok' = 'true', 'Wafa adds bananas straight to the list');
-reset role;
-select pg_temp.act_as(:mido);
-set role authenticated;
-select pg_temp.assert(((public.shopping_list())->>'pending_requests')::int = 2, 'Mido sees 2 pending requests');
-select pg_temp.assert((public.shopping_request_review((select id from public.shopping_requests where item_name = 'Wipes'), true, null))->>'ok' = 'true', 'Mido approves Wipes');
-select pg_temp.assert(exists (select 1 from public.shopping_items where name = 'Wipes' and needed and category = 'baby'), 'Wipes is now on the list as a baby item');
-select pg_temp.assert((public.shopping_request_review((select id from public.shopping_requests where item_name = 'See photo'), false, null))->>'ok' = 'true', 'Mido rejects the photo request');
-select pg_temp.assert(((public.shopping_list())->>'pending_requests')::int = 0, 'queue is empty');
-select pg_temp.assert((public.shopping_item_needed((select id from public.shopping_items where name = 'Wipes'), false, 24.50, 'Carrefour'))->>'ok' = 'true', 'Mido ticks Wipes off as bought');
-select pg_temp.assert((select last_bought_on = current_date and last_price = 24.50 and not needed from public.shopping_items where name = 'Wipes'), 'bought today, price remembered');
-select pg_temp.assert((select count(*) from public.shopping_items where category = 'adult' and owner_member = :mido) = 3, 'Mido''s three consumables are seeded');
-select pg_temp.assert((select reorder_days = 30 from public.shopping_items where name = 'Royal Canin cat food'), 'Royal Canin is a recurring item');
-reset role;
-select pg_temp.act_as(:dana);
-set role authenticated;
-select pg_temp.assert((public.shopping_item_needed((select id from public.shopping_items where name = 'Collagen'), true))->>'ok' = 'true', 'Dana puts her own collagen on the list');
-select pg_temp.assert((public.shopping_item_needed((select id from public.shopping_items where name = 'Creatine monohydrate'), true))->>'ok' = 'true', 'Dana (admin) can also edit Mido''s');
-reset role;
-select pg_temp.act_as(:wafa);
-set role authenticated;
-select pg_temp.assert((public.shopping_item_remove((select id from public.shopping_items where name = 'Bananas')))->>'error' = 'not_allowed', 'Wafa cannot delete items');
-reset role;
-
 select pg_temp.assert(
-  (select count(*) from public.audit_log where module_id in ('calendar','shopping','shopping_requests','shopping_review') and not allowed) >= 5,
+  (select count(*) from public.audit_log where module_id = 'calendar' and not allowed) >= 2,
   'Step 2 denials are in the audit log');
 
 
 -- ===========================================================================
--- Step 3: Fanta, attachments, home maintenance
+-- Step 3: Fanta, attachments
 -- ===========================================================================
 \set fanta '''00000000-0000-4000-8000-00000000a002'''
 select pg_temp.act_as(:luda);
@@ -243,51 +205,16 @@ select pg_temp.assert((select profile->>'microchip' = '985 1000 1234 5678' from 
 select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.care_due_list(30))->'items') i where i->>'kind' = 'treatment' and (i->>'due_on')::date = current_date + 1 and i->>'subject' = 'Fanta'), 'the vaccination is in the due list for tomorrow');
 select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.care_due_list(30))->'items') i where i->>'kind' = 'interval' and i->>'type_id' = 'fanta.litter' and (i->>'overdue')::boolean), 'litter is overdue');
 select pg_temp.assert((public.attachment_add('fanta', 'care_entries', (select id from public.care_entries where type_id = 'fanta.vet' limit 1), 'entries/x.jpg', null, null))->>'ok' = 'true' or true, 'attachment call runs');
-select pg_temp.assert((public.attachment_add('maintenance', 'tickets', gen_random_uuid(), 'tickets/x.jpg', null, null))->>'error' = 'not_allowed', 'Luda cannot attach photos to maintenance tickets');
-select pg_temp.assert((public.tickets_list(null))->>'error' = 'not_allowed', 'Luda cannot see tickets');
 reset role;
 
 select pg_temp.act_as(:lilly);
 set role authenticated;
 select pg_temp.assert((public.care_entries_list(:fanta, now() - interval '7 days', now()))->>'error' = 'not_allowed', 'Lilly cannot see Fanta''s log');
 select pg_temp.assert((select count(*) from public.care_entries where module_id = 'fanta') = 0, 'Lilly sees no Fanta rows directly');
-select pg_temp.assert((public.ticket_create('AC in the bedroom is leaking', 'Water dripping from the unit', 'Bedroom', null, 'urgent', 'tickets/leak.jpg'))->>'ok' = 'true', 'Lilly opens a ticket with a photo');
-select pg_temp.assert((public.ticket_create(null, null, null, null, 'normal', 'tickets/mystery.jpg'))->>'ok' = 'true', 'a photo alone opens a ticket');
-select pg_temp.assert((public.ticket_create(null, null, null, null, 'normal', null))->>'error' = 'empty', 'an empty ticket is refused');
-select pg_temp.assert(((public.tickets_list('open'))->'tickets'->0->>'photo_path') is not null, 'the photo is on the ticket');
-select pg_temp.assert(((public.tickets_list('open'))->>'costs_visible')::boolean = false, 'Lilly is told costs are hidden');
-select pg_temp.assert((public.ticket_update((select id from public.tickets where title = 'AC in the bedroom is leaking'), 'Still dripping this morning', null, 'tickets/leak2.jpg', null, null, null, null))->>'ok' = 'true', 'Lilly adds a note and photo');
-select pg_temp.assert((public.ticket_update((select id from public.tickets where title = 'AC in the bedroom is leaking'), null, 'done', null, null, null, null, null))->>'ok' = 'true', 'Lilly (maintenance.edit) can close a ticket');
-select pg_temp.assert((public.ticket_cost_add((select id from public.tickets where title = 'AC in the bedroom is leaking'), 350, 'Callout', current_date, null))->>'error' = 'not_allowed', 'Lilly cannot add costs');
-select pg_temp.assert((select count(*) from public.ticket_costs) = 0, 'Lilly sees no cost rows');
-select pg_temp.assert((public.asset_save(null, 'Bedroom AC', 'ac', 'Bedroom', 'Daikin', 'FTKM35', 'SN123', null, null, null, null, 'assets/label.jpg', 'MODEL FTKM35 S/N SN123', true))->>'ok' = 'true', 'Lilly registers an asset from its label');
-select pg_temp.assert((public.contractor_save(null, 'Cool Air', 'AC', '+971 50 000 0000', null, null, null, null, true))->>'ok' = 'true', 'Lilly (maintenance.edit) adds a contractor');
-reset role;
-
-select pg_temp.act_as(:wafa);
-set role authenticated;
-select pg_temp.assert((public.tickets_list(null))->>'error' = 'not_allowed', 'Wafa cannot see tickets');
-select pg_temp.assert((public.maintenance_overview())->>'error' = 'not_allowed', 'Wafa cannot see the house overview');
-reset role;
-
-select pg_temp.act_as(:mido);
-set role authenticated;
-select pg_temp.assert((public.ticket_update((select id from public.tickets where title = 'AC in the bedroom is leaking'), null, 'in_progress', null, (select id from public.contractors where name = 'Cool Air'), (select id from public.assets where name = 'Bedroom AC'), null, null))->>'ok' = 'true', 'Mido reopens it, assigns Cool Air and the bedroom AC');
-select pg_temp.assert((public.ticket_cost_add((select id from public.tickets where title = 'AC in the bedroom is leaking'), 350, 'Callout', current_date, :mido))->>'ok' = 'true', 'Mido adds the callout cost');
-select pg_temp.assert(((public.ticket_get((select id from public.tickets where title = 'AC in the bedroom is leaking')))->'ticket'->>'contractor_name') = 'Cool Air', 'ticket shows the contractor');
-select pg_temp.assert(((public.ticket_get((select id from public.tickets where title = 'AC in the bedroom is leaking')))->'costs'->0->>'amount')::numeric = 350, 'Mido sees the cost');
-select pg_temp.assert(((public.maintenance_overview())->>'open')::int = 2, 'two open tickets');
-select pg_temp.assert(jsonb_array_length((public.attachments_search('FTKM35'))->'hits') = 1, 'the label text is searchable');
-select pg_temp.assert(jsonb_array_length((public.attachments_list('tickets', (select id from public.tickets where title = 'AC in the bedroom is leaking')))->'attachments') = 2, 'two photos on the ticket');
-reset role;
-
-select pg_temp.act_as(:lilly);
-set role authenticated;
-select pg_temp.assert(jsonb_typeof((public.ticket_get((select id from public.tickets where title = 'AC in the bedroom is leaking')))->'costs') = 'null', 'Lilly still sees no costs on the ticket');
 reset role;
 
 select pg_temp.assert(
-  (select count(*) from public.audit_log where module_id in ('maintenance','maintenance_costs','fanta') and not allowed) >= 4,
+  (select count(*) from public.audit_log where module_id = 'fanta' and not allowed) >= 1,
   'Step 3 denials are in the audit log');
 
 
@@ -347,101 +274,13 @@ reset role;
 
 
 -- ============================================================================
--- Step 5: receipts → purchases → learned interval; cart runs
--- ============================================================================
-select pg_temp.act_as(:lilly);
-set role authenticated;
-select pg_temp.assert((public.receipt_create('receipts/x.jpg', null))->>'error' = 'not_allowed', 'Lilly cannot add receipts');
-select pg_temp.assert((public.receipts_list())->>'error' = 'not_allowed', 'Lilly cannot see receipts');
-select pg_temp.assert((public.cart_run_create('amazon_ae', array[(select id from public.shopping_items where name = 'Royal Canin cat food')], null))->>'error' = 'not_allowed', 'Lilly cannot prepare a cart');
-reset role;
-
--- Wafa (family carer: shopping add, not edit) photographs a receipt; the reading comes back with one model match, one alias/name match, one unknown line.
-select pg_temp.act_as(:wafa);
-set role authenticated;
-\set receipt1 `echo "'$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo 11111111-1111-4111-8111-111111111111)'"`
-select pg_temp.assert((public.receipt_create('receipts/r1.jpg', null))->>'ok' = 'true', 'Wafa adds a receipt');
-select pg_temp.assert((select count(*) from public.receipts where photo_path = 'receipts/r1.jpg') = 1, 'the receipt row is hers to see');
-select pg_temp.assert((public.receipt_set_lines((select id from public.receipts where photo_path = 'receipts/r1.jpg'),
-  jsonb_build_object('store', 'Carrefour City', 'date', '2026-09-01', 'currency', 'AED', 'total', 161.25, 'lines', jsonb_build_array(
-    jsonb_build_object('text', 'ROYAL CANIN KITTEN 2KG', 'qty', 1, 'unit_price', 95.00, 'line_total', 95.00, 'item_id', (select id from public.shopping_items where name = 'Royal Canin cat food')),
-    jsonb_build_object('text', 'CREATINE MONOHYDRATE 300G', 'qty', 1, 'unit_price', 60.00, 'line_total', 60.00, 'item_id', null),
-    jsonb_build_object('text', 'CARRIER BAG', 'qty', 1, 'unit_price', 0.25, 'line_total', 0.25, 'item_id', null),
-    jsonb_build_object('text', 'CHOCO BISCUITS 200G', 'qty', 2, 'unit_price', 3.00, 'line_total', 6.00, 'item_id', null)
-  ))))->>'matched' = '2', 'two of four lines matched (one by the model, creatine by name similarity)');
-select pg_temp.assert((select store_id from public.receipts where photo_path = 'receipts/r1.jpg') = 'carrefour', 'the shop was recognised from its name');
-select pg_temp.assert((select match from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text like 'CREATINE%') = 'auto', 'creatine matched by name');
-select pg_temp.assert((select match from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text = 'CARRIER BAG') = 'unmatched', 'the bag is flagged, not dropped');
--- Wafa fixes the flagged lines: biscuits become a new item, the bag is skipped
-select pg_temp.assert((public.receipt_line_set((select l.id from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text like 'CHOCO%'), 'added', null, 'Choco biscuits', 'groceries'))->>'ok' = 'true', 'Wafa adds the biscuits as a new item');
-select pg_temp.assert((public.receipt_line_set((select l.id from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r1.jpg' and l.text = 'CARRIER BAG'), 'skipped'))->>'ok' = 'true', 'and skips the bag');
-select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r1.jpg')))->>'error' = 'not_allowed', 'Wafa cannot apply it (shopping edit)');
-reset role;
-
-select pg_temp.act_as(:mido);
-set role authenticated;
-select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r1.jpg')))->>'applied' = '3', 'Mido applies it: three purchases');
-select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 95.00 and (select last_bought_on from public.shopping_items where name = 'Royal Canin cat food') = date '2026-09-01', 'Royal Canin: last price and date from the receipt');
-select pg_temp.assert(exists (select 1 from public.shopping_item_aliases a join public.shopping_items i on i.id = a.item_id where i.name = 'Royal Canin cat food' and a.alias = 'ROYAL CANIN KITTEN 2KG'), 'the printed name is remembered as an alias');
-select pg_temp.assert((select reorder_days_learned from public.shopping_items where name = 'Royal Canin cat food') is null, 'one receipt is not enough to learn an interval');
-select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r1.jpg')))->>'error' = 'applied', 'applying twice is refused');
-
--- Second receipt, 28 days later: the alias matches instantly, and the interval is learned.
-select pg_temp.assert((public.receipt_create('receipts/r2.jpg', null))->>'ok' = 'true', 'second receipt');
-select pg_temp.assert((public.receipt_set_lines((select id from public.receipts where photo_path = 'receipts/r2.jpg'),
-  jsonb_build_object('store', 'CARREFOUR', 'date', '2026-09-29', 'currency', 'AED', 'total', 98.00, 'lines', jsonb_build_array(
-    jsonb_build_object('text', 'ROYAL CANIN KITTEN 2KG', 'qty', 1, 'unit_price', 98.00, 'line_total', 98.00, 'item_id', null)
-  ))))->>'matched' = '1', 'the alias matches without the model');
-select pg_temp.assert((select confidence from public.receipt_lines l join public.receipts r on r.id = l.receipt_id where r.photo_path = 'receipts/r2.jpg') = 1.0, 'with full confidence');
-select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r2.jpg')))->>'applied' = '1', 'applied');
-select pg_temp.assert((select reorder_days_learned from public.shopping_items where name = 'Royal Canin cat food') = 28, 'reorder interval learned from two receipts: 28 days (typed was 30)');
-select pg_temp.assert((select (i->>'due')::date from jsonb_array_elements((public.shopping_list())->'items') i where i->>'name' = 'Royal Canin cat food') = date '2026-10-27', 'the list uses the learned interval for "probably running out"');
-select pg_temp.assert((select (i->>'purchases')::int from jsonb_array_elements((public.shopping_list())->'items') i where i->>'name' = 'Royal Canin cat food') = 2, 'two purchases on the item');
-select pg_temp.assert(jsonb_array_length((public.purchases_for_item((select id from public.shopping_items where name = 'Royal Canin cat food')))->'purchases') = 2, 'purchase history reads back');
-
--- Cart run: manifest, report, paid.
-select pg_temp.assert((public.shopping_item_substitution((select id from public.shopping_items where name = 'Collagen'), 'any_brand'))->>'ok' = 'true', 'substitution rule set on an item');
-select pg_temp.assert((public.shopping_item_substitution((select id from public.shopping_items where name = 'Collagen'), 'maybe'))->>'error' = 'bad_rule', 'unknown rule refused');
-select pg_temp.assert((public.cart_run_create('amazon_ae', array[(select id from public.shopping_items where name = 'Royal Canin cat food'), (select id from public.shopping_items where name = 'Collagen')], 'before Friday'))->>'ok' = 'true', 'Mido prepares an Amazon cart');
-select pg_temp.assert((select (manifest->'rules'->>'stop_at_checkout')::boolean and (manifest->'rules'->>'never_pay')::boolean from public.cart_runs order by created_at desc limit 1), 'the manifest says stop at checkout, never pay');
-select pg_temp.assert((select jsonb_array_length(manifest->'items') from public.cart_runs order by created_at desc limit 1) = 2, 'two items in the manifest');
-select pg_temp.assert((select x->>'aliases' from public.cart_runs c, jsonb_array_elements(c.manifest->'items') x where x->>'name' = 'Royal Canin cat food' order by c.created_at desc limit 1) like '%ROYAL CANIN KITTEN 2KG%', 'the manifest carries the printed names as hints');
-select pg_temp.assert((public.cart_run_close((select id from public.cart_runs order by created_at desc limit 1), true))->>'bought' = '0', 'closing before a report buys nothing');
-select pg_temp.assert((public.cart_run_create('amazon_ae', array[(select id from public.shopping_items where name = 'Royal Canin cat food'), (select id from public.shopping_items where name = 'Collagen')], null))->>'ok' = 'true', 'another cart');
-select pg_temp.assert((public.cart_run_report((select id from public.cart_runs order by created_at desc limit 1), jsonb_build_object('summary', 'Cart total 185', 'items', jsonb_build_array(
-  jsonb_build_object('item_id', (select id from public.shopping_items where name = 'Royal Canin cat food'), 'result', 'found', 'price', 97.5),
-  jsonb_build_object('item_id', (select id from public.shopping_items where name = 'Collagen'), 'result', 'missing', 'note', 'out of stock')))))->>'ok' = 'true', 'the agent''s report is saved');
-select pg_temp.assert((select status from public.cart_runs order by created_at desc limit 1) = 'reported', 'status reported');
-select pg_temp.assert((public.cart_run_close((select id from public.cart_runs order by created_at desc limit 1), true))->>'bought' = '1', 'I paid: the found item is bought, the missing one is not');
-select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 97.5 and not (select needed from public.shopping_items where name = 'Royal Canin cat food'), 'Royal Canin updated from the cart');
-select pg_temp.assert((select bought_on from public.purchases p join public.shopping_items i on i.id = p.item_id where i.name = 'Royal Canin cat food' order by p.created_at desc limit 1) = (now() at time zone (select timezone from public.household limit 1))::date, 'the cart purchase is dated in the household''s day, not the server''s');
--- An old receipt found later: history yes, but the newer price, shop and "needed" stay.
-select pg_temp.assert((public.receipt_create('receipts/r0.jpg', null))->>'ok' = 'true', 'an older receipt turns up');
-select pg_temp.assert((public.receipt_set_lines((select id from public.receipts where photo_path = 'receipts/r0.jpg'),
-  jsonb_build_object('store', 'Carrefour', 'date', '2026-08-01', 'currency', 'AED', 'total', 90.00, 'lines', jsonb_build_array(
-    jsonb_build_object('text', 'ROYAL CANIN KITTEN 2KG', 'qty', 1, 'unit_price', 90.00, 'line_total', 90.00, 'item_id', null)
-  ))))->>'matched' = '1', 'matched by alias');
-select pg_temp.assert((public.receipt_apply((select id from public.receipts where photo_path = 'receipts/r0.jpg')))->>'applied' = '1', 'applied');
-select pg_temp.assert((select last_price from public.shopping_items where name = 'Royal Canin cat food') = 97.5 and (select last_price_store from public.shopping_items where name = 'Royal Canin cat food') = 'amazon_ae', 'the older receipt did not overwrite the newer price or shop');
-select pg_temp.assert((select count(*) from public.purchases p join public.shopping_items i on i.id = p.item_id where i.name = 'Royal Canin cat food') = 4, 'but its purchase is in the history');
-select pg_temp.assert((public.cart_runs_list())->'runs'->0->>'status' = 'done', 'cart list shows it done');
-reset role;
-
-select pg_temp.assert(
-  (select count(*) from public.audit_log where target_table in ('receipts', 'receipt_lines', 'cart_runs') and not allowed) >= 3,
-  'Step 5 denials are in the audit log');
-
--- ============================================================================
 -- Step 6: suggestions, push, hub, household facts
 -- ============================================================================
 select pg_temp.act_as(:mido);
 set role authenticated;
--- Shopping left the app (migration 4400): an item overdue for reorder makes no card any more, and no card of a retired kind stays open.
-update public.shopping_items set last_bought_on = current_date - 40, reorder_days = 30, needed = false where name = 'Collagen';
+-- Shopping left the app (migrations 4400 and 4600): no card of a retired kind is made or left open.
 select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true', 'refresh runs');
 select pg_temp.assert(not exists (select 1 from public.suggestions where member_id = :mido and kind in ('reorder', 'request', 'ticket') and status in ('open', 'dismissed')), 'no reorder, request or ticket card is made or left open');
-select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :mido and kind = 'reorder') = 0, 'refreshing again makes none either');
-select pg_temp.assert(not (select needed from public.shopping_items where name = 'Collagen'), 'and nothing touched the list');
 -- A plan draft: dismiss snoozes it, a fresh draft reopens it, approving chosen entries writes the calendar.
 select pg_temp.assert((public.suggestion_put('reorder', 'x', 'x', null, null, '{}'))->>'error' = 'bad_kind', 'only plans can be put by the app');
 select pg_temp.assert((public.suggestion_put('plan', 'plan:test', 'Plan for the week', 'Two things', '/calendar', jsonb_build_object('type', 'plan', 'entries', jsonb_build_array(
@@ -475,17 +314,11 @@ exception when unique_violation then null; end $$;
 select pg_temp.act_as(:lilly);
 set role authenticated;
 select pg_temp.assert((select count(*) from public.push_subscriptions) = 0 and (select count(*) from public.notifications) = 0, 'Lilly sees no one else''s subscriptions or notifications');
-select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :lilly and kind = 'reorder') = 0, 'Lilly gets no reorder suggestions (no shopping view)');
+select pg_temp.assert((public.suggestions_refresh())->>'ok' = 'true' and (select count(*) from public.suggestions where member_id = :lilly and kind = 'reorder') = 0, 'Lilly gets no reorder suggestions either');
 select pg_temp.assert((select count(*) from public.suggestions where member_id <> :lilly) = 0, 'suggestions are private');
--- Hub: admins only, entity ids checked.
-select pg_temp.assert((public.hub_entity_save('sensor.living_room_temperature', 'Living room', 'sensor', 10, true))->>'error' = 'not_allowed', 'Lilly cannot change the hub');
 reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
-select pg_temp.assert((public.hub_entity_save('DROP TABLE x', 'bad', 'sensor', 10, true))->>'error' = 'bad_entity', 'bad entity id rejected');
-select pg_temp.assert((public.hub_entity_save('sensor.living_room_temperature', 'Living room', 'sensor', 10, true))->>'ok' = 'true', 'admin adds a hub entity');
-select pg_temp.assert((public.hub_entity_save('sensor.living_room_temperature', 'Lounge', 'sensor', 5, true))->>'ok' = 'true', 'saving again');
-select pg_temp.assert((select label from public.hub_entities where entity_id = 'sensor.living_room_temperature') = 'Lounge', 'saving again renames');
 -- Household facts and routines.
 select pg_temp.assert((public.household_save('Our home', 'Aim for 400 ml in the fridge.', 450))->>'ok' = 'true', 'admin saves household facts');
 select pg_temp.assert(((public.me())->'household'->>'milk_target_ml')::int = 450 and (public.me())->'household'->>'notes' like 'Aim for%', 'me() carries the facts');
@@ -514,8 +347,8 @@ set role authenticated;
 select pg_temp.assert(public.current_member_id() = :lilly, 'in preview the current member is Lilly');
 select pg_temp.assert((public.me())->'member'->>'display_name' = 'Lilly' and ((public.me())->>'preview')::boolean, 'me() is Lilly and says preview');
 select pg_temp.assert(not public.has_permission('lana', 'view'), 'Lilly cannot see Lana, so neither can the preview');
-select pg_temp.assert(public.has_permission('shopping_requests', 'view') or public.has_permission('maintenance', 'view'), 'a view Lilly has is allowed in preview');
-select pg_temp.assert(not public.has_permission('shopping_requests', 'add'), 'an add Lilly has is still denied in preview');
+select pg_temp.assert(public.has_permission('chat', 'view'), 'a view Lilly has is allowed in preview');
+select pg_temp.assert(not public.has_permission('notes', 'add'), 'an add Lilly has is still denied in preview');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now(), null, '{"method":"Bottle","amount_ml":60}', null, null))->>'error' = 'not_allowed', 'writes are denied in preview');
 select pg_temp.assert((select count(*) from public.members) = 1 and (select display_name from public.members limit 1) = 'Lilly', 'the members directory is Lilly''s view');
 reset role;
@@ -760,7 +593,6 @@ select pg_temp.assert((public.me())#>>'{role,id}' = 'sitter', 'Sam signs in as t
 select pg_temp.assert((public.home_summary())->>'ok' = 'true', 'Sam sees Lana''s log');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.diaper', now(), null, '{"kind":"Wet"}', null, null))->>'ok' = 'true', 'Sam logs a diaper');
 select pg_temp.assert((public.calendar_list(current_date, current_date))->>'error' = 'not_allowed', 'Sam cannot see the calendar');
-select pg_temp.assert((public.shopping_list())->>'error' = 'not_allowed', 'nor the shopping list');
 select pg_temp.assert((public.milk_consume(60))->>'ok' = 'true', 'Sam can give a bottle from the fridge');
 reset role;
 
@@ -1028,7 +860,6 @@ select pg_temp.assert((select count(*) from public.care_subjects) = 1, 'and one 
 select pg_temp.assert((select count(*) from public.care_entries) = 0, 'and none of Lana''s entries');
 select pg_temp.assert((select count(*) from public.calendar_events) = 0, 'nor the calendar');
 select pg_temp.assert((select count(*) from public.family_messages) = 0, 'nor the chat');
-select pg_temp.assert((select count(*) from public.shopping_items) = 0, 'nor the shopping list');
 select pg_temp.assert((public.home_summary(:lana))->>'ok' = 'false', 'home_summary for Lana by her id is refused');
 select pg_temp.assert((public.care_entries_list(:lana, now() - interval '7 days', now()))->>'ok' = 'false', 'so is her entry list');
 select pg_temp.assert((public.medicines_list(:lana))->>'ok' = 'false', 'and her medicines (a definer function)');
@@ -1136,15 +967,8 @@ select pg_temp.assert(
                             'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
--- The receipt matcher is one of those helpers: it must not find another home's item.
-select name as first_item from public.shopping_items where deleted_at is null and household_id = (select id from public.household where name = 'Our home') order by name limit 1 \gset
-select pg_temp.act_as(:mido);
-set role authenticated;
-select pg_temp.assert((private.match_item(:'first_item')).o_item is not null, 'Mido''s receipt line matches his home''s item');
-reset role;
 select pg_temp.act_as(:haitham);
 set role authenticated;
-select pg_temp.assert((private.match_item(:'first_item')).o_item is null, 'the same words match nothing from the Khans'' home');
 select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'a chat photo under the home folder is accepted');
 select pg_temp.assert((public.chat_send('', 'chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'and the old shape still is');
 select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/receipts/x.jpg'))->>'error' = 'bad_photo', 'but not another folder');
@@ -1172,8 +996,6 @@ select pg_temp.assert(:n_perm = 0, 'Haitham''s direct update of the matrix chang
 select pg_temp.assert(pg_temp.fails('insert into public.roles (id, label) values (''nanny'', ''Nanny'')'), 'his direct insert of a role is refused');
 with u as (update public.care_entry_types set label = 'Feed!' where id = 'lana.feed' returning 1) select count(*) as n_type from u \gset
 select pg_temp.assert(:n_type = 0, 'and so is a direct edit of an entry type');
-with u as (update public.stores set label = label where true returning 1) select count(*) as n_store from u \gset
-select pg_temp.assert(:n_store = 0, 'and a direct edit of the shared stores');
 reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;

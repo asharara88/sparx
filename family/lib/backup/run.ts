@@ -18,8 +18,7 @@ const HOME = [
   "members", "presence", "work_schedules",
   "care_subjects", "care_entries", "care_custody", "attachments",
   "milk_bottles", "vaccinations", "medicines", "assistant_memories",
-  "calendar_events", "shopping_items", "shopping_requests", "notes", "family_messages",
-  "tickets", "ticket_updates", "assets", "contractors", "receipts", "receipt_lines", "purchases",
+  "calendar_events", "notes", "family_messages",
   "attendance", "bag_items", "ask_chats", "assistant_briefs", "audit_log",
 ] as const;
 export const KEEP = 8;

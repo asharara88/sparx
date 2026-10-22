@@ -9,8 +9,8 @@ nothing of any other.
 
 - **A home is a row in `household`** (uuid id). Everything a family writes
   carries `household_id`: members, the child, entries, milk, medicines, calendar,
-  notes, chat, shopping, maintenance, the helper's chats and memories, audit
-  rows, push subscriptions. 42 tables.
+  notes, chat, the helper's chats and memories, audit rows, push
+  subscriptions. (The shopping and house tables left with migration 4600.)
 - **One account, several homes** (since migration 4300). A member row is one
   person in one home; an account holds one in each home that listed its e-mail,
   and `(household_id, user_id)` and `(household_id, email)` are what is unique.
@@ -47,8 +47,8 @@ nothing of any other.
   subject_id`) mean a row cannot point at a member or child of another home
   whoever writes it.
 - **Shared definitions stay shared**: roles, the permission matrix, modules,
-  entry types, presence states, the vaccine schedule, activities, stores and
-  the helper's skills are one set for the deployment. Since migration 4100
+  entry types, presence states, the vaccine schedule, activities and the
+  helper's skills are one set for the deployment. Since migration 4100
   only the first home's admins change them (`private.platform_home()`;
   `me().platform` says whether you are there), and the editors say so to
   everyone else. Per-home copies are a later step, if a family ever needs

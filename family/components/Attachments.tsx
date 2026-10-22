@@ -17,9 +17,9 @@ export function Attachments({
   title = "Photos",
 }: {
   module: string;
-  table: "care_entries" | "tickets" | "assets" | "care_subjects";
+  table: "care_entries" | "care_subjects";
   entityId: string;
-  folder: "entries" | "tickets" | "assets" | "subjects";
+  folder: "entries" | "subjects";
   canAdd: boolean;
   withText?: boolean;
   title?: string;

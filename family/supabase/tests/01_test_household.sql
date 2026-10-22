@@ -46,17 +46,6 @@ on conflict (id) do nothing;
 update public.modules set label = 'Lana''s log' where id = 'lana';
 update public.modules set label = 'Fanta''s log' where id = 'fanta';
 
-insert into public.shopping_items (name, category, owner_member, store_id, reorder_days, needed, note)
-select v.name, v.category, v.owner, v.store, v.reorder, false, v.note from (values
-  ('Royal Canin cat food',  'cat',   null::uuid,                                   'amazon_ae', 30,   'Fanta''s food. Recurring.'),
-  ('Creatine monohydrate',  'adult', '00000000-0000-4000-8000-000000000001'::uuid, 'amazon_ae', null, null),
-  ('Hydrolysed protein',    'adult', '00000000-0000-4000-8000-000000000001'::uuid, 'amazon_ae', null, null),
-  ('Electrolytes',          'adult', '00000000-0000-4000-8000-000000000001'::uuid, 'noon',      null, null),
-  ('Collagen',              'adult', '00000000-0000-4000-8000-000000000002'::uuid, 'amazon_ae', null, null),
-  ('Probiotics',            'adult', '00000000-0000-4000-8000-000000000002'::uuid, 'amazon_ae', null, null)
-) as v(name, category, owner, store, reorder, note)
-where not exists (select 1 from public.shopping_items i where lower(i.name) = lower(v.name) and i.deleted_at is null);
-
 insert into public.medicines (subject_id, name, dose, min_gap_hours, note) values
   ('00000000-0000-4000-8000-00000000a001', 'Vitamin D drops', '1 drop (400 IU)', 20, 'Once a day.'),
   ('00000000-0000-4000-8000-00000000a001', 'Paracetamol (infant)', 'As the doctor wrote', 6, 'Only if the doctor said so. Never more than 4 doses in 24 hours.')
