@@ -1,14 +1,15 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { supabaseBrowser } from "@/lib/supabase/client";
 import type { HomeListing } from "@/lib/types";
 import { Icon } from "./Icon";
 
 /**
- * The homes this account is in, the current one first. The choice is kept on the
- * account (home_switch), so every device follows it; the page then loads whole,
- * so nothing cached for the old home survives the switch.
+ * The homes this account is in, the one this device shows first. Switching binds
+ * this device to the new home (a cookie every request carries) and records it as
+ * the account's choice for devices that have not chosen; other devices keep showing
+ * what they show. The page then loads whole, so nothing cached for the old home
+ * survives the switch.
  */
 export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -17,13 +18,18 @@ export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
   async function go(h: HomeListing) {
     setBusy(h.household_id);
     setMsg(null);
-    const { data, error } = await supabaseBrowser().rpc("home_switch", { p_household_id: h.household_id });
-    const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) {
+    try {
+      const r = await fetch("/api/home/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ household_id: h.household_id }) });
+      const res = (await r.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+      if (!r.ok || !res?.ok) {
+        setBusy(null);
+        return setMsg(res?.message ?? "Could not switch.");
+      }
+      window.location.assign("/");
+    } catch {
       setBusy(null);
-      return setMsg(res?.message ?? error?.message ?? "Could not switch.");
+      setMsg("Could not reach the server.");
     }
-    window.location.assign("/");
   }
 
   return (

@@ -8,10 +8,13 @@
  * a duplicate, and an end can name the start by that client_id when the start
  * has no server id yet. The queue is shared per phone but every operation is
  * stamped with the signed-in user who made it, so a later sign-in by someone
- * else on the same phone does not send it in their name.
+ * else on the same phone does not send it in their name, and with the home it
+ * was made in, so it is replayed into that home whatever the phone shows later.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
+/** The request header naming the home (HOME_HEADER in lib/home-cookie.ts; repeated here so the node test runner can load this file). */
+const HOME_HEADER = "x-home";
 const KEY = "family.queue.v1";
 const FAILED_KEY = "family.queue.failed.v1";
 const EVENT = "family-queue";
@@ -28,6 +31,8 @@ export interface QueuedEntry {
   queued_at: string;
   /** auth user id of whoever tapped; null for entries queued before this field existed */
   owner?: string | null;
+  /** the home the screen showed when it was tapped; null for entries queued before this field existed */
+  home?: string | null;
 }
 
 export interface QueuedEnd {
@@ -41,9 +46,16 @@ export interface QueuedEnd {
   ended_at: string;
   queued_at: string;
   owner?: string | null;
+  home?: string | null;
 }
 
 export type QueuedOp = QueuedEntry | QueuedEnd;
+
+/** The home the page shows, set by the app layout (BindHome); stamped on every new operation. */
+let queueHome: string | null = null;
+export function setQueueHome(id: string | null) {
+  queueHome = id;
+}
 
 export interface FailedOp {
   op: QueuedOp;
@@ -165,22 +177,37 @@ async function currentOwner(supabase: SupabaseClient): Promise<string | null> {
   }
 }
 
+/**
+ * The request names the home the operation was made in (lib/home-cookie.ts), so a
+ * replay lands there whatever the phone shows now. An operation from before homes
+ * were stamped goes without, as the home on screen.
+ */
+function inHome<T extends { setHeader(name: string, value: string): T }>(req: T, home: string | null | undefined): T {
+  return home ? req.setHeader(HOME_HEADER, home) : req;
+}
+
 function rpcLog(supabase: SupabaseClient, e: QueuedEntry) {
-  return supabase.rpc("care_entry_log", {
-    p_subject_id: e.subject_id,
-    p_type_id: e.type_id,
-    p_occurred_at: e.occurred_at,
-    p_ended_at: e.ended_at,
-    p_payload: e.payload,
-    p_note: e.note,
-    p_client_id: e.client_id,
-  });
+  return inHome(
+    supabase.rpc("care_entry_log", {
+      p_subject_id: e.subject_id,
+      p_type_id: e.type_id,
+      p_occurred_at: e.occurred_at,
+      p_ended_at: e.ended_at,
+      p_payload: e.payload,
+      p_note: e.note,
+      p_client_id: e.client_id,
+    }),
+    e.home,
+  );
 }
 
 function rpcEnd(supabase: SupabaseClient, e: QueuedEnd) {
-  return e.entry_id
-    ? supabase.rpc("care_entry_end", { p_id: e.entry_id, p_ended_at: e.ended_at })
-    : supabase.rpc("care_entry_end_client", { p_client_id: e.start_client_id, p_ended_at: e.ended_at });
+  return inHome(
+    e.entry_id
+      ? supabase.rpc("care_entry_end", { p_id: e.entry_id, p_ended_at: e.ended_at })
+      : supabase.rpc("care_entry_end_client", { p_client_id: e.start_client_id, p_ended_at: e.ended_at }),
+    e.home,
+  );
 }
 
 type RpcRes = { ok: boolean; id?: string; open?: boolean; error?: string; message?: string } | null;
@@ -188,7 +215,7 @@ type RpcRes = { ok: boolean; id?: string; open?: boolean; error?: string; messag
 /** Try to send a log entry now; when the network is the problem keep it for later. */
 export async function sendOrQueue(supabase: SupabaseClient, e: Omit<QueuedEntry, "queued_at" | "owner" | "op">): Promise<SendResult> {
   const owner = await currentOwner(supabase);
-  const queued: QueuedEntry = { ...e, op: "log", queued_at: new Date().toISOString(), owner };
+  const queued: QueuedEntry = { ...e, op: "log", queued_at: new Date().toISOString(), owner, home: queueHome };
   if (typeof navigator !== "undefined" && !navigator.onLine) return keep(queued);
   const { data, error } = await rpcLog(supabase, queued);
   if (error) {
@@ -217,9 +244,9 @@ export async function endOrQueue(supabase: SupabaseClient, entryId: string, ende
       return { status: "queued" };
     }
     // The start went out between the screen loading and this tap: end it by its client_id.
-    return endOp(supabase, { op: "end", client_id: newClientId(), entry_id: null, start_client_id: startId, ended_at: endedAt, queued_at: new Date().toISOString(), owner });
+    return endOp(supabase, { op: "end", client_id: newClientId(), entry_id: null, start_client_id: startId, ended_at: endedAt, queued_at: new Date().toISOString(), owner, home: queueHome });
   }
-  return endOp(supabase, { op: "end", client_id: newClientId(), entry_id: entryId, start_client_id: null, ended_at: endedAt, queued_at: new Date().toISOString(), owner });
+  return endOp(supabase, { op: "end", client_id: newClientId(), entry_id: entryId, start_client_id: null, ended_at: endedAt, queued_at: new Date().toISOString(), owner, home: queueHome });
 }
 
 function keep(e: QueuedOp): SendResult {
@@ -248,6 +275,9 @@ async function endOp(supabase: SupabaseClient, e: QueuedEnd): Promise<SendResult
  * in flight. In particular, "woke up" during the upload of a queued "fell asleep"
  * writes the end onto that queued start; once the start is on the server, the end
  * it picked up meanwhile becomes its own end operation and goes next.
+ *
+ * Each operation goes to the home it was made in (its request names it), so a phone
+ * that has since switched homes still writes the entry where it belongs.
  */
 export async function flushQueue(supabase: SupabaseClient): Promise<{ sent: number; failed: number }> {
   const owner = await currentOwner(supabase);
@@ -273,7 +303,7 @@ export async function flushQueue(supabase: SupabaseClient): Promise<{ sent: numb
       const endedMeanwhile = isLog && now && (now.op ?? "log") === "log" && (now as QueuedEntry).ended_at && (now as QueuedEntry).ended_at !== (e as QueuedEntry).ended_at;
       const rest = readQueue().filter((x) => x.client_id !== e.client_id);
       if (endedMeanwhile && res.id) {
-        const end: QueuedEnd = { op: "end", client_id: newClientId(), entry_id: res.id, start_client_id: null, ended_at: (now as QueuedEntry).ended_at!, queued_at: new Date().toISOString(), owner };
+        const end: QueuedEnd = { op: "end", client_id: newClientId(), entry_id: res.id, start_client_id: null, ended_at: (now as QueuedEntry).ended_at!, queued_at: new Date().toISOString(), owner, home: e.home ?? null };
         writeQueue([...rest, end]);
       } else {
         writeQueue(rest);

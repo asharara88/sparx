@@ -1265,6 +1265,22 @@ select set_config('request.jwt.claims', jsonb_build_object('sub', (select user_i
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'a claim naming someone else''s row is ignored');
 reset role;
+-- The home on screen binds the request (migration 4500): the x-home header names it, and it counts only for a home the account is in.
+select pg_temp.act_as(:mido);
+select set_config('request.headers', jsonb_build_object('x-home', :khan_home)::text, false);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->'role'->>'id' = 'family_carer', 'a request from a screen showing the Khans runs as Mido''s row there, whatever his chosen home');
+select pg_temp.assert((select count(*) from jsonb_array_elements(public.my_homes()) h where (h->>'current')::boolean and h->>'name' = 'The Khans') = 1, 'and the switcher marks it current');
+reset role;
+select set_config('request.headers', jsonb_build_object('x-home', gen_random_uuid())::text, false);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'a header naming a home he is not in is ignored');
+reset role;
+select set_config('request.headers', '{"x-home":"not-a-uuid"}', false);
+set role authenticated;
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'and so is a header that is not an id');
+reset role;
+select set_config('request.headers', '', false);
 -- The first sign-in after being listed links the new row too, without moving the account.
 select pg_temp.act_as(:dana);
 set role authenticated;
@@ -1297,6 +1313,11 @@ select pg_temp.assert((public.household_delete(:'beach_home', ' the khans at the
 reset role;
 select pg_temp.assert(not exists (select 1 from public.household where id = :'beach_home') and not exists (select 1 from public.members where household_id = :'beach_home') and not exists (select 1 from public.care_subjects where household_id = :'beach_home'), 'home, members and child are gone');
 select pg_temp.assert((select count(*) from public.audit_log where target_table = 'household' and target_id = :'beach_home' and allowed) = 1, 'and the deletion is in the audit log, outliving the home');
+select pg_temp.assert(exists (select 1 from public.home_cleanups where household_id = :'beach_home' and done_at is null and attempts = 0), 'and its file cleanup is queued for the server');
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert(pg_temp.fails('select * from public.home_cleanups'), 'the cleanup queue is the server''s, not a member''s');
+reset role;
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->>'homes' = '1', 'Haitham is back to one home');
@@ -1306,5 +1327,5 @@ set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'Our home' and (public.me())->>'homes' = '2', 'Mido is at home, still listed in the Khans');
 reset role;
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

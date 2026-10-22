@@ -16,17 +16,30 @@ let storageBroken = false; // a full or blocked localStorage throws on every wri
   length: 0,
 } as Storage;
 
-const { isTransient, mergeOngoing, newClientId, enqueue, readQueue, QUEUED_ID_PREFIX, sendOrQueue, endOrQueue, flushQueue } = await import("./offline.ts");
+const { isTransient, mergeOngoing, newClientId, enqueue, readQueue, QUEUED_ID_PREFIX, sendOrQueue, endOrQueue, flushQueue, setQueueHome } = await import("./offline.ts");
 
-type Call = { fn: string; args: Record<string, unknown> };
+type Call = { fn: string; args: Record<string, unknown>; headers: Record<string, string> };
 /** A Supabase client stand-in: signed in as `owner`, answering each RPC through `answer`. */
 function fakeSupabase(owner: string, answer: (fn: string, args: Record<string, unknown>) => unknown) {
   const calls: Call[] = [];
   const client = {
     auth: { getSession: async () => ({ data: { session: { user: { id: owner } } } }) },
-    rpc: async (fn: string, args: Record<string, unknown>) => {
-      calls.push({ fn, args });
-      return { data: await answer(fn, args), error: null };
+    // Like a PostgREST request builder: headers can be set on it, and awaiting it sends.
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      const call: Call = { fn, args, headers: {} };
+      const req = {
+        setHeader(name: string, value: string) {
+          call.headers[name] = value;
+          return req;
+        },
+        then(resolve: (v: { data: unknown; error: null }) => void, reject: (e: unknown) => void) {
+          calls.push(call);
+          Promise.resolve()
+            .then(async () => ({ data: await answer(fn, args), error: null }))
+            .then(resolve, reject);
+        },
+      };
+      return req;
     },
   };
   return { client: client as unknown as Parameters<typeof flushQueue>[0], calls };
@@ -134,6 +147,44 @@ test("an end that was already on the queued start before the upload still goes w
   assert.deepEqual(calls.map((c) => c.fn), ["care_entry_log"]);
   assert.equal(calls[0].args.p_ended_at, "2026-10-14T11:00:00.000Z");
   assert.deepEqual(readQueue(), []);
+});
+
+test("a queued entry is replayed into the home it was made in, whatever the phone shows now", async () => {
+  store.clear();
+  // Two entries kept while the phone showed home A, one while it showed home B, and one from before homes were stamped.
+  enqueue({ ...start("a1", "user-1"), home: "home-a" });
+  enqueue({ ...start("b1", "user-1"), home: "home-b" });
+  enqueue({ ...start("old", "user-1") });
+  const { client, calls } = fakeSupabase("user-1", () => ({ ok: true, id: "srv" }));
+  const r = await flushQueue(client);
+  assert.deepEqual(r, { sent: 3, failed: 0 });
+  assert.deepEqual(
+    calls.map((c) => [c.args.p_client_id, c.headers["x-home"]]),
+    [
+      ["a1", "home-a"],
+      ["b1", "home-b"],
+      ["old", undefined],
+    ],
+    "each request names the home its entry was made in; one from before homes were stamped names none",
+  );
+  assert.deepEqual(readQueue(), []);
+});
+
+test("a new operation is stamped with the home the page shows", async () => {
+  store.clear();
+  setQueueHome("home-c");
+  try {
+    const { client } = fakeSupabase("user-1", () => ({ ok: true, id: "x" }));
+    // navigator.onLine is undefined under node, which the queue reads as offline: the entry is kept.
+    const r = await sendOrQueue(client, { client_id: "c1", subject_id: "s", type_id: "lana.feed", occurred_at: "2026-10-14T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    assert.equal(r.status, "queued");
+    assert.equal(readQueue()[0].home, "home-c");
+    const e = await endOrQueue(client, "srv-1", "2026-10-14T11:00:00.000Z");
+    assert.equal(e.status, "queued");
+    assert.equal(readQueue()[1].home, "home-c");
+  } finally {
+    setQueueHome(null);
+  }
 });
 
 test("when this phone cannot keep an entry, the carer is told, not shown 'saved'", async () => {

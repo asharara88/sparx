@@ -11,6 +11,7 @@ export function DeleteHome({ household, platform }: { household: Household; plat
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   const matches = typed.trim().toLowerCase() === household.name.trim().toLowerCase();
 
   if (platform) {
@@ -32,16 +33,28 @@ export function DeleteHome({ household, platform }: { household: Household; plat
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ household_id: household.id, name: typed.trim() }),
       });
-      const res = (await r.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+      const res = (await r.json().catch(() => null)) as { ok?: boolean; message?: string; cleanup?: "done" | "pending" } | null;
       if (!r.ok || !res?.ok) {
         setBusy(false);
         return setMsg(res?.message ?? "Could not delete the home.");
       }
-      window.location.assign("/");
+      setDone(res.cleanup === "done" ? "The home is gone, with its photos and backups." : "The home is gone. Its photos and backups are being removed in the background; the server keeps trying until they are.");
     } catch {
       setBusy(false);
       setMsg("Could not reach the server.");
     }
+  }
+
+  if (done) {
+    return (
+      <div className="card flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Deleted</h2>
+        <p>{done}</p>
+        <a href="/" className="btn btn-primary">
+          Continue
+        </a>
+      </div>
+    );
   }
 
   return (

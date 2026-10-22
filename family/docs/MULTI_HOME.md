@@ -14,10 +14,16 @@ nothing of any other.
 - **One account, several homes** (since migration 4300). A member row is one
   person in one home; an account holds one in each home that listed its e-mail,
   and `(household_id, user_id)` and `(household_id, email)` are what is unique.
-  The account runs as its chosen row (`private.account_home`, set by
-  `home_switch`), else its oldest; `my_homes()` lists them and `me().homes`
-  counts them. A grandmother helping two families signs in once and switches
-  on her Me screen. The choice is on the account, so every device follows it.
+  Every request from the app names the home its screen shows (an `x-home`
+  header from a cookie the app keeps per device, `lib/home-cookie.ts`), and
+  `current_member_id()` honours it only for a home the account is in (migration
+  4500). So a switch on one phone never moves another phone's next write: that
+  phone keeps the home it shows until it switches itself. A device that has not
+  chosen starts from the account's chosen row (`private.account_home`, set by
+  `home_switch`), else the oldest; `my_homes()` lists them and `me().homes`
+  counts them. A grandmother helping two families signs in once and switches on
+  her Me screen. The offline queue stamps every kept entry with its home and
+  replays it there: that one request names that home instead.
 - **Who you are decides which home you see.** `private.current_household_id()`
   is the home of the signed-in member (or of the previewed member in "view as").
   Every home-scoped table has one extra *restrictive* row-security policy,
@@ -71,9 +77,12 @@ nothing of any other.
 - **Leave or delete:** an admin deactivates a member on their page, as before.
   An admin deletes the whole home from the Members screen by typing its name
   (`household_delete`): every row the home owns goes with it by cascade, the
-  audit row outlives it, and the app then removes the home's folder from the
-  photos and backups buckets. The first home on the deployment cannot be
-  deleted from the app: it holds what every home shares.
+  audit row outlives it, and the home's folder in the photos and backups
+  buckets is a work order in `home_cleanups`: the deletion route removes it
+  at once when it can, the daily cron retries what is still pending, and the
+  screen says whether the files are gone or still being removed. The first
+  home on the deployment cannot be deleted from the app: it holds what every
+  home shares.
 
 ## Phases
 
@@ -100,7 +109,9 @@ nothing of any other.
    (`home_switch`, the switcher on the Me screen); "Create another home";
    deleting a home by name (`household_delete`, with the bucket folders
    removed by `app/api/home/delete`); the sign-in screen greets the home this
-   device last signed in to.
+   device last signed in to. Then (migration 4500) the home on screen binds
+   each request, the offline queue replays into the home an entry was made
+   in, and a deletion's file cleanup is a retried job with an honest status.
 6. **Later:** a home's own subdomain; per-home copies of the shared
    definitions, if a family ever needs its own matrix.
 
