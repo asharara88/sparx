@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <h1 className="mb-2 text-2xl font-bold">Not in that home any more</h1>
           <p>{me.message}</p>
           <div className="mt-4">
-            <HomeSwitcher homes={me.homes ?? []} />
+            <HomeSwitcher homes={me.homes ?? []} recover />
           </div>
           <p className="muted mt-2 text-sm">Signed in as {auth.user.email}</p>
           <div className="mt-6">
