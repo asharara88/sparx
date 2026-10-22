@@ -954,14 +954,15 @@ update public.bag_items set checked = false where id = '00000000-0000-4000-8000-
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
-      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete')) = 0,
-  'every definer function in public belongs to app_rls, except the seven that must see across homes');
+      and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete',
+                            'timers_close_forgotten')) = 0,
+  'every definer function in public belongs to app_rls, except the eight that must see across homes');
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
                             'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home',
-                            'preview_member_id')) = 0,
+                            'preview_member_id', 'timers_close_forgotten')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
 -- And none of them may reach into the auth schema: the token is read through public.current_member_id()
@@ -1168,6 +1169,7 @@ select pg_temp.assert(pg_temp.fails('insert into public.care_subjects (module_id
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->>'homes' = '1', 'Haitham is back to one home');
+select pg_temp.assert((public.job_runs_list())->>'error' = 'not_allowed', 'the nightly jobs'' record is the platform home''s; another home does not read it');
 reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
@@ -1187,8 +1189,10 @@ select pg_temp.assert(
   'a timer left on for more than a day is not running on the home screen');
 select pg_temp.assert(pg_temp.fails('select public.timers_close_forgotten()'), 'the nightly timers job is the server''s, not a member''s');
 reset role;
+-- As the server: its own key, no member behind it (the production cron), so no home in scope.
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
 set role service_role;
-select pg_temp.assert((public.timers_close_forgotten())->>'closed' = '1', 'the nightly job closes the night wake-up left on for two days');
+select pg_temp.assert((public.timers_close_forgotten())->>'closed' = '1', 'the nightly job closes the night wake-up left on for two days, with no member behind it');
 reset role;
 select pg_temp.assert((select ended_at = occurred_at + interval '1 hour' and note like '%Timer left on; end set to 1 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000001'),
   'a wake-up left on ends 1 h after it started, with a note');

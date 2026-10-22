@@ -35,7 +35,11 @@ begin
     into v_rows from u;
   return jsonb_build_object('ok', true, 'closed', jsonb_array_length(v_rows), 'entries', v_rows);
 end $$;
-alter function private.timers_close_forgotten(interval, uuid) owner to app_rls;
+-- Stays with postgres, which owns the tables and so is not subject to the home policy: the nightly
+-- job runs with the server's key and no member identity, and must visit every home. From
+-- care_entry_log it only ever gets the subject the caller was just allowed to log for.
+revoke all on function private.timers_close_forgotten(interval, uuid) from public, anon;
+grant execute on function private.timers_close_forgotten(interval, uuid) to authenticated, service_role;
 
 -- The nightly job, for every home. The server's own key only.
 create or replace function public.timers_close_forgotten() returns jsonb
@@ -44,7 +48,6 @@ begin
   if coalesce(current_setting('role', true), '') <> 'service_role' then return private.denied(); end if;
   return private.timers_close_forgotten(interval '12 hours', null);
 end $$;
-alter function public.timers_close_forgotten() owner to app_rls;
 revoke all on function public.timers_close_forgotten() from public, anon, authenticated;
 grant execute on function public.timers_close_forgotten() to service_role;
 

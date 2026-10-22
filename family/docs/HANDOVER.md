@@ -125,8 +125,11 @@ Open:
   plus a schedule for `/api/cron/often` in `vercel.json`. The daily route runs
   its four jobs apart (pushes, the backup, the file cleanups, the timers left on;
   migrations 5100 and 5200): each checks its own keys and catches its own failure,
-  and the Audit screen shows each job's last run (`job_runs`). A failed job makes
-  the route answer 500, which Vercel's cron log shows. A timer nobody ended (a
+  and the Audit screen in the platform home shows each job's last run (`job_runs`;
+  the reports name members and homes across the deployment, so no other home reads
+  them). A job whose work partly failed (a push for one member, a cleanup still
+  pending) counts as failed with its report kept, and a failed job makes the route
+  answer 500, which Vercel's cron log shows. A timer nobody ended (a
   breastfeed, a sleep) is closed at a cap after 12 hours with a note on the entry;
   the home screen never shows one older than a day as running, and a new start
   closes one left on since yesterday instead of handing it back.

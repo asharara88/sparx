@@ -21,11 +21,13 @@ grant select, insert, update, delete on public.job_runs to service_role;
 -- The reader below runs as app_rls; nothing else reads the table.
 create policy job_runs_app on public.job_runs for select to app_rls using (true);
 
--- The last run of every job, for those who may read the audit log.
+-- The last run of every job, for those who may read the audit log in the platform home
+-- (the first home, which runs the deployment). The reports name members and homes
+-- across the deployment, so no other home reads them.
 create or replace function public.job_runs_list() returns jsonb
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.has_permission('audit', 'view') then
+  if not public.has_permission('audit', 'view') or private.current_household_id() is distinct from private.platform_home() then
     perform private.audit_write('audit', 'view', false, 'job_runs');
     return private.denied();
   end if;
