@@ -10,6 +10,8 @@ import { NotificationsToggle } from "@/components/NotificationsToggle";
 import { Icon, type IconName } from "@/components/Icon";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { PrefsForm } from "@/components/PrefsForm";
+import { NightPref } from "@/components/NightPref";
+import { nightWindow } from "@/lib/night";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export default async function MePage() {
     supabase.rpc("my_homes"),
   ]);
   const homes = (homesData as HomeListing[] | null) ?? [];
+  const night = nightWindow(me.subjects?.[0] ?? null);
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large flex items-center gap-4">
@@ -58,6 +61,9 @@ export default async function MePage() {
         </div>
       )}
       <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"} />
+      <div className="card">
+        <NightPref from={night.from} to={night.to} />
+      </div>
       <NotificationsToggle />
       <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
       {!me.preview && <HomeSwitcher homes={homes} />}

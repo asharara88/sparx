@@ -83,6 +83,9 @@ export interface SubjectName {
   names: Record<string, string>;
   /** "Girl", "Boy", or null when not set. */
   sex: string | null;
+  /** The child's night, "hh:mm" (settings night_from/night_to, with the defaults 19:00 and 07:00). */
+  night_from: string;
+  night_to: string;
 }
 
 export interface Me {

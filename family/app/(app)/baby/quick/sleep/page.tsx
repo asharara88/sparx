@@ -25,7 +25,7 @@ export default async function QuickSleepPage() {
       <PageHeader back="/" title="Sleep" subtitle={asleep ? `${summary.subject.name} is asleep.` : `${summary.subject.name} is awake.`} />
       <QuickSleep subjectId={summary.subject.id} typeId={sleepType.id} asleep={asleep} timezone={me.household.timezone} />
       <div className="grid grid-cols-2 gap-2">
-        <Link href="/baby/log/feed" className="btn">
+        <Link href="/baby/quick/feed" className="btn">
           Feed
         </Link>
         <Link href="/baby/log/diaper" className="btn">

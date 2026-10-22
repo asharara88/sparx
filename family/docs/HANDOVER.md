@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 49 files, applied in filename order |
+| Migrations | `supabase/migrations`, 50 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -113,6 +113,10 @@ Done and live:
 - A timer ends once under a row lock; End on the phone stops the model on the
   server; the helper's spoken readback is in the member's language with the day;
   the wake-up eval checks the record.
+- Night: the whole app goes very dark during the child's night (`NightScreen`, the
+  window from `me.subjects[].night_from/night_to`, migration 5000; per phone switch on
+  the Me screen), and the "Feed" home-screen shortcut opens `/baby/quick/feed`: the two
+  boobs, one tap to start a side, the other to switch, the lit one to finish.
 
 Open:
 
