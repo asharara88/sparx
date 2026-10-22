@@ -669,6 +669,17 @@ export interface BackupRow {
   created_at: string;
 }
 
+/** The last run of one of the daily cron's jobs (`job_runs_list`). */
+export interface JobRun {
+  job: "pushes" | "backup" | "cleanups";
+  last_at: string;
+  last_status: "ok" | "failed" | "not_configured";
+  last_ms: number | null;
+  last_error: string | null;
+  last_report: Record<string, unknown> | null;
+  last_ok_at: string | null;
+}
+
 /** What the model read off a milk bag label or a bottle's scale. */
 export interface MilkReading {
   kind: "bag" | "bottle" | "none";

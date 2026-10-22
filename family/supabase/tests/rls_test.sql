@@ -83,6 +83,8 @@ select pg_temp.assert((public.work_days_set(:lilly, array[0,2,3,5,6]::smallint[]
 select pg_temp.assert((public.permission_set('admin', 'members', 'edit', false))->>'error' = 'lockout', 'an admin cannot lock their own role out of Members');
 select pg_temp.assert((public.member_save(null, 'Test Helper', 'helper@test.local', 'home_carer', null, 'Temp', true))->>'ok' = 'true', 'Mido adds a member from the UI path');
 select pg_temp.assert((public.audit_recent(50))->>'ok' = 'true', 'Mido can read the audit log');
+select pg_temp.assert((public.job_runs_list())->>'ok' = 'true' and jsonb_array_length((public.job_runs_list())->'runs') = 0, 'and the nightly jobs'' record, empty before the first run');
+select pg_temp.assert(pg_temp.fails('select * from public.job_runs'), 'the record itself is the server''s, not a member''s');
 reset role;
 
 -- ---------------------------------------------------------------- as Lilly (home carer)
@@ -103,6 +105,7 @@ exception when insufficient_privilege then
 end $$;
 select pg_temp.assert((select count(*) from public.members) = 1 and (select display_name from public.members) = 'Lilly', 'Lilly sees only herself in members');
 select pg_temp.assert((public.audit_recent(10))->>'error' = 'not_allowed', 'Lilly cannot read the audit log');
+select pg_temp.assert((public.job_runs_list())->>'error' = 'not_allowed', 'nor the nightly jobs'' record');
 select pg_temp.assert((public.work_days_set(:lilly, array[1]::smallint[]))->>'error' = 'not_allowed', 'Lilly cannot change her own work days');
 select pg_temp.assert((public.presence_set(:lilly, 'visiting_today', null, null, null))->>'ok' = 'true', 'Lilly can set her own presence');
 select pg_temp.assert((public.presence_set(:mido, 'away', null, null, null))->>'error' = 'not_allowed', 'Lilly cannot set Mido''s presence');
