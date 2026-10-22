@@ -11,7 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#4b203f",
     shortcuts: [
       { name: "Sleep timer", short_name: "Sleep", url: "/baby/quick/sleep", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Log a feed", short_name: "Feed", url: "/baby/log/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Feed", short_name: "Feed", url: "/baby/quick/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Log a diaper", short_name: "Diaper", url: "/baby/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Ask the helper", short_name: "Ask", url: "/ask", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],

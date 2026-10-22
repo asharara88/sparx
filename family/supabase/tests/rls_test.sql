@@ -64,6 +64,7 @@ reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())#>>'{role,id}' = 'admin', 'Mido signs in as admin');
+select pg_temp.assert((public.me()->'subjects'->0->>'night_from') ~ '^\d\d:\d\d' and (public.me()->'subjects'->0->>'night_to') ~ '^\d\d:\d\d', 'me() carries the child''s night window (migration 5000)');
 select pg_temp.assert((public.custody_set(:lana, :dana))->>'ok' = 'true', 'Mido sets who has Lana (Dana)');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '2 hours', null, '{"method":"Bottle","amount_ml":120}', null, 'aaaaaaaa-0000-4000-8000-000000000001'))->>'ok' = 'true', 'Mido logs a feed');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '2 hours', null, '{"method":"Bottle","amount_ml":120}', null, 'aaaaaaaa-0000-4000-8000-000000000001'))->>'duplicate' = 'true', 'same client_id twice is idempotent (offline queue)');

@@ -13,6 +13,7 @@ import { WhenChips } from "@/components/WhenChips";
 import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
 import { fromLocalInput } from "@/lib/time";
 import { possessive } from "@/lib/names";
+import { isNightAt } from "@/lib/night";
 
 /**
  * The child's screen follows the child's state: asleep, awake, feeding, awake at night.
@@ -100,10 +101,7 @@ export function LanaNow({
         ? { kind: "night_awake", entry: openWake }
         : { kind: "awake", since: lastSleep?.ended_at ?? null };
 
-  const nightFrom = String(subject.settings.night_from ?? "19:00");
-  const nightTo = String(subject.settings.night_to ?? "07:00");
-  const hhmm = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timezone }).format(now);
-  const isNight = nightFrom > nightTo ? hhmm >= nightFrom || hhmm < nightTo : hhmm >= nightFrom && hhmm < nightTo;
+  const isNight = isNightAt(now, timezone, subject.settings);
 
   // ---- actions
   async function rpc(name: string, args: Record<string, unknown>) {

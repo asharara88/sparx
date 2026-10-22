@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
+import { setManualNight } from "@/lib/theme";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { dateWords } from "@/lib/time";
@@ -151,9 +152,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial?.id]);
   useEffect(() => {
-    if (night) document.documentElement.setAttribute("data-theme", "night");
-    else document.documentElement.removeAttribute("data-theme");
-    return () => document.documentElement.removeAttribute("data-theme");
+    setManualNight(night);
+    return () => setManualNight(false);
   }, [night]);
   useEffect(() => {
     try {

@@ -13,6 +13,8 @@ import { HomeSwitcher } from "@/components/HomeSwitcher";
 import { OfflineFlusher } from "@/components/OfflineFlusher";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { BindHome } from "@/components/RememberHome";
+import { NightScreen } from "@/components/NightScreen";
+import { nightWindow } from "@/lib/night";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isConfigured()) return <NotConfigured />;
@@ -71,6 +73,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const large = me.member.large_text ?? me.role.id !== "admin";
+  // The first child's night is the home's night: the screen goes very dark during it.
+  const night = nightWindow(me.subjects?.[0] ?? null);
   return (
     <MeProvider me={me}>
       <div data-size={large ? "large" : undefined} className="mx-auto flex min-h-dvh max-w-2xl flex-col">
@@ -78,6 +82,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1">{children}</main>
         <Nav />
         <OfflineFlusher />
+        <NightScreen from={night.from} to={night.to} timezone={me.household.timezone} />
         {!me.preview && <BindHome id={me.household.id} name={me.household.name} />}
       </div>
     </MeProvider>
