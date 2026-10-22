@@ -48,6 +48,19 @@ select pg_temp.assert((select count(*) from public.members where user_id is not 
 \set lana  '''00000000-0000-4000-8000-00000000a001'''
 
 -- ---------------------------------------------------------------- as Mido (admin)
+-- On a Supabase project app_rls cannot use the auth schema (migration 4000's grant was a no-op
+-- there: postgres holds USAGE on auth without the grant option). The local superuser did apply it,
+-- which hid six failing functions until migration 4900. Take it away here so the suite runs under
+-- the live condition.
+revoke usage on schema auth from app_rls;
+
+-- And the shared preview check works from an app_rls function even before anything has cached
+-- the caller's identity (the cache is cleared first, then the check runs as app_rls).
+select set_config('fam.m.preview', '', true);
+set role app_rls;
+select pg_temp.assert(private.read_only_preview() = false, 'read_only_preview() runs as app_rls with the auth schema out of reach');
+reset role;
+
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())#>>'{role,id}' = 'admin', 'Mido signs in as admin');
@@ -943,9 +956,16 @@ select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
-                            'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home')) = 0,
+                            'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home',
+                            'preview_member_id')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
+-- And none of them may reach into the auth schema: the token is read through public.current_member_id()
+-- and private.preview_member_id(), which stayed with postgres (migration 4900).
+select pg_temp.assert(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public', 'private') and pg_get_userbyid(p.proowner) = 'app_rls' and p.prosrc ~ 'auth\.') = 0,
+  'no function app_rls owns names the auth schema');
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.chat_send('', 'home-' || :khan_home || '/chat/' || gen_random_uuid() || '.jpg'))->>'ok' = 'true', 'a chat photo under the home folder is accepted');
