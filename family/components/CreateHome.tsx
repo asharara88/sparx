@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { SignOutButton } from "./SignOutButton";
 
 /**
@@ -59,7 +59,7 @@ export function CreateHome({ email, another = false }: { email: string | null; a
     // If the switch does not go through, this device would reload showing the old home, so say so instead.
     if (another) {
       if (res.household_id) {
-        const switched = await fetch("/api/home/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ household_id: res.household_id }) })
+        const switched = await apiFetch("/api/home/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ household_id: res.household_id }) })
           .then((r) => r.ok)
           .catch(() => false);
         if (!switched) {

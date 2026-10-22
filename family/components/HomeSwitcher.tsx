@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { HomeListing } from "@/lib/types";
 import { Icon } from "./Icon";
+import { apiFetch } from "@/lib/supabase/client";
 
 /**
  * The homes this account is in, the one this device shows first. Switching binds
@@ -11,7 +12,7 @@ import { Icon } from "./Icon";
  * what they show. The page then loads whole, so nothing cached for the old home
  * survives the switch.
  */
-export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
+export function HomeSwitcher({ homes, recover = false }: { homes: HomeListing[]; recover?: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -19,7 +20,7 @@ export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
     setBusy(h.household_id);
     setMsg(null);
     try {
-      const r = await fetch("/api/home/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ household_id: h.household_id }) });
+      const r = await apiFetch("/api/home/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ household_id: h.household_id }) });
       const res = (await r.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
       if (!r.ok || !res?.ok) {
         setBusy(null);
@@ -35,7 +36,7 @@ export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
   return (
     <div className="card flex flex-col gap-3">
       <h2 className="text-lg font-semibold">Your homes</h2>
-      {homes.length > 1 ? (
+      {homes.length > 1 || (recover && homes.length === 1) ? (
         <ul className="flex flex-col gap-2">
           {homes.map((h) => (
             <li key={h.household_id} className="flex items-center justify-between gap-3">
@@ -45,11 +46,12 @@ export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
                   {h.display_name} · {h.role_label}
                 </span>
               </span>
-              {h.current ? (
+              {/* On the recovery screen this device is bound to no home, so every home is a way in, even the only one. */}
+              {h.current && !recover ? (
                 <span className="muted shrink-0 text-sm">You are here</span>
               ) : (
                 <button type="button" className="btn shrink-0" onClick={() => go(h)} disabled={busy !== null}>
-                  {busy === h.household_id ? "Switching…" : "Switch"}
+                  {busy === h.household_id ? "Switching…" : recover ? "Go there" : "Switch"}
                 </button>
               )}
             </li>
@@ -63,9 +65,12 @@ export function HomeSwitcher({ homes }: { homes: HomeListing[] }) {
           {msg}
         </p>
       )}
-      <Link href="/me/homes/new" className="btn">
-        <Icon name="plus" size={18} /> Create another home
-      </Link>
+      {/* Not on the recovery screen: that page sits under the same layout and would show this screen again. */}
+      {!recover && (
+        <Link href="/me/homes/new" className="btn">
+          <Icon name="plus" size={18} /> Create another home
+        </Link>
+      )}
     </div>
   );
 }

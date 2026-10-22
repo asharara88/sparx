@@ -9,6 +9,7 @@ import { Nav } from "@/components/Nav";
 import { NotConfigured } from "@/components/NotConfigured";
 import { SignOutButton } from "@/components/SignOutButton";
 import { CreateHome } from "@/components/CreateHome";
+import { HomeSwitcher } from "@/components/HomeSwitcher";
 import { OfflineFlusher } from "@/components/OfflineFlusher";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { BindHome } from "@/components/RememberHome";
@@ -29,6 +30,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // In no home yet: make one, or wait to be added (docs/MULTI_HOME.md).
   if (me && !me.ok && me.error === "no_member") return <CreateHome email={auth.user.email ?? null} />;
+
+  // This device was showing a home the account is no longer in (removed, or deleted):
+  // nothing runs as it; pick one of the others (the switch binds the device to it).
+  if (me && !me.ok && me.error === "not_in_home") {
+    return (
+      <main className="mx-auto max-w-md p-6 pt-16">
+        <div className="card">
+          <h1 className="mb-2 text-2xl font-bold">Not in that home any more</h1>
+          <p>{me.message}</p>
+          <div className="mt-4">
+            <HomeSwitcher homes={me.homes ?? []} recover />
+          </div>
+          <p className="muted mt-2 text-sm">Signed in as {auth.user.email}</p>
+          <div className="mt-6">
+            <SignOutButton />
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (error || !me || !me.ok) {
     return (

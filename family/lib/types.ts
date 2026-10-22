@@ -107,6 +107,8 @@ export interface RpcError {
   ok: false;
   error: string;
   message?: string;
+  /** With `not_in_home` (me()): the homes the account is in, for the screen to offer. */
+  homes?: HomeListing[];
 }
 
 /** One of the homes the signed-in account is in (`my_homes`), the current one first. */

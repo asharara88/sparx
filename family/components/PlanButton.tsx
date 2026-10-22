@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RpcError, Suggestion } from "@/lib/types";
 import { SuggestionCards } from "./SuggestionCards";
+import { apiFetch } from "@/lib/supabase/client";
 
 /** "Draft next week": the model proposes a plan from the calendar, who is home, what is due and what is low. */
 export function PlanButton({ existing }: { existing: Suggestion | null }) {
@@ -15,7 +16,7 @@ export function PlanButton({ existing }: { existing: Suggestion | null }) {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/plan/draft", { method: "POST" });
+      const r = await apiFetch("/api/plan/draft", { method: "POST" });
       const out = (await r.json()) as { ok: true; suggestion: Suggestion | null } | RpcError;
       if (!out.ok) return setMsg(out.message ?? "Could not draft the plan.");
       setDraft(out.suggestion);

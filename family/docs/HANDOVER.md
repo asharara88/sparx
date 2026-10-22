@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 46 files, applied in filename order |
+| Migrations | `supabase/migrations`, 47 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -56,9 +56,10 @@ reach another home by accident (4000); backups, push notifications and the photo
 bucket are per home, and the roles, matrix, entry types and helper skills every home
 shares change only from the first home (4100). One account can be in several homes,
 one member row in each; every request names the home its screen shows (the
-`elnunu_home` cookie, sent as the `x-home` header) and the database honours it only
-for a home the account is in, with the account's chosen home (`home_switch`; the
-switcher on the Me screen) as what a new device starts from (4300, 4500);
+`elnunu_home` cookie, sent as the `x-home` header by the browser client, the app's own
+API calls and the server client) and the database refuses a named home the account is
+not in, with the account's chosen home (`home_switch`; the switcher on the Me screen)
+as what a request naming no home starts from (4300, 4500, 4700);
 `household_create` makes a home, from the "Create your home" screen or "Create
 another home"; an admin deletes a home by typing its name, and the file cleanup is
 a retried job (`home_cleanups`, the daily cron).

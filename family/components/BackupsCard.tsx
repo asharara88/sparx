@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { BackupRow } from "@/lib/types";
 import { fmtDateTime } from "@/lib/time";
 import { Icon } from "@/components/Icon";
+import { apiFetch } from "@/lib/supabase/client";
 
 const mb = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
@@ -17,7 +18,7 @@ export function BackupsCard({ rows }: { rows: BackupRow[] }) {
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/backups", { method: "POST" });
+      const res = await apiFetch("/api/backups", { method: "POST" });
       const data = (await res.json()) as { ok: boolean; message?: string; rows?: number };
       setMsg(data.ok ? `Done: ${data.rows} rows saved.` : (data.message ?? "Backup failed."));
       router.refresh();

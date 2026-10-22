@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { Household } from "@/lib/types";
+import { apiFetch } from "@/lib/supabase/client";
 
 /**
  * Admin: delete this home, everything in it, and its files. The name has to be
@@ -28,7 +29,7 @@ export function DeleteHome({ household, platform }: { household: Household; plat
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/home/delete", {
+      const r = await apiFetch("/api/home/delete", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ household_id: household.id, name: typed.trim() }),
