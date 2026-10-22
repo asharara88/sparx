@@ -1,5 +1,5 @@
 -- Demo data for screenshots and local play: two weeks of Lana's log, Fanta,
--- notes, chat, milk, calendar, shopping, tickets, vaccines. Run after the
+-- notes, chat, milk, calendar, vaccines. Run after the
 -- migrations on a local database built by run-local.sh (needs the stub).
 --   su postgres -c "psql -d family_shots -v ON_ERROR_STOP=1 -f supabase/tests/demo_data.sql"
 \set ON_ERROR_STOP on
@@ -83,7 +83,6 @@ select pg_temp.act_as(:lilly);
 set role authenticated;
 select public.attendance_toggle();
 select public.chat_send('Lana fed 120 ml at 9:50 and went down for a nap', null);
-select public.shopping_request_create(null, 'Dishwasher tablets', 'Last box opened', null);
 reset role;
 
 -- Growth and milestones, vaccines, the doctor's card
@@ -104,7 +103,7 @@ select public.vaccine_record(:lana, 'pcv_1', date '2026-08-06', 'NMC Royal Hospi
 select public.vaccine_record(:lana, 'rota_1', date '2026-08-06', 'NMC Royal Hospital Abu Dhabi, Dr Sameh Abdelazim', 'AROLES24AE', 'Rotarix');
 select public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) || '{"doctor_questions":"Hip screening was not ticked on the card. Was it done?\nFlu jab from 6 months?"}'::jsonb, null, null);
 
--- Calendar, notes, shopping, the house
+-- Calendar and notes
 select public.calendar_save(null, 'Lana: 4-month vaccines (second doses)', 'appointment', timestamptz '2026-10-15 09:00+04', timestamptz '2026-10-15 10:00+04', true, 'household', null, 'Second doses of the 2-month vaccines.');
 select public.calendar_save(null, 'Dana''s parents for dinner', 'guest', (current_date + 3 + time '19:00') at time zone 'Asia/Dubai', (current_date + 3 + time '22:00') at time zone 'Asia/Dubai', false, 'household', null, null);
 select public.calendar_save(null, 'Amazon delivery', 'delivery', (current_date + 1 + time '14:00') at time zone 'Asia/Dubai', null, false, 'household', '00000000-0000-4000-8000-000000000005', 'Diapers size 3');
@@ -112,19 +111,6 @@ select public.calendar_save(null, 'AC service', 'contractor', (current_date + 5 
 select public.note_save(null, 'Bedtime routine: bath 18:45, feed, story, cot by 19:30.', false, true);
 select public.note_save(null, 'Formula tin opened Monday. Finish within 4 weeks.', false, false);
 select public.note_save(null, 'Call insurance about the policy expiry on Lana''s card.', true, false);
-select public.shopping_item_save(null, 'Pampers size 3', 'baby', null, 'amazon_ae', null, 'half a pack', '82 pack', current_date - 12, 89.00);
-select public.shopping_item_save(null, 'Wet wipes', 'baby', null, 'amazon_ae', null, '2 packs', '12 x 56', current_date - 20, 65.00);
-select public.shopping_item_save(null, 'Royal Canin Sterilised wet pouches', 'cat', null, 'noon', null, '6 pouches', '12 x 85 g', current_date - 8, 54.00);
-select public.shopping_item_save(null, 'Milk 2 L', 'groceries', null, 'talabat', null, '1', '2 L', current_date - 2, 12.50);
-select public.shopping_item_save(null, 'Bananas', 'groceries', null, 'talabat', null, null, '1 kg', current_date - 3, 7.00);
-select public.shopping_item_save(null, 'Breast pads', 'baby', '00000000-0000-4000-8000-000000000002', 'amazon_ae', null, 'running low', '60 pack', current_date - 30, 42.00);
-select public.shopping_item_needed(id, true) from public.shopping_items where name in ('Pampers size 3', 'Milk 2 L', 'Bananas', 'Breast pads');
-select public.ticket_create('AC in the bedroom is leaking', 'Water dripping from the indoor unit onto the wardrobe.', 'Master bedroom', null, 'urgent', null);
-select public.ticket_create('Kitchen tap drips', 'Slow drip at the base of the mixer.', 'Kitchen', null, 'normal', null);
-select public.asset_save(null, 'Bedroom AC (Daikin)', 'appliance', 'Master bedroom', 'Daikin', 'FTKM35', 'DK-2219-884', date '2024-03-10', date '2027-03-10', 'Al Futtaim', null);
-select public.asset_save(null, 'Washing machine', 'appliance', 'Laundry', 'Bosch', 'Serie 6', 'WAU28T64', date '2023-11-02', date '2025-11-02', 'Sharaf DG', null);
-select public.contractor_save(null, 'Rashid (AC)', 'Air conditioning', '+971 50 000 0000', '+971 50 000 0000', 'Cool Air Services', 'Came twice, tidy and on time.', 5::smallint);
-select public.contractor_save(null, 'Ali plumbing', 'Plumbing', '+971 55 000 0000', null, null, null, 4::smallint);
 reset role;
 
 -- Fanta

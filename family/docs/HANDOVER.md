@@ -130,7 +130,7 @@ Open:
   harmless, and a candidate for removal.
 - The retired tables are gone (migration 4600): the shopping set, the house
   (tickets, assets, contractors) and the hub, with their functions, modules and
-  permission rows. Every row they held is kept as JSON in `private.retired_rows`
+  permission rows. Every row they held is kept as JSON in `public.retired_rows`
   (service role only); drop that table once nobody wants the history at all.
   The pet's subject, entry types and entries are still in the database under the
   hidden `fanta` module; removing them is a separate decision, since the setup

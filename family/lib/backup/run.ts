@@ -20,6 +20,8 @@ const HOME = [
   "milk_bottles", "vaccinations", "medicines", "assistant_memories",
   "calendar_events", "notes", "family_messages",
   "attendance", "bag_items", "ask_chats", "assistant_briefs", "audit_log",
+  // The home's share of the rows archived when the shopping and house tables were dropped (migration 4600).
+  "retired_rows",
 ] as const;
 export const KEEP = 8;
 

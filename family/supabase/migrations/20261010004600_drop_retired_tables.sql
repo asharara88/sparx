@@ -6,39 +6,45 @@
 -- still exported them.
 --
 -- Nothing is thrown away blind: every row of every dropped table is copied, as
--- JSON, into private.retired_rows first, with the table it came from. That table
--- is the server's (no grants to signed-in members); drop it once nobody wants the
--- history at all. The pet stays: its subject, entry types and entries are part of
--- the child-and-pet setup and are a separate decision.
+-- JSON, into public.retired_rows first, with the table it came from and its home.
+-- That table is the server's (row security on, no policies, no grants to
+-- signed-in members); the nightly backup exports each home's share of it, so the
+-- history survives a restore too. Drop it once nobody wants the history at all.
+-- The pet stays: its subject, entry types and entries are part of the
+-- child-and-pet setup and are a separate decision.
 
 -- ---------------------------------------------------------------------------
 -- 1. Keep the rows
 -- ---------------------------------------------------------------------------
-create table if not exists private.retired_rows (
-  id          bigserial primary key,
-  table_name  text not null,
-  row         jsonb not null,
-  retired_at  timestamptz not null default now()
+create table if not exists public.retired_rows (
+  id            bigserial primary key,
+  household_id  uuid,
+  table_name    text not null,
+  row           jsonb not null,
+  retired_at    timestamptz not null default now()
 );
-revoke all on private.retired_rows from public, anon, authenticated;
+create index if not exists retired_rows_home on public.retired_rows (household_id);
+alter table public.retired_rows enable row level security;
+revoke all on public.retired_rows from public, anon, authenticated;
+grant select, insert, update, delete on public.retired_rows to service_role;
 
-insert into private.retired_rows (table_name, row) select 'stores', to_jsonb(t) from public.stores t;
-insert into private.retired_rows (table_name, row) select 'shelf_items', to_jsonb(t) from public.shelf_items t;
-insert into private.retired_rows (table_name, row) select 'shopping_items', to_jsonb(t) from public.shopping_items t;
-insert into private.retired_rows (table_name, row) select 'shopping_item_aliases', to_jsonb(t) from public.shopping_item_aliases t;
-insert into private.retired_rows (table_name, row) select 'shopping_requests', to_jsonb(t) from public.shopping_requests t;
-insert into private.retired_rows (table_name, row) select 'receipts', to_jsonb(t) from public.receipts t;
-insert into private.retired_rows (table_name, row) select 'receipt_lines', to_jsonb(t) from public.receipt_lines t;
-insert into private.retired_rows (table_name, row) select 'purchases', to_jsonb(t) from public.purchases t;
-insert into private.retired_rows (table_name, row) select 'cart_runs', to_jsonb(t) from public.cart_runs t;
-insert into private.retired_rows (table_name, row) select 'tickets', to_jsonb(t) from public.tickets t;
-insert into private.retired_rows (table_name, row) select 'ticket_updates', to_jsonb(t) from public.ticket_updates t;
-insert into private.retired_rows (table_name, row) select 'ticket_costs', to_jsonb(t) from public.ticket_costs t;
-insert into private.retired_rows (table_name, row) select 'assets', to_jsonb(t) from public.assets t;
-insert into private.retired_rows (table_name, row) select 'contractors', to_jsonb(t) from public.contractors t;
-insert into private.retired_rows (table_name, row) select 'hub_entities', to_jsonb(t) from public.hub_entities t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'stores', to_jsonb(t) from public.stores t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shelf_items', to_jsonb(t) from public.shelf_items t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shopping_items', to_jsonb(t) from public.shopping_items t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shopping_item_aliases', to_jsonb(t) from public.shopping_item_aliases t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'shopping_requests', to_jsonb(t) from public.shopping_requests t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'receipts', to_jsonb(t) from public.receipts t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'receipt_lines', to_jsonb(t) from public.receipt_lines t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'purchases', to_jsonb(t) from public.purchases t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'cart_runs', to_jsonb(t) from public.cart_runs t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'tickets', to_jsonb(t) from public.tickets t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'ticket_updates', to_jsonb(t) from public.ticket_updates t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'ticket_costs', to_jsonb(t) from public.ticket_costs t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'assets', to_jsonb(t) from public.assets t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'contractors', to_jsonb(t) from public.contractors t;
+insert into public.retired_rows (household_id, table_name, row) select (to_jsonb(t)->>'household_id')::uuid, 'hub_entities', to_jsonb(t) from public.hub_entities t;
 -- The house's photo attachments point at tickets and assets; they go with them.
-insert into private.retired_rows (table_name, row) select 'attachments', to_jsonb(t) from public.attachments t where t.module_id in ('maintenance', 'maintenance_costs');
+insert into public.retired_rows (household_id, table_name, row) select t.household_id, 'attachments', to_jsonb(t) from public.attachments t where t.module_id in ('maintenance', 'maintenance_costs');
 delete from public.attachments where module_id in ('maintenance', 'maintenance_costs');
 
 -- ---------------------------------------------------------------------------

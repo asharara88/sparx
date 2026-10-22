@@ -181,7 +181,7 @@ household*); nothing in the code is tied to these people.
   "fill a cart" hand-off were built in this step and taken out of the app on 22 October
   2026: the app is the baby's day. Their tables, functions, modules and permission rows
   left the database with migration 4600, together with the house (tickets, assets,
-  contractors) and the hub; every row they held is kept as JSON in `private.retired_rows`.
+  contractors) and the hub; every row they held is kept as JSON in `public.retired_rows`.
 - Photos are shrunk on the phone before upload (longest side 1600 px), for every photo type.
 
 ## 0. Brand
