@@ -1115,6 +1115,7 @@ set role authenticated;
 select (public.household_create('The Khans at the beach', 'Asia/Dubai', 'Zayd', current_date - 20, 'Boy', 'Haitham'))->>'household_id' as beach_home \gset
 select pg_temp.assert(:'beach_home' is not null, 'Haitham, already in a home, makes another');
 reset role;
+insert into public.retired_rows (household_id, table_name, row) values (:'beach_home', 'shopping_items', '{"name":"Sunscreen"}');  -- as the server would, for the cascade check below
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans at the beach' and (public.me())->>'homes' = '2', 'and runs as it from the next request');
@@ -1136,6 +1137,7 @@ reset role;
 select pg_temp.assert(not exists (select 1 from public.household where id = :'beach_home') and not exists (select 1 from public.members where household_id = :'beach_home') and not exists (select 1 from public.care_subjects where household_id = :'beach_home'), 'home, members and child are gone');
 select pg_temp.assert((select count(*) from public.audit_log where target_table = 'household' and target_id = :'beach_home' and allowed) = 1, 'and the deletion is in the audit log, outliving the home');
 select pg_temp.assert(exists (select 1 from public.home_cleanups where household_id = :'beach_home' and done_at is null and attempts = 0), 'and its file cleanup is queued for the server');
+select pg_temp.assert(not exists (select 1 from public.retired_rows where household_id = :'beach_home'), 'and its share of the archived rows went with it');
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert(pg_temp.fails('select * from public.home_cleanups'), 'the cleanup queue is the server''s, not a member''s');

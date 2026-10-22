@@ -18,7 +18,8 @@
 -- ---------------------------------------------------------------------------
 create table if not exists public.retired_rows (
   id            bigserial primary key,
-  household_id  uuid,
+  -- The home the row belonged to, so a home's share goes with the home when it is deleted; null for shared rows (stores).
+  household_id  uuid references public.household (id) on delete cascade,
   table_name    text not null,
   row           jsonb not null,
   retired_at    timestamptz not null default now()
