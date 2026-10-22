@@ -7,7 +7,7 @@ import { friendlyModelError } from "@/lib/server/anthropic";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const SCREENS = new Set(["home", "lana", "patterns", "milk", "plan", "calendar", "shopping", "simple"]);
+const SCREENS = new Set(["home", "lana", "patterns", "milk", "plan", "calendar", "simple"]);
 
 /**
  * POST { question, turns?, screen?, stream? }.

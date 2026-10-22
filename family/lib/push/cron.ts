@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, ShoppingRequest, Suggestion } from "@/lib/types";
+import type { CalendarData, EntryRow, HomeSummary, Me, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, fmtTime, todayYmd } from "@/lib/time";
 import { getBrief } from "@/lib/assistant/brief";
@@ -136,7 +136,7 @@ export async function runDaily(): Promise<CronReport> {
   return report;
 }
 
-/** Every few minutes (when the plan allows): events about to start, new running-low requests, new urgent tickets. */
+/** Every few minutes (when the plan allows): events about to start, the next nap. */
 export async function runOften(): Promise<CronReport> {
   const service = serviceClient();
   const report: CronReport = { members: 0, sent: 0, skipped: 0, errors: [], detail: {} };
@@ -165,17 +165,6 @@ export async function runOften(): Promise<CronReport> {
               report.sent += 1;
               log.push(`event ${e.title}`);
             }
-          }
-        }
-      }
-      // Staff's new running-low requests, for reviewers.
-      if (can(me, "shopping_review", "edit")) {
-        const { data } = await client.rpc("shopping_requests_list", { p_status: "pending" });
-        for (const q of (((data as { requests?: ShoppingRequest[] } | null)?.requests ?? []) as ShoppingRequest[]).slice(0, 10)) {
-          const r = await notifyMember(service, t.member_id, { kind: "request", key: `request:${q.id}`, title: `Running low: ${q.item_name}`, body: `${q.created_by_name ?? "Staff"}${q.note ? ` · ${q.note}` : ""}`, url: "/shopping/requests" });
-          if (r.sent) {
-            report.sent += 1;
-            log.push(`request ${q.item_name}`);
           }
         }
       }

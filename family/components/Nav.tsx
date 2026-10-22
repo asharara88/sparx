@@ -6,14 +6,14 @@ import { can } from "@/lib/types";
 import { childName } from "@/lib/names";
 import { Icon, type IconName } from "@/components/Icon";
 
-/** Home, the child, Milk, Calendar, Chat, More. Shopping and the admin screens live under More. */
+/** Home, the child, Milk, Calendar, Chat, More. The admin screens live under More. Someone without the child's log gets Today, Calendar, Chat. */
 export function Nav() {
   const me = useMe();
   const path = usePathname();
-  const staff = !can(me, "lana", "view") && can(me, "shopping_requests", "add");
+  const staff = !can(me, "lana", "view");
   const items: { href: string; label: string; icon: IconName }[] = [];
   if (staff) {
-    items.push({ href: "/send", label: "Send", icon: "camera" });
+    items.push({ href: "/send", label: "Today", icon: "home" });
     if (can(me, "calendar", "view")) items.push({ href: "/calendar", label: "Calendar", icon: "calendar" });
     if (can(me, "chat", "view")) items.push({ href: "/chat", label: "Chat", icon: "chat" });
   } else {

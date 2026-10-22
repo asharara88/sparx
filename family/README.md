@@ -95,14 +95,11 @@ household*); nothing in the code is tied to these people.
   Members). Bottle feeds record which milk: morning pumped, night pumped, freezer, formula.
 - Shared calendar: events, plans, reminders, routines (daily/weekly), guests, deliveries,
   contractor visits, appointments. Per-event visibility: *whole household* or *family only*
-  (hidden from staff). A guest day blocks contractor bookings and links to the shopping list.
-  Each day shows who is in the house and who is working, from presence and work days.
-- Shopping: one list across groceries, Lana and supplements, with owner, usual
-  shop, product link, quantity left, size (with last-changed date), last bought, last price
-  and a "buy again every N days" reminder. Tick an item off and it remembers the date.
-- Lilly's screen (`/send`): a shelf of usual items to tap, or a photo with a note. Requests
-  wait in a review queue; an admin adds them to the list or marks them not needed.
-- Private `photos` bucket for request photos.
+  (hidden from staff). Each day shows who is in the house and who is working, from presence
+  and work days.
+- The carer's screen (`/send`, "Today" in their tab bar): the clock-in button and today's
+  events, for a member who does not have the child's log.
+- Private `photos` bucket for the photos on entries, members and the chat.
 
 **Step 4 — the assistant (this release)**
 
@@ -178,24 +175,13 @@ household*); nothing in the code is tied to these people.
   out by 8:30, pumps before leaving", "we aim for 400 ml in the fridge". The assistant, the
   brief and the plan read them; the home screen shows the day's pumped milk against the target.
 
-**Step 5 — the shopping loop (this release)**
+**Step 5 — the shopping loop (removed)**
 
-- **Receipts** (`/shopping/receipts`): photograph a receipt; it is read line by line by the
-  model (structured output, never a guessed line) and each line is matched to a list item —
-  first by a remembered printed name, then by name similarity (pg_trgm). Lines it is not sure
-  about are flagged, never dropped: match them, add them as a new item, or skip them. *Apply*
-  records a purchase per line and updates last bought, last price and the shop; the printed
-  name becomes an alias so the next receipt matches without help. Only Mido or Dana can apply.
-- **Learned reorder interval**: after two purchases of an item, the median gap between purchase
-  dates becomes its interval and "probably running out" uses it instead of the typed number.
-  The item page shows both, and the purchase history.
-- **Fill a cart** (`/shopping/cart`): pick the shop and the items (needed ones are preselected),
-  set the substitution rule per item (same brand only / any brand / exactly this), and the app
-  prepares a cart run: a manifest and the instructions for the cart agent (Claude in Chrome, or
-  whoever drives the browser). The instructions say stop at checkout, never pay, and report
-  found / substituted / missing with prices. Paste the report back; the model turns it into
-  per-item results you can correct; "I paid" marks found and substituted items bought today at
-  the reported price. The app never reaches a payment page.
+- The shopping list, the staff's running-low requests, receipts read by the model and the
+  "fill a cart" hand-off were built in this step and taken out of the app on 22 October
+  2026: the app is the baby's day. Their tables, functions and permission rows are still in
+  the database (`shopping_items`, `shopping_requests`, `receipts`, `cart_runs`, the
+  `shopping*` modules), as with the other removed areas; nothing reads them.
 - Photos are shrunk on the phone before upload (longest side 1600 px), for every photo type.
 
 ## 0. Brand
@@ -381,7 +367,7 @@ supabase/migrations/   20261010000100_foundation.sql   members, roles, permissio
                        …                                one file per release since; 3500 = any household
 supabase/tests/        rls_test.sql (the database checks), 01_test_household.sql (the household the
                        checks act as), run-local.sh, local auth stub, demo_data.sql
-app/(app)/             home, baby/, calendar, shopping/, send, members/, audit, me
+app/(app)/             home, baby/, calendar, send (the carer's Today), members/, audit, me
 components/            EntryForm (renders `fields`), LanaNow (the child's one-tap screen), CustodyToggle…
 lib/                   supabase clients, offline queue, names (the child from data), time helpers, types
 scripts/               setup-household.mjs, seed-accounts.mjs, make-icons.mjs
@@ -403,6 +389,6 @@ household.example.json the household file to copy and fill in
 - Paediatrician card (`/lana/doctor`): doctor, hospital, call, book, directions, questions for the next visit, upcoming vaccines and appointments, past visits.
 - Screenshot mode: build a local database with `supabase/tests/run-local.sh`, load `supabase/tests/demo_data.sql`, then run the app with `FAMILY_LOCAL_DB=<database>`. Pages read that database through psql as the member named by a `shot_as` cookie (defaults to Mido). Never set in production.
 - Every environment variable, what it powers and where to get it: `VERCEL_ENV.md`.
-- Lana first: Home is her place (state, one-tap log, next feed, pumping, the handover, her guide), the Lana tab has Today, Patterns, Week, Handover and Ask, plus Emergency and When to call. The rest of the household sits below a divider. Shopping is switched off for the household (`household.hidden_modules`); its data and permissions stay, and taking a module out of that list brings it back. Fanta, the house and the Home Assistant hub were removed from the app; their tables are still in the database.
+- Lana first: Home is her place (state, one-tap log, next feed, pumping, the handover, her guide), the Lana tab has Today, Patterns, Week, Handover and Ask, plus Emergency and When to call. The rest of the household sits below a divider. Shopping, Fanta, the house and the Home Assistant hub were removed from the app; their tables are still in the database. `household.hidden_modules` still switches a module off for everyone without touching its data.
 - A bottle feed takes its milk out of the fridge stash (oldest first); a pump logged from Home goes into the fridge; while Mama is away the fridge plan says how many bottles are coming and whether to thaw a bag.
 - Push notifications are not in yet (they need web-push keys and a scheduler; see LATER.md).

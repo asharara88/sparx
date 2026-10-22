@@ -91,8 +91,6 @@ const STATUS: Record<string, string> = {
   who_is_home: "Checking who is home",
   calendar: "Reading the calendar",
   due_soon: "Checking what is due",
-  shopping_list: "Reading the shopping list",
-  house: "Checking the house",
 };
 
 function statusFor(calls: Anthropic.Beta.BetaToolUseBlock[]): string {

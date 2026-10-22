@@ -78,8 +78,11 @@ Done and live:
 - The full Lovable history, 5 June to 20 October, imported as real entries
   (migration `…3200` at the time; the data is in the project and its nightly
   backups, the file is now a stub). The family's earlier playground app can be closed.
-- Shopping switched off for the household (migration `…3300`). The code is still
-  there; only the switch is off.
+- Shopping switched off for the household (migration `…3300`), and on 22 October
+  its code (the list, the staff's running-low requests, receipts, the cart
+  hand-off, the assistant's shopping tools) taken out of the app. The carer's
+  `/send` screen is now "Today": clock-in and the day's events. The tables and
+  functions stay, like the other removed areas.
 - Fanta the cat, the house (tickets, appliances, contractors) and the Home Assistant
   hub are **deleted from the app**. The app is baby care only. Their database tables
   still exist and hold the old rows; nothing reads them.
@@ -121,11 +124,11 @@ Open:
   sign-out and view-as form posts refuse cross-site requests. The database still
   honours a `preview_mode: 'full'` claim in `has_permission` that nothing mints;
   harmless, and a candidate for removal.
-- Groceries (the shopping list, receipts, the cart, the home carer's requests) is
-  the last non-baby area still in the code. Removing it is entangled with the Send
-  screen and the assistant's shopping tools, so it was left for a second pass.
 - The dropped tables (tickets, assets, contractors, the pet's subject and entries,
-  hub entities) could be removed with a new migration once nobody wants the history.
+  hub entities, and now the shopping set: `shopping_items`, `shopping_requests`,
+  `shelf_items`, `receipts`, `receipt_lines`, `purchases`, `cart_runs`, `stores`)
+  could be removed with a new migration once nobody wants the history. The
+  database suite still exercises their functions until then.
 
 ## Access, and what is currently broken
 
