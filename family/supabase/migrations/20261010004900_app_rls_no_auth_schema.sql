@@ -126,3 +126,23 @@ begin
   return jsonb_build_object('ok', true, 'id', v_id);
 end $$;
 
+
+-- The shared preview check itself must not depend on the caller's role either.
+-- private.preview_member_id() reads the token when its transaction-local cache is
+-- empty; as an invoker function it ran as app_rls whenever an app_rls function called
+-- private.read_only_preview() before any lookup that fills the cache. It reads only
+-- the token and a session setting, never a table, so it is safe as a definer function
+-- that stays with postgres: every caller reaches the token through it.
+create or replace function private.preview_member_id() returns uuid
+language plpgsql stable security definer set search_path = public as $$
+declare v text := current_setting('fam.m.preview', true); j jsonb;
+begin
+  if v is not null and v <> '' then return nullif(v, 'none')::uuid; end if;
+  j := auth.jwt();
+  if coalesce(j->>'preview_member', '') <> '' and coalesce(j->>'preview_by', '') <> '' then
+    perform set_config('fam.m.preview', j->>'preview_member', true);
+    return (j->>'preview_member')::uuid;
+  end if;
+  perform set_config('fam.m.preview', 'none', true);
+  return null;
+end $$;
