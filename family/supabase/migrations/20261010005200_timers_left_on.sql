@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------------
 -- Timers left on. A breastfeed or a sleep nobody ended stays "running" for ever:
 -- the home screen showed a feed 3,000 hours long. Three rules now:
---   1. private.timers_close_forgotten(after, subject): ends every timer open longer than
+--   1. private.timers_close_forgotten(after, subject, type): ends every timer open longer than
 --      `after`, at a cap that fits the kind (a breastfeed 20 min, a night wake-up 1 h,
 --      a sleep 12 h), and says so in the entry's note. The daily cron runs it with
 --      12 hours for every home (public.timers_close_forgotten, service role only).
@@ -9,7 +9,7 @@
 --   3. care_entry_log closes a timer of the same type left on since yesterday before
 --      it starts the new one, instead of handing the old one back as "already running".
 -- ---------------------------------------------------------------------------
-create or replace function private.timers_close_forgotten(p_after interval, p_subject_id uuid default null) returns jsonb
+create or replace function private.timers_close_forgotten(p_after interval, p_subject_id uuid default null, p_type_id text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v_rows jsonb;
 begin
@@ -31,6 +31,7 @@ begin
       join public.care_entry_types ct on ct.id = e.type_id
      where e.ended_at is null and e.deleted_at is null and ct.has_end
        and (p_subject_id is null or e.subject_id = p_subject_id)
+       and (p_type_id is null or e.type_id = p_type_id)
        and e.occurred_at < now() - p_after
        and (ct.settings->'end_if' is null
             or not exists (select 1 from jsonb_each_text(ct.settings->'end_if') k where e.payload->>k.key is distinct from k.value))
@@ -48,8 +49,8 @@ end $$;
 -- Stays with postgres, which owns the tables and so is not subject to the home policy: the nightly
 -- job runs with the server's key and no member identity, and must visit every home. From
 -- care_entry_log it only ever gets the subject the caller was just allowed to log for.
-revoke all on function private.timers_close_forgotten(interval, uuid) from public, anon;
-grant execute on function private.timers_close_forgotten(interval, uuid) to authenticated, service_role;
+revoke all on function private.timers_close_forgotten(interval, uuid, text) from public, anon;
+grant execute on function private.timers_close_forgotten(interval, uuid, text) to authenticated, service_role;
 
 -- The nightly job, for every home. The server's own key only.
 create or replace function public.timers_close_forgotten() returns jsonb
@@ -167,7 +168,7 @@ begin
     -- second one sees the first (transaction-scoped advisory lock).
     perform pg_advisory_xact_lock(hashtext(p_subject_id::text || ':' || p_type_id));
     -- A timer of this type left on since yesterday is closed first, not handed back (migration 5200).
-    perform private.timers_close_forgotten(interval '24 hours', p_subject_id);
+    perform private.timers_close_forgotten(interval '24 hours', p_subject_id, p_type_id);
     select e.id into v_open from public.care_entries e
       join public.care_entry_types t on t.id = e.type_id
      where e.subject_id = p_subject_id and e.type_id = p_type_id and e.ended_at is null and e.deleted_at is null

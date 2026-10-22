@@ -1215,14 +1215,16 @@ select pg_temp.assert((select ended_at = occurred_at + interval '1 hour' and not
   'a wake-up left on ends 1 h after it started, with a note');
 -- A new start closes a timer of its type left on since yesterday instead of handing it back.
 insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
-  ('cccccccc-0000-4000-8000-000000000002', :lana, 'lana', 'lana.sleep', now() - interval '30 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
+  ('cccccccc-0000-4000-8000-000000000002', :lana, 'lana', 'lana.sleep', now() - interval '30 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana)),
+  ('cccccccc-0000-4000-8000-000000000004', :lana, 'lana', 'lana.wake', now() - interval '30 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now(), null, '{}', null, 'cccccccc-0000-4000-8000-000000000003'))->>'ok' = 'true', 'a new sleep can start while one was left on since yesterday');
+select pg_temp.assert((select ended_at is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000004'), 'only a timer of the same type is closed by the new start; the wake-up left on is not touched');
 select pg_temp.assert((select ended_at = occurred_at + interval '12 hours' and note like '%Timer left on; end set to 12 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000002'),
   'the sleep left on ends 12 h after it started, with a note, instead of being handed back');
 reset role;
-update public.care_entries set ended_at = now() where client_id = 'cccccccc-0000-4000-8000-000000000003';
+update public.care_entries set ended_at = now() where client_id in ('cccccccc-0000-4000-8000-000000000003', 'cccccccc-0000-4000-8000-000000000004');
 
 \echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
