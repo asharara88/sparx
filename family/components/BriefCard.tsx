@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { Brief, RpcError } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { Cited } from "./Cited";
+import { apiFetch } from "@/lib/supabase/client";
 
 /**
  * This morning's brief (from 06:00) or this evening's digest (from 17:00), written
@@ -20,7 +21,7 @@ export function BriefCard({ hour }: { hour: number }) {
     setState("loading");
     setMsg(null);
     try {
-      const res = await fetch(`/api/assistant/brief?kind=${kind}${refresh ? "&refresh=1" : ""}`);
+      const res = await apiFetch(`/api/assistant/brief?kind=${kind}${refresh ? "&refresh=1" : ""}`);
       const data = (await res.json()) as { ok: true; brief: Brief } | RpcError;
       if (!data.ok) {
         setState(data.error === "not_configured" || data.error === "not_allowed" ? "off" : "error");

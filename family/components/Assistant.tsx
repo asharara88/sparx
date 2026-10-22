@@ -5,7 +5,7 @@ import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, A
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { dateWords } from "@/lib/time";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
@@ -217,7 +217,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const res = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true }), signal: controller.signal });
+        const res = await apiFetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true }), signal: controller.signal });
         if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").includes("ndjson")) {
           const data = (await res.json().catch(() => null)) as AssistantReply | RpcError | null;
           if (data && data.ok) {

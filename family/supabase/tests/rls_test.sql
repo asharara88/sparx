@@ -1094,13 +1094,24 @@ set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'name' = 'The Khans' and (public.me())->'role'->>'id' = 'family_carer', 'a request from a screen showing the Khans runs as Mido''s row there, whatever his chosen home');
 select pg_temp.assert((select count(*) from jsonb_array_elements(public.my_homes()) h where (h->>'current')::boolean and h->>'name' = 'The Khans') = 1, 'and the switcher marks it current');
 reset role;
+-- A named home the account is not in is a refusal, never a fallback (migration 4700).
 select set_config('request.headers', jsonb_build_object('x-home', gen_random_uuid())::text, false);
 set role authenticated;
-select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'a header naming a home he is not in is ignored');
+select pg_temp.assert((public.me())->>'error' = 'not_in_home' and jsonb_array_length((public.me())->'homes') = 2, 'a header naming a home he is not in gets not_in_home, with his two homes to pick from');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.diaper', now(), null, '{"kind":"Wet"}', null, null))->>'ok' = 'false', 'and a write under it is refused, not redirected to his chosen home');
+select pg_temp.assert((select count(*) from public.members) = 0, 'and he reads nothing');
 reset role;
+-- Revoked membership: a phone still showing the Khans after Mido is deactivated there.
+update public.members set is_active = false where id = :'mido_khan';
+select set_config('request.headers', jsonb_build_object('x-home', :khan_home)::text, false);
+set role authenticated;
+select pg_temp.assert((public.me())->>'error' = 'not_in_home', 'a home he was removed from refuses him the same way');
+select pg_temp.assert((public.care_entry_log(:zayd, 'lana.diaper', now(), null, '{"kind":"Wet"}', null, null))->>'ok' = 'false', 'and his write into it is refused');
+reset role;
+update public.members set is_active = true where id = :'mido_khan';
 select set_config('request.headers', '{"x-home":"not-a-uuid"}', false);
 set role authenticated;
-select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'and so is a header that is not an id');
+select pg_temp.assert((public.me())->'household'->>'name' = 'Our home', 'a header that is not an id names no home, so his chosen home applies');
 reset role;
 select set_config('request.headers', '', false);
 -- The first sign-in after being listed links the new row too, without moving the account.

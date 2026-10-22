@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MilkReading, RpcError } from "@/lib/types";
 import { downscale } from "@/lib/photos";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
 
 /**
@@ -34,7 +34,7 @@ export function MilkScan({ timezone }: { timezone: string }) {
         r.onerror = () => rej(new Error("Could not read the photo."));
         r.readAsDataURL(blob);
       });
-      const res = await fetch("/api/milk/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: dataUrl }) });
+      const res = await apiFetch("/api/milk/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: dataUrl }) });
       const data = (await res.json()) as ({ ok: true } & MilkReading) | RpcError;
       if (!data.ok) {
         setMsg(data.message ?? "Could not read the photo.");

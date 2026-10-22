@@ -14,16 +14,21 @@ nothing of any other.
 - **One account, several homes** (since migration 4300). A member row is one
   person in one home; an account holds one in each home that listed its e-mail,
   and `(household_id, user_id)` and `(household_id, email)` are what is unique.
-  Every request from the app names the home its screen shows (an `x-home`
-  header from a cookie the app keeps per device, `lib/home-cookie.ts`), and
-  `current_member_id()` honours it only for a home the account is in (migration
-  4500). So a switch on one phone never moves another phone's next write: that
-  phone keeps the home it shows until it switches itself. A device that has not
-  chosen starts from the account's chosen row (`private.account_home`, set by
-  `home_switch`), else the oldest; `my_homes()` lists them and `me().homes`
-  counts them. A grandmother helping two families signs in once and switches on
-  her Me screen. The offline queue stamps every kept entry with its home and
-  replays it there: that one request names that home instead.
+  Every request from the app names the home its screen shows: an `x-home`
+  header the browser client and the app's own API calls (`apiFetch`) carry
+  from the page's bound home, and the server client sends from that header,
+  else from the cookie the app keeps per device (`lib/home-cookie.ts`). A
+  named home the account is not in is refused (migration 4700): nothing runs
+  as it, and `me()` says `not_in_home` with the homes to pick from, which the
+  layout offers. Only a request naming no home starts from the account's
+  chosen row (`private.account_home`, set by `home_switch`), else the oldest.
+  So a switch on one phone never moves another phone's next write, a tab
+  bound to one home never writes into the home another tab moved the cookie
+  to, and a phone still showing a home the account was removed from writes
+  nowhere. `my_homes()` lists the homes and `me().homes` counts them. A
+  grandmother helping two families signs in once and switches on her Me
+  screen. The offline queue stamps every kept entry with its home and replays
+  it there: that one request names that home instead.
 - **Who you are decides which home you see.** `private.current_household_id()`
   is the home of the signed-in member (or of the previewed member in "view as").
   Every home-scoped table has one extra *restrictive* row-security policy,

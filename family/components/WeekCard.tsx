@@ -4,6 +4,7 @@ import type { Brief, RpcError } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { childPronouns } from "@/lib/names";
 import { Cited } from "./Cited";
+import { apiFetch } from "@/lib/supabase/client";
 
 /**
  * "This week for <child>": what the age usually brings this week, how last week
@@ -21,7 +22,7 @@ export function WeekCard({ name }: { name: string }) {
     setState("loading");
     setMsg(null);
     try {
-      const res = await fetch(`/api/assistant/brief?kind=week${refresh ? "&refresh=1" : ""}`);
+      const res = await apiFetch(`/api/assistant/brief?kind=week${refresh ? "&refresh=1" : ""}`);
       const data = (await res.json()) as { ok: true; brief: Brief } | RpcError;
       if (!data.ok) {
         setState(data.error === "not_configured" || data.error === "not_allowed" ? "off" : "error");

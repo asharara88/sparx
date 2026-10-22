@@ -2,7 +2,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/env";
-import { HOME_COOKIE, HOME_COOKIE_MAX_AGE, HOME_HEADER, homeId } from "@/lib/home-cookie";
+import { HOME_COOKIE, HOME_COOKIE_MAX_AGE, homeId, withHome } from "@/lib/home-cookie";
 
 let client: ReturnType<typeof createBrowserClient> | null = null;
 
@@ -17,12 +17,13 @@ export function bindHome(id: string | null) {
 }
 
 /** The bound home goes on every request that does not already name one (a queued entry's replay names its own). */
-const homeFetch: typeof fetch = (input, init) => {
-  if (!bound) return fetch(input, init);
-  const headers = new Headers(init?.headers);
-  if (!headers.has(HOME_HEADER)) headers.set(HOME_HEADER, bound);
-  return fetch(input, { ...init, headers });
-};
+const homeFetch: typeof fetch = (input, init) => fetch(input, withHome(init, bound));
+
+/**
+ * fetch for the app's own API routes: the page's bound home goes along, so a tab
+ * bound to one home never has its request read as another tab's cookie.
+ */
+export const apiFetch: typeof fetch = (input, init) => fetch(input, withHome(init, bound));
 
 /** The "view as" token, when an admin is previewing another member (cookie set by the server). */
 function previewToken(): string | null {
