@@ -1,0 +1,71 @@
+# Weekly dependency audit for both apps, and on demand. `npm audit` fails when a
+# dependency has a known advisory of high or critical severity; the job then opens
+# (or refreshes) the issue "Security audit: vulnerable dependencies" with the report,
+# and closes it once the audit is clean again. Dependabot (.github/dependabot.yml)
+# opens the upgrade pull requests; the issue is the record that something is open,
+# and docs/SECURITY_UPDATES.md is the record of what was done.
+name: Security audit
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"  # Mondays, 03:17 UTC (07:17 in Dubai)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit the root app (YouTube studio)
+        id: root
+        continue-on-error: true
+        run: npm audit --audit-level=high 2>&1 | tee audit-root.txt
+      - name: Audit the family app (elnunu)
+        id: family
+        continue-on-error: true
+        working-directory: family
+        run: npm audit --audit-level=high 2>&1 | tee ../audit-family.txt
+      - name: Open, refresh or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROOT: ${{ steps.root.outcome }}
+          FAMILY: ${{ steps.family.outcome }}
+        run: |
+          set -euo pipefail
+          title="Security audit: vulnerable dependencies"
+          gh label create security --repo "$GITHUB_REPOSITORY" --color B60205 --description "A dependency with a known advisory" --force >/dev/null 2>&1 || true
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ "$ROOT" = "success" ] && [ "$FAMILY" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "The audit of $(date -u +%Y-%m-%d) is clean in both apps. Closing."
+              gh issue close "$existing" --repo "$GITHUB_REPOSITORY"
+            fi
+            echo "Clean."
+            exit 0
+          fi
+          {
+            echo "The weekly \`npm audit --audit-level=high\` found advisories on $(date -u +%Y-%m-%d). Dependabot opens the upgrade pull requests; merge them when CI is green, then add a line to \`docs/SECURITY_UPDATES.md\`. Run \`npm audit fix\` locally for anything Dependabot has not picked up."
+            echo
+            echo "## Root app (YouTube studio): $ROOT"
+            echo '```'; tail -c 6000 audit-root.txt; echo '```'
+            echo
+            echo "## Family app (elnunu): $FAMILY"
+            echo '```'; tail -c 6000 audit-family.txt; echo '```'
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > body.md
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file body.md
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label security --body-file body.md
+          fi
+          echo "Advisories found; the issue carries the report." >&2
+          exit 1
