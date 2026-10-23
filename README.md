@@ -1,7 +1,7 @@
 # sparx — AI YouTube Studio
 
 A semi-autonomous multi-agent pipeline that researches, scripts, voices, renders, and
-(optionally) publishes a YouTube episode + Shorts. Built in TypeScript on Node 20+,
+(optionally) publishes a YouTube episode + Shorts. Built in TypeScript on Node 22+,
 with Supabase for episode state and ffmpeg for final video rendering.
 
 Providers are optional: any API key left blank falls back to a deterministic **mock**,
@@ -101,5 +101,5 @@ Full design: [docs/YouTube-Studio-Build-Spec.md](docs/YouTube-Studio-Build-Spec.
 
 ## Requirements
 
-- Node 20+
+- Node 22.12+ (vitest 5 needs it)
 - `ffmpeg` / `ffprobe` on PATH (for real rendering; the render step is skipped gracefully if absent)

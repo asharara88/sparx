@@ -113,6 +113,8 @@ Done and live:
 - A timer ends once under a row lock; End on the phone stops the model on the
   server; the helper's spoken readback is in the member's language with the day;
   the wake-up eval checks the record.
+- Dependencies: Dependabot and a weekly audit workflow at the repo root keep both apps
+  patched; what was upgraded and when is in `docs/SECURITY_UPDATES.md` (repo root).
 - Joining by invite link (migration 5300, `docs/MULTI_HOME.md` → Joining): *Send an
   invite link* under a name on the Members screen; `/join/<token>` shows the home and
   the name, signs the person in with any e-mail, and makes their account that member
