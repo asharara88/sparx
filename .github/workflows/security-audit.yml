@@ -24,13 +24,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # `shell: bash` runs with -o pipefail, so the step's outcome is npm audit's exit
+      # status, not tee's; without it a finding would read as "success" below.
       - name: Audit the root app (YouTube studio)
         id: root
         continue-on-error: true
+        shell: bash
         run: npm audit --audit-level=high 2>&1 | tee audit-root.txt
       - name: Audit the family app (elnunu)
         id: family
         continue-on-error: true
+        shell: bash
         working-directory: family
         run: npm audit --audit-level=high 2>&1 | tee ../audit-family.txt
       - name: Open, refresh or close the tracking issue
