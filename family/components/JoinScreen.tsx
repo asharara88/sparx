@@ -101,7 +101,7 @@ export function JoinScreen({ token, invite, email }: { token: string | null; inv
         <h2 className="text-2xl font-bold">Join {invite.home}</h2>
         <p>
           {who} to <b>{invite.home}</b> as <b>{as}</b>.
-          {email ? " Tap below and the app opens in that home, with everything the family has logged." : " Sign in below with any e-mail you like, and you are in."}
+          {email ? " Tap below and the app opens in that home, with everything the family has logged." : " Sign in below with Google or any e-mail you like, and you are in."}
         </p>
         {email && (
           <>

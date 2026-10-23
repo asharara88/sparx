@@ -232,6 +232,22 @@ Auth settings in the Supabase dashboard (Authentication → URL configuration):
 - Redirect URLs: `https://elnunu.com/auth/callback`, `https://sparx-tsom.vercel.app/auth/callback`
   and `http://localhost:3000/auth/callback`
 
+Google sign-in ("Continue with Google" on the login and invite screens; one tap, no
+password) needs the Google provider on, under Authentication → Sign In / Providers →
+Google. Not the "OAuth Server" page, which is for letting other apps sign in with elnunu
+and is not needed:
+1. Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth
+   client ID, type *Web application*. Authorized JavaScript origin `https://elnunu.com`;
+   authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback` (the
+   Supabase provider page shows the exact one). If the consent screen is not set up yet,
+   set it up first: external, the app's name, a support e-mail; publish it, or add the
+   family's addresses as test users.
+2. Supabase → Authentication → Sign In / Providers → Google: enable, paste the client ID
+   and secret, save.
+Until the provider is on, the button says so and the e-mail ways still work. A Google
+account joins a home exactly like an e-mail one: through an invite link, or by the
+e-mail an admin listed.
+
 ### Set up the household (once per family)
 
 The household's name, the people and the child come from one file, written to
@@ -348,7 +364,8 @@ when two families must never share a database at all:
    household.json --accounts` with that project's values in `.env.local`.
 3. **Auth.** Authentication → URL configuration: Site URL and the `/auth/callback`
    redirect for the address the app will live at. Authentication → Providers → Email:
-   keep "Confirm email" on, or switch sign-ups off and rely on `--accounts`.
+   keep "Confirm email" on, or switch sign-ups off and rely on `--accounts`. Google
+   sign-in: the provider setup above, optional.
 4. **Vercel.** New project from the repo, root directory `family`, the variables in
    `VERCEL_ENV.md` (the two public Supabase values at least; the assistant, push and cron
    ones to taste), then a domain if they want one.

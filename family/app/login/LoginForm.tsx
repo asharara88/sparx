@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { GoogleButton } from "@/components/GoogleButton";
 
 type Mode = "signin" | "signup" | "forgot" | "link";
 
@@ -14,12 +15,13 @@ function friendly(message: string): string {
   if (m.includes("rate limit")) return "Too many e-mails just now. Wait a little and try again.";
   if (m.includes("password should be")) return "Use at least 8 characters.";
   if (m.includes("failed to fetch")) return "No connection. Check the internet and try again.";
+  if (m.includes("provider is not enabled") || m.includes("unsupported provider")) return "Google sign-in is not switched on yet. Use your e-mail for now.";
   return message;
 }
 
 /**
- * Sign in with e-mail and password. First time: "Create account" with the e-mail an admin
- * put on the household list, or any e-mail at all when opened from an invite link
+ * Sign in with Google (one tap, no password), or with e-mail and password. First time:
+ * "Create account" with the e-mail an admin put on the household list, or any e-mail at all when opened from an invite link
  * (`joining`: the link makes the account that member, lib/join.ts). "Forgot password" and
  * "e-mail me a link" use the same one-time link mechanism and land on /auth/callback, which
  * goes back to the invite the device was on; a password sign-in goes to `next` directly.
@@ -99,6 +101,12 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false 
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="muted">{hint}</p>
       </div>
+      {mode !== "forgot" && (
+        <>
+          <GoogleButton onError={(m) => setError(friendly(m))} label={mode === "signup" ? "Create account with Google" : "Continue with Google"} />
+          <p className="muted text-center text-sm">or with your e-mail</p>
+        </>
+      )}
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Your e-mail</span>
         <input className="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
