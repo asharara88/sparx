@@ -7,7 +7,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
  * back to /auth/callback like an e-mail link does, so an invite the device is on is
  * honoured (lib/join.ts) and an e-mail an admin listed links the account as before.
  * Needs the Google provider switched on in Supabase (README, "Auth settings"); until
- * then the tap says so and the e-mail ways still work.
+ * then the browser goes to Supabase's authorize endpoint, which sends it back to
+ * /auth/callback with the error, and that screen says so in plain words.
  */
 export function GoogleButton({ onError, label = "Continue with Google", beforeRedirect }: { onError: (message: string) => void; label?: string; beforeRedirect?: () => Promise<unknown> }) {
   const [busy, setBusy] = useState(false);
