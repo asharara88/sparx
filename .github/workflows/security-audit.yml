@@ -1,9 +1,9 @@
 # Weekly dependency audit for the three apps (root, family/, web/), and on demand. `npm audit` fails when a
 # dependency has a known advisory of high or critical severity; the job then opens
 # (or refreshes) the issue "Security audit: vulnerable dependencies" with the report,
-# and closes it once the audit is clean again. Dependabot (.github/dependabot.yml)
-# opens the upgrade pull requests; the issue is the record that something is open,
-# and docs/SECURITY_UPDATES.md is the record of what was done.
+# and closes it once the audit is clean again. The issue is the record that something
+# is open; the fix is a pull request made by hand (npm audit fix, or the upgrade the
+# advisory names), and docs/SECURITY_UPDATES.md is the record of what was done.
 name: Security audit
 
 on:
@@ -63,7 +63,7 @@ jobs:
             exit 0
           fi
           {
-            echo "The weekly \`npm audit --audit-level=high\` found advisories on $(date -u +%Y-%m-%d). Dependabot opens the upgrade pull requests; merge them when CI is green, then add a line to \`docs/SECURITY_UPDATES.md\`. Run \`npm audit fix\` locally for anything Dependabot has not picked up."
+            echo "The weekly \`npm audit --audit-level=high\` found advisories on $(date -u +%Y-%m-%d). Fix them in a pull request (\`npm audit fix\` in the app named below, or the upgrade the advisory names), merge when CI is green, then add a line to \`docs/SECURITY_UPDATES.md\`."
             echo
             echo "## Root app (YouTube studio): $ROOT"
             echo '```'; tail -c 6000 audit-root.txt; echo '```'

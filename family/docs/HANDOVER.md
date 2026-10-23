@@ -117,8 +117,9 @@ Done and live:
   (`components/GoogleButton.tsx`, through `/auth/callback` like an e-mail link, so invites
   and e-mail linking apply). Works once the Google provider is on in Supabase (README,
   "Auth settings"); until then the button says so.
-- Dependencies: Dependabot and a weekly audit workflow at the repo root keep both apps
-  patched; what was upgraded and when is in `docs/SECURITY_UPDATES.md` (repo root).
+- Dependencies: a weekly audit workflow at the repo root checks the three apps and opens
+  an issue when something is found; what was upgraded and when is in
+  `docs/SECURITY_UPDATES.md` (repo root).
 - Joining by invite link (migration 5300, `docs/MULTI_HOME.md` → Joining): *Send an
   invite link* under a name on the Members screen; `/join/<token>` shows the home and
   the name, signs the person in with any e-mail, and makes their account that member
