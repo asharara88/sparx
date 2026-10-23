@@ -19,10 +19,12 @@ function friendly(message: string): string {
 
 /**
  * Sign in with e-mail and password. First time: "Create account" with the e-mail an admin
- * put on the household list. "Forgot password" and "e-mail me a link" use the same
- * one-time link mechanism and land on /auth/callback.
+ * put on the household list, or any e-mail at all when opened from an invite link
+ * (`joining`: the link makes the account that member, lib/join.ts). "Forgot password" and
+ * "e-mail me a link" use the same one-time link mechanism and land on /auth/callback, which
+ * goes back to the invite the device was on; a password sign-in goes to `next` directly.
  */
-export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
+export function LoginForm({ initialMode = "signin", next = "/", joining = false }: { initialMode?: Mode; next?: string; joining?: boolean }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
@@ -44,7 +46,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email: addr(), password });
         if (error) return setError(friendly(error.message));
-        router.replace("/");
+        router.replace(next);
         router.refresh();
       } else if (mode === "signup") {
         if (password.length < 8) return setError("Use at least 8 characters.");
@@ -53,7 +55,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
         if (error) return setError(friendly(error.message));
         if (data.user && data.user.identities && data.user.identities.length === 0) return setError(friendly("already registered"));
         if (data.session) {
-          router.replace("/");
+          router.replace(next);
           router.refresh();
         } else {
           setDone(`We sent a message to ${addr()}. Open it and tap the button to confirm, then sign in.`);
@@ -65,7 +67,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
       } else {
         const { error } = await supabase.auth.signInWithOtp({ email: addr(), options: { emailRedirectTo: callback() } });
         if (error) return setError(friendly(error.message));
-        setDone(`We sent a link to ${addr()}. Tap it on this phone.`);
+        setDone(`We sent a link to ${addr()}. Tap it on this phone. You can choose a password later, on your Me screen.`);
       }
     } finally {
       setBusy(false);
@@ -87,7 +89,7 @@ export function LoginForm({ initialMode = "signin" }: { initialMode?: Mode }) {
   const title = mode === "signin" ? "Sign in" : mode === "signup" ? "Create your account" : mode === "forgot" ? "Forgot password" : "E-mail me a link";
   const hint =
     mode === "signin" ? "Your e-mail and password." :
-    mode === "signup" ? "Choose a password. Then create your home, or land in the one that listed your e-mail." :
+    mode === "signup" ? (joining ? "Any e-mail you like, and a password. Then you are in." : "Choose a password. Then create your home, or land in the one that listed your e-mail.") :
     mode === "forgot" ? "We will e-mail you a link to choose a new password." :
     "No password needed: we send a one-time link to your e-mail.";
 

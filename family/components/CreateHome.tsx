@@ -6,15 +6,21 @@ import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { SignOutButton } from "./SignOutButton";
 
 /**
- * A signed-in account that is in no home yet: make one, or wait to be added.
- * One screen, six fields, the baby first. household_create does the rest and
- * me() answers for the new home from the next render. With `another`, the same
- * form for a member making a second home from the Me screen: the account runs
- * as the new home from then on, and the switcher goes back.
+ * A signed-in account that is in no home yet. Most people here were meant to join a
+ * family already on elnunu (a mother signing in with her Gmail while her row carried
+ * another address), so joining comes first: ask for an invite link, or for this e-mail
+ * to be put on the Members screen, then "Check again". Starting a new home is the
+ * deliberate second step, behind one more tap, so two taps never make two homes.
+ * One form, six fields, the baby first: household_create does the rest and me()
+ * answers for the new home from the next render. With `another`, the same form for a
+ * member making a second home from the Me screen: the account runs as the new home
+ * from then on, and the switcher goes back.
  */
 export function CreateHome({ email, another = false }: { email: string | null; another?: boolean }) {
   const router = useRouter();
   const Wrap = another ? "div" : "main";
+  const [starting, setStarting] = useState(another);
+  const [checking, setChecking] = useState(false);
   const guess = email ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
   const [yourName, setYourName] = useState(guess);
   const [homeName, setHomeName] = useState("");
@@ -73,15 +79,55 @@ export function CreateHome({ email, another = false }: { email: string | null; a
     router.refresh();
   }
 
+  if (!starting) {
+    return (
+      <main className="mx-auto max-w-md p-6 pt-12">
+        <div className="card flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Not in a home yet</h1>
+            <p className="muted mt-1">You are signed in as {email ?? "you"}, but no home has you on its list yet.</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Joining a family already on elnunu?</h2>
+            <p>
+              Ask them for your invite link: on their Members screen, your name, then <b>Send an invite link</b>. Open it on this phone and you are in.
+            </p>
+            <p className="muted">Or ask them to put {email ? <b>{email}</b> : "this e-mail"} on your name there, then tap below.</p>
+            <button
+              type="button"
+              className="btn btn-primary min-h-[56px] text-lg"
+              disabled={checking}
+              onClick={() => {
+                setChecking(true);
+                router.refresh();
+                setTimeout(() => setChecking(false), 1500);
+              }}
+            >
+              {checking ? "Looking…" : "Check again"}
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 border-t pt-4" style={{ borderColor: "var(--line)" }}>
+            <h2 className="text-lg font-semibold">The first in your family here?</h2>
+            <p className="muted">Start a home: you become its admin and add the rest of the family on its Members screen.</p>
+            <button type="button" className="btn" onClick={() => setStarting(true)}>
+              Start a new home
+            </button>
+          </div>
+          <SignOutButton />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <Wrap className={another ? "flex flex-col gap-4" : "mx-auto max-w-md p-6 pt-12"}>
       <form onSubmit={submit} className="card flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{another ? "Create another home" : "Create your home"}</h1>
+          <h1 className="text-2xl font-bold">{another ? "Create another home" : "Start your home"}</h1>
           <p className="muted mt-1">
             {another
               ? "You stay in your current home too, and switch between them from your settings. The new home starts empty: you are its admin and add its family on its Members screen."
-              : "You are signed in but not in a home yet. Make one here, and you are its admin: you add the rest of the family on the Members screen. If someone already added your e-mail to their home, you will land there instead."}
+              : "You are its admin: you add the rest of the family on the Members screen and send them their invite links. If someone already added your e-mail to their home, you land there instead."}
           </p>
         </div>
         <label className="flex flex-col gap-1">
@@ -141,10 +187,9 @@ export function CreateHome({ email, another = false }: { email: string | null; a
             Back
           </Link>
         ) : (
-          <>
-            <p className="muted text-sm">Signed in as {email ?? "you"}. Waiting to be added to someone else&apos;s home instead? Just sign out and come back once they have.</p>
-            <SignOutButton />
-          </>
+          <button type="button" className="btn" onClick={() => setStarting(false)} disabled={busy}>
+            Back: I am joining a family instead
+          </button>
         )}
       </form>
     </Wrap>

@@ -72,13 +72,29 @@ nothing of any other.
   a member makes another home from "Create another home" on the Me screen. If
   the e-mail is already on some home's list, the first sign-in lands there
   first; making a home of their own is the deliberate step after.
-- **Be invited:** exactly as before. An admin adds a name, e-mail and role on
-  the Members screen; the first sign-in with that e-mail links the account to
-  that row (`link_current_user`, and the auth trigger), and so does the next
-  request of an account that already exists. The invitee lands in the
-  inviter's home because the member row carries its `household_id`; someone
-  already in a home keeps running as theirs and finds the new one in the
-  switcher.
+- **Be invited, by link** (migration 5300): an admin adds a name and role on
+  the Members screen, then taps *Send an invite link* under the name; the
+  phone's share sheet (or the clipboard) carries `/join/<token>`. Whoever opens
+  it sees the home, the name and who sent it (`member_invite_peek`, signed in
+  or not), signs in with any e-mail (the device keeps the token in a cookie for
+  an hour, so an e-mail link comes back to the join screen through
+  `/auth/callback`), and one tap makes the account that member
+  (`member_invite_accept`): the row takes the account and its real e-mail, a
+  placeholder account that never signed in is deleted, and the account runs as
+  that home from then on. A link is good for seven days and one account; it
+  never takes over a row whose account has signed in, and an account already
+  in that home stays who it is there. The Members screen shows who has signed
+  in (`members_accounts`).
+- **Be invited, by e-mail:** as before, and still what the setup script
+  relies on. An admin puts the e-mail on the member row; the first sign-in
+  with that e-mail links the account to that row (`link_current_user`, and the
+  auth trigger), and so does the next request of an account that already
+  exists. The invitee lands in the inviter's home because the member row
+  carries its `household_id`; someone already in a home keeps running as
+  theirs and finds the new one in the switcher. An account signed in with an
+  e-mail nobody listed is in no home: the screen it gets says to ask for a
+  link or for the e-mail to be listed, with "Check again"; starting a new
+  home is a second, deliberate tap.
 - **Leave or delete:** an admin deactivates a member on their page, as before.
   An admin deletes the whole home from the Members screen by typing its name
   (`household_delete`): every row the home owns goes with it by cascade, the

@@ -25,7 +25,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 52 files, applied in filename order |
+| Migrations | `supabase/migrations`, 53 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -113,6 +113,12 @@ Done and live:
 - A timer ends once under a row lock; End on the phone stops the model on the
   server; the helper's spoken readback is in the member's language with the day;
   the wake-up eval checks the record.
+- Joining by invite link (migration 5300, `docs/MULTI_HOME.md` → Joining): *Send an
+  invite link* under a name on the Members screen; `/join/<token>` shows the home and
+  the name, signs the person in with any e-mail, and makes their account that member
+  (replacing a placeholder account that never signed in). The Members screen says who
+  has signed in. The no-home screen asks for a link first; a new home is a second tap.
+  Placeholder accounts for members are no longer needed: add the name, send the link.
 - Night: the whole app goes very dark during the child's night (`NightScreen`, the
   window from `me.subjects[].night_from/night_to`, migration 5000; per phone switch on
   the Me screen), and the "Feed" home-screen shortcut opens `/baby/quick/feed`: the two

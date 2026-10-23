@@ -3,7 +3,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-/** Choose a new password for the signed-in account (Me → Change password, or after a reset link). */
+/**
+ * Choose a password for the signed-in account (Me → Set or change password, or after a reset
+ * link). An account that only ever signed in by e-mail link sets its first one here.
+ */
 export function PasswordForm({ afterReset = false }: { afterReset?: boolean }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -27,7 +30,8 @@ export function PasswordForm({ afterReset = false }: { afterReset?: boolean }) {
 
   return (
     <form onSubmit={save} className="card flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">{afterReset ? "Choose a new password" : "Change password"}</h2>
+      <h2 className="text-lg font-semibold">{afterReset ? "Choose a new password" : "Set or change password"}</h2>
+      {!afterReset && <p className="muted">Signed in by e-mail link so far? Choose a password here and next time you can sign in with it.</p>}
       <label className="flex flex-col gap-1">
         <span className="font-semibold">New password</span>
         <input className="input" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />

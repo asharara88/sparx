@@ -326,8 +326,10 @@ New kind of Lana entry (solids, teething…): insert a row in `care_entry_types`
 
 Since migration 3900 one deployment holds many homes (`docs/MULTI_HOME.md`): every
 row carries its `household_id`, row security keeps each home to itself, and a
-signed-in account that is in no home gets the "Create your home" screen. An admin
-invites people exactly as before, by listing their e-mail on the Members screen.
+signed-in account that is in no home gets the "Not in a home yet" screen: ask for an
+invite link, or start a home. An admin invites people from the Members screen: add
+the name and role, then *Send an invite link* (any e-mail they sign in with joins
+them as that member; migration 5300), or list their e-mail as before.
 Since migration 4300 one account can be in several homes (a grandmother helping two
 families): the Me screen lists them with a switcher and "Create another home", and
 an admin can delete a home from the Members screen by typing its name. The setup
