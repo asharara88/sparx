@@ -6,6 +6,7 @@ import { NotConfigured } from "@/components/NotConfigured";
 import { HashSession } from "@/components/HashSession";
 import { Mark, Name } from "@/components/Brand";
 import { WelcomeBack } from "@/components/WelcomeBack";
+import { loginErrorText } from "@/lib/auth-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <div className="card">
         {error && (
           <p className="notice notice-danger mb-4" role="alert">
-            {error === "link" ? "That link did not work. It may be old. Ask for a new one." : error}
+            {loginErrorText(error)}
           </p>
         )}
         <LoginForm initialMode={initialMode} />

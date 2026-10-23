@@ -2,27 +2,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { friendlyAuthError as friendly } from "@/lib/auth-copy";
+import { GoogleButton } from "@/components/GoogleButton";
 
 type Mode = "signin" | "signup" | "forgot" | "link";
 
-/** Plain words for Supabase's error strings. */
-function friendly(message: string): string {
-  const m = message.toLowerCase();
-  if (m.includes("invalid login credentials")) return "Wrong e-mail or password.";
-  if (m.includes("email not confirmed")) return "Confirm your e-mail first: open the message we sent, then sign in.";
-  if (m.includes("already registered") || m.includes("already been registered")) return "There is already an account for this e-mail. Sign in, or use “Forgot password”.";
-  if (m.includes("rate limit")) return "Too many e-mails just now. Wait a little and try again.";
-  if (m.includes("password should be")) return "Use at least 8 characters.";
-  if (m.includes("failed to fetch")) return "No connection. Check the internet and try again.";
-  return message;
-}
-
 /**
- * Sign in with e-mail and password. First time: "Create account" with the e-mail an admin
- * put on the household list, or any e-mail at all when opened from an invite link
- * (`joining`: the link makes the account that member, lib/join.ts). "Forgot password" and
- * "e-mail me a link" use the same one-time link mechanism and land on /auth/callback, which
- * goes back to the invite the device was on; a password sign-in goes to `next` directly.
+ * Sign in with e-mail and password, or with Google in one tap. First time: "Create account"
+ * with the e-mail an admin put on the household list, or any e-mail at all when opened from
+ * an invite link (`joining`: the link makes the account that member, lib/join.ts). Google,
+ * "Forgot password" and "e-mail me a link" all land on /auth/callback, which goes back to
+ * the invite the device was on; a password sign-in goes to `next` directly.
  */
 export function LoginForm({ initialMode = "signin", next = "/", joining = false }: { initialMode?: Mode; next?: string; joining?: boolean }) {
   const router = useRouter();
@@ -99,6 +89,16 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false 
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="muted">{hint}</p>
       </div>
+      {(mode === "signin" || mode === "signup") && (
+        <>
+          <GoogleButton />
+          <div className="flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-[var(--line)]" />
+            <span className="muted text-sm">or with your e-mail</span>
+            <span className="h-px flex-1 bg-[var(--line)]" />
+          </div>
+        </>
+      )}
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Your e-mail</span>
         <input className="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />

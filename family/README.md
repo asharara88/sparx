@@ -232,6 +232,25 @@ Auth settings in the Supabase dashboard (Authentication → URL configuration):
 - Redirect URLs: `https://elnunu.com/auth/callback`, `https://sparx-tsom.vercel.app/auth/callback`
   and `http://localhost:3000/auth/callback`
 
+#### Google sign-in (optional, one tap instead of a password)
+
+The sign-in and invite screens have a "Continue with Google" button. Until the provider is
+switched on it says "Google sign-in is not switched on yet" and the e-mail ways still work.
+To switch it on:
+
+1. Google Cloud Console → APIs & Services → Credentials → *Create credentials* → *OAuth client
+   ID*, type *Web application*. Authorised JavaScript origin: `https://elnunu.com`. Authorised
+   redirect URI: `https://qjqekazawirrpwnwgbhd.supabase.co/auth/v1/callback` (the project's
+   own URL followed by `/auth/v1/callback`; Supabase shows it on the provider page). The
+   OAuth consent screen can stay in *External* mode with the family's Gmail addresses as test
+   users, or be published; no scopes beyond e-mail and profile are needed.
+2. Supabase → Authentication → Providers → Google: *Enable*, paste the client ID and secret, save.
+
+Nothing in the app or in Vercel changes. The e-mail Google reports is the account's e-mail,
+so a person whose Gmail an admin listed on Members is linked on their first tap exactly as a
+password sign-up would be, and an invite link joins them as that member. Anyone can add a
+password later under Me → *Set or change password*.
+
 ### Set up the household (once per family)
 
 The household's name, the people and the child come from one file, written to
@@ -313,8 +332,8 @@ request's own origin), so attaching the domain is configuration only:
 ## 3. Adding a household member
 
 1. Members → **+ Add**. Name, e-mail, role, relationship. Save.
-2. Tell them to open the app and sign in with that e-mail. That is all; the first sign-in
-   links the account. (Or add them to `household.json` and run `npm run setup:household --
+2. Tell them to open the app and sign in with that e-mail, or tap *Continue with Google* if
+   that e-mail is their Gmail. That is all; the first sign-in links the account. (Or add them to `household.json` and run `npm run setup:household --
    household.json --accounts` again.)
 3. For staff, set *Work days* on their member page. For anyone, set *Presence*.
 
@@ -348,7 +367,9 @@ when two families must never share a database at all:
    household.json --accounts` with that project's values in `.env.local`.
 3. **Auth.** Authentication → URL configuration: Site URL and the `/auth/callback`
    redirect for the address the app will live at. Authentication → Providers → Email:
-   keep "Confirm email" on, or switch sign-ups off and rely on `--accounts`.
+   keep "Confirm email" on, or switch sign-ups off and rely on `--accounts`. Google, if
+   they want the one-tap button: a client of their own in Google Cloud Console, as under
+   *Google sign-in* above.
 4. **Vercel.** New project from the repo, root directory `family`, the variables in
    `VERCEL_ENV.md` (the two public Supabase values at least; the assistant, push and cron
    ones to taste), then a domain if they want one.
@@ -378,7 +399,8 @@ household.example.json the household file to copy and fill in
 
 ## 5. Known limits in this step
 
-- Sign-in is e-mail and password; "e-mail me a link" remains as a fallback. Passkeys are not a primary sign-in method in Supabase Auth
+- Sign-in is e-mail and password, or Google in one tap once the provider is on (*Google sign-in*
+  above); "e-mail me a link" remains as a fallback. Passkeys are not a primary sign-in method in Supabase Auth
   today (see *Decisions needed* in the PR). On iPhone the link opens in Safari, not inside
   the installed app; signing in once in Safari before "Add to Home Screen" avoids that.
 - A denied **direct** table read over the Supabase REST API is blocked by RLS but cannot be
