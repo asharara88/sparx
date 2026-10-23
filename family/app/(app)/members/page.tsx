@@ -7,6 +7,7 @@ import { HouseholdForm } from "@/components/HouseholdForm";
 import { DeleteHome } from "@/components/DeleteHome";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { InviteLink, accountLabel, type AccountState } from "@/components/InviteLink";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,17 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
   const { error } = await searchParams;
-  const [{ data: hh }, { data: roles }, { data: inactive }, { data: photoRows }] = await Promise.all([
+  const [{ data: hh }, { data: roles }, { data: inactive }, { data: photoRows }, { data: accountsData }] = await Promise.all([
     supabase.rpc("household_today"),
     supabase.from("roles").select("*").order("sort"),
     supabase.from("members").select("id, display_name, role_id").eq("is_active", false),
     supabase.from("members").select("id, photo_path").eq("is_active", true),
+    supabase.rpc("members_accounts"),
   ]);
   const photos = new Map(((photoRows as { id: string; photo_path: string | null }[] | null) ?? []).map((r) => [r.id, r.photo_path]));
+  // Who has signed in, who still waits for a link (migration 5300); not while previewing, which is read only.
+  const accountsRes = accountsData as { ok: boolean; members?: Record<string, AccountState> } | null;
+  const accounts = accountsRes?.ok ? (accountsRes.members ?? {}) : null;
   const data = hh as HouseholdToday;
   const roleLabel = new Map((roles as Role[]).map((r) => [r.id, r.label]));
 
@@ -36,6 +41,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       </header>
       {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
       {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
+      <p className="muted">
+        To bring someone in, add them here, then send them their invite link: they sign in with any e-mail and land in this home as that member.
+      </p>
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
           <li key={m.id} className="card flex flex-col gap-2">
@@ -52,8 +60,10 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 {m.presence?.ends_on ? ` until ${m.presence.ends_on}` : ""}
               </p>
               {m.work_days.length > 0 && <p className="muted">Works: {m.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>}
+              {accounts && m.id !== me.member.id && <p className={accounts[m.id] === "signed_in" ? "muted" : "pill-warn inline-block"}>{accountLabel(accounts[m.id])}</p>}
               </span>
             </Link>
+            {accounts && m.id !== me.member.id && <InviteLink memberId={m.id} name={m.name} state={accounts[m.id]} />}
             {m.id !== me.member.id && (
               <form action="/api/view-as" method="post">
                 <input type="hidden" name="member_id" value={m.id} />

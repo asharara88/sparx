@@ -74,7 +74,7 @@ export default async function MePage() {
       </div>
       <div className="card flex flex-col gap-2">
         <Link href="/me/password" className="btn">
-          <Icon name="key" size={18} /> Change password
+          <Icon name="key" size={18} /> Set or change password
         </Link>
         <SignOutButton />
       </div>

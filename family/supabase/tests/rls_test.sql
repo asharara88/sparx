@@ -955,14 +955,14 @@ select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete',
-                            'timers_close_forgotten')) = 0,
-  'every definer function in public belongs to app_rls, except the eight that must see across homes');
+                            'timers_close_forgotten', 'member_invite_create', 'member_invite_peek', 'member_invite_accept', 'members_accounts')) = 0,
+  'every definer function in public belongs to app_rls, except the twelve that must see across homes or read the accounts');
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
                             'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home',
-                            'preview_member_id', 'timers_close_forgotten')) = 0,
+                            'preview_member_id', 'timers_close_forgotten', 'user_signed_in')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
 -- And none of them may reach into the auth schema: the token is read through public.current_member_id()
@@ -1226,5 +1226,104 @@ select pg_temp.assert((select ended_at = occurred_at + interval '12 hours' and n
 reset role;
 update public.care_entries set ended_at = now() where client_id in ('cccccccc-0000-4000-8000-000000000003', 'cccccccc-0000-4000-8000-000000000004');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen).'
+-- ============================================================================
+-- Joining by invite link (migration 5300): an admin sends a link, whoever opens it
+-- becomes that member, whatever e-mail they signed in with.
+-- ============================================================================
+\set c003 '''00000000-0000-4000-8000-00000000c003'''
+\set c004 '''00000000-0000-4000-8000-00000000c004'''
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.member_invite_create(:wafa))->>'error' = 'not_allowed', 'a carer cannot make invite links');
+select pg_temp.assert((public.members_accounts())->>'error' = 'not_allowed', 'nor see who has signed in');
+reset role;
+select pg_temp.preview_as(:mido, :lilly);
+set role authenticated;
+select pg_temp.assert((public.member_invite_create(:wafa))->>'error' = 'not_allowed', 'nor a view-as preview');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.members_accounts())->'members'->>'00000000-0000-4000-8000-000000000003' = 'never', 'Mido sees that Wafa''s account has never signed in');
+select pg_temp.assert((public.member_invite_create(:haitham))->>'error' = 'not_found', 'and cannot make a link for a member of another home');
+select (public.member_invite_create(:wafa))->>'token' as inv_wafa \gset
+select pg_temp.assert((public.member_invite_create(:wafa))->>'ok' = 'true' and (public.member_invite_create(:wafa))->>'token' = :'inv_wafa', 'Mido makes a link for Wafa, and asking again hands back the same open link');
+select pg_temp.assert((public.member_invite_create(:wafa))->>'signed_in' = 'false', 'which says she has not signed in yet');
+select (public.me())->'household'->>'name' as home_name \gset
+reset role;
+-- Whoever opens the link, signed out, sees where it leads.
+select set_config('request.jwt.claims', '', false);
+set role anon;
+select pg_temp.assert((public.member_invite_peek(:'inv_wafa'))->>'state' = 'open' and (public.member_invite_peek(:'inv_wafa'))->>'home' = :'home_name'
+  and (public.member_invite_peek(:'inv_wafa'))->>'display_name' = 'Wafa' and (public.member_invite_peek(:'inv_wafa'))->>'invited_by' = 'Mido',
+  'signed out, the link shows the home, the name and who sent it');
+select pg_temp.assert((public.member_invite_peek(gen_random_uuid()))->>'error' = 'not_found', 'a made-up link shows nothing');
+select pg_temp.assert(pg_temp.fails('select public.member_invite_accept(' || quote_literal(:'inv_wafa') || ')'), 'and cannot be accepted without signing in');
+select pg_temp.assert(pg_temp.fails('select * from private.member_invites'), 'nor are the links readable');
+reset role;
+-- Wafa signs in with her real e-mail, one nobody listed: in no home, until the link.
+insert into auth.users (id, email, last_sign_in_at) values (:c003, 'wafa.real@test.local', now());
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c003","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.me())->>'error' = 'no_member', 'an e-mail nobody listed is in no home');
+create temp table joined as select public.member_invite_accept(:'inv_wafa') as r;
+select pg_temp.assert((select r->>'ok' from joined) = 'true' and (select r->>'display_name' from joined) = 'Wafa', 'the link makes the account Wafa');
+select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())->'member'->>'display_name' = 'Wafa' and (public.me())->'household'->>'name' = :'home_name', 'and me() is Wafa in the family home from now on');
+select pg_temp.assert((select user_id = :c003 and email = 'wafa.real@test.local' from public.members where id = :wafa), 'the row carries her account and the e-mail she really signs in with');
+select pg_temp.assert((public.member_invite_peek(:'inv_wafa'))->>'state' = 'joined', 'the link now says she is in');
+select pg_temp.assert((public.member_invite_accept(:'inv_wafa'))->>'already' = 'true', 'and tapping it again just lands her there');
+reset role;
+select pg_temp.assert((select count(*) from auth.users where email = 'wafa@test.local') = 0, 'the placeholder account that never signed in is gone');
+-- Nobody else can use it.
+insert into auth.users (id, email, last_sign_in_at) values (:c004, 'stranger@test.local', now());
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c004","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.member_invite_peek(:'inv_wafa'))->>'state' = 'used', 'to another account the link is used');
+select pg_temp.assert((public.member_invite_accept(:'inv_wafa'))->>'error' = 'used', 'and refused');
+reset role;
+-- A link never takes over an account that has signed in.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.members_accounts())->'members'->>'00000000-0000-4000-8000-000000000003' = 'signed_in', 'Mido now sees Wafa as signed in');
+select (public.member_invite_create(:wafa))->>'token' as inv_wafa2 \gset
+select pg_temp.assert((public.member_invite_create(:wafa))->>'signed_in' = 'true', 'a new link for her says so');
+select (public.member_invite_create(:luda))->>'token' as inv_luda \gset
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c004","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.member_invite_accept(:'inv_wafa2'))->>'error' = 'taken', 'a stranger with her new link cannot become her');
+reset role;
+select pg_temp.assert((select user_id from public.members where id = :wafa) = :c003, 'she is still herself');
+-- A week later the link is dead.
+update private.member_invites set expires_at = now() - interval '1 hour' where token = :'inv_luda';
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c004","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.member_invite_peek(:'inv_luda'))->>'state' = 'expired' and (public.member_invite_accept(:'inv_luda'))->>'error' = 'expired', 'an old link is refused');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select (public.member_invite_create(:luda))->>'token' as inv_luda2 \gset
+select pg_temp.assert(:'inv_luda2' <> :'inv_luda', 'asking again after it expired makes a new one');
+reset role;
+-- Someone already in the home as themselves stays themselves.
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.member_invite_accept(:'inv_luda2'))->>'error' = 'already_member', 'Dana cannot become Luda: she is already in the home');
+reset role;
+-- Nor someone taken out of the home: an inactive row is made active again, never doubled.
+update public.members set is_active = false where id = :dana;
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.member_invite_accept(:'inv_luda2'))->>'error' = 'inactive_member', 'nor can Dana, made inactive, come back as Luda');
+reset role;
+update public.members set is_active = true where id = :dana;
+-- An account from another home joins this one too, and is in two homes.
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.member_invite_accept(:'inv_luda2'))->>'ok' = 'true', 'Haitham takes the place made for Luda');
+select pg_temp.assert((public.me())->'member'->>'display_name' = 'Luda' and (public.me())->'household'->>'name' = :'home_name' and (public.me())->>'homes' = '2', 'and runs as the family home now, with the Khans in his switcher');
+select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true' and (public.me())->'household'->>'name' = 'The Khans', 'and can switch back');
+reset role;
+select pg_temp.assert((select count(*) from auth.users where email = 'luda@test.local') = 0, 'Luda''s placeholder account is gone too');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

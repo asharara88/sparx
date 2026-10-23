@@ -10,8 +10,11 @@ create schema if not exists auth;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  last_sign_in_at timestamptz
 );
+-- An older local database made the table before the column existed (migration 5300 reads it).
+alter table auth.users add column if not exists last_sign_in_at timestamptz;
 -- Same semantics as Supabase: the sub claim of the request JWT.
 create or replace function auth.uid() returns uuid
 language sql stable as $$

@@ -7,6 +7,7 @@ import { MemberForm } from "@/components/MemberForm";
 import { WorkDaysForm } from "@/components/WorkDaysForm";
 import { PresenceForm } from "@/components/PresenceForm";
 import { PageHeader } from "@/components/PageHeader";
+import { InviteLink } from "@/components/InviteLink";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,13 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
     <div className="flex flex-col gap-4">
       <PageHeader back="/members" title={<>{isNew ? "Add a member" : m!.display_name}</>} />
       <MemberForm member={m} roles={roles as Role[]} isSelf={m?.id === me.member.id} />
+      {!isNew && m!.id !== me.member.id && !me.preview && (
+        <div className="card flex flex-col gap-2">
+          <h2 className="text-lg font-semibold">Their way in</h2>
+          <p className="muted">Send {m!.display_name} their invite link: they sign in with any e-mail and land here as themselves.</p>
+          <InviteLink memberId={m!.id} name={m!.display_name} state={undefined} />
+        </div>
+      )}
       {!isNew && (
         <>
           <WorkDaysForm memberId={m!.id} initial={((workDays as { weekday: number }[]) ?? []).map((w) => w.weekday)} from={m!.work_from ?? ""} to={m!.work_to ?? ""} />
