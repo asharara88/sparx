@@ -34,6 +34,6 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5"
+    "typescript": "^7"
   }
 }
