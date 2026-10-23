@@ -113,6 +113,10 @@ Done and live:
 - A timer ends once under a row lock; End on the phone stops the model on the
   server; the helper's spoken readback is in the member's language with the day;
   the wake-up eval checks the record.
+- Google sign-in: "Continue with Google" on the login and invite screens
+  (`components/GoogleButton.tsx`, through `/auth/callback` like an e-mail link, so invites
+  and e-mail linking apply). Works once the Google provider is on in Supabase (README,
+  "Auth settings"); until then the button says so.
 - Dependencies: Dependabot and a weekly audit workflow at the repo root keep both apps
   patched; what was upgraded and when is in `docs/SECURITY_UPDATES.md` (repo root).
 - Joining by invite link (migration 5300, `docs/MULTI_HOME.md` → Joining): *Send an

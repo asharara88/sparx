@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { LoginForm } from "@/app/login/LoginForm";
@@ -22,16 +22,23 @@ export interface Invite {
  * (the device remembers the link for an hour, so a sign-in by e-mail comes back here).
  * Signed in: one tap makes this account that member and the app opens in that home.
  */
-export function JoinScreen({ token, invite, email }: { token: string | null; invite: Invite | null; email: string | null }) {
+export function JoinScreen({ token, invite, email, error = null }: { token: string | null; invite: Invite | null; email: string | null; error?: "google_off" | "link" | null }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Remember the link on this device while signing in (lib/join.ts).
+  // Remember the link on this device while signing in (lib/join.ts): once as the screen
+  // opens, and again, awaited, right before a sign-in sends the browser away (Google, an
+  // e-mail link), so a tap faster than the first request cannot lose the invite.
+  const remember = useCallback(
+    () =>
+      token
+        ? apiFetch("/api/join/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) }).then(() => undefined, () => undefined)
+        : Promise.resolve(),
+    [token],
+  );
   useEffect(() => {
-    if (token && !email && invite?.state === "open") {
-      apiFetch("/api/join/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) }).catch(() => {});
-    }
-  }, [token, email, invite?.state]);
+    if (!email && invite?.state === "open") void remember();
+  }, [remember, email, invite?.state]);
 
   async function join() {
     if (!token) return;
@@ -101,7 +108,7 @@ export function JoinScreen({ token, invite, email }: { token: string | null; inv
         <h2 className="text-2xl font-bold">Join {invite.home}</h2>
         <p>
           {who} to <b>{invite.home}</b> as <b>{as}</b>.
-          {email ? " Tap below and the app opens in that home, with everything the family has logged." : " Sign in below with any e-mail you like, and you are in."}
+          {email ? " Tap below and the app opens in that home, with everything the family has logged." : " Sign in below with Google or any e-mail you like, and you are in."}
         </p>
         {email && (
           <>
@@ -120,7 +127,12 @@ export function JoinScreen({ token, invite, email }: { token: string | null; inv
       </div>
       {!email && (
         <div className="card">
-          <LoginForm next={joinPath(token)} joining />
+          {error && (
+            <p className="notice notice-danger mb-4" role="alert">
+              {error === "google_off" ? "Google sign-in is not switched on yet. Use your e-mail for now." : "That sign-in link did not work. It may be old. Ask for a new one below."}
+            </p>
+          )}
+          <LoginForm next={joinPath(token)} joining beforeRedirect={remember} />
         </div>
       )}
     </div>

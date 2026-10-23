@@ -2,7 +2,19 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { JOIN_COOKIE, afterSignIn } from "@/lib/join";
+import { JOIN_COOKIE, afterSignIn, inviteToken, joinPath } from "@/lib/join";
+
+/**
+ * Where a failed sign-in lands, with a reason the screen can put into words: the invite
+ * screen the device was on when there is one, else the login page. A Google tap while the
+ * provider is off in Supabase comes back here with that error in the query (the browser
+ * had already left for Supabase's authorize endpoint), not as an error in the app.
+ */
+function failed(origin: string, join: string | undefined, description: string | null): NextResponse {
+  const reason = description && /provider is not enabled|unsupported provider/i.test(description) ? "google_off" : "link";
+  const token = inviteToken(join);
+  return NextResponse.redirect(new URL(`${token ? joinPath(token) : "/login"}?error=${reason}`, origin));
+}
 
 /** E-mail link landing (confirm, reset, one-time link): turns the code / token into a session cookie. */
 export async function GET(request: Request) {
@@ -19,6 +31,7 @@ export async function GET(request: Request) {
   const join = (await cookies()).get(JOIN_COOKIE)?.value;
   next = afterSignIn(next, join);
   const supabase = await createClient();
+  const description = url.searchParams.get("error_description") ?? url.searchParams.get("error_code") ?? url.searchParams.get("error");
 
   const landed = () => {
     const res = NextResponse.redirect(new URL(next, url.origin));
@@ -32,5 +45,5 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
     if (!error) return landed();
   }
-  return NextResponse.redirect(new URL("/login?error=link", url.origin));
+  return failed(url.origin, join, description);
 }

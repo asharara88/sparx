@@ -12,9 +12,10 @@ export const dynamic = "force-dynamic";
  * An invite link: the home and the name waiting for whoever opens it, with sign-in on
  * the same screen when they are signed out, and one tap to join when they are in.
  */
-export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function JoinPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ error?: string }> }) {
   if (!isConfigured()) return <NotConfigured />;
   const token = inviteToken((await params).token);
+  const { error } = await searchParams;
   // The admin's own session decides who is looking, never a "view as" token.
   const supabase = await createClient({ ignorePreview: true });
   const { data: auth } = await supabase.auth.getUser();
@@ -29,7 +30,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
           <Name className="text-4xl" />
         </h1>
       </div>
-      <JoinScreen token={token} invite={invite} email={auth.user?.email ?? null} />
+      <JoinScreen token={token} invite={invite} email={auth.user?.email ?? null} error={error === "google_off" || error === "link" ? error : null} />
     </main>
   );
 }
