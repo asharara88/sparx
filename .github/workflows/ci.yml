@@ -28,8 +28,20 @@ jobs:
           # vitest 5 (the security upgrade of 2026-10-23, docs/SECURITY_UPDATES.md) needs node 22.
           node-version: 22
           cache: npm
+      # A static ffmpeg build from GitHub releases, not apt: the runner's apt hung silently
+      # three times in one day (a stalled mirror or the dpkg lock), once for the job's whole
+      # 15 minutes. The GPL build carries drawtext (the captions in the render tests), which
+      # the smaller static builds leave out; the check at the end says so if one ever does.
       - name: Install ffmpeg (real render path in tests)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          base=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest
+          curl -fsSL -o /tmp/ffmpeg.tar.xz "$base/ffmpeg-n7.1-latest-linux64-gpl-7.1.tar.xz" \
+            || curl -fsSL -o /tmp/ffmpeg.tar.xz "$base/ffmpeg-master-latest-linux64-gpl.tar.xz"
+          mkdir -p /tmp/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1
+          sudo install -m 755 /tmp/ffmpeg/bin/ffmpeg /tmp/ffmpeg/bin/ffprobe /usr/local/bin/
+          ffmpeg -hide_banner -filters | grep -q ' drawtext ' || { echo "this ffmpeg build lacks drawtext" >&2; exit 1; }
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
