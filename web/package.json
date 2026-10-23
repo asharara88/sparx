@@ -8,12 +8,12 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "dotenv": "^16.4.5",
-    "next": "^15.1.0",
+    "next": "^16.4.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

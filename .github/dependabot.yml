@@ -1,4 +1,4 @@
-# Dependabot keeps both package trees patched (docs/SECURITY_UPDATES.md).
+# Dependabot keeps the three package trees (root, family/, web/) patched (docs/SECURITY_UPDATES.md).
 # A security advisory on any dependency opens a pull request as soon as a fixed
 # version exists; routine version updates arrive once a week, minor and patch
 # bumps grouped into one pull request per tree so the log stays readable.
@@ -33,6 +33,20 @@ updates:
     labels: [dependencies]
     commit-message:
       prefix: "deps(family)"
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Dubai
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps(web)"
   - package-ecosystem: github-actions
     directory: /
     schedule:

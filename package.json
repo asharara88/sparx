@@ -5,7 +5,7 @@
   "description": "Semi-autonomous multi-agent pipeline that produces a weekly YouTube episode + Shorts.",
   "type": "module",
   "engines": {
-    "node": ">=22.12"
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
