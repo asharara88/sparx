@@ -9,11 +9,14 @@ import { supabaseBrowser } from "@/lib/supabase/client";
  * Needs the Google provider switched on in Supabase (README, "Auth settings"); until
  * then the tap says so and the e-mail ways still work.
  */
-export function GoogleButton({ onError, label = "Continue with Google" }: { onError: (message: string) => void; label?: string }) {
+export function GoogleButton({ onError, label = "Continue with Google", beforeRedirect }: { onError: (message: string) => void; label?: string; beforeRedirect?: () => Promise<unknown> }) {
   const [busy, setBusy] = useState(false);
 
   async function go() {
     setBusy(true);
+    // Whatever the page must have saved before the browser leaves (an invite screen
+    // remembers its link in a cookie) is awaited here, so a quick tap cannot lose it.
+    if (beforeRedirect) await beforeRedirect();
     const { error } = await supabaseBrowser().auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" } },

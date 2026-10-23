@@ -25,8 +25,10 @@ function friendly(message: string): string {
  * (`joining`: the link makes the account that member, lib/join.ts). "Forgot password" and
  * "e-mail me a link" use the same one-time link mechanism and land on /auth/callback, which
  * goes back to the invite the device was on; a password sign-in goes to `next` directly.
+ * `beforeRedirect` runs (and is awaited) before anything that sends the browser away:
+ * the invite screen saves its link with it, so a quick tap cannot lose the invite.
  */
-export function LoginForm({ initialMode = "signin", next = "/", joining = false }: { initialMode?: Mode; next?: string; joining?: boolean }) {
+export function LoginForm({ initialMode = "signin", next = "/", joining = false, beforeRedirect }: { initialMode?: Mode; next?: string; joining?: boolean; beforeRedirect?: () => Promise<unknown> }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
@@ -53,6 +55,7 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false 
       } else if (mode === "signup") {
         if (password.length < 8) return setError("Use at least 8 characters.");
         if (password !== password2) return setError("The two passwords are not the same.");
+        if (beforeRedirect) await beforeRedirect();
         const { data, error } = await supabase.auth.signUp({ email: addr(), password, options: { emailRedirectTo: callback() } });
         if (error) return setError(friendly(error.message));
         if (data.user && data.user.identities && data.user.identities.length === 0) return setError(friendly("already registered"));
@@ -67,6 +70,7 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false 
         if (error) return setError(friendly(error.message));
         setDone(`We sent a message to ${addr()}. Tap the link in it and choose a new password.`);
       } else {
+        if (beforeRedirect) await beforeRedirect();
         const { error } = await supabase.auth.signInWithOtp({ email: addr(), options: { emailRedirectTo: callback() } });
         if (error) return setError(friendly(error.message));
         setDone(`We sent a link to ${addr()}. Tap it on this phone. You can choose a password later, on your Me screen.`);
@@ -103,7 +107,7 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false 
       </div>
       {mode !== "forgot" && (
         <>
-          <GoogleButton onError={(m) => setError(friendly(m))} label={mode === "signup" ? "Create account with Google" : "Continue with Google"} />
+          <GoogleButton onError={(m) => setError(friendly(m))} label={mode === "signup" ? "Create account with Google" : "Continue with Google"} beforeRedirect={beforeRedirect} />
           <p className="muted text-center text-sm">or with your e-mail</p>
         </>
       )}

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { LoginForm } from "@/app/login/LoginForm";
@@ -26,12 +26,19 @@ export function JoinScreen({ token, invite, email }: { token: string | null; inv
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Remember the link on this device while signing in (lib/join.ts).
+  // Remember the link on this device while signing in (lib/join.ts): once as the screen
+  // opens, and again, awaited, right before a sign-in sends the browser away (Google, an
+  // e-mail link), so a tap faster than the first request cannot lose the invite.
+  const remember = useCallback(
+    () =>
+      token
+        ? apiFetch("/api/join/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) }).then(() => undefined, () => undefined)
+        : Promise.resolve(),
+    [token],
+  );
   useEffect(() => {
-    if (token && !email && invite?.state === "open") {
-      apiFetch("/api/join/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) }).catch(() => {});
-    }
-  }, [token, email, invite?.state]);
+    if (!email && invite?.state === "open") void remember();
+  }, [remember, email, invite?.state]);
 
   async function join() {
     if (!token) return;
@@ -120,7 +127,7 @@ export function JoinScreen({ token, invite, email }: { token: string | null; inv
       </div>
       {!email && (
         <div className="card">
-          <LoginForm next={joinPath(token)} joining />
+          <LoginForm next={joinPath(token)} joining beforeRedirect={remember} />
         </div>
       )}
     </div>
