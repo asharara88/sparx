@@ -28,17 +28,11 @@ jobs:
           # vitest 5 (the security upgrade of 2026-10-23, docs/SECURITY_UPDATES.md) needs node 22.
           node-version: 22
           cache: npm
-      # A stuck apt mirror hung this step for the job's whole 15 minutes twice in one day:
-      # a short limit and one retry make a bad mirror cost a minute, not the job.
+      # A static ffmpeg build, not apt: the runner's apt hung silently three times in one
+      # day (a stalled mirror or the dpkg lock), once for the job's whole 15 minutes.
       - name: Install ffmpeg (real render path in tests)
-        timeout-minutes: 4
-        run: |
-          for attempt in 1 2 3; do
-            if sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; then exit 0; fi
-            echo "apt attempt $attempt failed; retrying" >&2
-            sleep 10
-          done
-          exit 1
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        timeout-minutes: 5
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
