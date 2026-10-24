@@ -430,16 +430,9 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
 .boob-squish svg {
   animation: boob-squish 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.boob-halo {
-  animation: boob-halo 2.4s ease-in-out infinite;
-  transform-origin: 60px 62px;
-}
-.boob-drip path {
-  animation: boob-drip 1.6s ease-in infinite;
-  transform-origin: 60px 70px;
-}
-.boob-drip .boob-drip-2 {
-  animation-delay: 0.8s;
+.boob-rays {
+  animation: boob-rays 1.6s ease-in-out infinite;
+  transform-origin: 54px 64px;
 }
 @keyframes boob-squish {
   0% { transform: scale(1); }
@@ -449,16 +442,11 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
 }
 @keyframes boob-breathe {
   0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
-  50% { box-shadow: 0 0 0 10px #dbeafe; }
+  50% { box-shadow: 0 0 0 10px var(--apricot-soft); }
 }
-@keyframes boob-halo {
-  0%, 100% { transform: scale(0.96); opacity: 0.7; }
-  50% { transform: scale(1.04); opacity: 1; }
-}
-@keyframes boob-drip {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  20% { opacity: 1; }
-  100% { transform: translateY(26px) scale(1); opacity: 0; }
+@keyframes boob-rays {
+  0%, 100% { transform: scale(0.92); opacity: 0.5; }
+  50% { transform: scale(1.06); opacity: 1; }
 }
 @keyframes boob-wiggle {
   0%, 80%, 100% { transform: rotate(0); }
@@ -467,7 +455,7 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   95% { transform: rotate(-4deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .boob-active, .boob-halo, .boob-drip path, .boob-next .boob-tag, .boob-squish svg {
+  .boob-active, .boob-rays, .boob-next .boob-tag, .boob-squish svg {
     animation: none;
   }
 }

@@ -3,8 +3,8 @@ import { useState } from "react";
 
 /**
  * Two boobs you tap, named "Left boob" and "Right boob". Left starts the left side, right the right.
- * While feeding, the active one glows, drips and shows the stopwatch; tapping
- * it finishes, tapping the other one switches side. The side that is "due"
+ * While feeding, the active one glows, sends out little rays and shows the stopwatch;
+ * tapping it finishes, tapping the other one switches side. The side that is "due"
  * (opposite to the last feed) wears a little tag so the mother never has to remember.
  */
 export function Boobs({
@@ -44,34 +44,30 @@ export function Boobs({
             onClick={() => tap(side)}
             className={`boob ${isActive ? "boob-active" : ""} ${squish === side ? "boob-squish" : ""} ${suggested === side && !active ? "boob-next" : ""}`}
           >
-            <svg viewBox="0 0 120 120" className="h-full w-full" aria-hidden focusable="false">
-              <defs>
-                <radialGradient id={`skin-${side}`} cx="40%" cy="35%" r="70%">
-                  <stop offset="0%" stopColor="#ffe3d3" />
-                  <stop offset="60%" stopColor="#f6c4a8" />
-                  <stop offset="100%" stopColor="#e2a184" />
-                </radialGradient>
-                <radialGradient id={`glow-${side}`} cx="50%" cy="50%" r="50%">
-                  <stop offset="70%" stopColor="#60a5fa" stopOpacity="0" />
-                  <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.55" />
-                </radialGradient>
-              </defs>
-              {isActive && <circle className="boob-halo" cx="60" cy="62" r="58" fill={`url(#glow-${side})`} />}
-              <ellipse cx="60" cy="112" rx="40" ry="5" fill="#000" opacity="0.08" />
-              <circle cx="60" cy="62" r="50" fill={`url(#skin-${side})`} />
-              {/* areola + nipple sit a touch toward the outside, like the real thing */}
-              <g transform={`translate(${side === "Left" ? -4 : 4} 8)`}>
-                <circle cx="60" cy="62" r="15" fill="#d9907c" opacity="0.9" />
-                <circle cx="60" cy="62" r="6.5" fill="#c4705f" />
-                <circle cx="58" cy="60" r="1.8" fill="#fff" opacity="0.6" />
+            {/* A flat, friendly line drawing in the theme's own colours: a soft round shape
+                hanging from the chest line (open at the top), the nipple a touch toward the
+                outside, and three little rays when that side is feeding. The right one is
+                the left one mirrored. */}
+            <svg viewBox="0 0 120 110" className="h-full w-full" aria-hidden focusable="false">
+              <g transform={side === "Right" ? "translate(120 0) scale(-1 1)" : undefined}>
+                <path
+                  d="M24 22 A46 46 0 1 0 96 22"
+                  fill="var(--apricot-soft)"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="54" cy="64" r="15" fill="var(--accent)" opacity={isActive ? 1 : 0.55} />
+                <circle cx="54" cy="64" r="5.5" fill="currentColor" opacity="0.6" />
                 {isActive && (
-                  <g className="boob-drip">
-                    <path d="M60 70 q-4 7 0 11 q4 -4 0 -11z" fill="#fff" opacity="0.95" />
-                    <path className="boob-drip-2" d="M60 70 q-4 7 0 11 q4 -4 0 -11z" fill="#fff" opacity="0.8" />
+                  <g className="boob-rays" stroke="var(--accent)" strokeWidth="4" strokeLinecap="round" fill="none">
+                    <path d="M54 42 v-9" />
+                    <path d="M37 48 l-6 -6" />
+                    <path d="M71 48 l6 -6" />
                   </g>
                 )}
               </g>
-              <ellipse cx="44" cy="38" rx="12" ry="7" transform="rotate(-30 44 38)" fill="#fff" opacity="0.35" />
             </svg>
             <span className="boob-label">
               {isActive ? (
