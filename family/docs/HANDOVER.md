@@ -2,7 +2,9 @@
 
 Written 21 October 2026. Everything a new person (or a new session) needs to pick
 this up. Read `../README.md` for setup steps and `BRAND.md` for the look; this file
-is the state of play and the things only someone with the accounts can do.
+is the state of play and the things only someone with the accounts can do. An agent
+session reads the repo root's `CLAUDE.md` first: the working rules (branches, reviews
+and their cost, checks before a push, database conventions) and the live facts.
 
 ## What it is
 

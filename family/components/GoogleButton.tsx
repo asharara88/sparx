@@ -15,8 +15,8 @@ type Props = { onError: (message: string) => void; label?: string; signup?: bool
  *
  * Without it, or if Google's script cannot load (offline, a blocker), the fallback is
  * Supabase's redirect flow, where Google's screen shows the project's address instead.
- * That needs the Google provider on in Supabase (README, "Google sign-in"); until then the
- * tap comes back to /auth/callback with the error, and that screen says so in plain words.
+ * That needs the Google provider on in Supabase (README, "Google sign-in"); until then
+ * the tap says so in plain words and stays on the page.
  */
 export function GoogleButton(props: Props) {
   const [fallback, setFallback] = useState(!GOOGLE_CLIENT_ID);
@@ -121,7 +121,7 @@ function GisButton({ signup, beforeRedirect, onUnavailable }: Props & { onUnavai
 
 /* ---- Fallback: Supabase's redirect flow --------------------------------------- */
 
-function RedirectButton({ onError, label = "Continue with Google", signup, beforeRedirect }: Props) {
+function RedirectButton({ onError, label, signup, beforeRedirect }: Props) {
   const [busy, setBusy] = useState(false);
   const text = label ?? (signup ? "Create account with Google" : "Continue with Google");
 
@@ -130,15 +130,30 @@ function RedirectButton({ onError, label = "Continue with Google", signup, befor
     // Whatever the page must have saved before the browser leaves (an invite screen
     // remembers its link in a cookie) is awaited here, so a quick tap cannot lose it.
     if (beforeRedirect) await beforeRedirect();
-    const { error } = await supabaseBrowser().auth.signInWithOAuth({
+    const { data, error } = await supabaseBrowser().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" } },
+      options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" }, skipBrowserRedirect: true },
     });
-    if (error) {
+    if (error || !data.url) {
       setBusy(false);
-      onError(error.message);
+      return onError(error?.message ?? "Could not start Google sign-in.");
     }
-    // Otherwise the browser is on its way to Google; stay busy until it leaves.
+    // With the provider off, Supabase answers the authorize address with a bare JSON error
+    // page ("Unsupported provider: provider is not enabled") instead of coming back to the
+    // app. Ask it first without following the redirect: a refusal is readable here and
+    // becomes a plain sentence; anything else (the redirect to Google, no answer) goes ahead.
+    try {
+      const probe = await fetch(data.url, { redirect: "manual", credentials: "omit" });
+      if (probe.status >= 400) {
+        const body = (await probe.json().catch(() => null)) as { msg?: string; error_description?: string } | null;
+        setBusy(false);
+        return onError(body?.msg ?? body?.error_description ?? "provider is not enabled");
+      }
+    } catch {
+      // Opaque or blocked: nothing to learn here; let the browser go.
+    }
+    window.location.assign(data.url);
+    // The browser is on its way to Google; stay busy until it leaves.
   }
 
   return (

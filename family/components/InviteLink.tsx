@@ -4,14 +4,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { joinPath } from "@/lib/join";
 import { Icon } from "./Icon";
 
-export type AccountState = "signed_in" | "never" | "none";
-
-/** What the Members screen says under a name about their account. */
-export function accountLabel(state: AccountState | undefined): string {
-  if (state === "signed_in") return "Signed in";
-  if (state === "never") return "Has not signed in yet";
-  return "No account yet";
-}
+import type { AccountState } from "@/lib/accounts";
 
 /**
  * One tap makes (or reuses) the member's invite link and hands it to the phone's share

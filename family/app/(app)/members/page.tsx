@@ -7,7 +7,8 @@ import { HouseholdForm } from "@/components/HouseholdForm";
 import { DeleteHome } from "@/components/DeleteHome";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
-import { InviteLink, accountLabel, type AccountState } from "@/components/InviteLink";
+import { InviteLink } from "@/components/InviteLink";
+import { accountLabel, type AccountState } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
