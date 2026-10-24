@@ -34,7 +34,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <div className="card">
         {error && (
           <p className="notice notice-danger mb-4" role="alert">
-            {error === "link" ? "That link did not work. It may be old. Ask for a new one." : error === "google_off" ? "Google sign-in is not switched on yet. Use your e-mail for now." : error}
+            {error === "link" ? "That link did not work. It may be old. Ask for a new one." : error === "google_off" ? "Google sign-in is not switched on yet. Use your e-mail for now." : error === "google" ? "Google sign-in did not finish. Try again, or use your e-mail." : error}
           </p>
         )}
         <LoginForm initialMode={initialMode} />

@@ -68,6 +68,7 @@ for bottle reminders between the daily runs.
 | Variable | Notes |
 |---|---|
 | `PLAN_EVERY_DAY=1` | Draft the weekly plan every day instead of Sundays, while trying it out. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google's own sign-in button on the login and invite screens: the OAuth client id (public by design; README, *Google sign-in*). Without it the button still works through Supabase's redirect, but Google's screen then says "Sign in to qjqekazawirrpwnwgbhd.supabase.co" instead of elnunu.com. |
 
 ## 5. Never set on Vercel
 

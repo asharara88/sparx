@@ -232,21 +232,38 @@ Auth settings in the Supabase dashboard (Authentication → URL configuration):
 - Redirect URLs: `https://elnunu.com/auth/callback`, `https://sparx-tsom.vercel.app/auth/callback`
   and `http://localhost:3000/auth/callback`
 
-Google sign-in ("Continue with Google" on the login and invite screens; one tap, no
-password) needs the Google provider on, under Authentication → Sign In / Providers →
-Google. Not the "OAuth Server" page, which is for letting other apps sign in with elnunu
-and is not needed:
-1. Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth
-   client ID, type *Web application*. Authorized JavaScript origin `https://elnunu.com`;
-   authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback` (the
-   Supabase provider page shows the exact one). If the consent screen is not set up yet,
-   set it up first: external, the app's name, a support e-mail; publish it, or add the
-   family's addresses as test users.
-2. Supabase → Authentication → Sign In / Providers → Google: enable, paste the client ID
-   and secret, save.
-Until the provider is on, the button says so and the e-mail ways still work. A Google
-account joins a home exactly like an e-mail one: through an invite link, or by the
-e-mail an admin listed.
+#### Google sign-in
+
+"Continue with Google" on the login and invite screens: one tap, no password. It is
+Google's own button (Google Identity Services) drawn on elnunu.com, so Google's screen
+says *elnunu.com* and posts the ID token to the app's `/auth/google`, which turns it into
+a session. The Supabase project's address never appears. Three places to set up, once:
+
+1. **Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth
+   client ID**, type *Web application*.
+   - Authorized JavaScript origins: `https://elnunu.com` (and `http://localhost:3000`
+     for local work).
+   - Authorized redirect URIs: `https://elnunu.com/auth/google` (and
+     `http://localhost:3000/auth/google`), plus
+     `https://<project-ref>.supabase.co/auth/v1/callback` for the fallback below.
+   - **Branding** (Google Auth Platform → Branding): app name *elnunu*, the logo, home
+     page `https://elnunu.com`, authorized domain `elnunu.com`, a support e-mail. Until
+     the brand is verified Google shows the domain, "elnunu.com", rather than the name;
+     verifying it (the Verification Centre, with the domain proven in Search Console) is
+     what makes it say "elnunu". Publish the app, or add the family's addresses as test
+     users while it is in testing.
+2. **Supabase → Authentication → Sign In / Providers → Google**: enable, paste the client
+   ID and secret, save. (Not the "OAuth Server" page, which is for letting other apps sign
+   in with elnunu and is not needed.) Supabase checks that the token Google posts was
+   issued to this client ID.
+3. **Vercel → Environment Variables**: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = the client ID
+   (`VERCEL_ENV.md`), then redeploy.
+
+Fallback: without that variable, or when Google's script cannot load, the button uses
+Supabase's own redirect flow instead. It works the same, but Google's screen then shows
+the Supabase project's address. Until the provider is on in Supabase, either way, the
+button says so and the e-mail ways still work. A Google account joins a home exactly like
+an e-mail one: through an invite link, or by the e-mail an admin listed.
 
 ### Set up the household (once per family)
 

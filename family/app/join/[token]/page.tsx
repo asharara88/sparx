@@ -30,7 +30,7 @@ export default async function JoinPage({ params, searchParams }: { params: Promi
           <Name className="text-4xl" />
         </h1>
       </div>
-      <JoinScreen token={token} invite={invite} email={auth.user?.email ?? null} error={error === "google_off" || error === "link" ? error : null} />
+      <JoinScreen token={token} invite={invite} email={auth.user?.email ?? null} error={error === "google_off" || error === "google" || error === "link" ? error : null} />
     </main>
   );
 }
