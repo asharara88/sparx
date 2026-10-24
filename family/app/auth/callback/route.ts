@@ -6,12 +6,15 @@ import { JOIN_COOKIE, afterSignIn, inviteToken, joinPath } from "@/lib/join";
 
 /**
  * Where a failed sign-in lands, with a reason the screen can put into words: the invite
- * screen the device was on when there is one, else the login page. A Google tap while the
- * provider is off in Supabase comes back here with that error in the query (the browser
- * had already left for Supabase's authorize endpoint), not as an error in the app.
+ * screen the device was on when there is one, else the login page. A Google tap that
+ * fails on Supabase's side comes back here with the error in the query (the browser had
+ * already left for Supabase's authorize endpoint), not as an error in the app: the
+ * provider off is one case, a wrong client secret ("Unable to exchange external code")
+ * another; neither is an old e-mail link, so the screen says "Google sign-in did not
+ * finish" rather than "that link did not work".
  */
 function failed(origin: string, join: string | undefined, description: string | null): NextResponse {
-  const reason = description && /provider is not enabled|unsupported provider/i.test(description) ? "google_off" : "link";
+  const reason = !description ? "link" : /provider is not enabled|unsupported provider/i.test(description) ? "google_off" : "google";
   const token = inviteToken(join);
   return NextResponse.redirect(new URL(`${token ? joinPath(token) : "/login"}?error=${reason}`, origin));
 }
