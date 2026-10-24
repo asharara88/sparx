@@ -22,7 +22,7 @@ export interface Invite {
  * (the device remembers the link for an hour, so a sign-in by e-mail comes back here).
  * Signed in: one tap makes this account that member and the app opens in that home.
  */
-export function JoinScreen({ token, invite, email, error = null }: { token: string | null; invite: Invite | null; email: string | null; error?: "google_off" | "link" | null }) {
+export function JoinScreen({ token, invite, email, error = null }: { token: string | null; invite: Invite | null; email: string | null; error?: "google_off" | "google" | "link" | null }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -129,7 +129,7 @@ export function JoinScreen({ token, invite, email, error = null }: { token: stri
         <div className="card">
           {error && (
             <p className="notice notice-danger mb-4" role="alert">
-              {error === "google_off" ? "Google sign-in is not switched on yet. Use your e-mail for now." : "That sign-in link did not work. It may be old. Ask for a new one below."}
+              {error === "google_off" ? "Google sign-in is not switched on yet. Use your e-mail for now." : error === "google" ? "Google sign-in did not finish. Try again, or use your e-mail." : "That sign-in link did not work. It may be old. Ask for a new one below."}
             </p>
           )}
           <LoginForm next={joinPath(token)} joining beforeRedirect={remember} />

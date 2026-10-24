@@ -107,7 +107,7 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false,
       </div>
       {mode !== "forgot" && (
         <>
-          <GoogleButton onError={(m) => setError(friendly(m))} label={mode === "signup" ? "Create account with Google" : "Continue with Google"} beforeRedirect={beforeRedirect} />
+          <GoogleButton onError={(m) => setError(friendly(m))} label={mode === "signup" ? "Create account with Google" : "Continue with Google"} signup={mode === "signup"} beforeRedirect={beforeRedirect} />
           <p className="muted text-center text-sm">or with your e-mail</p>
         </>
       )}
