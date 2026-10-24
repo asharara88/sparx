@@ -7,8 +7,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
  * back to /auth/callback like an e-mail link does, so an invite the device is on is
  * honoured (lib/join.ts) and an e-mail an admin listed links the account as before.
  * Needs the Google provider switched on in Supabase (README, "Auth settings"); until
- * then the browser goes to Supabase's authorize endpoint, which sends it back to
- * /auth/callback with the error, and that screen says so in plain words.
+ * then the tap says so in plain words and stays on the page (the authorize address is
+ * asked first, without following it).
  */
 export function GoogleButton({ onError, label = "Continue with Google", beforeRedirect }: { onError: (message: string) => void; label?: string; beforeRedirect?: () => Promise<unknown> }) {
   const [busy, setBusy] = useState(false);
@@ -18,15 +18,30 @@ export function GoogleButton({ onError, label = "Continue with Google", beforeRe
     // Whatever the page must have saved before the browser leaves (an invite screen
     // remembers its link in a cookie) is awaited here, so a quick tap cannot lose it.
     if (beforeRedirect) await beforeRedirect();
-    const { error } = await supabaseBrowser().auth.signInWithOAuth({
+    const { data, error } = await supabaseBrowser().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" } },
+      options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" }, skipBrowserRedirect: true },
     });
-    if (error) {
+    if (error || !data.url) {
       setBusy(false);
-      onError(error.message);
+      return onError(error?.message ?? "Could not start Google sign-in.");
     }
-    // Otherwise the browser is on its way to Google; stay busy until it leaves.
+    // With the provider off, Supabase answers the authorize address with a bare JSON error
+    // page ("Unsupported provider: provider is not enabled") instead of coming back to the
+    // app. Ask it first without following the redirect: a refusal is readable here and
+    // becomes a plain sentence; anything else (the redirect to Google, no answer) goes ahead.
+    try {
+      const probe = await fetch(data.url, { redirect: "manual", credentials: "omit" });
+      if (probe.status >= 400) {
+        const body = (await probe.json().catch(() => null)) as { msg?: string; error_description?: string } | null;
+        setBusy(false);
+        return onError(body?.msg ?? body?.error_description ?? "provider is not enabled");
+      }
+    } catch {
+      // Opaque or blocked: nothing to learn here; let the browser go.
+    }
+    window.location.assign(data.url);
+    // The browser is on its way to Google; stay busy until it leaves.
   }
 
   return (
