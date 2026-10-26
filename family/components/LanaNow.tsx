@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EntryRow, EntryType, OngoingEntry, Subject } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
@@ -47,6 +48,8 @@ export function LanaNow({
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
   // "When": now by default; "20 min ago" when the tap comes late. Every tap below honours it.
   const [when, setWhen] = useState<When>(NOW);
+  // The sheet a tile opened (feed, nappy, pump); closes when the tap saves.
+  const [sheet, setSheet] = useState<"feed" | "diaper" | "pump" | null>(null);
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
@@ -145,6 +148,7 @@ export function LanaNow({
       const base = isEarlier(when) ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
       setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
       setWhen(NOW);
+      setSheet(null);
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Could not save.");
@@ -156,83 +160,45 @@ export function LanaNow({
   const realNowIso = now.toISOString();
   const sinceText = (iso: string) => `${fmtTime(iso, timezone)} · ${fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)))}`;
 
-  // ---- status line
-  let status: React.ReactNode;
-  let tone = "";
-  if (state.kind === "asleep") {
-    status = (
-      <>
-        <Icon name="zzz" size={18} className="inline" /> Asleep since {sinceText(state.entry.occurred_at)}
-      </>
-    );
-    tone = "tint-sleep";
-  } else if (state.kind === "feeding") {
-    status = (
-      <>
-        <Icon name="bottle" size={18} className="inline" /> Feeding{state.side ? `, ${state.side.toLowerCase()}` : ""} · {sinceText(state.entry.occurred_at)}
-      </>
-    );
-    tone = "tint-feed";
-  } else if (state.kind === "night_awake") {
-    status = (
-      <>
-        <Icon name="moon" size={18} className="inline" /> Awake in the night since {sinceText(state.entry.occurred_at)}
-      </>
-    );
-    tone = "tint-meds";
-  } else {
-    tone = "tint-house";
-    status = (
-      <>
-        <Icon name="sun" size={18} className="inline" /> Awake{state.since ? ` since ${sinceText(state.since)}` : ""}
-      </>
-    );
-  }
+  const elapsed = (iso: string) => fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)));
 
-  // A big tap: the feature's colour, the icon on a white disc, the label in the display face.
-  const Big = ({ onClick, icon, tint, children, sub }: { onClick: () => void; icon: "zzz" | "sun" | "moon" | "bottle" | "check"; tint: string; children: React.ReactNode; sub?: string }) => (
-    <button type="button" className={`action tint-${tint}`} onClick={onClick} disabled={busy || !canAdd}>
-      <span className="icon-disc">
-        <Icon name={icon} size={22} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="action-label">{children}</span>
-        {sub && <span className="action-sub">{sub}</span>}
-      </span>
-    </button>
-  );
-  const CardTitle = ({ icon, children }: { icon: "bottle" | "droplet" | "diaper"; children: React.ReactNode }) => (
-    <p className="flex items-center gap-2">
-      <span className="icon-disc" style={{ width: 32, height: 32 }}>
-        <Icon name={icon} size={18} />
-      </span>
-      <span className="action-label text-lg">{children}</span>
-    </p>
-  );
+  // Closing a sheet without saving also drops a "when" picked inside it, so the next
+  // direct tap (Asleep has no chips) is not quietly backdated.
+  const closeSheet = () => {
+    setWhen(NOW);
+    setSheet(null);
+  };
+  const tileProps = { disabled: busy || !canAdd };
+  const startSleep = () =>
+    run("Sleep started.", async () => {
+      if (state.kind === "night_awake") await end(state.entry);
+      await start(sleepType, {});
+    });
 
   return (
     <section className="flex flex-col gap-3" aria-live="polite">
-      <div className={`notice ${tone}`}>
-        <p className="text-xl font-bold">{status}</p>
-        {state.kind === "feeding" && !breastfeeds && (
-          <p className="mt-1 text-4xl font-bold tabular-nums">{fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, realNowIso)))}</p>
-        )}
-      </div>
-
       {msg && (
-        <p role="status" className="muted text-sm">
+        <p role="status" className="notice notice-ok text-sm">
           {msg}
         </p>
       )}
-      {canAdd && <WhenChips value={when} onChange={setWhen} timezone={timezone} disabled={busy} />}
 
-      {/* ---- feeding: switch side or finish */}
+      {/* ---- feeding: the timer, switch side or finish */}
       {state.kind === "feeding" && (
-        <>
+        <div className="card tint-feed flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="icon-disc">
+              <Icon name="bottle" size={22} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="action-label">Feeding{state.side ? `, ${state.side.toLowerCase()}` : ""}</p>
+              <p className="text-3xl font-bold tabular-nums">{elapsed(state.entry.occurred_at)}</p>
+            </div>
+          </div>
           {breastfeeds && (
             <Boobs
               active={state.side === "Left" || state.side === "Right" ? state.side : null}
-              elapsed={fmtDuration(Math.max(0, minutesBetween(state.entry.occurred_at, realNowIso)))}
+              elapsed={elapsed(state.entry.occurred_at)}
               suggested={null}
               counts={sideCounts}
               disabled={busy || !canAdd}
@@ -247,65 +213,60 @@ export function LanaNow({
             />
           )}
           {breastfeeds && minutesBetween(state.entry.occurred_at, realNowIso) >= 30 && (
-            <p className="notice notice-warn text-center font-semibold" role="status">
-              Still feeding? Over 30 min on one side. The timer may have been left on: tap the boob to stop it.
+            <p className="notice notice-warn text-center text-sm font-semibold" role="status">
+              Over 30 min on one side. Timer left on? Tap the boob to stop it.
             </p>
           )}
-          <Big icon="check" tint="feed" onClick={() => run("Feed saved.", () => end(state.entry))} sub="Save the feed and stop the timer">
-            Done feeding
-          </Big>
-        </>
+          <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={() => run("Feed saved.", () => end(state.entry))} disabled={busy || !canAdd}>
+            <Icon name="check" size={20} /> Done feeding
+          </button>
+        </div>
       )}
 
-      {/* ---- asleep: wake up (night wake if it is night) */}
+      {/* ---- asleep: one tap wakes (a night wake-up at night) */}
       {state.kind === "asleep" && (
-        <div className="grid grid-cols-1 gap-3">
-          <Big
-            icon={isNight ? "moon" : "sun"}
-            tint="meds"
-            sub={isNight ? "Ends the sleep and starts a night wake-up" : "Ends the sleep"}
+        <div className="flex flex-col gap-3">
+          <Tile {...tileProps}
+            row
+            tint="sleep"
+            icon="moon"
+            label={`Asleep · ${elapsed(state.entry.occurred_at)}`}
+            sub={`since ${fmtTime(state.entry.occurred_at, timezone)}`}
+            trailing="Woke up"
             onClick={() =>
               run(isNight ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
                 await end(state.entry);
                 if (isNight && wakeType) await start(wakeType, {});
               })
             }
-          >
-            {isNight ? "Woke up (night)" : "Woke up"}
-          </Big>
-          {isNight && (
-            <Big
-              icon="sun"
-              tint="pump"
-              onClick={() =>
-                run("Up for the day.", async () => {
-                  await end(state.entry);
-                })
-              }
-            >
-              Up for the day
-            </Big>
-          )}
+          />
+          {isNight && <Tile {...tileProps} row tint="pump" icon="sun" label="Up for the day" onClick={() => run("Up for the day.", () => end(state.entry))} />}
         </div>
       )}
 
-      {/* ---- awake (day or night): feed, diaper, sleep */}
+      {/* ---- awake (day or night): four tiles */}
       {(state.kind === "awake" || state.kind === "night_awake") && (
-        <>
-          {breastfeeds && (
-            <Boobs
-              active={null}
-              elapsed={null}
-              suggested={suggestedSide}
-              counts={sideCounts}
-              disabled={busy || !canAdd}
-              onTap={(s) => run(`${s} boob started.`, () => start(feedType, { method: "Breast", side: s }))}
-            />
-          )}
-          <div className="card tint-feed">
-            <CardTitle icon="bottle">Bottle</CardTitle>
+        <div className="grid grid-cols-2 gap-3">
+          <Tile {...tileProps} tint="feed" icon="bottle" label="Feed" sub={breastfeeds ? "Breast or bottle" : "Bottle"} onClick={() => setSheet("feed")} />
+          <Tile {...tileProps}
+            tint="sleep"
+            icon="zzz"
+            label={state.kind === "night_awake" ? "Back to sleep" : "Asleep"}
+            sub={state.kind === "night_awake" ? `awake since ${fmtTime(state.entry.occurred_at, timezone)}` : state.since ? `awake ${elapsed(state.since)}` : "Tap to start"}
+            onClick={startSleep}
+          />
+          <Tile {...tileProps} tint="diaper" icon="diaper" label="Nappy" sub="Wet or dirty" onClick={() => setSheet("diaper")} />
+          {breastfeeds && pumpType ? <Tile {...tileProps} tint="pump" icon="droplet" label="Pump" sub="To the fridge" onClick={() => setSheet("pump")} /> : <Tile {...tileProps} tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
+        </div>
+      )}
+
+      {sheet === "feed" && (
+        <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+          {breastfeeds && <Boobs active={null} elapsed={null} suggested={suggestedSide} counts={sideCounts} disabled={busy || !canAdd} onTap={(s) => run(`${s} boob started.`, () => start(feedType, { method: "Breast", side: s }))} />}
+          <div className="card tint-feed flex flex-col gap-2">
+            <p className="font-semibold">Bottle</p>
             {milkOptions.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Which milk">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Which milk">
                 {milkOptions.map((m) => (
                   <button key={m} type="button" className="chip" aria-pressed={milk === m} onClick={() => setMilk(m)} disabled={busy}>
                     {m}
@@ -313,12 +274,12 @@ export function LanaNow({
                 ))}
               </div>
             )}
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {bottleQuick.map((ml) => (
                 <button
                   key={ml}
                   type="button"
-                  className="chip min-h-[56px] text-lg"
+                  className="chip min-h-[60px] text-xl"
                   disabled={busy || !canAdd}
                   onClick={() =>
                     run(`Bottle ${ml} ml saved.`, async () => {
@@ -337,62 +298,92 @@ export function LanaNow({
               ))}
             </div>
           </div>
-          {breastfeeds && pumpType && (
-            <div className="card tint-pump">
-              <CardTitle icon="droplet">Pump, to the fridge</CardTitle>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {[90, 120, 150, 180].map((ml) => (
-                  <button
-                    key={ml}
-                    type="button"
-                    className="chip min-h-[56px] text-lg"
-                    disabled={busy || !canAdd}
-                    onClick={() =>
-                      run(`Pumped ${ml} ml, in the fridge.`, async () => {
-                        const saved = await start(pumpType, { amount_ml: ml }, nowIso);
-                        if (saved.status === "saved") await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
-                      })
-                    }
-                  >
-                    {ml} ml
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="card tint-diaper">
-            <CardTitle icon="diaper">Diaper</CardTitle>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className="chip min-h-[56px] text-lg"
-                  disabled={busy || !canAdd}
-                  onClick={() => run(`Diaper (${k.toLowerCase()}) saved.`, () => start(diaperType, { kind: k }, nowIso))}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
+        </Sheet>
+      )}
+      {sheet === "diaper" && (
+        <Sheet title="Nappy" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+          <div className="grid grid-cols-3 gap-2">
+            {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
+              <button key={k} type="button" className="action action-col tint-diaper items-center text-center" disabled={busy || !canAdd} onClick={() => run(`Nappy (${k.toLowerCase()}) saved.`, () => start(diaperType, { kind: k }, nowIso))}>
+                <span className="icon-disc">
+                  <Icon name="diaper" size={22} />
+                </span>
+                <span className="action-label">{k}</span>
+              </button>
+            ))}
           </div>
-          <Big
-            icon="zzz"
-            tint="sleep"
-            sub="Starts the sleep timer"
-            onClick={() =>
-              run("Sleep started.", async () => {
-                if (state.kind === "night_awake") await end(state.entry);
-                await start(sleepType, {});
-              })
-            }
-          >
-            {state.kind === "night_awake" ? "Back to sleep" : "Fell asleep"}
-          </Big>
-        </>
+        </Sheet>
+      )}
+      {sheet === "pump" && pumpType && (
+        <Sheet title="Pump, to the fridge" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+          <div className="grid grid-cols-4 gap-2">
+            {[90, 120, 150, 180].map((ml) => (
+              <button
+                key={ml}
+                type="button"
+                className="chip min-h-[60px] text-xl"
+                disabled={busy || !canAdd}
+                onClick={() =>
+                  run(`Pumped ${ml} ml, in the fridge.`, async () => {
+                    const saved = await start(pumpType, { amount_ml: ml }, nowIso);
+                    if (saved.status === "saved") await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
+                  })
+                }
+              >
+                {ml}
+              </button>
+            ))}
+          </div>
+        </Sheet>
       )}
 
       {!canAdd && <p className="muted text-sm">You can see {possessive(subject.name)} day but not log it.</p>}
     </section>
+  );
+}
+
+/** A big tile: the feature's colour, the icon on a white disc, two or three words. */
+function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, disabled }: { tint: string; icon: "zzz" | "sun" | "moon" | "bottle" | "diaper" | "droplet" | "clock"; label: string; sub?: string; onClick?: () => void; href?: string; row?: boolean; trailing?: string; disabled: boolean }) {
+  const inner = (
+    <>
+      <span className="icon-disc">
+        <Icon name={icon} size={22} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="action-label">{label}</span>
+        {sub && <span className="action-sub">{sub}</span>}
+      </span>
+      {trailing && <span className="chip text-base">{trailing}</span>}
+    </>
+  );
+  const cls = `action ${row ? "" : "action-col"} tint-${tint}`;
+  return href ? (
+    <Link href={href} className={cls}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" className={cls} onClick={onClick} disabled={disabled}>
+      {inner}
+    </button>
+  );
+}
+
+/** The bottom sheet a tile opens: a title, the "when" chips, the amounts. Defined at
+ *  module level so the clock tick does not remount it (and lose a half-picked time). */
+function Sheet({ title, onClose, when, onWhen, timezone, busy, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; timezone: string; busy: boolean; children: React.ReactNode }) {
+  return (
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+      <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="flex items-center justify-between">
+          <p className="action-label">{title}</p>
+          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
+            <Icon name="x" size={22} />
+          </button>
+        </div>
+        <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} />
+        {children}
+      </div>
+    </div>
   );
 }

@@ -19,6 +19,7 @@ import { Medicines } from "@/components/Medicines";
 import { SleepCoach } from "@/components/SleepCoach";
 import { PlanCard } from "@/components/PlanCard";
 import { WeekCard } from "@/components/WeekCard";
+import { BriefCard } from "@/components/BriefCard";
 import { PhaseCard } from "@/components/PhaseCard";
 import { Activities } from "@/components/Activities";
 import { EntryChecks } from "@/components/EntryChecks";
@@ -202,7 +203,8 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
         </Fold>
       )}
       {isToday && can(me, "assistant", "view") && (
-        <Fold title="The helper's week" icon="sparkles" tint="guide">
+        <Fold title="The helper" icon="sparkles" tint="guide" hint="brief and week">
+          <BriefCard hour={Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(new Date()))} />
           <WeekCard name={summary.subject.name} />
         </Fold>
       )}
