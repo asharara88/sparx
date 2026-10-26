@@ -130,29 +130,29 @@ export function DayStrip({
         <Row from={0} />
         <Row from={720} />
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <div>
-          <dt className="muted">Sleep</dt>
-          <dd className="font-semibold">{fmtDuration(Math.round(sleepMin))}</dd>
+      {/* The day's numbers, one tinted tile each: the colour says what, the number says how much. */}
+      <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
+        <div className="tint-sleep rounded-xl px-1 py-2">
+          <dd className="text-lg font-bold leading-tight">{fmtDuration(Math.round(sleepMin))}</dd>
+          <dt className="text-[11px] font-semibold opacity-75">sleep</dt>
         </div>
-        <div>
-          <dt className="muted">Breast</dt>
-          <dd className="font-semibold">
-            {fmtDuration(breastMin)} · L {left} / R {right}
-          </dd>
+        <div className="tint-feed rounded-xl px-1 py-2">
+          <dd className="text-lg font-bold leading-tight">{fmtDuration(breastMin)}</dd>
+          <dt className="text-[11px] font-semibold opacity-75">
+            breast · L{left} R{right}
+          </dt>
         </div>
-        <div>
-          <dt className="muted">Bottles</dt>
-          <dd className="font-semibold">
-            {bottles} · {bottleMl} ml
-          </dd>
+        <div className="tint-feed rounded-xl px-1 py-2">
+          <dd className="text-lg font-bold leading-tight">{bottleMl} ml</dd>
+          <dt className="text-[11px] font-semibold opacity-75">
+            {bottles} bottle{bottles === 1 ? "" : "s"}
+          </dt>
         </div>
-        <div>
-          <dt className="muted">Diapers</dt>
-          <dd className="font-semibold">{diaperCount}</dd>
+        <div className="tint-diaper rounded-xl px-1 py-2">
+          <dd className="text-lg font-bold leading-tight">{diaperCount}</dd>
+          <dt className="text-[11px] font-semibold opacity-75">nappies</dt>
         </div>
       </dl>
-      <p className="muted mt-1 text-xs">Purple sleep · light purple awake at night · blue feeds (L/R or ml) · green diapers · red medicine</p>
     </div>
   );
 }
