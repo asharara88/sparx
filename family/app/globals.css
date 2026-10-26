@@ -5,28 +5,41 @@
    Ask screen's own very dark mode. Everything else reads these variables.
    ========================================================================== */
 :root {
-  /* elnunu: ivory ground, plum does the work, apricot is decoration, sage is calm. Every colour is a token. */
-  --bg: #fff9f0;
+  /* elnunu: blush ground, rose does the work, plum reads, apricot is decoration. Every colour is a token. */
+  --bg: #fff4f6;
   --fg: #4b203f;
   --muted: #8a6a7e;
   --card: #ffffff;
-  --card-2: #f8f0e8;
-  --line: #eee2d8;
-  --accent: #4b203f;
-  --accent-soft: #f3e4ec;
-  --accent-fg: #fff9f0;
+  --card-2: #fbecf0;
+  --line: #f3dde4;
+  --accent: #c2476a;
+  --accent-soft: #fbe1e8;
+  --accent-fg: #ffffff;
   --apricot: #f29b78;
   --apricot-soft: #fde8dc;
-  --night: #6f7f60;
-  --night-soft: #e8ede1;
-  --ok: #5d7a4c;
-  --ok-soft: #e8ede1;
+  --night: #5a3f8a;
+  --night-soft: #e6def7;
+  --ok: #3f6b3a;
+  --ok-soft: #dff1dc;
   --warn: #9a5b00;
   --warn-soft: #fff0d6;
   --danger: #b8322f;
   --danger-soft: #fbe3e1;
-  --info-soft: #f3e4ec;
-  --shadow: 0 1px 2px rgba(75, 32, 63, 0.05), 0 4px 16px rgba(75, 32, 63, 0.07);
+  --info-soft: #fbe1e8;
+  --shadow: 0 1px 2px rgba(75, 32, 63, 0.05), 0 6px 18px -8px rgba(194, 71, 106, 0.18);
+  /* One tint per feature, so a card says what it is before it is read: feed pink, sleep
+     lilac, nappy sky, medicine butter, milk mint, pumping peach, the house sage, calendar
+     periwinkle, notes sand, the guide lavender. Each has its own dark text. */
+  --feed: #ffe1e7; --feed-fg: #8a2447;
+  --sleep: #e6def7; --sleep-fg: #46307a;
+  --diaper: #d8edf9; --diaper-fg: #1d5574;
+  --meds: #fff0c2; --meds-fg: #6e4300;
+  --milk: #d9f2e6; --milk-fg: #1d5a40;
+  --pump: #ffe4d1; --pump-fg: #86421a;
+  --house: #e8ede1; --house-fg: #3f5a2f;
+  --cal: #dde8ff; --cal-fg: #2b4a8a;
+  --notes: #f6ecd9; --notes-fg: #6b4a1a;
+  --guide: #ece4f5; --guide-fg: #4f3a70;
   --radius: 18px;
   --radius-sm: 12px;
   --tabbar-h: 64px;
@@ -42,21 +55,31 @@
     --card: #371f32;
     --card-2: #42283c;
     --line: #513346;
-    --accent: #f29b78;
+    --accent: #f08aa6;
     --accent-soft: #4f2d3a;
     --accent-fg: #2a1526;
     --apricot: #f29b78;
     --apricot-soft: #4f2d3a;
-    --night: #b9c6a8;
-    --night-soft: #34392e;
-    --ok: #b9c6a8;
-    --ok-soft: #34392e;
+    --night: #cdbdf0;
+    --night-soft: #3a2d55;
+    --ok: #b9d6a8;
+    --ok-soft: #2f3d2a;
     --warn: #f2b45c;
     --warn-soft: #3f2e16;
     --danger: #ff8a85;
     --danger-soft: #4a2127;
     --info-soft: #4f2d3a;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
+    --feed: #4d2436; --feed-fg: #ffd3dd;
+    --sleep: #3a2d55; --sleep-fg: #dcd0f7;
+    --diaper: #213a4a; --diaper-fg: #c6e3f5;
+    --meds: #4a3a14; --meds-fg: #ffe4a3;
+    --milk: #1f3d30; --milk-fg: #bfeeda;
+    --pump: #4a2e1e; --pump-fg: #ffd0b3;
+    --house: #34392e; --house-fg: #d2dcc5;
+    --cal: #24324d; --cal-fg: #c5d4f5;
+    --notes: #3d3324; --notes-fg: #f1e3c2;
+    --guide: #372c48; --guide-fg: #d9ccf0;
     color-scheme: dark;
   }
 }
@@ -76,6 +99,16 @@ html[data-theme="night"] {
   --night-soft: #262b22;
   --ok: #b9c6a8;
   --shadow: none;
+  --feed: #2a1420; --feed-fg: #f1c9d4;
+  --sleep: #221a33; --sleep-fg: #d0c4ea;
+  --diaper: #14232c; --diaper-fg: #b9d6e8;
+  --meds: #2a2110; --meds-fg: #efd79b;
+  --milk: #12241c; --milk-fg: #b3dfc9;
+  --pump: #2a1a12; --pump-fg: #efc5a8;
+  --house: #1f231b; --house-fg: #c5cfb8;
+  --cal: #161f30; --cal-fg: #b8c7e8;
+  --notes: #241e15; --notes-fg: #e3d5b5;
+  --guide: #211a2b; --guide-fg: #cdbfe3;
   color-scheme: dark;
 }
 
@@ -116,8 +149,9 @@ body {
   letter-spacing: -0.005em;
 }
 h1, h2, h3 { letter-spacing: -0.02em; }
-/* Display face for titles only; body stays the system font for reading at 3 am. */
-.page-title, .wordmark { font-family: var(--font-display); letter-spacing: -0.01em; }
+/* Display face for titles and card headings; body stays the system font for reading at 3 am. */
+.page-title, .wordmark, h2, .fold > summary { font-family: var(--font-display); letter-spacing: -0.01em; }
+h2.section-title { letter-spacing: 0.06em; }
 .wordmark { font-weight: 700; line-height: 1; display: inline-flex; align-items: baseline; }
 .wordmark-ar { font-family: var(--font-display-ar); font-weight: 700; line-height: 1.2; letter-spacing: 0; display: inline-flex; align-items: baseline; }
 /* The name is "nunu": big and plum. "el" / "ال" is small and apricot, a decoration before it. */
@@ -295,6 +329,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   min-height: 84px;
 }
 .tile:active { transform: scale(0.98); }
+.tile-sm { padding: 10px 4px; min-height: 0; align-items: center; gap: 4px; text-align: center; }
 .tile .tile-icon {
   display: inline-flex;
   align-items: center;
@@ -304,6 +339,106 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-radius: 10px;
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* ---- feature tints -------------------------------------------------------
+   `.tint-feed` on a card, tile, notice or fold paints it in that feature's colour and
+   gives it that feature's dark text; chips and buttons inside go white so they still
+   look pressable. Everything blending into one ivory was the first thing Dana said. */
+.tint-feed { --tint: var(--feed); --tint-fg: var(--feed-fg); }
+.tint-sleep { --tint: var(--sleep); --tint-fg: var(--sleep-fg); }
+.tint-diaper { --tint: var(--diaper); --tint-fg: var(--diaper-fg); }
+.tint-meds { --tint: var(--meds); --tint-fg: var(--meds-fg); }
+.tint-milk { --tint: var(--milk); --tint-fg: var(--milk-fg); }
+.tint-pump { --tint: var(--pump); --tint-fg: var(--pump-fg); }
+.tint-house { --tint: var(--house); --tint-fg: var(--house-fg); }
+.tint-cal { --tint: var(--cal); --tint-fg: var(--cal-fg); }
+.tint-notes { --tint: var(--notes); --tint-fg: var(--notes-fg); }
+.tint-guide { --tint: var(--guide); --tint-fg: var(--guide-fg); }
+.tint-danger { --tint: var(--danger-soft); --tint-fg: var(--danger); }
+[class*="tint-"] {
+  background: var(--tint);
+  color: var(--tint-fg);
+  border-color: transparent;
+}
+[class*="tint-"] .muted { color: inherit; opacity: 0.72; }
+[class*="tint-"] .chip, [class*="tint-"] .btn:not(.btn-primary):not(.btn-danger), [class*="tint-"] .input, [class*="tint-"] .tile-icon, [class*="tint-"] .icon-disc {
+  background: var(--card);
+  color: var(--fg);
+}
+[class*="tint-"] .chip[aria-pressed="true"] { background: var(--tint-fg); color: var(--card); }
+[class*="tint-"] .input:focus { box-shadow: 0 0 0 3px color-mix(in oklab, var(--tint-fg) 30%, transparent); border-color: var(--tint-fg); }
+[class*="tint-"] .card { background: var(--card); color: var(--fg); border-color: transparent; box-shadow: none; }
+/* A badge for the icon on a tinted card: a white disc, the feature's colour inside. */
+.icon-disc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--tint-fg, var(--accent));
+  flex: none;
+}
+/* A big one-tap tile: icon badge, big label, a small line under it. */
+.action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 76px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--fg);
+  text-align: start;
+  box-shadow: var(--shadow);
+  text-decoration: none;
+  transition: transform 120ms ease;
+}
+.action:active { transform: scale(0.98); }
+.action:disabled { opacity: 0.5; }
+.action-label { display: block; font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; line-height: 1.15; }
+.action-sub { display: block; font-size: 0.85rem; opacity: 0.75; margin-top: 2px; }
+
+/* ---- folds -----------------------------------------------------------------
+   A section that opens and closes: the title is a tinted bar you can always see, the
+   body only when you want it. Home keeps the day's one or two open and folds the rest. */
+.fold {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.fold > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 56px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary .fold-hint { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif; font-size: 0.85rem; font-weight: 600; opacity: 0.75; letter-spacing: 0; }
+.fold-chev { flex: none; transition: transform 150ms ease; opacity: 0.6; }
+.fold[open] > summary .fold-chev { transform: rotate(90deg); }
+.fold-body { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
+/* Cards inside a fold sit flat on the fold's colour. */
+.fold-body > .card { border: none; box-shadow: none; }
+.fold:not([class*="tint-"]) .fold-body > .card { background: var(--card-2); }
+
+/* ---- hero ------------------------------------------------------------------ */
+.hero {
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+  background: linear-gradient(135deg, var(--feed) 0%, var(--bg) 55%, var(--sleep) 100%);
+  border: 1px solid var(--line);
 }
 
 /* ---- tab bar ----------------------------------------------------------- */
@@ -334,7 +469,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
+.tab svg { padding: 3px 12px; border-radius: 999px; box-sizing: content-box; }
 .tab[aria-current="page"] { color: var(--accent); }
+.tab[aria-current="page"] svg { background: var(--accent-soft); }
 
 /* ---- screen frame --------------------------------------------------- */
 main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px); }

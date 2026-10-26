@@ -37,13 +37,16 @@ import { PlanCard } from "@/components/PlanCard";
 import { WeekCard } from "@/components/WeekCard";
 import type { CoachPlanData } from "@/lib/types";
 import { Icon } from "@/components/Icon";
+import { Fold } from "@/components/Fold";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Home is the child's place. Their state and the one-tap log come first, then what
- * matters at this hour (bottles while the breastfeeding parent is away, pumping,
- * the handover), then the guide. The rest of the house sits below a divider.
+ * Home is the child's place and fits a phone screen: their state and the one-tap log,
+ * the three "right now" tiles, then the alerts of this hour (bottles while the
+ * breastfeeding parent is away, the thaw, the handover). Everything else is a fold with
+ * its own colour: the guide, pumping, what is coming, the day so far, the helper, and
+ * the house (who is home, today, notes). Only the fold that matters now starts open.
  */
 export default async function HomePage() {
   const supabase = await createClient();
@@ -151,29 +154,27 @@ export default async function HomePage() {
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
 
-  // What matters at this hour, in order.
-  const blocks: Record<string, React.ReactNode> =
+  // The alerts of this hour, in order. Each is one line or a small card; they are never folded.
+  const alerts: Record<string, React.ReactNode> =
     summary && summary.ok
       ? {
           countdown: milkOk ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} timezone={tz} nextAtIso={nextBottle ? new Date(nextBottle.at).toISOString() : null} /> : null,
           thaw: milkOk ? <ThawReminder key="th" milk={milkOk} entries={week} timezone={tz} opts={thawOpts} /> : null,
           plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} /> : null,
-          pump: showPump ? <PumpTarget key="pt" pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} /> : null,
           handover:
             mamaWorks && (part === "away" || part === "evening") && hhm >= from ? (
               <HandoverSince key="h" entries={recent} fromIso={atLocal(from)} toIso={part === "away" ? now.toISOString() : atLocal(to)} label={part === "away" ? `Since ${mama?.name ?? "Mama"} left at ${fmtTime(atLocal(from), tz)}` : `While ${mama?.name ?? "Mama"} was at work`} />
             ) : null,
-          guide: <LanaGuide key="g" entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />,
-          brief: can(me, "assistant", "view") ? <BriefCard key="b" hour={hour} /> : null,
-          week: can(me, "assistant", "view") && ["Sun", "Mon"].includes(new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(now)) ? <WeekCard key="w" name={summary.subject.name} /> : null,
-          strip: <DayStrip key="s" entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} title={`${possessive(summary.subject.name)} day so far`} />,
         }
       : {};
   const order =
-    part === "morning" ? ["brief", "week", "pump", "guide", "countdown", "strip"]
-    : part === "away" ? ["countdown", "plan", "handover", "guide", "pump", "strip", "brief", "week"]
-    : part === "evening" ? ["thaw", "handover", "guide", "pump", "strip", "brief", "week", "countdown"]
-    : ["thaw", "guide", "strip", "countdown", "brief", "week"];
+    part === "away" ? ["countdown", "plan", "handover"]
+    : part === "evening" ? ["thaw", "handover"]
+    : part === "night" ? ["thaw", "countdown"]
+    : ["countdown"];
+  const inHouse = household.ok ? household.members.filter((m) => m.presence?.in_house).map((m) => m.name) : [];
+  const assistant = can(me, "assistant", "view");
+  const isWeekDay = ["Sun", "Mon"].includes(new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(now));
 
   return (
     <div className="flex flex-col gap-4">
@@ -187,16 +188,14 @@ export default async function HomePage() {
             .map((d) => (
               <VaccineNotice key={d.visit} item={d} timezone={tz} />
             ))}
-          {can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} limit={2} canDelete={can(me, "lana", "delete")} />}
+          {can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} compact canDelete={can(me, "lana", "delete")} />}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
-          {summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
           {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
-          <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} entries={week} feedIntervalMin={feedGapMin} />
           <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />
-          <PlanCard plan={plan} />
-          <LanaForecast entries={week} timezone={tz} away={awayAt} feedIntervalMin={summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180} hours={6} limit={3} compact />
+          {summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
+          {order.map((k) => alerts[k])}
           {sitter && (
-            <section className="card" aria-labelledby="sit-h">
+            <section className="card tint-guide" aria-labelledby="sit-h">
               <h2 id="sit-h" className="text-lg font-semibold">
                 While you are with {pr.them}
               </h2>
@@ -217,21 +216,45 @@ export default async function HomePage() {
               </div>
             </section>
           )}
-          {order.map((k) => blocks[k])}
-          <div className="grid grid-cols-4 gap-2">
-            <Link href="/baby" className="btn">
-              {summary.subject.name}
-            </Link>
-            <Link href="/baby/milk" className="btn">
-              Milk
-            </Link>
-            <Link href="/baby?tab=handover" className="btn">
-              Handover
-            </Link>
-            <Link href="/baby/doctor" className="btn">
-              Doctor
-            </Link>
-          </div>
+
+          <LanaGuide fold entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />
+          {showPump && (
+            <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0)} ml since last evening`} open={part === "morning" && !!me.member.breastfeeds}>
+              <PumpTarget pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} />
+            </Fold>
+          )}
+          <Fold title="Coming up" icon="clock" tint="sleep" hint="next few hours">
+            <LanaForecast bare entries={week} timezone={tz} away={awayAt} feedIntervalMin={feedGapMin} hours={12} />
+            <PlanCard plan={plan} />
+          </Fold>
+          <Fold title={`${possessive(summary.subject.name)} day so far`} icon="history" tint="feed" hint={`${recent.filter((e) => e.occurred_at >= dayRange(today, tz).from).length} logged`}>
+            <DayStrip entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} />
+            <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} entries={week} feedIntervalMin={feedGapMin} />
+          </Fold>
+          {assistant && (
+            <Fold title="The helper's brief" icon="sparkles" tint="guide" hint={hour < 12 ? "this morning" : "today, in short"}>
+              <BriefCard hour={hour} />
+              {isWeekDay && <WeekCard name={summary.subject.name} />}
+            </Fold>
+          )}
+
+          <nav aria-label="Shortcuts" className="grid grid-cols-4 gap-2">
+            {(
+              [
+                { href: "/baby", icon: "baby", label: summary.subject.name, tint: "feed" },
+                { href: "/baby/milk", icon: "droplet", label: "Milk", tint: "milk" },
+                { href: "/baby?tab=handover", icon: "clipboard", label: "Handover", tint: "pump" },
+                { href: "/baby/doctor", icon: "phone", label: "Doctor", tint: "meds" },
+              ] as const
+            ).map((t) => (
+              <Link key={t.href} href={t.href} className={`tile tile-sm tint-${t.tint}`}>
+                <span className="icon-disc" style={{ width: 36, height: 36 }}>
+                  <Icon name={t.icon} size={20} />
+                </span>
+                <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
+              </Link>
+            ))}
+          </nav>
         </>
       ) : (
         <header className="page-header page-header-large">
@@ -263,21 +286,17 @@ export default async function HomePage() {
           {can(me, "members", "edit") && staffToday.map((m) => <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={tz} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />)}
         </div>
       )}
-      {household.ok && !sitter && <HouseholdCard data={household} me={me} />}
+      {household.ok && !sitter && (
+        <Fold title="Who is home" icon="users" tint="house" hint={inHouse.length ? inHouse.join(", ") : "nobody marked"}>
+          <HouseholdCard data={household} me={me} bare />
+        </Fold>
+      )}
       {calendar && calendar.ok && (
-        <section className="card" aria-labelledby="today-h">
-          <div className="flex items-baseline justify-between">
-            <h2 id="today-h" className="text-xl font-semibold">
-              Today
-            </h2>
-            <Link href="/calendar" className="text-sm font-semibold text-[var(--accent)]">
-              Calendar ›
-            </Link>
-          </div>
+        <Fold title="Today" icon="calendar" tint="cal" hint={todays.length === 0 ? "nothing planned" : `${todays.length} planned`} open={todays.length > 0}>
           {todays.length === 0 ? (
-            <p className="muted mt-1">Nothing planned today.</p>
+            <p className="muted">Nothing planned today.</p>
           ) : (
-            <ul className="mt-2 flex flex-col gap-1">
+            <ul className="flex flex-col gap-1">
               {todays.map((e) => (
                 <li key={e.id + e.starts_at}>
                   <span aria-hidden>{EVENT_KINDS.find((k) => k.id === e.kind)?.icon} </span>
@@ -287,10 +306,17 @@ export default async function HomePage() {
               ))}
             </ul>
           )}
-          {tomorrows.length > 0 && <p className="muted mt-2 text-sm">Tomorrow: {tomorrows.map((e) => e.title).join(", ")}</p>}
-        </section>
+          {tomorrows.length > 0 && <p className="muted text-sm">Tomorrow: {tomorrows.map((e) => e.title).join(", ")}</p>}
+          <Link href="/calendar" className="text-sm font-semibold underline">
+            Calendar ›
+          </Link>
+        </Fold>
       )}
-      {notes && notes.ok && <NotesBoard notes={notes.notes} compact />}
+      {notes && notes.ok && (
+        <Fold title="Notes" icon="note" tint="notes" hint={notes.notes.length === 0 ? "none yet" : `${notes.notes.length} recent`}>
+          <NotesBoard notes={notes.notes} compact bare />
+        </Fold>
+      )}
     </div>
   );
 }

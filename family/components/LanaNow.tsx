@@ -165,22 +165,23 @@ export function LanaNow({
         <Icon name="zzz" size={18} className="inline" /> Asleep since {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "notice-night";
+    tone = "tint-sleep";
   } else if (state.kind === "feeding") {
     status = (
       <>
         <Icon name="bottle" size={18} className="inline" /> Feeding{state.side ? `, ${state.side.toLowerCase()}` : ""} · {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "notice-ok";
+    tone = "tint-feed";
   } else if (state.kind === "night_awake") {
     status = (
       <>
         <Icon name="moon" size={18} className="inline" /> Awake in the night since {sinceText(state.entry.occurred_at)}
       </>
     );
-    tone = "notice-warn";
+    tone = "tint-meds";
   } else {
+    tone = "tint-house";
     status = (
       <>
         <Icon name="sun" size={18} className="inline" /> Awake{state.since ? ` since ${sinceText(state.since)}` : ""}
@@ -188,10 +189,25 @@ export function LanaNow({
     );
   }
 
-  const Big = ({ onClick, children, primary = true }: { onClick: () => void; children: React.ReactNode; primary?: boolean }) => (
-    <button className={`btn ${primary ? "btn-primary" : ""} min-h-[72px] text-xl`} onClick={onClick} disabled={busy || !canAdd}>
-      {children}
+  // A big tap: the feature's colour, the icon on a white disc, the label in the display face.
+  const Big = ({ onClick, icon, tint, children, sub }: { onClick: () => void; icon: "zzz" | "sun" | "moon" | "bottle" | "check"; tint: string; children: React.ReactNode; sub?: string }) => (
+    <button type="button" className={`action tint-${tint}`} onClick={onClick} disabled={busy || !canAdd}>
+      <span className="icon-disc">
+        <Icon name={icon} size={22} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="action-label">{children}</span>
+        {sub && <span className="action-sub">{sub}</span>}
+      </span>
     </button>
+  );
+  const CardTitle = ({ icon, children }: { icon: "bottle" | "droplet" | "diaper"; children: React.ReactNode }) => (
+    <p className="flex items-center gap-2">
+      <span className="icon-disc" style={{ width: 32, height: 32 }}>
+        <Icon name={icon} size={18} />
+      </span>
+      <span className="action-label text-lg">{children}</span>
+    </p>
   );
 
   return (
@@ -235,7 +251,9 @@ export function LanaNow({
               Still feeding? Over 30 min on one side. The timer may have been left on: tap the boob to stop it.
             </p>
           )}
-          <Big onClick={() => run("Feed saved.", () => end(state.entry))}>Done feeding</Big>
+          <Big icon="check" tint="feed" onClick={() => run("Feed saved.", () => end(state.entry))} sub="Save the feed and stop the timer">
+            Done feeding
+          </Big>
         </>
       )}
 
@@ -243,6 +261,9 @@ export function LanaNow({
       {state.kind === "asleep" && (
         <div className="grid grid-cols-1 gap-3">
           <Big
+            icon={isNight ? "moon" : "sun"}
+            tint="meds"
+            sub={isNight ? "Ends the sleep and starts a night wake-up" : "Ends the sleep"}
             onClick={() =>
               run(isNight ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
                 await end(state.entry);
@@ -250,18 +271,19 @@ export function LanaNow({
               })
             }
           >
-            <Icon name={isNight ? "moon" : "sun"} size={20} /> {isNight ? "Woke up (night)" : "Woke up"}
+            {isNight ? "Woke up (night)" : "Woke up"}
           </Big>
           {isNight && (
             <Big
-              primary={false}
+              icon="sun"
+              tint="pump"
               onClick={() =>
                 run("Up for the day.", async () => {
                   await end(state.entry);
                 })
               }
             >
-              <Icon name="sun" size={20} /> Up for the day
+              Up for the day
             </Big>
           )}
         </div>
@@ -280,10 +302,8 @@ export function LanaNow({
               onTap={(s) => run(`${s} boob started.`, () => start(feedType, { method: "Breast", side: s }))}
             />
           )}
-          <div className="card">
-            <p className="font-semibold">
-              <Icon name="bottle" size={20} /> Bottle
-            </p>
+          <div className="card tint-feed">
+            <CardTitle icon="bottle">Bottle</CardTitle>
             {milkOptions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Which milk">
                 {milkOptions.map((m) => (
@@ -318,10 +338,8 @@ export function LanaNow({
             </div>
           </div>
           {breastfeeds && pumpType && (
-            <div className="card">
-              <p className="font-semibold">
-                <Icon name="droplet" size={20} /> Pump, to the fridge
-              </p>
+            <div className="card tint-pump">
+              <CardTitle icon="droplet">Pump, to the fridge</CardTitle>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[90, 120, 150, 180].map((ml) => (
                   <button
@@ -342,10 +360,8 @@ export function LanaNow({
               </div>
             </div>
           )}
-          <div className="card">
-            <p className="font-semibold">
-              <Icon name="diaper" size={20} /> Diaper
-            </p>
+          <div className="card tint-diaper">
+            <CardTitle icon="diaper">Diaper</CardTitle>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
                 <button
@@ -361,6 +377,9 @@ export function LanaNow({
             </div>
           </div>
           <Big
+            icon="zzz"
+            tint="sleep"
+            sub="Starts the sleep timer"
             onClick={() =>
               run("Sleep started.", async () => {
                 if (state.kind === "night_awake") await end(state.entry);
@@ -368,7 +387,7 @@ export function LanaNow({
               })
             }
           >
-            <Icon name="zzz" size={20} /> {state.kind === "night_awake" ? "Back to sleep" : "Fell asleep"}
+            {state.kind === "night_awake" ? "Back to sleep" : "Fell asleep"}
           </Big>
         </>
       )}

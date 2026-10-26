@@ -11,7 +11,7 @@ const ICON: Record<ForecastItem["kind"], IconName> = { feed: "bottle", diaper: "
  * last 7 days of the child's log and the work hours of whoever breastfeeds; nothing
  * here is logged. Server-rendered; it refreshes with the page.
  */
-export function LanaForecast({ entries, timezone, away, feedIntervalMin, hours = 12, limit, title = "Coming up", compact = false }: { entries: EntryRow[]; timezone: string; away?: (at: number) => boolean; feedIntervalMin?: number; hours?: number; limit?: number; title?: string; compact?: boolean }) {
+export function LanaForecast({ entries, timezone, away, feedIntervalMin, hours = 12, limit, title = "Coming up", compact = false, bare = false }: { entries: EntryRow[]; timezone: string; away?: (at: number) => boolean; feedIntervalMin?: number; hours?: number; limit?: number; title?: string; compact?: boolean; bare?: boolean }) {
   const items = forecast(entries, { hours, away, feedIntervalMin });
   const shown = limit ? items.slice(0, limit) : items;
   if (shown.length === 0) return null;
@@ -32,10 +32,12 @@ export function LanaForecast({ entries, timezone, away, feedIntervalMin, hours =
     );
   }
   return (
-    <section className="card" aria-labelledby="fc-h">
-      <h2 id="fc-h" className="font-semibold">
-        {title}
-      </h2>
+    <section className={bare ? "" : "card"} aria-labelledby={bare ? undefined : "fc-h"} aria-label={bare ? title : undefined}>
+      {!bare && (
+        <h2 id="fc-h" className="font-semibold">
+          {title}
+        </h2>
+      )}
       <p className="muted text-sm">A guess from the last 7 days. It moves as you log.</p>
       <ul className="mt-2 flex flex-col">
         {shown.map((i) => (

@@ -14,7 +14,7 @@ import { Icon } from "@/components/Icon";
  * "Just for me" keeps a note private to its author (a grandmother's own log).
  * compact = the home-screen card: a few notes and a quick line to add one.
  */
-export function NotesBoard({ notes, compact = false }: { notes: Note[]; compact?: boolean }) {
+export function NotesBoard({ notes, compact = false, bare = false }: { notes: Note[]; compact?: boolean; bare?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const [text, setText] = useState("");
@@ -46,17 +46,19 @@ export function NotesBoard({ notes, compact = false }: { notes: Note[]; compact?
   }
 
   return (
-    <section className="card flex flex-col gap-3" aria-labelledby="notes-h">
-      <div className="flex items-center justify-between">
-        <h2 id="notes-h" className="text-lg font-semibold">
-          Notes
-        </h2>
-        {compact && (
-          <Link href="/notes" className="text-sm font-semibold text-[var(--accent)]">
-            All notes ›
-          </Link>
-        )}
-      </div>
+    <section className={`flex flex-col gap-3 ${bare ? "" : "card"}`} aria-labelledby={bare ? undefined : "notes-h"} aria-label={bare ? "Notes" : undefined}>
+      {!bare && (
+        <div className="flex items-center justify-between">
+          <h2 id="notes-h" className="text-lg font-semibold">
+            Notes
+          </h2>
+          {compact && (
+            <Link href="/notes" className="text-sm font-semibold text-[var(--accent)]">
+              All notes ›
+            </Link>
+          )}
+        </div>
+      )}
       {canAdd && (
         <form onSubmit={add} className="flex flex-col gap-2">
           <div className="flex gap-2">
@@ -103,6 +105,11 @@ export function NotesBoard({ notes, compact = false }: { notes: Note[]; compact?
             </li>
           ))}
         </ul>
+      )}
+    {bare && compact && (
+        <Link href="/notes" className="text-sm font-semibold underline">
+          All notes ›
+        </Link>
       )}
     </section>
   );
