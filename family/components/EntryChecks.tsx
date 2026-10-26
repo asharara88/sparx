@@ -26,9 +26,7 @@ export function EntryChecks({ entries, timezone, limit, canDelete, compact = fal
   if (compact) {
     return (
       <a href="/baby" className="notice notice-warn row-link flex items-center gap-3 no-underline">
-        <span className="font-semibold">
-          {all.length === 1 ? "1 entry" : `${all.length} entries`} to check: {all[0].title.replace(/\.$/, "").toLowerCase()}
-        </span>
+        <span className="font-semibold">{all.length === 1 ? "1 entry to check" : `${all.length} entries to check`}</span>
         <span aria-hidden className="ml-auto">
           ›
         </span>

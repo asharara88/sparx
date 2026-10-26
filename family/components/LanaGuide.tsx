@@ -40,13 +40,11 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
   );
   // On Home the guide is a fold: shut when all is well, open when a tip needs reading.
   if (fold) {
+    if (tips.length === 0) return null;
     const worst = tips.find((t) => t.level === "red") ? "red" : tips.find((t) => t.level === "yellow") ? "yellow" : null;
     return (
-      <Fold title={`${possessive(childName(me))} guide`} icon="sparkles" tint={worst === "red" ? "danger" : worst === "yellow" ? "meds" : "guide"} hint={tips.length === 0 ? "all on track" : `${tips.length} to read`} open={tips.length > 0}>
+      <Fold title={`${possessive(childName(me))} guide`} icon="sparkles" tint={worst === "red" ? "danger" : worst === "yellow" ? "meds" : "guide"} hint={`${tips.length} to read`} open>
         {body}
-        <Link href="/baby/when-to-call" className="text-sm font-semibold underline">
-          When to call the doctor ›
-        </Link>
       </Fold>
     );
   }

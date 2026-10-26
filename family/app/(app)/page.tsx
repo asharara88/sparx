@@ -3,28 +3,22 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { awayParent, awayParentOn } from "@/lib/handover";
 import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, Suggestion } from "@/lib/types";
-import { EVENT_KINDS, can } from "@/lib/types";
-import { childPronouns, possessive } from "@/lib/names";
+import { can } from "@/lib/types";
+import { possessive } from "@/lib/names";
 import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
-import { HouseholdCard } from "@/components/HouseholdCard";
-import { BriefCard } from "@/components/BriefCard";
 import { SuggestionCards } from "@/components/SuggestionCards";
-import { NotesBoard } from "@/components/NotesBoard";
 import { AttendanceButton } from "@/components/AttendanceButton";
 import { BottleCountdown } from "@/components/BottleCountdown";
-import { VaccineNotice } from "@/components/VaccineNotice";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { SimpleHome } from "@/components/SimpleHome";
 import { LanaHero } from "@/components/LanaHero";
 import { LanaNow } from "@/components/LanaNow";
 import { RightNow } from "@/components/RightNow";
-import { EmergencyRow } from "@/components/EmergencyRow";
 import { LanaGuide } from "@/components/LanaGuide";
 import { PumpTarget } from "@/components/PumpTarget";
 import { HandoverSince } from "@/components/HandoverSince";
 import { FridgePlan } from "@/components/FridgePlan";
 import { DayStrip } from "@/components/DayStrip";
-import { LanaForecast } from "@/components/LanaForecast";
 import { SayIt } from "@/components/SayIt";
 import { EntryChecks } from "@/components/EntryChecks";
 import { NextNap } from "@/components/NextNap";
@@ -33,8 +27,6 @@ import { ageDays } from "@/lib/norms";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
 import { milkForecast } from "@/lib/milk-insights";
-import { PlanCard } from "@/components/PlanCard";
-import { WeekCard } from "@/components/WeekCard";
 import type { CoachPlanData } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { Fold } from "@/components/Fold";
@@ -42,11 +34,10 @@ import { Fold } from "@/components/Fold";
 export const dynamic = "force-dynamic";
 
 /**
- * Home is the child's place and fits a phone screen: their state and the one-tap log,
- * the three "right now" tiles, then the alerts of this hour (bottles while the
- * breastfeeding parent is away, the thaw, the handover). Everything else is a fold with
- * its own colour: the guide, pumping, what is coming, the day so far, the helper, and
- * the house (who is home, today, notes). Only the fold that matters now starts open.
+ * Home is the child's place and fits a phone screen with few words: the child, four
+ * tiles to log with, the three "right now" tiles, then the alerts of this hour (bottles
+ * while the breastfeeding parent is away, the thaw, the handover). Below: the guide only
+ * when it has a tip, pumping, the day so far, and icon tiles to everything else.
  */
 export default async function HomePage() {
   const supabase = await createClient();
@@ -60,7 +51,6 @@ export default async function HomePage() {
   const tz = me.household.timezone;
   const today = todayYmd(tz);
   const now = new Date();
-  const pr = childPronouns(me);
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
@@ -95,7 +85,6 @@ export default async function HomePage() {
   const summary = sumData as HomeSummary | RpcError | null;
   const calendar = calData as CalendarData | RpcError | null;
   const todays = calendar && calendar.ok ? calendar.events.filter((e) => e.date === today) : [];
-  const tomorrows = calendar && calendar.ok ? calendar.events.filter((e) => e.date === addDays(today, 1)) : [];
 
   // Entries from yesterday noon until now: the night and today, for the child's strip and current state.
   let recent: EntryRow[] = [];
@@ -150,7 +139,6 @@ export default async function HomePage() {
   const tFrom = hhmm(tomorrowsParent?.work_from, WORK_FROM);
   const tTo = hhmm(tomorrowsParent?.work_to, WORK_TO);
   const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(tTo / 100) * 60 + (tTo % 100)) - (Math.floor(tFrom / 100) * 60 + (tFrom % 100)), intervalMin: bottleGapMin, hour };
-  const aroundTheHouse = suggestions.length > 0 || (household.ok && household.members.length > 1 && (can(me, "members", "view") || can(me, "calendar", "view"))) || (calendar && calendar.ok) || (notes && notes.ok);
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
   const showPump = me.member.breastfeeds || me.role.id === "admin";
 
@@ -173,87 +161,75 @@ export default async function HomePage() {
     : part === "night" ? ["thaw", "countdown"]
     : ["countdown"];
   const inHouse = household.ok ? household.members.filter((m) => m.presence?.in_house).map((m) => m.name) : [];
-  const assistant = can(me, "assistant", "view");
-  const isWeekDay = ["Sun", "Mon"].includes(new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(now));
+  const vaccine = summary && summary.ok ? due.find((d) => d.kind === "vaccine" && d.subject_id === summary.subject.id) : undefined;
+  const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
 
   return (
     <div className="flex flex-col gap-4">
       {summary && summary.ok ? (
         <>
-          <LanaHero summary={summary} me={me} today={today} dateLine={`${greeting}, ${me.member.display_name} · ${fmtDate(now.toISOString(), tz, { weekday: "long", day: "numeric", month: "long" })}`} />
-          <EmergencyRow lang={(me.member.lang ?? "en") as "en" | "ar" | "ru"} />
-          {due
-            .filter((d) => d.kind === "vaccine" && d.subject_id === summary.subject.id)
-            .slice(0, 1)
-            .map((d) => (
-              <VaccineNotice key={d.visit} item={d} timezone={tz} />
-            ))}
+          <LanaHero summary={summary} me={me} today={today} />
+          <div className="flex flex-wrap gap-2">
+            {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt compact />}
+            <Link href="/baby/emergency" className="chip tint-danger">
+              <Icon name="phone" size={18} /> Emergency
+            </Link>
+            {vaccine && (
+              <Link href="/baby/vaccines" className={`chip ${vaccine.overdue ? "tint-danger" : "tint-meds"}`}>
+                <Icon name="syringe" size={18} /> Vaccines {vaccine.overdue ? "overdue" : "due"}
+              </Link>
+            )}
+          </div>
           {can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} compact canDelete={can(me, "lana", "delete")} />}
           <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
-          {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt />}
           <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />
           {summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
           {order.map((k) => alerts[k])}
           {sitter && (
-            <section className="card tint-guide" aria-labelledby="sit-h">
-              <h2 id="sit-h" className="text-lg font-semibold">
-                While you are with {pr.them}
-              </h2>
-              <p className="muted mt-1 text-sm">Everything you need is here: what {summary.subject.name} has had, when to call, and who to call.</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <Link href="/baby?tab=handover" className="btn">
-                  Handover
-                </Link>
-                <Link href="/baby/when-to-call" className="btn">
-                  When to call
-                </Link>
-                <Link href="/baby/emergency" className="btn">
-                  Emergency
-                </Link>
-                <Link href="/ask" className="btn">
-                  Ask the helper
-                </Link>
-              </div>
-            </section>
+            <nav aria-label="While you are with the child" className="grid grid-cols-2 gap-2">
+              <Link href="/baby?tab=handover" className="btn">
+                Handover
+              </Link>
+              <Link href="/baby/when-to-call" className="btn">
+                When to call
+              </Link>
+            </nav>
           )}
 
           <LanaGuide fold entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />
           {showPump && (
-            <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0)} ml since last evening`} open={part === "morning" && !!me.member.breastfeeds}>
+            <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${me.household.milk_target_ml ?? 400} ml`} open={part === "morning" && !!me.member.breastfeeds}>
               <PumpTarget pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} />
             </Fold>
           )}
-          <Fold title="Coming up" icon="clock" tint="sleep" hint="next few hours">
-            <LanaForecast bare entries={week} timezone={tz} away={awayAt} feedIntervalMin={feedGapMin} hours={12} />
-            <PlanCard plan={plan} />
-          </Fold>
-          <Fold title={`${possessive(summary.subject.name)} day so far`} icon="history" tint="feed" hint={`${recent.filter((e) => e.occurred_at >= dayRange(today, tz).from).length} logged`}>
+          <Fold title="Day so far" icon="history" tint="feed" hint={`${recent.filter((e) => e.occurred_at >= dayRange(today, tz).from).length} logged`}>
             <DayStrip entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} />
             <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} entries={week} feedIntervalMin={feedGapMin} />
           </Fold>
-          {assistant && (
-            <Fold title="The helper's brief" icon="sparkles" tint="guide" hint={hour < 12 ? "this morning" : "today, in short"}>
-              <BriefCard hour={hour} />
-              {isWeekDay && <WeekCard name={summary.subject.name} />}
-            </Fold>
-          )}
 
           <nav aria-label="Shortcuts" className="grid grid-cols-4 gap-2">
             {(
               [
-                { href: "/baby", icon: "baby", label: summary.subject.name, tint: "feed" },
-                { href: "/baby/milk", icon: "droplet", label: "Milk", tint: "milk" },
-                { href: "/baby?tab=handover", icon: "clipboard", label: "Handover", tint: "pump" },
-                { href: "/baby/doctor", icon: "phone", label: "Doctor", tint: "meds" },
+                { href: "/baby", icon: "baby", label: summary.subject.name, tint: "feed", hint: null },
+                { href: "/baby/milk", icon: "droplet", label: "Milk", tint: "milk", hint: milkOk ? `${milkOk.fridge_ml} ml` : null },
+                { href: "/baby?tab=handover", icon: "clipboard", label: "Handover", tint: "pump", hint: null },
+                { href: "/baby/doctor", icon: "phone", label: "Doctor", tint: "meds", hint: null },
+                { href: "/calendar", icon: "calendar", label: "Calendar", tint: "cal", hint: todays.length ? `${todays.length} today` : null },
+                { href: "/notes", icon: "note", label: "Notes", tint: "notes", hint: notes && notes.ok && notes.notes.length ? `${notes.notes.length}` : null },
+                { href: "/members", icon: "users", label: "Who's home", tint: "house", hint: inHouse.length ? `${inHouse.length} here` : null },
+                { href: "/ask", icon: "sparkles", label: "Ask", tint: "guide", hint: null },
               ] as const
-            ).map((t) => (
-              <Link key={t.href} href={t.href} className={`tile tile-sm tint-${t.tint}`}>
-                <span className="icon-disc" style={{ width: 36, height: 36 }}>
-                  <Icon name={t.icon} size={20} />
-                </span>
-                <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
-              </Link>
-            ))}
+            )
+              .filter((t) => (t.href === "/calendar" ? !!calendar?.ok : t.href === "/notes" ? !!notes?.ok : t.href === "/members" ? household.ok && !sitter : t.href === "/ask" ? can(me, "assistant", "view") : true))
+              .map((t) => (
+                <Link key={t.href} href={t.href} className={`tile tile-sm tint-${t.tint}`}>
+                  <span className="icon-disc" style={{ width: 36, height: 36 }}>
+                    <Icon name={t.icon} size={20} />
+                  </span>
+                  <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
+                  {t.hint && <span className="muted text-[10px] leading-none">{t.hint}</span>}
+                </Link>
+              ))}
           </nav>
         </>
       ) : (
@@ -270,11 +246,6 @@ export default async function HomePage() {
         </div>
       )}
 
-      {aroundTheHouse && !sitter && (
-        <h2 className="section-title mt-2 flex items-center gap-2">
-          <Icon name="house" size={18} /> Around the house
-        </h2>
-      )}
       <SuggestionCards suggestions={suggestions} />
       {attendance && attendance.ok && (attendance.open.length > 0 || (can(me, "members", "edit") && staffToday.length > 0)) && (
         <div className="flex flex-wrap items-center gap-2 px-1">
@@ -285,37 +256,6 @@ export default async function HomePage() {
           ))}
           {can(me, "members", "edit") && staffToday.map((m) => <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={tz} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />)}
         </div>
-      )}
-      {household.ok && !sitter && (
-        <Fold title="Who is home" icon="users" tint="house" hint={inHouse.length ? inHouse.join(", ") : "nobody marked"}>
-          <HouseholdCard data={household} me={me} bare />
-        </Fold>
-      )}
-      {calendar && calendar.ok && (
-        <Fold title="Today" icon="calendar" tint="cal" hint={todays.length === 0 ? "nothing planned" : `${todays.length} planned`} open={todays.length > 0}>
-          {todays.length === 0 ? (
-            <p className="muted">Nothing planned today.</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {todays.map((e) => (
-                <li key={e.id + e.starts_at}>
-                  <span aria-hidden>{EVENT_KINDS.find((k) => k.id === e.kind)?.icon} </span>
-                  <b>{e.all_day ? "All day" : fmtTime(e.starts_at, tz)}</b> · {e.title}
-                  {e.assigned_name ? ` · ${e.assigned_name}` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
-          {tomorrows.length > 0 && <p className="muted text-sm">Tomorrow: {tomorrows.map((e) => e.title).join(", ")}</p>}
-          <Link href="/calendar" className="text-sm font-semibold underline">
-            Calendar ›
-          </Link>
-        </Fold>
-      )}
-      {notes && notes.ok && (
-        <Fold title="Notes" icon="note" tint="notes" hint={notes.notes.length === 0 ? "none yet" : `${notes.notes.length} recent`}>
-          <NotesBoard notes={notes.notes} compact bare />
-        </Fold>
       )}
     </div>
   );

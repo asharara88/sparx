@@ -25,7 +25,7 @@ function recognitionCtor(): (new () => Recognition) | null {
  * One mic on Home: say "drank 90 ml" or "wet nappy" and it goes to Ask,
  * which prepares the entry for a one-tap Confirm. Nothing is saved from here.
  */
-export function SayIt() {
+export function SayIt({ compact = false }: { compact?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const [can, setCan] = useState(false);
@@ -69,6 +69,14 @@ export function SayIt() {
     }
   }
 
+  if (compact) {
+    return (
+      <button type="button" className={`chip ${listening ? "" : "tint-guide"}`} aria-pressed={listening} onClick={start}>
+        {listening ? <span className="dot dot-danger" /> : <Icon name="mic" size={18} />}
+        {listening ? (heard ? `“${heard.slice(0, 40)}”` : "Listening…") : "Say it"}
+      </button>
+    );
+  }
   return (
     <button type="button" className={`btn flex w-full items-center justify-center gap-2 ${listening ? "btn-primary" : ""}`} style={{ minHeight: 52 }} onClick={start} aria-pressed={listening}>
       {listening ? <span className="dot dot-danger" /> : <Icon name="mic" size={20} />}
