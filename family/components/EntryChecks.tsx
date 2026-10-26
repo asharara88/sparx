@@ -13,7 +13,7 @@ import { childName, possessive } from "@/lib/names";
  * data supports. Shown on Home (the first two) and on the child's Today (all).
  * Every decision is one tap and audited.
  */
-export function EntryChecks({ entries, timezone, limit, canDelete }: { entries: EntryRow[]; timezone: string; limit?: number; canDelete: boolean }) {
+export function EntryChecks({ entries, timezone, limit, canDelete, compact = false }: { entries: EntryRow[]; timezone: string; limit?: number; canDelete: boolean; compact?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -22,6 +22,19 @@ export function EntryChecks({ entries, timezone, limit, canDelete }: { entries: 
   const all = checkEntries(entries).filter((f) => !hidden.has(f.id));
   const flags = limit ? all.slice(0, limit) : all;
   if (flags.length === 0) return null;
+  // Home: one line, the decisions wait on the child's page where there is room for them.
+  if (compact) {
+    return (
+      <a href="/baby" className="notice notice-warn row-link flex items-center gap-3 no-underline">
+        <span className="font-semibold">
+          {all.length === 1 ? "1 entry" : `${all.length} entries`} to check: {all[0].title.replace(/\.$/, "").toLowerCase()}
+        </span>
+        <span aria-hidden className="ml-auto">
+          ›
+        </span>
+      </a>
+    );
+  }
 
   async function act(f: CheckFlag, action: "ok" | "end" | "delete") {
     setBusy(f.id);

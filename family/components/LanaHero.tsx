@@ -11,7 +11,7 @@ export function LanaHero({ summary, me, today, dateLine }: { summary: HomeSummar
   const photo = (s.profile?.photo_path as string | undefined) ?? null;
   const age = s.birth_date ? `${ageLabel(ageDays(s.birth_date, today))} old` : "";
   return (
-    <header className="page-header page-header-large">
+    <header className="hero">
       <div className="flex items-center gap-3">
         <Avatar name={s.name} path={photo} size={64} />
         <div className="min-w-0 flex-1">

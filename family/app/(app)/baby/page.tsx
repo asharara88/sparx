@@ -28,6 +28,8 @@ import { Backfill } from "@/components/Backfill";
 import { MoodPattern } from "@/components/MoodPattern";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
+import { Fold, type Tint } from "@/components/Fold";
+import { tintFor } from "@/lib/tints";
 
 export const dynamic = "force-dynamic";
 
@@ -51,19 +53,20 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
   const age = s.birth_date ? `${ageLabel(ageDays(s.birth_date, today))} old` : "";
   const photo = (s.profile?.photo_path as string | undefined) ?? null;
 
-  const tiles: { href: string; icon: IconName; label: string }[] = [
-    { href: "/baby/milk", icon: "droplet", label: "Milk" },
-    { href: "/baby/vaccines", icon: "syringe", label: "Vaccines" },
-    { href: "/baby/medicine", icon: "clock", label: "Medicine" },
-    { href: "/baby/doctor", icon: "phone", label: "Doctor" },
-    { href: "/baby/milestones", icon: "star", label: "Firsts" },
-    { href: "/baby/activities", icon: "sparkles", label: "Play" },
-    { href: "/baby/trends", icon: "trend", label: "Growth" },
-    { href: "/baby/weeks", icon: "calendar", label: "Weeks" },
-    { href: "/baby/story", icon: "note", label: "Story" },
-    { href: "/baby/emergency", icon: "bell", label: "Emergency" },
-    { href: "/baby/when-to-call", icon: "clipboard", label: "When to call" },
-    { href: "/baby/export", icon: "printer", label: "For the doctor" },
+  // Everything about the child, one tile each, in the colour of its feature.
+  const tiles: { href: string; icon: IconName; label: string; tint: Tint }[] = [
+    { href: "/baby/milk", icon: "droplet", label: "Milk", tint: "milk" },
+    { href: "/baby/vaccines", icon: "syringe", label: "Vaccines", tint: "meds" },
+    { href: "/baby/medicine", icon: "clock", label: "Medicine", tint: "meds" },
+    { href: "/baby/doctor", icon: "phone", label: "Doctor", tint: "feed" },
+    { href: "/baby/milestones", icon: "star", label: "Firsts", tint: "sleep" },
+    { href: "/baby/activities", icon: "sparkles", label: "Play", tint: "pump" },
+    { href: "/baby/trends", icon: "trend", label: "Growth", tint: "house" },
+    { href: "/baby/weeks", icon: "calendar", label: "Weeks", tint: "cal" },
+    { href: "/baby/story", icon: "note", label: "Story", tint: "notes" },
+    { href: "/baby/emergency", icon: "bell", label: "Emergency", tint: "danger" },
+    { href: "/baby/when-to-call", icon: "clipboard", label: "When to call", tint: "diaper" },
+    { href: "/baby/export", icon: "printer", label: "For the doctor", tint: "guide" },
   ];
 
   return (
@@ -75,19 +78,23 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
           <p className="muted">{age}</p>
         </div>
       </header>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-        {tiles.map((t) => (
-          <Link key={t.href} href={t.href} className="chip shrink-0">
-            <Icon name={t.icon} size={16} /> {t.label}
-          </Link>
-        ))}
-      </div>
       <LanaTabs active={tab} day={day} />
       {tab === "today" && <TodayTab supabase={supabase} me={me} summary={summary} day={day} today={today} tz={tz} pr={pr} />}
       {tab === "patterns" && <PatternsTab supabase={supabase} summary={summary} today={today} tz={tz} pr={pr} />}
       {tab === "week" && <WeekTab supabase={supabase} summary={summary} today={today} />}
       {tab === "handover" && <HandoverTab supabase={supabase} summary={summary} />}
       {tab === "ask" && <AskTab me={me} name={s.name} pr={pr} />}
+      <h2 className="section-title mt-2">More about {s.name}</h2>
+      <nav aria-label={`More about ${s.name}`} className="grid grid-cols-4 gap-2">
+        {tiles.map((t) => (
+          <Link key={t.href} href={t.href} className={`tile tile-sm tint-${t.tint}`}>
+            <span className="icon-disc" style={{ width: 36, height: 36 }}>
+              <Icon name={t.icon} size={20} />
+            </span>
+            <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
@@ -173,13 +180,31 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
       {isToday && can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />}
       {isToday && summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} />}
       {isToday && <MoodTap subjectId={summary.subject.id} today={entries} timezone={tz} />}
-      {isToday && <PlanCard plan={plan} />}
-      {isToday && can(me, "assistant", "view") && <WeekCard name={summary.subject.name} />}
-      {isToday && <Activities subjectId={summary.subject.id} items={acts} compact />}
-      {isToday && meds && meds.ok && <Medicines subjectId={summary.subject.id} items={meds.items} timezone={tz} compact />}
-      {isToday && <LanaForecast entries={week} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />}
+      {isToday && (
+        <Fold title="Coming up" icon="clock" tint="sleep" hint="next 12 hours">
+          <LanaForecast bare entries={week} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />
+          <PlanCard plan={plan} />
+        </Fold>
+      )}
+      {isToday && meds && meds.ok && meds.items.some((m) => m.last_at) && (
+        <Fold title="Medicine" icon="clock" tint="meds" hint={`${meds.items.filter((m) => m.last_at).length} in use`}>
+          <Medicines subjectId={summary.subject.id} items={meds.items} timezone={tz} compact />
+        </Fold>
+      )}
+      {isToday && acts.length > 0 && (
+        <Fold title="Play" icon="sparkles" tint="pump" hint={`${pr.their} age now`}>
+          <Activities subjectId={summary.subject.id} items={acts} compact />
+        </Fold>
+      )}
       {dayStats && (
-        <AgeCheck totals={dayStats} birthDate={summary.subject.birth_date} day={day} complete={day < today} title={day === today ? `Today against ${pr.their} age` : `Against ${pr.their} age`} subtitle={day === today ? "Counts so far. Nothing is flagged until the day is over." : undefined} />
+        <Fold title={day === today ? `Today against ${pr.their} age` : `Against ${pr.their} age`} icon="trend" tint="guide" hint={day === today ? "so far" : undefined}>
+          <AgeCheck totals={dayStats} birthDate={summary.subject.birth_date} day={day} complete={day < today} title={day === today ? `Today against ${pr.their} age` : `Against ${pr.their} age`} subtitle={day === today ? "Counts so far. Nothing is flagged until the day is over." : undefined} />
+        </Fold>
+      )}
+      {isToday && can(me, "assistant", "view") && (
+        <Fold title="The helper's week" icon="sparkles" tint="guide">
+          <WeekCard name={summary.subject.name} />
+        </Fold>
       )}
       <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} entries={isToday ? week : []} feedIntervalMin={feedInterval} />
       <ul className="flex flex-col gap-2">
@@ -208,8 +233,11 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
       </ul>
       <div className="grid grid-cols-2 gap-3">
         {summary.types.map((t) => (
-          <Link key={t.id} href={`/baby/log/${t.key}`} className="btn btn-primary min-h-[64px] text-lg">
-            <span aria-hidden>{t.icon}</span> {t.label}
+          <Link key={t.id} href={`/baby/log/${t.key}`} className={`action tint-${tintFor(t.key)} justify-center`} style={{ minHeight: 64 }}>
+            <span aria-hidden className="text-2xl">
+              {t.icon}
+            </span>
+            <span className="action-label text-lg">{t.label}</span>
           </Link>
         ))}
       </div>

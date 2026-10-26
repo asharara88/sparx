@@ -1,24 +1,27 @@
 import type { HouseholdToday, Me } from "@/lib/types";
 import { WEEKDAYS } from "@/lib/types";
 
-export function HouseholdCard({ data, me }: { data: HouseholdToday; me: Me }) {
+export function HouseholdCard({ data, me, bare = false }: { data: HouseholdToday; me: Me; bare?: boolean }) {
   const inHouse = data.members.filter((m) => m.presence?.in_house);
   const working = data.members.filter((m) => m.works_today && m.work_days.length > 0);
   const away = data.members.filter((m) => !m.presence?.in_house && m.work_days.length === 0);
   const onlyMe = data.members.length === 1 && data.members[0].id === me.member.id;
 
+  // Inside a fold the fold's bar is the title.
   return (
-    <section className="card" aria-labelledby="hh-h">
-      <h2 id="hh-h" className="text-xl font-semibold">
-        {onlyMe ? "Today" : "Who is home today"}
-      </h2>
+    <section className={bare ? "" : "card"} aria-labelledby={bare ? undefined : "hh-h"} aria-label={bare ? "Who is home today" : undefined}>
+      {!bare && (
+        <h2 id="hh-h" className="text-xl font-semibold">
+          {onlyMe ? "Today" : "Who is home today"}
+        </h2>
+      )}
       {onlyMe ? (
-        <p className="mt-2">
+        <p className={bare ? "" : "mt-2"}>
           {data.members[0].works_today ? "You are working today." : "You are not working today."}
         </p>
       ) : (
         <>
-          <ul className="mt-2 flex flex-wrap gap-2">
+          <ul className={`flex flex-wrap gap-2 ${bare ? "" : "mt-2"}`}>
             {inHouse.map((m) => (
               <li key={m.id} className="chip">
                 {m.name}

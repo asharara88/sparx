@@ -91,7 +91,7 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
   return (
     <div className="flex flex-col gap-4">
       <section className="grid grid-cols-2 gap-3">
-        <div className="tile">
+        <div className="tile tint-milk">
           <span className="tile-icon">
             <Icon name="bottle" size={20} />
           </span>
@@ -103,7 +103,7 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
             </span>
           </span>
         </div>
-        <div className="tile">
+        <div className="tile tint-diaper">
           <span className="tile-icon">
             <Icon name="droplet" size={20} />
           </span>

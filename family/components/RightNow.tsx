@@ -28,26 +28,33 @@ export function RightNow({ summary, milk, timezone, milkLasts = null }: { summar
   const fridge = milk?.fridge_ml ?? 0;
   const bottles = milk?.fridge_count ?? 0;
   const tile = "tile flex min-w-[9.5rem] shrink-0 snap-start flex-col justify-between gap-2";
+  const badge = "icon-disc";
   return (
     <section aria-label="Right now" className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1">
-      <Link href="/baby" className={`${tile} ${feedDue ? "bg-[var(--accent)] text-[var(--accent-fg)]" : ""}`}>
-        <Icon name="bottle" size={26} />
+      <Link href="/baby" className={`${tile} ${feedDue ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "tint-feed"}`}>
+        <span className={badge}>
+          <Icon name="bottle" size={22} />
+        </span>
         <div>
           <p className="text-xs font-bold uppercase tracking-wide opacity-75">Next feed</p>
           <p className="text-xl font-bold">{due == null || now == null ? "—" : feedDue ? "Due now" : `in ${fmtDuration(Math.round((due - now) / 60_000))}`}</p>
           <p className="text-sm opacity-80">{hint ?? (feed ? `last ${fmtTime(feed.occurred_at, timezone)}` : "No feed yet")}</p>
         </div>
       </Link>
-      <Link href="/baby" className={`${tile} ${asleep ? "bg-[var(--fg)] text-[var(--bg)]" : ""}`}>
-        <Icon name={asleep ? "zzz" : "sun"} size={26} />
+      <Link href="/baby" className={`${tile} ${asleep ? "bg-[var(--fg)] text-[var(--bg)]" : "tint-sleep"}`}>
+        <span className={badge}>
+          <Icon name={asleep ? "zzz" : "sun"} size={22} />
+        </span>
         <div>
           <p className="text-xs font-bold uppercase tracking-wide opacity-75">{asleep ? "Asleep" : "Awake"}</p>
           <p className="text-xl font-bold">{now == null ? "—" : asleep ? since(asleep.occurred_at) : sleep?.ended_at ? since(sleep.ended_at) : "—"}</p>
           <p className="text-sm opacity-80">{asleep ? `since ${fmtTime(asleep.occurred_at, timezone)}` : sleep?.ended_at ? `woke ${fmtTime(sleep.ended_at, timezone)}` : "no sleep logged"}</p>
         </div>
       </Link>
-      <Link href="/baby/milk" className={`${tile} ${milk && fridge < 120 ? "bg-[var(--warn-soft)]" : ""}`}>
-        <Icon name="droplet" size={26} />
+      <Link href="/baby/milk" className={`${tile} ${milk && fridge < 120 ? "tint-meds" : "tint-milk"}`}>
+        <span className={badge}>
+          <Icon name="droplet" size={22} />
+        </span>
         <div>
           <p className="text-xs font-bold uppercase tracking-wide opacity-75">Fridge</p>
           <p className="text-xl font-bold">{milk ? `${fridge} ml` : "—"}</p>
