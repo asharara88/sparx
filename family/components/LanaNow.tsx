@@ -162,46 +162,13 @@ export function LanaNow({
 
   const elapsed = (iso: string) => fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)));
 
-  // A big tile: the feature's colour, the icon on a white disc, two or three words.
-  const Tile = ({ tint, icon, label, sub, onClick, href, row = false, trailing }: { tint: string; icon: "zzz" | "sun" | "moon" | "bottle" | "diaper" | "droplet" | "clock"; label: string; sub?: string; onClick?: () => void; href?: string; row?: boolean; trailing?: string }) => {
-    const inner = (
-      <>
-        <span className="icon-disc">
-          <Icon name={icon} size={22} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="action-label">{label}</span>
-          {sub && <span className="action-sub">{sub}</span>}
-        </span>
-        {trailing && <span className="chip text-base">{trailing}</span>}
-      </>
-    );
-    const cls = `action ${row ? "" : "action-col"} tint-${tint}`;
-    return href ? (
-      <Link href={href} className={cls}>
-        {inner}
-      </Link>
-    ) : (
-      <button type="button" className={cls} onClick={onClick} disabled={busy || !canAdd}>
-        {inner}
-      </button>
-    );
+  // Closing a sheet without saving also drops a "when" picked inside it, so the next
+  // direct tap (Asleep has no chips) is not quietly backdated.
+  const closeSheet = () => {
+    setWhen(NOW);
+    setSheet(null);
   };
-  const Sheet = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="sheet-backdrop" onClick={() => setSheet(null)} role="presentation">
-      <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="flex items-center justify-between">
-          <p className="action-label">{title}</p>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSheet(null)}>
-            <Icon name="x" size={22} />
-          </button>
-        </div>
-        <WhenChips value={when} onChange={setWhen} timezone={timezone} disabled={busy} />
-        {children}
-      </div>
-    </div>
-  );
+  const tileProps = { disabled: busy || !canAdd };
   const startSleep = () =>
     run("Sleep started.", async () => {
       if (state.kind === "night_awake") await end(state.entry);
@@ -259,7 +226,7 @@ export function LanaNow({
       {/* ---- asleep: one tap wakes (a night wake-up at night) */}
       {state.kind === "asleep" && (
         <div className="flex flex-col gap-3">
-          <Tile
+          <Tile {...tileProps}
             row
             tint="sleep"
             icon="moon"
@@ -273,28 +240,28 @@ export function LanaNow({
               })
             }
           />
-          {isNight && <Tile row tint="pump" icon="sun" label="Up for the day" onClick={() => run("Up for the day.", () => end(state.entry))} />}
+          {isNight && <Tile {...tileProps} row tint="pump" icon="sun" label="Up for the day" onClick={() => run("Up for the day.", () => end(state.entry))} />}
         </div>
       )}
 
       {/* ---- awake (day or night): four tiles */}
       {(state.kind === "awake" || state.kind === "night_awake") && (
         <div className="grid grid-cols-2 gap-3">
-          <Tile tint="feed" icon="bottle" label="Feed" sub={breastfeeds ? "Breast or bottle" : "Bottle"} onClick={() => setSheet("feed")} />
-          <Tile
+          <Tile {...tileProps} tint="feed" icon="bottle" label="Feed" sub={breastfeeds ? "Breast or bottle" : "Bottle"} onClick={() => setSheet("feed")} />
+          <Tile {...tileProps}
             tint="sleep"
             icon="zzz"
             label={state.kind === "night_awake" ? "Back to sleep" : "Asleep"}
             sub={state.kind === "night_awake" ? `awake since ${fmtTime(state.entry.occurred_at, timezone)}` : state.since ? `awake ${elapsed(state.since)}` : "Tap to start"}
             onClick={startSleep}
           />
-          <Tile tint="diaper" icon="diaper" label="Nappy" sub="Wet or dirty" onClick={() => setSheet("diaper")} />
-          {breastfeeds && pumpType ? <Tile tint="pump" icon="droplet" label="Pump" sub="To the fridge" onClick={() => setSheet("pump")} /> : <Tile tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
+          <Tile {...tileProps} tint="diaper" icon="diaper" label="Nappy" sub="Wet or dirty" onClick={() => setSheet("diaper")} />
+          {breastfeeds && pumpType ? <Tile {...tileProps} tint="pump" icon="droplet" label="Pump" sub="To the fridge" onClick={() => setSheet("pump")} /> : <Tile {...tileProps} tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
         </div>
       )}
 
       {sheet === "feed" && (
-        <Sheet title="Feed">
+        <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
           {breastfeeds && <Boobs active={null} elapsed={null} suggested={suggestedSide} counts={sideCounts} disabled={busy || !canAdd} onTap={(s) => run(`${s} boob started.`, () => start(feedType, { method: "Breast", side: s }))} />}
           <div className="card tint-feed flex flex-col gap-2">
             <p className="font-semibold">Bottle</p>
@@ -334,7 +301,7 @@ export function LanaNow({
         </Sheet>
       )}
       {sheet === "diaper" && (
-        <Sheet title="Nappy">
+        <Sheet title="Nappy" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
           <div className="grid grid-cols-3 gap-2">
             {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
               <button key={k} type="button" className="action action-col tint-diaper items-center text-center" disabled={busy || !canAdd} onClick={() => run(`Nappy (${k.toLowerCase()}) saved.`, () => start(diaperType, { kind: k }, nowIso))}>
@@ -348,7 +315,7 @@ export function LanaNow({
         </Sheet>
       )}
       {sheet === "pump" && pumpType && (
-        <Sheet title="Pump, to the fridge">
+        <Sheet title="Pump, to the fridge" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
           <div className="grid grid-cols-4 gap-2">
             {[90, 120, 150, 180].map((ml) => (
               <button
@@ -372,5 +339,51 @@ export function LanaNow({
 
       {!canAdd && <p className="muted text-sm">You can see {possessive(subject.name)} day but not log it.</p>}
     </section>
+  );
+}
+
+/** A big tile: the feature's colour, the icon on a white disc, two or three words. */
+function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, disabled }: { tint: string; icon: "zzz" | "sun" | "moon" | "bottle" | "diaper" | "droplet" | "clock"; label: string; sub?: string; onClick?: () => void; href?: string; row?: boolean; trailing?: string; disabled: boolean }) {
+  const inner = (
+    <>
+      <span className="icon-disc">
+        <Icon name={icon} size={22} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="action-label">{label}</span>
+        {sub && <span className="action-sub">{sub}</span>}
+      </span>
+      {trailing && <span className="chip text-base">{trailing}</span>}
+    </>
+  );
+  const cls = `action ${row ? "" : "action-col"} tint-${tint}`;
+  return href ? (
+    <Link href={href} className={cls}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" className={cls} onClick={onClick} disabled={disabled}>
+      {inner}
+    </button>
+  );
+}
+
+/** The bottom sheet a tile opens: a title, the "when" chips, the amounts. Defined at
+ *  module level so the clock tick does not remount it (and lose a half-picked time). */
+function Sheet({ title, onClose, when, onWhen, timezone, busy, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; timezone: string; busy: boolean; children: React.ReactNode }) {
+  return (
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+      <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="flex items-center justify-between">
+          <p className="action-label">{title}</p>
+          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
+            <Icon name="x" size={22} />
+          </button>
+        </div>
+        <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} />
+        {children}
+      </div>
+    </div>
   );
 }
