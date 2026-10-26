@@ -14,10 +14,21 @@ export function tintFor(key: string | null | undefined): Tint {
       return "pump";
     case "meds":
     case "medicine":
+    case "medication":
     case "temp":
       return "meds";
     case "milk":
       return "milk";
+    case "note":
+      return "notes";
+    case "activity":
+      return "pump";
+    case "growth":
+      return "house";
+    case "milestone":
+      return "sleep";
+    case "appointment":
+      return "cal";
     default:
       return "guide";
   }

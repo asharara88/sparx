@@ -5,7 +5,7 @@ import { awayParentOn } from "@/lib/handover";
 import type { ActivitiesData, BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childPronouns, possessive, type Pronouns } from "@/lib/names";
-import { addDays, dayRange, describePayload, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
+import { addDays, dayRange, describePayload, fmtDuration, fmtTime, todayYmd } from "@/lib/time";
 import { ageDays, ageLabel } from "@/lib/norms";
 import { AgeCheck } from "@/components/AgeCheck";
 import { Avatar } from "@/components/Avatar";
@@ -29,6 +29,7 @@ import { Backfill } from "@/components/Backfill";
 import { MoodPattern } from "@/components/MoodPattern";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
+import { checkEntries } from "@/lib/entry-checks";
 import { Fold, type Tint } from "@/components/Fold";
 import { tintFor } from "@/lib/tints";
 
@@ -136,14 +137,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
   const stripEntries = ((stripData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const stats = statsData as DailyStats | RpcError | null;
   const dayStats = stats?.ok ? (stats.days.find((x) => x.day === day) ?? stats.days[0] ?? null) : null;
-  const counts = new Map<string, number>();
-  let feedMl = 0;
-  let sleepMin = 0;
-  for (const e of entries) {
-    counts.set(e.type_label, (counts.get(e.type_label) ?? 0) + 1);
-    if (e.type_id === "lana.feed" && typeof e.payload.amount_ml === "number") feedMl += e.payload.amount_ml;
-    if (e.type_id === "lana.sleep" && e.ended_at) sleepMin += minutesBetween(e.occurred_at, e.ended_at);
-  }
+  const checks = isToday ? checkEntries(week).length : 0;
   const label = day === today ? "Today" : day === addDays(today, -1) ? "Yesterday" : day;
   return (
     <>
@@ -157,29 +151,12 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
         </Link>
       </div>
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={day === today ? new Date().toISOString() : undefined} />
-      <div className="card">
-        <p className="flex flex-wrap gap-x-4 gap-y-1">
-          {[...counts.entries()].map(([k, v]) => (
-            <span key={k}>
-              <b>{v}</b> {k.toLowerCase()}
-              {v === 1 ? "" : "s"}
-            </span>
-          ))}
-          {feedMl > 0 && (
-            <span>
-              <b>{feedMl} ml</b> bottle
-            </span>
-          )}
-          {sleepMin > 0 && (
-            <span>
-              <b>{fmtDuration(sleepMin)}</b> sleep
-            </span>
-          )}
-          {entries.length === 0 && <span className="muted">Nothing logged on this day.</span>}
-        </p>
-      </div>
-      {isToday && can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />}
-      {isToday && summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} />}
+      {isToday && can(me, "lana", "edit") && checks > 0 && (
+        <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
+          <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />
+        </Fold>
+      )}
+      {isToday && summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
       {isToday && <MoodTap subjectId={summary.subject.id} today={entries} timezone={tz} />}
       {isToday && (
         <Fold title="Coming up" icon="clock" tint="sleep" hint="next 12 hours">
@@ -209,22 +186,22 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
         </Fold>
       )}
       <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} entries={isToday ? week : []} feedIntervalMin={feedInterval} />
-      <ul className="flex flex-col gap-2">
+      {entries.length === 0 ? (
+        <p className="muted px-1 text-sm">Nothing logged on this day.</p>
+      ) : (
+      <ul className="card flex flex-col p-0">
         {entries.map((e) => (
-          <li key={e.id}>
-            <Link href={`/baby/entry/${e.id}`} className="card flex items-center gap-3 no-underline">
-              <span aria-hidden className="text-3xl">
+          <li key={e.id} className="row px-3 first:pt-3 last:pb-3">
+            <Link href={`/baby/entry/${e.id}`} className="flex w-full items-center gap-3 no-underline">
+              <span aria-hidden className={`icon-disc tint-${tintFor(e.type_id.split(".")[1])} text-xl`} style={{ width: 36, height: 36 }}>
                 {e.icon}
               </span>
-              <span className="flex-1">
-                <span className="block text-lg font-semibold">
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">
                   {fmtTime(e.occurred_at, tz)}
-                  {e.ended_at ? ` – ${fmtTime(e.ended_at, tz)}` : e.type_id === "lana.sleep" ? " – still sleeping" : ""}
-                  {"  "}
-                  <span className="font-normal">{e.type_label}</span>
+                  {e.ended_at ? `–${fmtTime(e.ended_at, tz)}` : e.type_id === "lana.sleep" ? "–…" : ""} <span className="font-normal">{e.type_label}</span>
                 </span>
-                <span className="muted block">{[describePayload(e.payload), e.note].filter(Boolean).join(" · ")}</span>
-                <span className="muted block text-sm">{e.attributed_name ?? e.logged_by_name}</span>
+                <span className="muted block truncate text-sm">{[describePayload(e.payload), e.note, e.attributed_name ?? e.logged_by_name].filter(Boolean).join(" · ")}</span>
               </span>
               <span aria-hidden className="muted">
                 ›
@@ -233,16 +210,18 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
           </li>
         ))}
       </ul>
-      <div className="grid grid-cols-2 gap-3">
+      )}
+      <h2 className="section-title mt-2">Log</h2>
+      <nav aria-label="Log" className="grid grid-cols-4 gap-2">
         {summary.types.map((t) => (
-          <Link key={t.id} href={`/baby/log/${t.key}`} className={`action tint-${tintFor(t.key)} justify-center`} style={{ minHeight: 64 }}>
-            <span aria-hidden className="text-2xl">
+          <Link key={t.id} href={`/baby/log/${t.key}`} className={`tile tile-sm tint-${tintFor(t.key)}`}>
+            <span aria-hidden className="icon-disc text-xl" style={{ width: 36, height: 36 }}>
               {t.icon}
             </span>
-            <span className="action-label text-lg">{t.label}</span>
+            <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
           </Link>
         ))}
-      </div>
+      </nav>
     </>
   );
 }

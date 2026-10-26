@@ -22,9 +22,9 @@ export function NextNap({ entries, ageDays, timezone, now = Date.now(), compact 
     return (
       <p className={`notice ${tone} text-sm`}>
         <b>
-          {what} around {fmtTime(new Date(n.at!).toISOString(), timezone)}
+          {what} ~{fmtTime(new Date(n.at!).toISOString(), timezone)}
         </b>{" "}
-        ({when}). Awake {n.awakeMin} min; the window is about {n.windowMin} min, from {n.basis}.
+        · {when} · awake {n.awakeMin} min
       </p>
     );
   }
