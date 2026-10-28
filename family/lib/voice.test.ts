@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pickVoice } from "./voice.ts";
+import { pickVoice, speechChunks } from "./voice.ts";
 
 const iphone = [
   { name: "Daniel", lang: "en-GB", localService: true },
@@ -39,4 +39,22 @@ test("no voice in the language: null, so the phone picks", () => {
 
 test("a 'female' variant of a male name counts as female", () => {
   assert.equal(pickVoice([{ name: "Shakir", lang: "ar-AE" }, { name: "Shakir-Female", lang: "ar-AE" }], "ar-EG")?.name, "Shakir-Female");
+});
+
+test("a long answer is read in pieces, cut at sentence ends, nothing lost", () => {
+  const sentence = "She fed well and slept two hours after lunch. ";
+  const text = sentence.repeat(60);
+  const pieces = speechChunks(text, 1000);
+  assert.ok(pieces.length >= 3);
+  assert.ok(pieces.every((p) => p.length <= 1000));
+  assert.ok(pieces.every((p) => p.endsWith(".")));
+  assert.equal(pieces.join(" "), text.trim());
+  assert.deepEqual(speechChunks("Short."), ["Short."]);
+  assert.deepEqual(speechChunks("   "), []);
+});
+
+test("no sentence end: cut at a space, never mid-word", () => {
+  const pieces = speechChunks("word ".repeat(400), 1000);
+  assert.ok(pieces.every((p) => p.length <= 1000 && !p.endsWith("wor")));
+  assert.equal(pieces.join(" "), "word ".repeat(400).trim());
 });

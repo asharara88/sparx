@@ -61,3 +61,21 @@ export function primeVoices(): void {
   speechSynthesis.getVoices();
   speechSynthesis.addEventListener?.("voiceschanged", () => speechSynthesis.getVoices(), { once: true });
 }
+
+/**
+ * Text cut into pieces of at most `max` characters, at sentence ends where it can, else at
+ * a space, so a long answer is read whole (the server takes 1200 characters a call).
+ */
+export function speechChunks(text: string, max = 1000): string[] {
+  const out: string[] = [];
+  let rest = text.replace(/\s+/g, " ").trim();
+  while (rest.length > max) {
+    const window = rest.slice(0, max + 1);
+    const sentence = Math.max(window.lastIndexOf(". "), window.lastIndexOf("? "), window.lastIndexOf("! "), window.lastIndexOf("؟ "), window.lastIndexOf("。"));
+    const cut = sentence > max / 3 ? sentence + 1 : window.lastIndexOf(" ") > 0 ? window.lastIndexOf(" ") : max;
+    out.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) out.push(rest);
+  return out;
+}

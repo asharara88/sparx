@@ -22,7 +22,7 @@ export function ListenButton({ text, lang, label }: { text: string; lang: Lang; 
       return;
     }
     setOn(true);
-    sayAloud(text, speechLang(lang), () => setOn(false));
+    sayAloud(text, speechLang(lang), () => setOn(false), () => setOn(false));
   }
   return (
     <button type="button" className={`btn ${on ? "btn-primary" : ""}`} style={{ minHeight: 64, fontSize: "1.25rem" }} onClick={speak} aria-pressed={on}>
