@@ -151,7 +151,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
           <Icon name="forward" size={22} />
         </Link>
       </div>
-      <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={day === today ? new Date().toISOString() : undefined} />
+      <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={day === today ? new Date().toISOString() : undefined} list={false} />
       {isToday && can(me, "lana", "edit") && checks > 0 && (
         <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
           <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />
