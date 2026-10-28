@@ -80,9 +80,13 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const sleeps = sorted.filter((e) => e.type_id === "lana.sleep");
   const asleep = sleeps.find((e) => !e.ended_at);
   const last = sleeps.find((e) => e.ended_at);
-  if (!asleep && last && last.ended_at) {
-    const napMin = mins(Date.parse(last.ended_at) - t(last));
-    const awakeMin = mins(now - Date.parse(last.ended_at));
+  // A wake window only means something when sleep is being logged: a family that tracks
+  // sleep elsewhere (a camera app) would otherwise read "Awake for 122 h". Past 12 hours
+  // since the last logged sleep ended, the guide says nothing about wake windows.
+  const lastEnd = last?.ended_at ? Date.parse(last.ended_at) : null;
+  if (!asleep && last && lastEnd != null && now - lastEnd <= 12 * H) {
+    const napMin = mins(lastEnd - t(last));
+    const awakeMin = mins(now - lastEnd);
     if (napMin < 30 && awakeMin < 60) tips.push({ level: "yellow", title: `Short nap, only ${napMin} min`, body: `${cap(name)} needs more sleep. Try settling ${pr.them} again (dark room, white noise, rocking). ${cap(pr.they)} will be tired again within about ${hm(Math.max(15, wakeLo - awakeMin))}.`, topic: "sleep" });
     if (awakeMin > wakeHi) tips.push({ level: awakeMin > wakeHi + 45 ? "red" : "yellow", title: `Awake for ${hm(awakeMin)}`, body: `Babies this age usually manage ${hm(wakeLo)} to ${hm(wakeHi)} awake. Watch for yawning, rubbing eyes and fussing, and try a nap now.`, topic: "sleep" });
     else if (awakeMin > wakeLo && napMin >= 30) tips.push({ level: "info", title: "Nap time is coming", body: `${cap(name)} has been awake ${hm(awakeMin)}. The next nap is usually within ${hm(wakeHi - awakeMin)}.`, topic: "sleep" });
