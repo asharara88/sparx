@@ -3,13 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import type { Me, Presence, PresenceState } from "@/lib/types";
 import { PresenceForm } from "@/components/PresenceForm";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** Where you are (lives here, staying, away…): a setting, so it has its own page under More. */
 export default async function MyPresencePage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me | null;
   if (!me?.ok) redirect("/");
   const [{ data: states }, { data: history }] = await Promise.all([

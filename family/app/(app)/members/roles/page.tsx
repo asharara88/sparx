@@ -6,12 +6,13 @@ import { can } from "@/lib/types";
 import { PermissionGrid } from "@/components/PermissionGrid";
 import { PageHeader } from "@/components/PageHeader";
 import { childName, possessive } from "@/lib/names";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function RolesPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
   const [{ data: roles }, { data: modules }, { data: perms }] = await Promise.all([

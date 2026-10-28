@@ -5,12 +5,13 @@ import { can } from "@/lib/types";
 import { ageLabel } from "@/lib/norms";
 import { Activities } from "@/components/Activities";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function ActivitiesPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const { data: sumData } = await supabase.rpc("home_summary");

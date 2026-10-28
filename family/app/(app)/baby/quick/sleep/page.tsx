@@ -5,13 +5,14 @@ import type { HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { QuickSleep } from "@/components/QuickSleep";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** Opened from the home-screen shortcut: start or end the child's sleep in one tap. */
 export default async function QuickSleepPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "add")) redirect("/");
   const { data: sumData } = await supabase.rpc("home_summary");

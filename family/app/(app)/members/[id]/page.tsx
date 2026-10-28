@@ -8,13 +8,14 @@ import { WorkDaysForm } from "@/components/WorkDaysForm";
 import { PresenceForm } from "@/components/PresenceForm";
 import { PageHeader } from "@/components/PageHeader";
 import { InviteLink } from "@/components/InviteLink";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function MemberPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
   const isNew = id === "new";

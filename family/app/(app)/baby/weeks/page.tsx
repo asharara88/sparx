@@ -6,13 +6,14 @@ import { ageDays } from "@/lib/norms";
 import { todayYmd } from "@/lib/time";
 import { BANDS, leapWeek } from "@/lib/leaps";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** Week by week to three years: what each stretch usually brings, with the child's week marked. */
 export default async function WeeksPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const { data: sumData } = await supabase.rpc("home_summary");

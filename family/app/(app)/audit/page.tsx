@@ -7,12 +7,13 @@ import { fmtDateTime } from "@/lib/time";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
 import { BackupsCard } from "@/components/BackupsCard";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function AuditPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "audit", "view")) redirect("/");
   const { data } = await supabase.rpc("audit_recent", { p_limit: 300 });

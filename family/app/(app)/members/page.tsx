@@ -7,12 +7,13 @@ import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { InviteLink } from "@/components/InviteLink";
 import { accountLabel, type AccountState } from "@/lib/accounts";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
   const { error } = await searchParams;

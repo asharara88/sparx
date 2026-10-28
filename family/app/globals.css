@@ -432,6 +432,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: var(--line); margin: 0 auto; }
 
+/* ---- loading placeholder (app/(app)/loading.tsx) -------------------------- */
+.skeleton { border-radius: var(--radius); background: var(--card-2); animation: skeleton 1.2s ease-in-out infinite; }
+@keyframes skeleton { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
 /* ---- folds -----------------------------------------------------------------
    A section that opens and closes: the title is a tinted bar you can always see, the
    body only when you want it. Home keeps the day's one or two open and folds the rest. */

@@ -5,12 +5,13 @@ import { can } from "@/lib/types";
 import { childName, possessive } from "@/lib/names";
 import { EntryTypesAdmin } from "@/components/EntryTypesAdmin";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function EntryTypesPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/members");
   const { data } = await supabase.from("care_entry_types").select("*").eq("module_id", "lana").order("module_id").order("sort");

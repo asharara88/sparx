@@ -8,13 +8,14 @@ import { ageDays, ageLabel } from "@/lib/norms";
 import { Photo } from "@/components/Photo";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** The child's firsts, with the photo if one was added to the entry, and how old they were. */
 export default async function MilestonesPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;

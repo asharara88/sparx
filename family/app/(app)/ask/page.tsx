@@ -3,13 +3,14 @@ import type { AskChat, Me } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childName } from "@/lib/names";
 import { Assistant } from "@/components/Assistant";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function AskPage({ searchParams }: { searchParams: Promise<{ c?: string; q?: string; say?: string; from?: string }> }) {
   const supabase = await createClient();
   const { c, q, say, from } = await searchParams;
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "assistant", "view")) {
     return (

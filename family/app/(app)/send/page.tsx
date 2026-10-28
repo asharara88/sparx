@@ -4,13 +4,14 @@ import type { AttendanceData, CalendarData, Me, RpcError } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, fmtTime, todayYmd } from "@/lib/time";
 import { AttendanceButton } from "@/components/AttendanceButton";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** The screen for someone without the child's log (staff who clock in): the attendance button and today's events that affect them. */
 export default async function TodayPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me | null;
   if (!me?.ok) redirect("/");
   if (can(me, "lana", "view")) redirect("/");

@@ -15,6 +15,7 @@ import { PreviewBanner } from "@/components/PreviewBanner";
 import { BindHome } from "@/components/RememberHome";
 import { NightScreen } from "@/components/NightScreen";
 import { nightWindow } from "@/lib/night";
+import { meOnce } from "@/lib/server/me";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isConfigured()) return <NotConfigured />;
@@ -27,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
-  const { data, error } = await supabase.rpc("me");
+  const { data, error } = await meOnce();
   const me = data as Me | RpcError | null;
 
   // In no home yet: make one, or wait to be added (docs/MULTI_HOME.md).

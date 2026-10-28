@@ -7,12 +7,13 @@ import { addDays, todayYmd } from "@/lib/time";
 import { CalendarView } from "@/components/CalendarView";
 import { PlanButton } from "@/components/PlanButton";
 import { LanaForecast } from "@/components/LanaForecast";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "calendar", "view")) redirect("/");
   const tz = me.household.timezone;

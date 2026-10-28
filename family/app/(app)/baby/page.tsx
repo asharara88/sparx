@@ -32,13 +32,14 @@ import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { checkEntries } from "@/lib/entry-checks";
 import { Fold, type Tint } from "@/components/Fold";
 import { tintFor } from "@/lib/tints";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** The child's own section: Today, Patterns, Week, Handover, Ask, and the way to everything else about them. */
 export default async function LanaPage({ searchParams }: { searchParams: Promise<{ d?: string; tab?: string }> }) {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;

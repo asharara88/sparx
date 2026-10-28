@@ -4,13 +4,14 @@ import type { AssistantSkill, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { SkillEditor } from "@/components/SkillEditor";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** Admins: what the helper knows, topic by topic, editable without a deploy. */
 export default async function SkillsPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "assistant", "edit")) redirect("/ask");
   const { data } = await supabase.rpc("skill_list", { p_all: true });

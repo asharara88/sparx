@@ -3,13 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import type { EntryType, Me, Subject } from "@/lib/types";
 import { can } from "@/lib/types";
 import { EntryForm } from "@/components/EntryForm";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function LogPage({ params }: { params: Promise<{ type: string }> }) {
   const { type } = await params;
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "add")) redirect("/");
 

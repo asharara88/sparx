@@ -8,12 +8,13 @@ import { ChildCard } from "@/components/ChildCard";
 import { DoctorCard } from "@/components/DoctorCard";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function DoctorPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;
