@@ -508,6 +508,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tab[aria-current="page"] svg { background: var(--accent-soft); }
 
 /* ---- screen frame --------------------------------------------------- */
+/* The app draws under the phone's status bar (viewport-fit: cover). Keep the content below
+   it, and a strip in the page colour over it, so nothing scrolls under the clock. */
+body { padding-top: env(safe-area-inset-top); }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: env(safe-area-inset-top);
+  background: var(--bg);
+  z-index: 35;
+  pointer-events: none;
+}
 main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px); }
 
 /* ---- the Ask screen (components/Assistant.tsx) */

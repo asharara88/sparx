@@ -70,6 +70,13 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
   const diaperKinds = (types.find((t) => t.key === "diaper")?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]) as string[];
   const pumpQuick = (types.find((t) => t.key === "pump")?.fields.find((f) => f.key === "amount_ml")?.quick ?? [90, 120, 150, 180]) as number[];
   const ready = !!choice && (!choice.lasted || lasted != null) && (choice.key !== "bottle" || detail.amount_ml != null) && (choice.key !== "diaper" || !!detail.kind) && (choice.key !== "pump" || detail.amount_ml != null) && (choice.key !== "breast" || !!detail.side);
+  // A greyed-out Save says what it still needs, so it never looks broken.
+  const missing =
+    choice && choice.lasted && lasted == null ? "Pick how long"
+    : choice && (choice.key === "bottle" || choice.key === "pump") && detail.amount_ml == null ? "Pick an amount"
+    : choice?.key === "diaper" && !detail.kind ? "Pick wet or dirty"
+    : choice?.key === "breast" && !detail.side ? "Pick a side"
+    : "Save";
 
   async function save() {
     if (!choice || !ready) return;
@@ -186,7 +193,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
             </div>
           )}
           <button type="button" className="btn btn-primary min-h-[56px]" disabled={!ready || busy} onClick={() => void save()}>
-            Save {choice.label.toLowerCase()} at {fmtTime(startIso, timezone)}
+            {ready ? `Save ${choice.label.toLowerCase()} at ${fmtTime(startIso, timezone)}` : missing}
           </button>
           <p className="muted text-xs">Need more detail, a note or a photo? Use the full form from the buttons below; it has a time field too.</p>
         </>

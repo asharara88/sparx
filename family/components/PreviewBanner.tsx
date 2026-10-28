@@ -1,7 +1,7 @@
 /** Shown at the top while an admin is viewing the app as someone else. */
 export function PreviewBanner({ name, role }: { name: string; role: string }) {
   return (
-    <form action="/api/view-as" method="post" className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 bg-[var(--warn-soft)] px-4 py-2 text-[var(--warn)]">
+    <form action="/api/view-as" method="post" className="no-print sticky top-[env(safe-area-inset-top)] z-30 flex items-center justify-between gap-3 bg-[var(--warn-soft)] px-4 py-2 text-[var(--warn)]">
       <span className="text-sm">
         Viewing as <strong>{name}</strong> ({role}). Read only.
       </span>
