@@ -156,7 +156,7 @@ export function CreateHome({ email, another = false }: { email: string | null; a
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-semibold">Name the home</span>
-          <input className="input" value={homeName} onChange={(e) => setHomeName(e.target.value)} placeholder={baby ? `${baby}'s home` : "Our home"} />
+          <input className="input" value={homeName} onChange={(e) => setHomeName(e.target.value)} placeholder={baby ? `${baby}'s home` : "Family home"} />
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-semibold">Timezone</span>

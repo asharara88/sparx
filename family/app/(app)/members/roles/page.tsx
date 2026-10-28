@@ -5,6 +5,7 @@ import type { Me, Module, Role } from "@/lib/types";
 import { can } from "@/lib/types";
 import { PermissionGrid } from "@/components/PermissionGrid";
 import { PageHeader } from "@/components/PageHeader";
+import { childName, possessive } from "@/lib/names";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,8 @@ export default async function RolesPage() {
       )}
       <PermissionGrid
         roles={roles as Role[]}
-        modules={modules as Module[]}
+        // The child module is named after this home's child, as on the entry types screen.
+        modules={(modules as Module[]).map((m) => (m.id === "lana" ? { ...m, label: `${possessive(childName(me))} log` } : m))}
         permissions={(perms as { role_id: string; module_id: string; action: string; allowed: boolean }[]) ?? []}
         myRole={me.role.id}
       />

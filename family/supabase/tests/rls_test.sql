@@ -888,6 +888,38 @@ select pg_temp.assert((public.me())->>'ok' = 'true' and (public.me())->'househol
 select pg_temp.assert((public.me())->'role'->>'id' = 'admin' and (public.me())->'member'->>'display_name' = 'Sara', 'as its admin, by the name given');
 select pg_temp.assert((public.me())->'subjects'->0->>'name' = 'Maya' and (public.me())->'subjects'->0->>'sex' = 'Girl', 'with the baby made');
 select pg_temp.assert((select count(*) from public.care_entries) = 0 and (select count(*) from public.members) = 1, 'and sees nothing of the other two homes');
+-- Every table, not only the ones above: no row of another home is visible to the new family.
+do $$
+declare t record; v_n bigint; v_home uuid := ((select r from new_home)->>'household_id')::uuid;
+begin
+  for t in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relkind in ('r', 'v')
+              and exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'household_id' and not a.attisdropped) loop
+    begin
+      execute format('select count(*) from public.%I where household_id is distinct from %L', t.relname, v_home) into v_n;
+    exception when insufficient_privilege then v_n := 0;
+    end;
+    if v_n > 0 then raise exception 'ASSERT FAILED: the new family sees % row(s) of another home in %', v_n, t.relname; end if;
+  end loop;
+  raise notice 'ok  - every table with a home: the new family sees only its own rows';
+end $$;
+-- And every read-only function it may call with no arguments answers about its own home only.
+do $$
+declare f record; v text;
+begin
+  for f in select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public' and p.pronargs = 0 and p.provolatile in ('s', 'i') and p.prorettype in ('jsonb'::regtype, 'json'::regtype)
+              and has_function_privilege('authenticated', p.oid, 'execute') loop
+    begin
+      execute format('select public.%I()::text', f.proname) into v;
+    exception when others then v := null;
+    end;
+    if v ~ '\m(Lana|Mido|Dana|Wafa|Luda|Lilly|Haitham|Zayd|Our home|The Khans)\M' then
+      raise exception 'ASSERT FAILED: %() shows the new family another home: %', f.proname, left(v, 200);
+    end if;
+  end loop;
+  raise notice 'ok  - every read-only function: no name from another home';
+end $$;
 reset role;
 
 -- An e-mail an admin listed joins that home at the first sign-in (making one of their own is a later, deliberate step: migration 4300, below).
@@ -1324,6 +1356,19 @@ select pg_temp.assert((public.me())->'member'->>'display_name' = 'Luda' and (pub
 select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true' and (public.me())->'household'->>'name' = 'The Khans', 'and can switch back');
 reset role;
 select pg_temp.assert((select count(*) from auth.users where email = 'luda@test.local') = 0, 'Luda''s placeholder account is gone too');
+
+-- The rows every home shares name no family (migration 5400): a new home reads its own names only.
+do $$
+declare t record; v_n bigint;
+begin
+  for t in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relkind = 'r' and c.relname not in ('household', 'job_runs')
+              and not exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'household_id' and not a.attisdropped) loop
+    execute format($q$select count(*) from public.%I t where t::text ~ '\m(Lana|Dana|Mido|Wafa|Luda|Lilly|Fanta)\M' or t::text ~* 'while dana'$q$, t.relname) into v_n;
+    if v_n > 0 then raise exception 'ASSERT FAILED: % shared row(s) in % name the first family', v_n, t.relname; end if;
+  end loop;
+  raise notice 'ok  - shared rows (modules, roles, play ideas, skills, types…) name no family';
+end $$;
 
 \echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

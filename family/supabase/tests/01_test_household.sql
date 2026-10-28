@@ -40,7 +40,6 @@ insert into public.care_subjects (id, module_id, kind, name, birth_date, profile
    '{"sex": "Girl", "emergency_ambulance": "998"}'::jsonb, '{"night_from": "19:00", "night_to": "07:00"}'::jsonb, 10)
 on conflict (id) do nothing;
 
-update public.modules set label = 'Lana''s log' where id = 'lana';
 
 insert into public.medicines (subject_id, name, dose, min_gap_hours, note) values
   ('00000000-0000-4000-8000-00000000a001', 'Vitamin D drops', '1 drop (400 IU)', 20, 'Once a day.'),

@@ -30,7 +30,9 @@ export default async function DoctorPage() {
   const vax = vaxData as VaccinesData | RpcError | null;
   const nextVisit = vax?.ok ? vax.items.find((v) => v.status === "due" || v.status === "overdue") ?? vax.items.find((v) => v.status === "upcoming") : null;
   const cal = calData as CalendarData | null;
-  const appointments = (cal?.ok ? cal.events : []).filter((e) => e.kind === "appointment" && /lana|vaccin|doctor|paed|pedia|clinic/i.test(e.title)).slice(0, 5);
+  // Appointments for this child: their name in the title, or a doctor's word.
+  const about = new RegExp(`${s.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|vaccin|doctor|paed|pedia|clinic`, "i");
+  const appointments = (cal?.ok ? cal.events : []).filter((e) => e.kind === "appointment" && about.test(e.title)).slice(0, 5);
   const visits = (((listData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[]).filter((e) => e.type_id === "lana.appointment").slice(0, 8);
 
   return (

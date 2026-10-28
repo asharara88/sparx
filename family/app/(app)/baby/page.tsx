@@ -304,7 +304,7 @@ function AskTab({ me, name, pr }: { me: Me; name: string; pr: Pronouns }) {
       </Link>
       <div className="flex flex-wrap gap-2">
         {prompts.map((p) => (
-          <Link key={p} href={`/ask?from=lana&q=${encodeURIComponent(p)}`} className="chip">
+          <Link key={p} href={`/ask?from=child&q=${encodeURIComponent(p)}`} className="chip">
             {p}
           </Link>
         ))}

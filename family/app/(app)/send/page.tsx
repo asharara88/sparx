@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   const supabase = await createClient();
   const { data: meData } = await supabase.rpc("me");
-  const me = meData as Me;
+  const me = meData as Me | null;
+  if (!me?.ok) redirect("/");
   if (can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;
   const today = todayYmd(tz);

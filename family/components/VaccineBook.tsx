@@ -5,6 +5,7 @@ import type { VaccineItem, VaccinesData } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ageLabel } from "@/lib/norms";
 import { dateWords } from "@/lib/time";
+import { Fold } from "./Fold";
 import { Icon } from "./Icon";
 
 /**
@@ -84,32 +85,8 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
     : s === "unknown" ? <span className="pill">no birth date</span>
     : <span className="pill">later</span>;
 
-  return (
-    <div className="flex flex-col gap-3">
-      {!data.birth_date && <p className="notice notice-warn">Add the date of birth on the profile and the dates will fill in.</p>}
-      <section className="card flex items-center gap-3">
-        <Icon name="syringe" size={24} className="shrink-0" />
-        <div className="flex-1">
-          <p className="font-semibold">
-            {givenCount} of {data.items.length} doses recorded
-            {data.birth_date ? ` · ${ageLabel(Math.floor((Date.parse(data.today) - Date.parse(data.birth_date)) / 86_400_000))} old` : ""}
-          </p>
-          {next && (
-            <p className="muted text-sm">
-              Next: {next.visit} visit{next.due_on ? `, due around ${fmt(next.due_on)}` : ""}
-              {next.status === "overdue" ? ". The window has closed, book it." : ""}
-            </p>
-          )}
-        </div>
-      </section>
-
-      {msg && (
-        <p role="alert" className="notice notice-danger">
-          {msg}
-        </p>
-      )}
-
-      {visits.map((v) => {
+  // One visit's card: its doses, each with its status, and "all given on one day".
+  const visitCard = (v: Visit) => {
         const outstanding = v.items.filter((i) => i.status !== "given");
         const key = `visit:${v.visit}`;
         return (
@@ -215,10 +192,52 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
             )}
           </section>
         );
-      })}
-      <p className="muted text-xs">
-        Schedule: UAE National Immunization Program as applied by the Dubai Health Authority (Clinical Guideline for Best Practice in Immunization, version 4). Ages are the earliest due date; clinics give them at the routine visit. When the card from the clinic differs, the card wins. Not medical advice.
-      </p>
+      };
+  // What matters now first: the visits due or overdue and the next one. Done and later ones fold away.
+  // The next visit only when nothing is due: one thing to do at a time.
+  const nextUpcoming = visits.some((v) => v.status !== "given" && v.status !== "upcoming") ? undefined : visits.find((v) => v.status === "upcoming");
+  const isNow = (v: Visit) => v.status !== "given" && (v.status !== "upcoming" || v === nextUpcoming);
+  const done = visits.filter((v) => v.status === "given");
+  const now = visits.filter(isNow);
+  const later = visits.filter((v) => v.status === "upcoming" && v !== nextUpcoming);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {!data.birth_date && <p className="notice notice-warn">Add the date of birth on the profile and the dates will fill in.</p>}
+      <section className="card flex items-center gap-3">
+        <Icon name="syringe" size={24} className="shrink-0" />
+        <div className="flex-1">
+          <p className="font-semibold">
+            {givenCount} of {data.items.length} doses recorded
+            {data.birth_date ? ` · ${ageLabel(Math.floor((Date.parse(data.today) - Date.parse(data.birth_date)) / 86_400_000))} old` : ""}
+          </p>
+          {next && (
+            <p className="muted text-sm">
+              Next: {next.visit} visit{next.due_on ? `, due around ${fmt(next.due_on)}` : ""}
+              {next.status === "overdue" ? ". The window has closed, book it." : ""}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {msg && (
+        <p role="alert" className="notice notice-danger">
+          {msg}
+        </p>
+      )}
+
+      {now.map(visitCard)}
+      {later.length > 0 && (
+        <Fold title="Later visits" icon="calendar" tint="cal" hint={`${later.length}`}>
+          {later.map(visitCard)}
+        </Fold>
+      )}
+      {done.length > 0 && (
+        <Fold title="Given" icon="check" tint="milk" hint={`${done.length} visit${done.length === 1 ? "" : "s"}`}>
+          {done.map(visitCard)}
+        </Fold>
+      )}
+      <p className="muted text-xs">Schedule: UAE national programme (DHA). The clinic&apos;s card wins. Not medical advice.</p>
     </div>
   );
 }

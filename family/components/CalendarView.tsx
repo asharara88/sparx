@@ -40,6 +40,7 @@ export function CalendarView({
   const byDay = new Map<string, CalendarEvent[]>();
   for (const e of data.events) byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
 
+  const shownDays = data.days.filter((day) => day.date.slice(0, 10) === today.slice(0, 10) || (byDay.get(day.date)?.length ?? 0) > 0 || due.some((d) => d.due_on === day.date.slice(0, 10)));
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header flex items-center justify-between gap-2">
@@ -68,19 +69,15 @@ export function CalendarView({
         />
       )}
 
-      {data.days.map((day) => {
+      {/* Only the days with something on (and today): two weeks of empty cards said nothing. */}
+      {shownDays.length === 0 && <p className="muted px-1">Nothing planned in these two weeks.</p>}
+      {shownDays.map((day) => {
         const events = byDay.get(day.date) ?? [];
-        const guestDay = events.some((e) => e.kind === "guest");
         return (
           <section key={day.date} className="card" aria-labelledby={`d-${day.date}`}>
             <h2 id={`d-${day.date}`} className="text-lg font-bold">
               {dayLabel(day.date, today)}
             </h2>
-            <p className="muted text-sm">
-              Home: {day.in_house.length ? day.in_house.join(", ") : "nobody marked"}
-              {day.working.length ? ` · Working: ${day.working.join(", ")}` : ""}
-            </p>
-            {guestDay && <p className="mt-1 text-sm font-semibold text-[var(--warn)]">Guest day. No contractor visits.</p>}
             {due
               .filter((d) => d.due_on === day.date.slice(0, 10))
               .map((d) => (
@@ -89,7 +86,7 @@ export function CalendarView({
                 </Link>
               ))}
             {events.length === 0 ? (
-              <p className="muted mt-2">Nothing planned.</p>
+              !due.some((d) => d.due_on === day.date.slice(0, 10)) && <p className="muted mt-1">Nothing planned.</p>
             ) : (
               <ul className="mt-2 flex flex-col gap-2">
                 {events.map((e) => {
