@@ -2,12 +2,16 @@
 import { useEffect, useState } from "react";
 import { speechLang, type Lang } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
+import { primeVoices, warmUtterance } from "@/lib/voice";
 
-/** Reads a sentence aloud in the member's language with the phone's own voice. */
+/** Reads a sentence aloud in the member's language with the phone's own warmest female voice (lib/voice.ts). */
 export function ListenButton({ text, lang, label }: { text: string; lang: Lang; label: string }) {
   const [can, setCan] = useState(false);
   const [on, setOn] = useState(false);
-  useEffect(() => setCan(typeof speechSynthesis !== "undefined"), []);
+  useEffect(() => {
+    setCan(typeof speechSynthesis !== "undefined");
+    primeVoices();
+  }, []);
   useEffect(() => () => {
     if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
   }, []);
@@ -18,8 +22,7 @@ export function ListenButton({ text, lang, label }: { text: string; lang: Lang; 
       setOn(false);
       return;
     }
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = speechLang(lang);
+    const u = warmUtterance(text, speechLang(lang));
     u.onend = () => setOn(false);
     u.onerror = () => setOn(false);
     speechSynthesis.cancel();

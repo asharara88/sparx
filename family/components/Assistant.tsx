@@ -11,6 +11,7 @@ import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
+import { primeVoices, warmUtterance } from "@/lib/voice";
 import { retireProposals, type ProposalState } from "@/lib/assistant/retire";
 import { recapOf } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
@@ -97,8 +98,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       then?.();
       return;
     }
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = speechLang(lang);
+    const u = warmUtterance(text, speechLang(lang));
     u.onend = () => then?.();
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
@@ -143,6 +143,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     }
     setCanSpeak(!!recognitionCtor());
     setCanTalk(!!recognitionCtor() && typeof speechSynthesis !== "undefined");
+    primeVoices();
     try {
       setNight(localStorage.getItem("family.ask.night") === "1");
       setAloud(localStorage.getItem("family.ask.aloud") === "1");
