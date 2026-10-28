@@ -5,13 +5,14 @@ import { can } from "@/lib/types";
 import { HouseholdForm } from "@/components/HouseholdForm";
 import { DeleteHome } from "@/components/DeleteHome";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** The home's own settings (name, milk goal, notes for the helper) and deleting it: rarely needed, so off the Members list. */
 export default async function HomeSettingsPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me | null;
   if (!me?.ok || !can(me, "members", "edit")) redirect("/");
   return (

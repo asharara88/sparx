@@ -27,9 +27,9 @@ import { ageDays } from "@/lib/norms";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
 import { milkForecast } from "@/lib/milk-insights";
-import type { CoachPlanData } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { Fold } from "@/components/Fold";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function HomePage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me | null;
   if (!me || !me.ok) redirect("/login");
   // Staff get the simplest screen in the product.
@@ -90,10 +90,17 @@ export default async function HomePage() {
   let recent: EntryRow[] = [];
   let lastMilk: string | null = null;
   let pumps: EntryRow[] = [];
+  // The day and the week in one round trip: each question to the database is a wait.
+  let weekRows: EntryRow[] | null = null;
   if (summary && summary.ok) {
     const since = new Date(new Date(today + "T12:00:00Z").getTime() - 24 * 3600 * 1000).toISOString();
-    const { data: listData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: since, p_to: new Date(Date.now() + 3600 * 1000).toISOString() });
+    const until = new Date(Date.now() + 3600 * 1000).toISOString();
+    const [{ data: listData }, { data: weekData }] = await Promise.all([
+      supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: since, p_to: until }),
+      me.member.simple_mode ? Promise.resolve({ data: null }) : supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: until }),
+    ]);
     recent = ((listData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
+    weekRows = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? null) as EntryRow[] | null;
     const lastBottle = recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle" && typeof e.payload.milk === "string");
     lastMilk = (lastBottle?.payload.milk as string | undefined) ?? null;
     const evening = new Date(new Date(dayRange(addDays(today, -1), tz).from).getTime() + 18 * 3600 * 1000).toISOString();
@@ -106,11 +113,7 @@ export default async function HomePage() {
 
   const lastFeedAt = summary && summary.ok ? (summary.last["lana.feed"]?.ended_at ?? summary.last["lana.feed"]?.occurred_at ?? null) : null;
   // A week of entries for the forecast; the "recent" list only covers the last day.
-  let week: EntryRow[] = recent;
-  if (summary && summary.ok) {
-    const { data: weekData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() });
-    week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? recent) as EntryRow[];
-  }
+  const week: EntryRow[] = weekRows ?? recent;
   const awayAt = (at: number) => {
     if (!mama || !mama.works_today) return false;
     const d = new Date(at);
@@ -120,8 +123,6 @@ export default async function HomePage() {
     return mama.work_days.includes(wd) && hm >= from && hm <= to;
   };
   const sitter = me.role.id === "sitter";
-  const { data: planData } = summary && summary.ok ? await supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }) : { data: null };
-  const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
   let milkLasts: string | null = null;
   if (milkOk) {
     const safe = milkOk.bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);

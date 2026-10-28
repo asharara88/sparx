@@ -7,12 +7,13 @@ import { addDays, dayRange, todayYmd } from "@/lib/time";
 import { Trends } from "@/components/Trends";
 import { Icon } from "@/components/Icon";
 import { PatternBars } from "@/components/PatternBars";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function LanaTrendsPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;

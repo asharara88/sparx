@@ -6,6 +6,7 @@ import { can } from "@/lib/types";
 import { fmtTime } from "@/lib/time";
 import { QuickFeed } from "@/components/QuickFeed";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ const sideOf = (p: Record<string, unknown>): Side | null =>
 /** Opened from the home-screen shortcut: start, switch or finish a breastfeed in one tap. */
 export default async function QuickFeedPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "add")) redirect("/");
   const { data: sumData } = await supabase.rpc("home_summary");

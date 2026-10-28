@@ -8,6 +8,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { Icon, type IconName } from "@/components/Icon";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import type { Tint } from "@/components/Fold";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ const LANG_NAME = { en: "English", ar: "العربية", ru: "Русский" } 
  */
 export default async function MePage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me | null;
   if (!me?.ok) redirect("/");
   const [{ data: states }, { data: history }, { data: homesData }] = await Promise.all([

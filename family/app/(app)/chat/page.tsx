@@ -6,12 +6,13 @@ import { can } from "@/lib/types";
 import { FamilyChat } from "@/components/FamilyChat";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChatPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "chat", "view")) redirect("/");
   const { data } = await supabase.rpc("chat_list", { p_limit: 150 });

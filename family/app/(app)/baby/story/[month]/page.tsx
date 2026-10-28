@@ -13,6 +13,7 @@ import { Photo } from "@/components/Photo";
 import { PageHeader } from "@/components/PageHeader";
 import { PrintButton } from "@/components/PrintButton";
 import { Icon } from "@/components/Icon";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
   const { month: monthParam } = await params;
   const month = Number(monthParam);
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;

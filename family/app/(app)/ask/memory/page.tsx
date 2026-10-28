@@ -4,12 +4,13 @@ import type { Me, MemoryData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { MemoryList } from "@/components/MemoryList";
 import { PageHeader } from "@/components/PageHeader";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 export default async function MemoryPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "assistant", "view")) redirect("/");
   const { data } = await supabase.rpc("memory_list");

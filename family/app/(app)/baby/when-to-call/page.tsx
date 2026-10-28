@@ -5,13 +5,14 @@ import { can } from "@/lib/types";
 import { childPronouns, possessive } from "@/lib/names";
 import { PageHeader } from "@/components/PageHeader";
 import { TOPICS } from "@/lib/child-guide";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** The ambulance number comes from the child's profile (emergency_ambulance), as on the emergency card. */
 export default async function WhenToCallPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const { data: sumData } = await supabase.rpc("home_summary");

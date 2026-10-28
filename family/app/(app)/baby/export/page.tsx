@@ -6,6 +6,7 @@ import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDate, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { PrintButton } from "@/components/PrintButton";
 import { Icon } from "@/components/Icon";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function LanaExportPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me;
   if (!can(me, "lana", "view")) redirect("/");
   const tz = me.household.timezone;

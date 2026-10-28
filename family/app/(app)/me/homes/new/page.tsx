@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Me, RpcError } from "@/lib/types";
 import { CreateHome } from "@/components/CreateHome";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function NewHomePage() {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
-  const { data } = await supabase.rpc("me");
+  const { data } = await meOnce();
   const me = data as Me | RpcError | null;
   if (me && me.ok && me.preview) {
     return <p className="notice">Not while viewing the app as someone else.</p>;

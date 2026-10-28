@@ -5,13 +5,14 @@ import { PrefsForm } from "@/components/PrefsForm";
 import { NightPref } from "@/components/NightPref";
 import { PageHeader } from "@/components/PageHeader";
 import { nightWindow } from "@/lib/night";
+import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
 /** Language, the simple screen, large text and the dark screen at night: this phone's display. */
 export default async function DisplayPage() {
   const supabase = await createClient();
-  const { data: meData } = await supabase.rpc("me");
+  const { data: meData } = await meOnce();
   const me = meData as Me | null;
   if (!me?.ok) redirect("/");
   const night = nightWindow(me.subjects?.[0] ?? null);
