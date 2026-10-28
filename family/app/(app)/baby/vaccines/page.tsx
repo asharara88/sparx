@@ -22,7 +22,7 @@ export default async function VaccinesPage() {
   const vax = data as VaccinesData | RpcError;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/baby" title={`${summary.subject.name} · Vaccines`} subtitle={`The vaccine schedule, dated from ${childPronouns(me).their} birthday. The clinic's card is the final word.`}
+      <PageHeader back="/baby" title={`${summary.subject.name} · Vaccines`} subtitle={`Dated from ${childPronouns(me).their} birthday.`}
         action={
           <Link href="/baby/doctor" className="btn btn-secondary">
             <Icon name="phone" size={18} /> Doctor

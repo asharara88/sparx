@@ -3,8 +3,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { HouseholdToday, Me, Role } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
-import { HouseholdForm } from "@/components/HouseholdForm";
-import { DeleteHome } from "@/components/DeleteHome";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { InviteLink } from "@/components/InviteLink";
@@ -42,9 +40,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       </header>
       {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
       {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
-      <p className="muted">
-        To bring someone in, add them here, then send them their invite link: they sign in with any e-mail and land in this home as that member.
-      </p>
+      <p className="muted text-sm">Add someone, then send them their invite link.</p>
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
           <li key={m.id} className="card flex flex-col gap-2">
@@ -81,16 +77,22 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           Inactive: {(inactive as { id: string; display_name: string }[]).map((m) => <Link key={m.id} href={`/members/${m.id}`} className="underline">{m.display_name}</Link>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}
         </p>
       ) : null}
-      <div className="grid grid-cols-2 gap-3">
-        <Link href="/members/roles" className="btn">
-          Roles and permissions
-        </Link>
-        <Link href="/members/types" className="btn">
-          Entry types
-        </Link>
-      </div>
-      <HouseholdForm household={me.household} />
-      {me.role.id === "admin" && !me.preview && <DeleteHome household={me.household} platform={me.platform === true} />}
+      <nav aria-label="Home settings" className="card flex flex-col p-0">
+        {(
+          [
+            { href: "/members/home", icon: "house", label: "Home settings", hint: me.household.name },
+            { href: "/members/roles", icon: "lock", label: "Roles and permissions", hint: null },
+            { href: "/members/types", icon: "list", label: "Entry types", hint: null },
+          ] as const
+        ).map((r) => (
+          <Link key={r.href} href={r.href} className="row row-link px-4">
+            <Icon name={r.icon} size={20} className="shrink-0 text-[var(--accent)]" />
+            <span className="flex-1 font-semibold">{r.label}</span>
+            {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}
+            <Icon name="forward" size={18} className="muted" />
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

@@ -2,29 +2,27 @@
 import { useEffect, useState } from "react";
 import { speechLang, type Lang } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
+import { primeVoices } from "@/lib/voice";
+import { speak as sayAloud, stopSpeaking } from "@/lib/speak";
 
-/** Reads a sentence aloud in the member's language with the phone's own voice. */
+/** Reads a sentence aloud in the member's language, in the app's voice (lib/speak.ts). */
 export function ListenButton({ text, lang, label }: { text: string; lang: Lang; label: string }) {
   const [can, setCan] = useState(false);
   const [on, setOn] = useState(false);
-  useEffect(() => setCan(typeof speechSynthesis !== "undefined"), []);
-  useEffect(() => () => {
-    if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+  useEffect(() => {
+    setCan(typeof speechSynthesis !== "undefined");
+    primeVoices();
   }, []);
+  useEffect(() => () => stopSpeaking(), []);
   if (!can) return null;
   function speak() {
     if (on) {
-      speechSynthesis.cancel();
+      stopSpeaking();
       setOn(false);
       return;
     }
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = speechLang(lang);
-    u.onend = () => setOn(false);
-    u.onerror = () => setOn(false);
-    speechSynthesis.cancel();
     setOn(true);
-    speechSynthesis.speak(u);
+    sayAloud(text, speechLang(lang), () => setOn(false), () => setOn(false));
   }
   return (
     <button type="button" className={`btn ${on ? "btn-primary" : ""}`} style={{ minHeight: 64, fontSize: "1.25rem" }} onClick={speak} aria-pressed={on}>

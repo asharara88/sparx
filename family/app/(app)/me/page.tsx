@@ -1,98 +1,96 @@
 import { Wordmark } from "@/components/Brand";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { HomeListing, Me, Presence, PresenceState } from "@/lib/types";
-import { HomeSwitcher } from "@/components/HomeSwitcher";
 import { WEEKDAYS, can } from "@/lib/types";
-import { PresenceForm } from "@/components/PresenceForm";
 import { SignOutButton } from "@/components/SignOutButton";
-import { NotificationsToggle } from "@/components/NotificationsToggle";
 import { Icon, type IconName } from "@/components/Icon";
 import { AvatarUpload } from "@/components/AvatarUpload";
-import { PrefsForm } from "@/components/PrefsForm";
-import { NightPref } from "@/components/NightPref";
-import { nightWindow } from "@/lib/night";
+import type { Tint } from "@/components/Fold";
 
 export const dynamic = "force-dynamic";
 
+const LANG_NAME = { en: "English", ar: "العربية", ru: "Русский" } as const;
+
+/**
+ * More: you, a few shortcuts, and the settings as one list of rows. Each setting opens
+ * its own page, so nothing here is a form or a paragraph of how-to.
+ */
 export default async function MePage() {
   const supabase = await createClient();
   const { data: meData } = await supabase.rpc("me");
-  const me = meData as Me;
+  const me = meData as Me | null;
+  if (!me?.ok) redirect("/");
   const [{ data: states }, { data: history }, { data: homesData }] = await Promise.all([
     supabase.from("presence_states").select("*").order("sort"),
-    supabase.from("presence").select("*").eq("member_id", me.member.id).order("starts_on", { ascending: false }).limit(5),
+    supabase.from("presence").select("*").eq("member_id", me.member.id).order("starts_on", { ascending: false }).limit(1),
     supabase.rpc("my_homes"),
   ]);
   const homes = (homesData as HomeListing[] | null) ?? [];
-  const night = nightWindow(me.subjects?.[0] ?? null);
+  const here = ((history as Presence[] | null) ?? [])[0];
+  const hereLabel = ((states as PresenceState[] | null) ?? []).find((s) => s.id === here?.state_id)?.label ?? "Not set";
+
+  const shortcuts: { href: string; icon: IconName; label: string; tint: Tint; show: boolean }[] = [
+    { href: "/ask", icon: "chat", label: "Ask", tint: "guide", show: can(me, "assistant", "view") },
+    { href: "/notes", icon: "note", label: "Notes", tint: "notes", show: can(me, "notes", "view") },
+    { href: "/baby/emergency", icon: "bell", label: "Emergency", tint: "danger", show: can(me, "lana", "view") },
+    { href: "/members", icon: "users", label: "Members", tint: "house", show: can(me, "members", "edit") },
+    { href: "/ask/memory", icon: "sparkles", label: "Helper memory", tint: "guide", show: can(me, "assistant", "view") },
+    { href: "/ask/skills", icon: "clipboard", label: "Helper skills", tint: "sleep", show: can(me, "assistant", "edit") },
+    { href: "/audit", icon: "history", label: "Audit log", tint: "cal", show: can(me, "audit", "view") },
+  ];
+  const settings: { href: string; icon: IconName; label: string; hint?: string | null }[] = [
+    { href: "/me/display", icon: "globe", label: "Language and display", hint: LANG_NAME[(me.member.lang ?? "en") as keyof typeof LANG_NAME] },
+    { href: "/me/notifications", icon: "bell", label: "Notifications" },
+    { href: "/me/presence", icon: "house", label: "Where you are", hint: hereLabel },
+    ...(!me.preview ? [{ href: "/me/homes", icon: "home" as IconName, label: "Your homes", hint: `${homes.length || 1}` }] : []),
+    { href: "/me/install", icon: "plus", label: "Add to your phone" },
+    { href: "/me/password", icon: "key", label: "Password" },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large flex items-center gap-4">
         <AvatarUpload name={me.member.display_name} path={me.member.photo_path} />
         <div className="min-w-0">
           <h1 className="page-title">{me.member.display_name}</h1>
-          <p className="muted truncate">
-            {me.role.label} · {me.member.email}
+          <p className="muted truncate text-sm">
+            {me.role.label}
+            {me.work_days.length > 0 ? ` · works ${me.work_days.map((d) => WEEKDAYS[d].slice(0, 3)).join(", ")}` : ""}
           </p>
         </div>
       </header>
-      {me.work_days.length > 0 && (
-        <div className="card">
-          <h2 className="text-lg font-semibold">Your work days</h2>
-          <p className="mt-1">{me.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>
-          <p className="muted text-sm">Ask an admin to change these.</p>
-        </div>
-      )}
-      {(can(me, "members", "edit") || can(me, "audit", "view") || can(me, "assistant", "view") || can(me, "notes", "view") || can(me, "lana", "view")) && (
-        <div className="grid grid-cols-2 gap-3">
-          {can(me, "assistant", "view") && <Tile href="/ask" icon="chat" label="Ask" />}
-          {can(me, "notes", "view") && <Tile href="/notes" icon="note" label="Notes" />}
-          {can(me, "lana", "view") && <Tile href="/baby/milk" icon="bottle" label="Milk stash" />}
-          {can(me, "lana", "view") && <Tile href="/baby/vaccines" icon="syringe" label="Vaccines" />}
-          {can(me, "lana", "view") && <Tile href="/baby/medicine" icon="clock" label="Medicine" />}
-          {can(me, "lana", "view") && <Tile href="/baby/activities" icon="sparkles" label="Play" />}
-          {can(me, "lana", "view") && <Tile href="/baby/doctor" icon="phone" label="Doctor" />}
-          {can(me, "assistant", "view") && <Tile href="/ask/memory" icon="sparkles" label="Helper memory" />}
-          {can(me, "assistant", "edit") && <Tile href="/ask/skills" icon="clipboard" label="Helper skills" />}
-          {can(me, "lana", "view") && <Tile href="/baby/emergency" icon="bell" label="Emergency" />}
-          {can(me, "members", "edit") && <Tile href="/members" icon="users" label="Members" />}
-          {can(me, "audit", "view") && <Tile href="/audit" icon="clipboard" label="Audit log" />}
-        </div>
-      )}
-      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"} />
-      <div className="card">
-        <NightPref from={night.from} to={night.to} />
-      </div>
-      <NotificationsToggle />
-      <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
-      {!me.preview && <HomeSwitcher homes={homes} />}
-      <div className="card">
-        <h2 className="text-lg font-semibold">Add this app to your phone</h2>
-        <p className="mt-1">iPhone: in Safari tap Share, then “Add to Home Screen”.</p>
-        <p>Android: in Chrome tap the menu (⋮), then “Install app” or “Add to Home screen”.</p>
-      </div>
-      <div className="card flex flex-col gap-2">
-        <Link href="/me/password" className="btn">
-          <Icon name="key" size={18} /> Set or change password
-        </Link>
-        <SignOutButton />
-      </div>
+
+      <nav aria-label="Shortcuts" className="grid grid-cols-4 gap-2">
+        {shortcuts
+          .filter((t) => t.show)
+          .map((t) => (
+            <Link key={t.href} href={t.href} className={`tile tile-sm tint-${t.tint}`}>
+              <span className="icon-disc" style={{ width: 36, height: 36 }}>
+                <Icon name={t.icon} size={20} />
+              </span>
+              <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
+            </Link>
+          ))}
+      </nav>
+
+      <nav aria-label="Settings" className="card flex flex-col p-0">
+        {settings.map((r) => (
+          <Link key={r.href} href={r.href} className="row row-link px-4">
+            <Icon name={r.icon} size={20} className="shrink-0 text-[var(--accent)]" />
+            <span className="flex-1 font-semibold">{r.label}</span>
+            {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}
+            <Icon name="forward" size={18} className="muted" />
+          </Link>
+        ))}
+      </nav>
+
+      <SignOutButton />
       <p className="muted flex items-center justify-between pt-2 text-xs">
         <Wordmark size={18} arabic />
-        <span>Private. Yours.</span>
+        <span>{me.member.email}</span>
       </p>
     </div>
-  );
-}
-
-function Tile({ href, icon, label }: { href: string; icon: IconName; label: string }) {
-  return (
-    <Link href={href} className="tile">
-      <span className="tile-icon">
-        <Icon name={icon} size={20} />
-      </span>
-      <span className="font-semibold">{label}</span>
-    </Link>
   );
 }

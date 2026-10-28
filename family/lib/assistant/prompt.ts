@@ -42,7 +42,7 @@ function screenLabels(ctx: ToolContext): Record<string, string> {
   const { child } = namesOf(ctx);
   return {
     home: "the Home screen",
-    lana: `${possessive(child)} Today screen`,
+    child: `${possessive(child)} Today screen`,
     patterns: `${possessive(child)} Patterns screen (sleep and feed patterns)`,
     milk: "the Milk stash screen",
     plan: "the coach plan card",

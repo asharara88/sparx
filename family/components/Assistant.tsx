@@ -11,6 +11,8 @@ import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
+import { primeVoices } from "@/lib/voice";
+import { speak as sayAloud, stopSpeaking, unlockAudio } from "@/lib/speak";
 import { retireProposals, type ProposalState } from "@/lib/assistant/retire";
 import { recapOf } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
@@ -93,15 +95,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
 
   /** Say it in the member's language; `then` runs when it has been said (or at once, with no voice). */
   function say(text: string, then?: () => void) {
-    if (typeof speechSynthesis === "undefined" || !text.trim()) {
+    if (!text.trim()) {
       then?.();
       return;
     }
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = speechLang(lang);
-    u.onend = () => then?.();
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
+    sayAloud(text, speechLang(lang), then);
   }
   /** What a proposal is, in words: the exact thing a tap would write, so a voice user hears it before confirming. */
   function spoken(p: AssistantProposal): string {
@@ -143,6 +141,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     }
     setCanSpeak(!!recognitionCtor());
     setCanTalk(!!recognitionCtor() && typeof speechSynthesis !== "undefined");
+    primeVoices();
     try {
       setNight(localStorage.getItem("family.ask.night") === "1");
       setAloud(localStorage.getItem("family.ask.aloud") === "1");
@@ -326,10 +325,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   }
   startListeningRef.current = startListening;
   function toggleListening() {
+    unlockAudio();
     if (listening) recRef.current?.stop();
     else startListening();
   }
   function startTalk() {
+    unlockAudio();
     talkRef.current = true;
     silentRef.current = 0;
     setTalk(true);
@@ -344,7 +345,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     recRef.current = null;
     setListening(false);
     abortRef.current?.abort(); // and the answer being fetched stops too
-    if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    stopSpeaking();
   }
 
   // ---- proposals: the one tap that writes
@@ -419,7 +420,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   function toggleAloud() {
     const v = !aloud;
     setAloud(v);
-    if (!v && typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    if (v) unlockAudio();
+    else stopSpeaking();
     try {
       localStorage.setItem("family.ask.aloud", v ? "1" : "0");
     } catch {
@@ -575,6 +577,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         className="sticky bottom-[calc(64px+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"
         onSubmit={(e) => {
           e.preventDefault();
+          if (aloud || talk) unlockAudio();
           void ask(input);
         }}
       >
