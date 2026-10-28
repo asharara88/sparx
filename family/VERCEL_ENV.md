@@ -25,6 +25,7 @@ Pick **one** of the two ways.
 | Variable | Sensitive | Where to get it | Without it |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` (or `ANTHROPIC_API_SECRET_KEY`, either name works) | yes | console.anthropic.com → API keys. Create it **inside a workspace**, not at organisation level. | Ask and the brief say "not set up"; everything else works. |
+| `ELEVENLABS_API_KEY` | no | elevenlabs.io → Profile → API keys. Optional `ELEVENLABS_VOICE_ID` (default "Matilda") and `ELEVENLABS_MODEL` (default `eleven_multilingual_v2`; `eleven_flash_v2_5` costs half). | Listen and read-aloud use the phone's own voice (its warmest female one). |
 | `ANTHROPIC_WORKSPACE_ID` | no | Only if the key is organisation-level and the API answers "not scoped to a workspace": console → Settings → Workspaces. | That 400 error on the brief card. |
 
 **B. No key, Workload Identity Federation**
