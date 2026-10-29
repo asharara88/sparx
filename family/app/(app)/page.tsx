@@ -26,10 +26,11 @@ import { checkEntries } from "@/lib/entry-checks";
 export const dynamic = "force-dynamic";
 
 /**
- * Home is the child's place and fits a phone screen with few words: the child, four
- * tiles to log with, the three "right now" tiles, then the alerts of this hour (bottles
- * while the breastfeeding parent is away, the thaw, the handover). Below: the guide only
- * when it has a tip, pumping, the day so far, and icon tiles to everything else.
+ * Home answers "what does she need now, and what do I tap?" on one phone screen without
+ * scrolling (DESIGN.md, "Home"): the header (photo, name, age, who has her, Say it,
+ * Emergency); her state in big type with the last feed; one Now notice, the first that
+ * applies, with "N more ›"; today in one row; and the four log tiles at the bottom.
+ * Everything else lives on the child's page, Milk or More.
  */
 export default async function HomePage() {
   const supabase = await createClient();

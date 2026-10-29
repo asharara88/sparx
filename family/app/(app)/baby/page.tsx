@@ -95,6 +95,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
   const [fromMs, toMs] = [Date.parse(from), Date.parse(to)];
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
   const checks = isToday ? checkEntries(week).length : 0;
+  const lasted = (e: EntryRow) => (e.ended_at ? Math.round((Date.parse(e.ended_at) - Date.parse(e.occurred_at)) / 60_000) || null : null);
   // The date, not a second "Today" under the Today tab.
   const label = day === addDays(today, -1) ? "Yesterday" : new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
   return (
@@ -128,11 +129,13 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
                   {e.icon}
                 </span>
                 <span className="min-w-0 flex-1">
+                  {/* How long on the first line ("Sleep · 45 min"), when it ended on the second; a
+                      bottle, logged with its end at its start, has neither. */}
                   <span className="block truncate font-semibold">
                     {e.type_label}
-                    {e.ended_at ? <span className="muted font-normal"> to {fmtTime(e.ended_at, tz)}</span> : e.type_id === "lana.sleep" ? <span className="muted font-normal"> still asleep</span> : null}
+                    {lasted(e) ? <span className="muted font-normal"> · {fmtDuration(lasted(e)!)}</span> : !e.ended_at && e.type_id === "lana.sleep" ? <span className="muted font-normal"> still asleep</span> : null}
                   </span>
-                  <span className="muted block truncate text-sm">{[describePayload(e.payload), e.note, e.attributed_name ?? e.logged_by_name].filter(Boolean).join(" · ")}</span>
+                  <span className="muted block truncate text-sm">{[lasted(e) ? `until ${fmtTime(e.ended_at!, tz)}` : null, describePayload(e.payload), e.note, e.attributed_name ?? e.logged_by_name].filter(Boolean).join(" · ")}</span>
                 </span>
               </Link>
             </li>

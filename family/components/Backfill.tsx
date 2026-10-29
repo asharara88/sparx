@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EntryRow, EntryType } from "@/lib/types";
 import { can } from "@/lib/types";
@@ -7,18 +8,20 @@ import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
 import { fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
-import { maxDurationMin, type When, whenToIso } from "@/lib/when";
+import { clockMarks, maxDurationMin, type When, whenToIso } from "@/lib/when";
+import { bottleChoices, NAP_LENGTHS, overlappingSleep } from "@/lib/backlog";
 import { WhenChips } from "@/components/WhenChips";
 import { Icon } from "@/components/Icon";
 
-const LASTED: Record<string, number[]> = { sleep: [20, 30, 45, 60, 90, 120], feed: [5, 10, 15, 20, 30] };
+const LASTED: Record<string, readonly number[]> = { sleep: NAP_LENGTHS, feed: [5, 10, 15, 20, 30] };
 
 /**
  * "Forgot to log something?" One card that writes a finished entry into the
  * past: what, when it started, how long it lasted (for sleeps and
  * breastfeeds), and the one or two details the type needs. Collapsed to a
  * line until tapped. On a past day the time defaults to that day. `bare` drops the card
- * and its heading, for inside a sheet that already says what it is.
+ * and its heading, for inside a sheet that already says what it is. A bottle starts on
+ * the last amount; a sleep on top of one already logged asks before it is saved.
  */
 export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, defaultOpen = false, bare = false, onSaved }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; defaultOpen?: boolean; bare?: boolean; onSaved?: () => void }) {
   const me = useMe();
@@ -43,11 +46,15 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
   const pastDay = day < today;
   const [open, setOpen] = useState(defaultOpen);
   const [what, setWhat] = useState<string | null>(null);
-  const [when, setWhen] = useState<When>(pastDay ? { kind: "at", local: `${day}T12:00` } : { kind: "ago", min: 30 });
+  // Today starts on the clock time about half an hour back (a chip, so it shows as picked).
+  const startWhen = (): When => (pastDay ? { kind: "at", local: `${day}T12:00` } : { kind: "at", local: clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), 3)[2] });
+  const [when, setWhen] = useState<When>(startWhen);
   const [lasted, setLasted] = useState<number | null>(null);
   const [detail, setDetail] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // A sleep that lands on one already logged: shown once, then "Save anyway" saves it.
+  const [clash, setClash] = useState<EntryRow | null>(null);
 
   // A nudge: nothing fed for well over the usual gap while the child was awake.
   const hint = useMemo(() => {
@@ -66,7 +73,8 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
   const nowMs = Date.now();
   const startIso = whenToIso(when, nowMs, (l) => fromLocalInput(l, timezone));
   const cap = maxDurationMin(startIso, nowMs);
-  const bottleQuick = (feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[];
+  const lastBottle = entries.filter((e) => e.type_id === feedType?.id && e.payload.method === "Bottle").sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))[0];
+  const bottle = bottleChoices((feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[], Number(lastBottle?.payload.amount_ml) || null);
   const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
   const diaperKinds = (types.find((t) => t.key === "diaper")?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]) as string[];
   const pumpQuick = (types.find((t) => t.key === "pump")?.fields.find((f) => f.key === "amount_ml")?.quick ?? [90, 120, 150, 180]) as number[];
@@ -79,11 +87,16 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     : choice?.key === "breast" && !detail.side ? "Pick a side"
     : "Save";
 
-  async function save() {
+  async function save(anyway = false) {
     if (!choice || !ready) return;
+    const endIso = choice.lasted && lasted != null ? new Date(Date.parse(startIso) + Math.min(lasted, cap || lasted) * 60_000).toISOString() : null;
+    if (choice.key === "sleep" && !anyway) {
+      const other = overlappingSleep(entries, Date.parse(startIso), Date.parse(endIso ?? new Date(nowMs).toISOString()), nowMs, choice.type.id);
+      if (other) return setClash(other);
+    }
+    setClash(null);
     setBusy(true);
     setMsg(null);
-    const endIso = choice.lasted && lasted != null ? new Date(Date.parse(startIso) + Math.min(lasted, cap || lasted) * 60_000).toISOString() : null;
     const payload = { ...choice.payload, ...detail, ...(choice.key === "breast" && lasted != null ? { duration_min: lasted } : {}) };
     const r = await sendOrQueue(supabaseBrowser(), { client_id: newClientId(), subject_id: subjectId, type_id: choice.type.id, occurred_at: startIso, ended_at: endIso, payload, note: null });
     if (r.status === "saved" && choice.key === "pump" && detail.amount_ml) await supabaseBrowser().rpc("milk_add", { p_amount_ml: detail.amount_ml, p_location: "fridge", p_pumped_at: startIso, p_note: null });
@@ -93,7 +106,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     setWhat(null);
     setLasted(null);
     setDetail({});
-    setWhen(pastDay ? { kind: "at", local: `${day}T12:00` } : { kind: "ago", min: 30 });
+    setWhen(startWhen());
     router.refresh();
     if (r.status === "saved") onSaved?.();
   }
@@ -128,7 +141,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
       {hint && <p className="notice notice-warn text-sm">{hint}</p>}
       <div className="flex flex-wrap gap-2" role="group" aria-label="What">
         {choices.map((c) => (
-          <button key={c.key} type="button" className="chip min-h-[48px]" aria-pressed={what === c.key} disabled={busy} onClick={() => { setWhat(c.key); setLasted(null); setDetail({}); }}>
+          <button key={c.key} type="button" className="chip min-h-[48px]" aria-pressed={what === c.key} disabled={busy} onClick={() => { setWhat(c.key); setLasted(null); setClash(null); setDetail(c.key === "bottle" && bottle.usual ? { amount_ml: bottle.usual } : {}); }}>
             <span aria-hidden>{c.icon}</span> {c.label}
           </button>
         ))}
@@ -136,13 +149,13 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
       {choice && (
         <>
           <p className="muted text-sm">{choice.lasted ? "Started" : "When"}</p>
-          <WhenChips value={when} onChange={setWhen} timezone={timezone} presets={pastDay ? [] : [15, 30, 45, 60, 90, 120, 180]} alwaysOpen />
+          <WhenChips value={when} onChange={(w) => { setWhen(w); setClash(null); }} timezone={timezone} marks={pastDay ? 0 : undefined} alwaysOpen />
           {choice.lasted && (
             <>
               <p className="muted text-sm">Lasted{cap > 0 && cap < 180 ? ` (up to ${cap} min, until now)` : ""}</p>
               <div className="flex flex-wrap gap-2" role="group" aria-label="How long">
                 {(LASTED[choice.key === "breast" ? "feed" : "sleep"] ?? []).filter((m) => cap === 0 || m <= cap || m === LASTED.feed[0]).map((m) => (
-                  <button key={m} type="button" className="chip" aria-pressed={lasted === m} disabled={busy} onClick={() => setLasted(m)}>
+                  <button key={m} type="button" className="chip" aria-pressed={lasted === m} disabled={busy} onClick={() => { setLasted(m); setClash(null); }}>
                     {m} min
                   </button>
                 ))}
@@ -161,7 +174,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
                 </div>
               )}
               <div className="flex flex-wrap gap-2" role="group" aria-label="How much">
-                {bottleQuick.map((ml) => (
+                {bottle.amounts.map((ml) => (
                   <button key={ml} type="button" className="chip" aria-pressed={detail.amount_ml === ml} disabled={busy} onClick={() => setDetail({ ...detail, amount_ml: ml })}>
                     {ml} ml
                   </button>
@@ -196,10 +209,26 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
               ))}
             </div>
           )}
-          <button type="button" className="btn btn-primary min-h-[56px]" disabled={!ready || busy} onClick={() => void save()}>
-            {ready ? `Save ${choice.label.toLowerCase()} at ${fmtTime(startIso, timezone)}` : missing}
-          </button>
-          <p className="muted text-xs">Need more detail, a note or a photo? Use the full form from the buttons below; it has a time field too.</p>
+          {clash ? (
+            <div className="notice notice-warn flex flex-col gap-2" role="alert">
+              <p className="font-semibold">
+                On top of a sleep from {fmtTime(clash.occurred_at, timezone)}
+                {clash.ended_at ? ` to ${fmtTime(clash.ended_at, timezone)}` : ", still going"}.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Link href={`/baby/entry/${clash.id}`} className="btn">
+                  Change it
+                </Link>
+                <button type="button" className="btn" disabled={busy} onClick={() => void save(true)}>
+                  Save anyway
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="btn btn-primary min-h-[56px]" disabled={!ready || busy} onClick={() => void save()}>
+              {ready ? `Save ${choice.label.toLowerCase()} at ${fmtTime(startIso, timezone)}` : missing}
+            </button>
+          )}
         </>
       )}
       {msg && (
