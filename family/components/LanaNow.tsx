@@ -203,11 +203,14 @@ export function LanaNow({
       if (state.kind === "night_awake") await end(state.entry);
       await start(sleepType, {});
     });
-  const wake = (entry: OngoingEntry) =>
-    run(isNight ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
+  // A night wake or the morning by the time she woke (a wake from earlier can fall either side).
+  const wake = (entry: OngoingEntry) => {
+    const nightWake = isNightAt(new Date(whenIso), timezone, subject.settings);
+    return run(nightWake ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
       await end(entry);
-      if (isNight && wakeType) await start(wakeType, {});
+      if (nightWake && wakeType) await start(wakeType, {});
     });
+  };
   // A sleep from earlier: from the picked time, either still going or for `lastedMin`.
   // One already logged in that span is shown first, with the way to change it.
   const logSleep = (lastedMin: number | null, anyway = false) => {

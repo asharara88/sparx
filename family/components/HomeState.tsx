@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import type { HomeSummary } from "@/lib/types";
 import { fmtDuration, fmtTime, fmtWhen } from "@/lib/time";
+import { useMe } from "@/lib/me-context";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import { mergeOngoing, onQueueChange, readQueueFor, type QueuedOp } from "@/lib/offline";
 
 const H12 = 12 * 60;
 
@@ -10,7 +13,8 @@ const H12 = 12 * 60;
  * and under it the last feed. A gap in the log (no sleep for 12 hours) says nothing
  * rather than "awake 20 h" (DESIGN.md, rule 6). During a feed, when she woke and the last
  * nappy take the feed line's place, so the last sleep, feed and nappy are always on screen
- * (the tiles carry them otherwise). Ticks every 30 seconds.
+ * (the tiles carry them otherwise). Timers started or ended on this phone without signal
+ * count straight away, as on the tiles below (the offline queue). Ticks every 30 seconds.
  */
 export function HomeState({ summary, timezone }: { summary: HomeSummary; timezone: string }) {
   const [now, setNow] = useState<number | null>(null);
@@ -21,9 +25,21 @@ export function HomeState({ summary, timezone }: { summary: HomeSummary; timezon
   }, []);
   const mins = (iso: string) => (now == null ? null : Math.max(0, Math.round((now - Date.parse(iso)) / 60_000)));
 
-  const asleep = summary.ongoing.find((e) => e.type_id === "lana.sleep");
-  const feeding = summary.ongoing.find((e) => e.type_id === "lana.feed");
-  const woke = summary.last["lana.sleep"]?.ended_at ?? null;
+  const me = useMe();
+  const [queue, setQueue] = useState<QueuedOp[]>([]);
+  useEffect(() => {
+    const sb = supabaseBrowser();
+    const load = () => void readQueueFor(sb).then(setQueue);
+    load();
+    return onQueueChange(load);
+  }, []);
+  const ongoing = mergeOngoing(summary.ongoing, summary.subject.id, queue, me.member.display_name, summary.types);
+  const asleep = ongoing.find((e) => e.type_id === "lana.sleep");
+  const feeding = ongoing.find((e) => e.type_id === "lana.feed");
+  // A sleep ended on this phone and not yet sent: she woke then.
+  const serverSleep = summary.ongoing.find((e) => e.type_id === "lana.sleep");
+  const endedHere = serverSleep ? queue.find((x) => x.op === "end" && x.entry_id === serverSleep.id) : undefined;
+  const woke = (endedHere && endedHere.op === "end" ? endedHere.ended_at : null) ?? summary.last["lana.sleep"]?.ended_at ?? null;
   const feed = summary.last["lana.feed"];
   const nappy = summary.last["lana.diaper"];
 
