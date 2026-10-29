@@ -5,7 +5,7 @@ import type { MilkBottle, MilkData } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { fmtDate, fmtTime } from "@/lib/time";
+import { addDays, fmtDate, fmtTime, todayYmd, ymdInZone } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 
 const QUICK = [60, 90, 120, 150, 180];
@@ -16,6 +16,15 @@ function left(iso: string, now: Date): string {
   if (min < 60) return `${min} min left`;
   if (min < 48 * 60) return `${Math.floor(min / 60)} h left`;
   return `${Math.round(min / 1440)} days left`;
+}
+
+/** "today 08:00", "yesterday 11:55", or "Thu 17 Sep" for anything older. */
+function when(iso: string, tz: string, now: Date): string {
+  const day = ymdInZone(new Date(iso), tz);
+  const today = todayYmd(tz, now);
+  if (day === today) return `today ${fmtTime(iso, tz)}`;
+  if (day === addDays(today, -1)) return `yesterday ${fmtTime(iso, tz)}`;
+  return fmtDate(iso, tz);
 }
 
 /**
@@ -49,44 +58,49 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
     if (await call("milk_add", { p_amount_ml: ml, p_location: where }, "add")) setAmount("");
   }
 
-  const Bottle = ({ b }: { b: MilkBottle }) => (
-    <li className="row">
-      <span className={`dot ${b.expired ? "dot-danger" : b.warmed_at ? "dot-warn" : "dot-ok"}`} />
-      <div className="min-w-0 grow">
-        <p className="font-semibold">
-          {b.amount_ml} ml
-          <span className="muted font-normal"> · pumped {fmtDate(b.pumped_at, timezone, { weekday: "short" })} {fmtTime(b.pumped_at, timezone)}</span>
-        </p>
+  // One bottle, stacked so nothing squeezes on a phone: how much and how long it keeps
+  // on the first line, when it was pumped under it, the taps on their own row.
+  const Bottle = ({ b, first }: { b: MilkBottle; first?: boolean }) => {
+    const hoursLeft = (new Date(b.expires_at).getTime() - now.getTime()) / 3_600_000;
+    const state = b.warmed_at ? "Warmed" : b.thawed_at ? "Thawed" : null;
+    const actions: { label: string; action: string }[] = b.expired
+      ? []
+      : [
+          ...(b.location === "freezer" ? [{ label: "Thaw", action: "fridge" }] : []),
+          ...(b.location === "fridge" && !b.warmed_at ? [{ label: "Warmed", action: "warmed" }] : []),
+          { label: "Used", action: "used" },
+        ];
+    return (
+      <li className="flex flex-col gap-2 py-3 [&+&]:border-t [&+&]:border-[var(--line)]">
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-2">
+            <span className="text-xl font-bold">{b.amount_ml} ml</span>
+            {first && <span className="pill pill-accent">use first</span>}
+          </p>
+          <span className={b.expired ? "pill pill-danger" : hoursLeft < 24 ? "pill pill-warn" : "muted text-sm font-semibold"}>
+            {state ? `${state} · ` : ""}
+            {left(b.expires_at, now)}
+          </span>
+        </div>
         <p className="muted text-sm">
-          {b.warmed_at ? "Warmed · " : b.thawed_at ? "Thawed · " : ""}
-          {left(b.expires_at, now)}
+          {b.location === "freezer" ? "Frozen" : "Pumped"} {when(b.pumped_at, timezone, now)}
           {b.note ? ` · ${b.note}` : ""}
         </p>
-      </div>
-      {canAdd && (
-        <div className="flex shrink-0 gap-1">
-          {b.location === "freezer" && !b.expired && (
-            <button type="button" className="chip" style={{ minHeight: 36, padding: "4px 12px" }} disabled={busy === b.id} onClick={() => call("milk_move", { p_id: b.id, p_action: "fridge" }, b.id)}>
-              Thaw
+        {canAdd && (
+          <div className="flex gap-2">
+            {actions.map((a) => (
+              <button key={a.action} type="button" className="chip grow" disabled={busy === b.id} onClick={() => call("milk_move", { p_id: b.id, p_action: a.action }, b.id)}>
+                {a.label}
+              </button>
+            ))}
+            <button type="button" className={`chip ${b.expired ? "grow" : ""} text-[var(--muted)]`} disabled={busy === b.id} onClick={() => call("milk_move", { p_id: b.id, p_action: "binned" }, b.id)}>
+              Bin
             </button>
-          )}
-          {b.location === "fridge" && !b.warmed_at && !b.expired && (
-            <button type="button" className="chip" style={{ minHeight: 36, padding: "4px 12px" }} disabled={busy === b.id} onClick={() => call("milk_move", { p_id: b.id, p_action: "warmed" }, b.id)}>
-              Warmed
-            </button>
-          )}
-          {!b.expired && (
-            <button type="button" className="chip" style={{ minHeight: 36, padding: "4px 12px" }} disabled={busy === b.id} onClick={() => call("milk_move", { p_id: b.id, p_action: "used" }, b.id)}>
-              Used
-            </button>
-          )}
-          <button type="button" className="icon-btn m-0 text-[var(--muted)]" style={{ width: 36, height: 36, minHeight: 36 }} aria-label="Bin it" disabled={busy === b.id} onClick={() => call("milk_move", { p_id: b.id, p_action: "binned" }, b.id)}>
-            <Icon name="x" size={16} />
-          </button>
-        </div>
-      )}
-    </li>
-  );
+          </div>
+        )}
+      </li>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -150,17 +164,17 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
       )}
 
       <section className="card">
-        <h2 className="font-semibold">Fridge · use the top one first</h2>
-        {fridge.length === 0 ? <p className="muted mt-1 text-sm">Nothing in the fridge.</p> : <ul className="mt-1 flex flex-col">{fridge.map((b) => <Bottle key={b.id} b={b} />)}</ul>}
+        <h2 className="font-semibold">Fridge</h2>
+        {fridge.length === 0 ? <p className="muted mt-1 text-sm">Nothing in the fridge.</p> : <ul className="flex flex-col">{fridge.map((b, i) => <Bottle key={b.id} b={b} first={i === 0 && fridge.length > 1} />)}</ul>}
       </section>
       <section className="card">
         <h2 className="font-semibold">Freezer</h2>
-        {freezer.length === 0 ? <p className="muted mt-1 text-sm">Nothing frozen.</p> : <ul className="mt-1 flex flex-col">{freezer.map((b) => <Bottle key={b.id} b={b} />)}</ul>}
+        {freezer.length === 0 ? <p className="muted mt-1 text-sm">Nothing frozen.</p> : <ul className="flex flex-col">{freezer.map((b) => <Bottle key={b.id} b={b} />)}</ul>}
       </section>
       {gone.length > 0 && (
         <section className="card">
           <h2 className="font-semibold text-[var(--danger)]">Past its time · bin these</h2>
-          <ul className="mt-1 flex flex-col">{gone.map((b) => <Bottle key={b.id} b={b} />)}</ul>
+          <ul className="flex flex-col">{gone.map((b) => <Bottle key={b.id} b={b} />)}</ul>
         </section>
       )}
       <p className="muted text-sm">Fridge milk keeps 4 days, frozen 6 months, thawed 24 hours, warmed 2 hours. Thawed or warmed milk never goes back in the freezer.</p>
