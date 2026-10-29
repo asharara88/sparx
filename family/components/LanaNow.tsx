@@ -161,6 +161,15 @@ export function LanaNow({
   const sinceText = (iso: string) => `${fmtTime(iso, timezone)} · ${fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)))}`;
 
   const elapsed = (iso: string) => fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)));
+  // Each tile says when it last happened ("1 h 50 min ago"); a day or more is the tile's
+  // plain hint instead, and a log gap of 12 hours never reads as "awake 20 h".
+  const ago = (typeId: string | undefined, fallback: string) => {
+    const last = typeId ? recent.find((e) => e.type_id === typeId) : undefined;
+    if (!last) return fallback;
+    const m = minutesBetween(last.ended_at ?? last.occurred_at, realNowIso);
+    return m >= 0 && m < 24 * 60 ? `${fmtDuration(m)} ago` : fallback;
+  };
+  const awakeSub = state.kind === "awake" && state.since && minutesBetween(state.since, realNowIso) <= 12 * 60 ? `awake ${elapsed(state.since)}` : "Tap when asleep";
 
   // Closing a sheet without saving also drops a "when" picked inside it, so the next
   // direct tap (Asleep has no chips) is not quietly backdated.
@@ -247,16 +256,16 @@ export function LanaNow({
       {/* ---- awake (day or night): four tiles */}
       {(state.kind === "awake" || state.kind === "night_awake") && (
         <div className="grid grid-cols-2 gap-3">
-          <Tile {...tileProps} tint="feed" icon="bottle" label="Feed" sub={breastfeeds ? "Breast or bottle" : "Bottle"} onClick={() => setSheet("feed")} />
+          <Tile {...tileProps} tint="feed" icon="bottle" label="Feed" sub={ago(feedType?.id, breastfeeds ? "Breast or bottle" : "Bottle")} onClick={() => setSheet("feed")} />
           <Tile {...tileProps}
             tint="sleep"
             icon="zzz"
             label={state.kind === "night_awake" ? "Back to sleep" : "Asleep"}
-            sub={state.kind === "night_awake" ? `awake since ${fmtTime(state.entry.occurred_at, timezone)}` : state.since ? `awake ${elapsed(state.since)}` : "Tap to start"}
+            sub={state.kind === "night_awake" ? `awake since ${fmtTime(state.entry.occurred_at, timezone)}` : awakeSub}
             onClick={startSleep}
           />
-          <Tile {...tileProps} tint="diaper" icon="diaper" label="Nappy" sub="Wet or dirty" onClick={() => setSheet("diaper")} />
-          {breastfeeds && pumpType ? <Tile {...tileProps} tint="pump" icon="droplet" label="Pump" sub="To the fridge" onClick={() => setSheet("pump")} /> : <Tile {...tileProps} tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
+          <Tile {...tileProps} tint="diaper" icon="diaper" label="Nappy" sub={ago(diaperType?.id, "Wet or dirty")} onClick={() => setSheet("diaper")} />
+          {breastfeeds && pumpType ? <Tile {...tileProps} tint="pump" icon="droplet" label="Pump" sub={ago(pumpType?.id, "To the fridge")} onClick={() => setSheet("pump")} /> : <Tile {...tileProps} tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
         </div>
       )}
 

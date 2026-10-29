@@ -501,7 +501,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
           {canTalk && <p className="muted mt-1 text-sm">Tap Talk for hands-free: it listens, answers out loud, then listens again. Say “remember that…” to teach it something.</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {suggestions.map((s) => (
-              <button key={s} type="button" className="chip" onClick={() => void ask(s)}>
+              <button key={s} type="button" className="chip chip-say" onClick={() => void ask(s)}>
                 {s}
               </button>
             ))}

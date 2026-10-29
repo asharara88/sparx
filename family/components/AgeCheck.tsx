@@ -3,8 +3,9 @@ import { ageDays, ageLabel, checkDay } from "@/lib/norms";
 import { Icon } from "./Icon";
 
 /**
- * The child's totals against what is typical for the age. One row per measure,
- * a red pill where the child fell short on a finished day. Today only shows "so far".
+ * The child's totals against what is typical for the age, one row per measure:
+ * what was logged on the right, the usual range under the name, a red pill only
+ * where a finished day fell short. A list, not a table: four columns do not fit a phone.
  */
 export function AgeCheck({
   totals,
@@ -13,7 +14,7 @@ export function AgeCheck({
   complete,
   title,
   subtitle,
-  name = "the baby",
+  bare = false,
 }: {
   totals: DayTotals;
   birthDate: string | null;
@@ -21,8 +22,10 @@ export function AgeCheck({
   complete: boolean;
   title: string;
   subtitle?: string;
-  /** The child's name, for the column header. */
+  /** Kept for callers; the list needs no column header. */
   name?: string;
+  /** Inside a fold that already carries the title: no box and no second heading. */
+  bare?: boolean;
 }) {
   if (!birthDate) {
     return (
@@ -36,51 +39,37 @@ export function AgeCheck({
   const rows = checkDay(totals, days, complete);
   const short = rows.filter((r) => r.verdict === "short");
   return (
-    <section className="card flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="section-title">{title}</h2>
-        <span className="muted text-sm">{ageLabel(days)} old</span>
-      </div>
-      {subtitle && <p className="muted text-sm">{subtitle}</p>}
+    <section className={bare ? "flex flex-col gap-2" : "card flex flex-col gap-2"} aria-label={bare ? title : undefined}>
+      {!bare && (
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="section-title">{title}</h2>
+          <span className="muted shrink-0 text-sm">{ageLabel(days)} old</span>
+        </div>
+      )}
+      {(subtitle || bare) && <p className="muted text-sm">{[subtitle, bare ? `${ageLabel(days)} old` : null].filter(Boolean).join(" ")}</p>}
       {short.length > 0 && (
         <p className="notice notice-warn flex items-center gap-2">
           <Icon name="bell" size={20} className="shrink-0" />
-          <span>
-            Short on {short.map((r) => r.label.toLowerCase()).join(", ")}. If the day was fully logged, keep an eye on it.
-          </span>
+          <span>Short on {short.map((r) => r.label.toLowerCase()).join(", ")}. If the day was fully logged, keep an eye on it.</span>
         </p>
       )}
-      <table className="w-full text-sm">
-        <thead className="muted text-left text-xs uppercase tracking-wide">
-          <tr>
-            <th className="py-1 font-semibold">Measure</th>
-            <th className="py-1 text-right font-semibold">{name}</th>
-            <th className="py-1 text-right font-semibold">Typical</th>
-            <th className="py-1 text-right font-semibold">
-              <span className="sr-only">Status</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className="border-t border-[var(--line)]">
-              <td className="py-1.5">
-                {r.label}
-                {r.note && <span className="muted block text-xs">{r.note}</span>}
-              </td>
-              <td className="whitespace-nowrap py-1.5 text-right font-semibold tabular-nums">{r.value}</td>
-              <td className="muted whitespace-nowrap py-1.5 pl-2 text-right tabular-nums">{r.typical}</td>
-              <td className="py-1.5 pl-2 text-right">
-                {r.verdict === "short" && <span className="pill pill-danger">short</span>}
-                {r.verdict === "more" && <span className="pill">more</span>}
-                {r.verdict === "ok" && <span className="pill pill-ok">ok</span>}
-                {r.verdict === "so_far" && <span className="pill">so far</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted text-xs">Typical ranges for a healthy baby from the NHS, the American Academy of Pediatrics and the National Sleep Foundation. Only what was written down counts. Not medical advice.</p>
+      <ul className="flex flex-col">
+        {rows.map((r) => (
+          <li key={r.key} className="row">
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">{r.label}</span>
+              <span className="muted block text-sm">
+                {[r.typical && `Usually ${r.typical}`, r.note].filter(Boolean).join(". ")}
+              </span>
+            </span>
+            <span className="flex shrink-0 flex-col items-end gap-1">
+              <span className="text-lg font-bold tabular-nums">{r.value}</span>
+              {r.verdict === "short" && <span className="pill pill-danger">short</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="muted text-xs">Ranges from the NHS, the AAP and the National Sleep Foundation. Only what was logged counts. Not medical advice.</p>
     </section>
   );
 }

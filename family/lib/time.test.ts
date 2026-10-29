@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dateWords, fmtDate, fmtDateTime, fmtTime, fromLocalInput, ISO_IN_TEXT, parseHouseholdTime, toLocalInput } from "./time.ts";
+import { dateWords, fmtDate, fmtDateTime, fmtTime, fmtWhen, fromLocalInput, ISO_IN_TEXT, parseHouseholdTime, toLocalInput } from "./time.ts";
 
 const at = "2026-10-14T15:50:00Z"; // Wed 14 Oct 2026, 19:50 in Dubai
 
@@ -16,6 +16,15 @@ test("fmtTime and fmtDateTime use the household zone", () => {
   assert.equal(fmtTime(at, "Asia/Dubai"), "19:50");
   assert.equal(fmtTime(at, "UTC"), "15:50");
   assert.equal(fmtDateTime(at, "Asia/Dubai"), "Wed 14 Oct 19:50");
+});
+
+test("fmtWhen names today and yesterday in the household's zone, then the date", () => {
+  const now = new Date("2026-10-14T20:30:00Z"); // Thu 15 Oct, 00:30 in Dubai
+  assert.equal(fmtWhen("2026-10-14T20:10:00Z", "Asia/Dubai", now), "today 00:10");
+  assert.equal(fmtWhen(at, "Asia/Dubai", now), "yesterday 19:50");
+  assert.equal(fmtWhen("2026-10-12T08:00:00Z", "Asia/Dubai", now), "Mon 12 Oct");
+  // the same instant is still "today" in UTC
+  assert.equal(fmtWhen(at, "UTC", now), "today 15:50");
 });
 
 test("dateWords keeps Intl's order and drops its separators", () => {

@@ -25,7 +25,7 @@ function recognitionCtor(): (new () => Recognition) | null {
  * One mic on Home: say "drank 90 ml" or "wet nappy" and it goes to Ask,
  * which prepares the entry for a one-tap Confirm. Nothing is saved from here.
  */
-export function SayIt({ compact = false }: { compact?: boolean }) {
+export function SayIt({ compact = false, icon = false }: { compact?: boolean; icon?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const [can, setCan] = useState(false);
@@ -69,9 +69,24 @@ export function SayIt({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  // A round microphone for Home's header; what it hears shows above the tab bar.
+  if (icon) {
+    return (
+      <>
+        <button type="button" className={`round-btn ${listening ? "bg-[var(--danger)] text-white" : "tint-guide"}`} aria-label={listening ? "Stop listening" : "Say it"} aria-pressed={listening} onClick={start}>
+          <Icon name="mic" size={22} />
+        </button>
+        {listening && (
+          <p className="say-heard" role="status">
+            {heard ? `“${heard.slice(0, 80)}”` : "Listening… say a feed, a nappy or a sleep"}
+          </p>
+        )}
+      </>
+    );
+  }
   if (compact) {
     return (
-      <button type="button" className={`chip ${listening ? "" : "tint-guide"}`} aria-pressed={listening} onClick={start}>
+      <button type="button" className={`chip chip-say ${listening ? "" : "tint-guide"}`} aria-pressed={listening} onClick={start}>
         {listening ? <span className="dot dot-danger" /> : <Icon name="mic" size={18} />}
         {listening ? (heard ? `“${heard.slice(0, 40)}”` : "Listening…") : "Say it"}
       </button>

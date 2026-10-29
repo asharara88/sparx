@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { HouseholdToday, Me, Role } from "@/lib/types";
+import type { AttendanceData, HouseholdToday, Me, RpcError, Role } from "@/lib/types";
+import { AttendanceButton } from "@/components/AttendanceButton";
+import { fmtTime } from "@/lib/time";
 import { WEEKDAYS, can } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
@@ -17,13 +19,16 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const me = meData as Me;
   if (!can(me, "members", "edit")) redirect("/");
   const { error } = await searchParams;
-  const [{ data: hh }, { data: roles }, { data: inactive }, { data: photoRows }, { data: accountsData }] = await Promise.all([
+  const [{ data: hh }, { data: roles }, { data: inactive }, { data: photoRows }, { data: accountsData }, { data: attData }] = await Promise.all([
     supabase.rpc("household_today"),
     supabase.from("roles").select("*").order("sort"),
     supabase.from("members").select("id, display_name, role_id").eq("is_active", false),
     supabase.from("members").select("id, photo_path").eq("is_active", true),
     supabase.rpc("members_accounts"),
+    supabase.rpc("attendance_today"),
   ]);
+  // Who works here today and whether they are in: moved from Home, which keeps only "now".
+  const attendance = attData as AttendanceData | RpcError | null;
   const photos = new Map(((photoRows as { id: string; photo_path: string | null }[] | null) ?? []).map((r) => [r.id, r.photo_path]));
   // Who has signed in, who still waits for a link (migration 5300); not while previewing, which is read only.
   const accountsRes = accountsData as { ok: boolean; members?: Record<string, AccountState> } | null;
@@ -41,6 +46,25 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       </header>
       {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
       {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
+      {attendance && attendance.ok && (() => {
+        const staff = (hh as HouseholdToday).members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id);
+        if (staff.length === 0 && attendance.open.length === 0) return null;
+        return (
+          <section className="card flex flex-col gap-2" aria-label="Here today">
+            <h2 className="section-title">Here today</h2>
+            {attendance.open.map((o) => (
+              <p key={o.member_id}>
+                {o.name} here since {fmtTime(o.in_at, me.household.timezone)}
+              </p>
+            ))}
+            <div className="flex flex-wrap gap-2">
+              {staff.map((m) => (
+                <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={me.household.timezone} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />
+              ))}
+            </div>
+          </section>
+        );
+      })()}
       <p className="muted text-sm">Add someone, then send them their invite link.</p>
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (

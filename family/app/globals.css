@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* The smallest text size is 13 px or more on a phone (DESIGN.md, "Built for a phone"):
+   Tailwind's text-xs is 0.75 rem, which is 12.75 px at this app's 17 px root. */
+@theme {
+  --text-xs: 0.8rem;
+  --text-xs--line-height: 1.35;
+}
+
 /* ============================================================================
    Design tokens. Light by default, dark follows the phone, "night" is the
    Ask screen's own very dark mode. Everything else reads these variables.
@@ -98,6 +105,12 @@ html[data-theme="night"] {
   --night: #b9c6a8;
   --night-soft: #262b22;
   --ok: #b9c6a8;
+  --ok-soft: #1f251b;
+  --warn: #e8b468;
+  --warn-soft: #2a2010;
+  --danger: #f08a85;
+  --danger-soft: #2e1416;
+  --info-soft: #3a2030;
   --shadow: none;
   --feed: #2a1420; --feed-fg: #f1c9d4;
   --sleep: #221a33; --sleep-fg: #d0c4ea;
@@ -254,13 +267,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 8px 16px;
-  min-height: 42px;
+  min-height: 44px;
+  white-space: nowrap; /* a chip's label never breaks onto a second line… */
+  max-width: 100%;
   background: var(--card-2);
   color: var(--fg);
   font-weight: 600;
   transition: background-color 120ms ease, transform 120ms ease;
 }
 .chip:active { transform: scale(0.97); }
+/* …but a chip that holds a sentence (a question to ask, words heard) wraps inside the screen. */
+.chip-say { white-space: normal; text-align: left; justify-content: flex-start; border-radius: 18px; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .card .chip { background: var(--bg); }
 .card .chip[aria-pressed="true"] { background: var(--accent); }
@@ -276,6 +293,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: var(--card-2);
   color: var(--muted);
   min-height: 0;
+  white-space: nowrap;
 }
 .pill-ok { background: var(--ok-soft); color: var(--ok); }
 .pill-warn { background: var(--warn-soft); color: var(--warn); }
@@ -463,9 +481,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .fold-chev { flex: none; transition: transform 150ms ease; opacity: 0.6; }
 .fold[open] > summary .fold-chev { transform: rotate(90deg); }
 .fold-body { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
-/* Cards inside a fold sit flat on the fold's colour. */
-.fold-body > .card { border: none; box-shadow: none; }
-.fold:not([class*="tint-"]) .fold-body > .card { background: var(--card-2); }
+/* A card inside a fold or a card is not a second box: it sits flat on its parent
+   (DESIGN.md, "Built for a phone": no card in a card). */
+.fold-body .card, .card .card { background: transparent; border: none; box-shadow: none; padding: 0; border-radius: 0; }
 
 /* ---- hero ------------------------------------------------------------------ */
 .hero {
@@ -497,7 +515,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   justify-content: center;
   gap: 3px;
   min-height: var(--tabbar-h);
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
   text-decoration: none;
@@ -673,9 +691,9 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   border-bottom-left-radius: 1.1rem;
   border-bottom-right-radius: 0.35rem;
 }
-.chat-author { font-size: 0.75rem; font-weight: 700; opacity: 0.75; margin-bottom: 0.1rem; }
+.chat-author { font-size: 0.78rem; font-weight: 700; opacity: 0.75; margin-bottom: 0.1rem; }
 .chat-photo { max-height: 16rem; width: auto; max-width: 100%; margin-bottom: 0.35rem; }
-.chat-meta { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.15rem; font-size: 0.7rem; opacity: 0.7; }
+.chat-meta { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.15rem; font-size: 0.78rem; opacity: 0.7; }
 .chat-delete { display: inline-flex; padding: 0.15rem; border-radius: 999px; opacity: 0.8; }
 .chat-composer {
   position: sticky;
@@ -699,3 +717,28 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   background: rgb(0 0 0 / 0.85);
 }
 .lightbox-img { max-width: 100%; max-height: 80dvh; object-fit: contain; }
+
+/* ---- Home fills one phone screen (DESIGN.md, "Home"): what is tapped most sits at the
+   bottom by the thumb, a spacer takes up whatever height is left. */
+.screen-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: calc(100dvh - env(safe-area-inset-top) - var(--tabbar-h) - env(safe-area-inset-bottom) - 40px);
+}
+.screen-fill > .grow-space { flex: 1 1 0; min-height: 4px; }
+/* The Now slot shows only the first thing that applies: a candidate that renders nothing
+   collapses, and every candidate after the first that renders something is hidden. */
+.now-queue > :empty { display: none; }
+.now-queue > :not(:empty) ~ * { display: none; }
+.round-btn {
+  width: 44px; height: 44px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; border: none;
+}
+.say-heard {
+  position: fixed; inset-inline: 16px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 40; margin: 0 auto; max-width: 24rem;
+  padding: 12px 16px; border-radius: 16px;
+  background: var(--fg); color: var(--bg); font-weight: 600; text-align: center;
+}

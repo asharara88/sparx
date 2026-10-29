@@ -1,3 +1,4 @@
+import { fmtDuration } from "@/lib/time";
 /**
  * Typical daily ranges for a healthy term baby, by age. General guidance from
  * the NHS, the American Academy of Pediatrics and the National Sleep
@@ -109,7 +110,9 @@ export interface DayTotals {
   night_sleep_min: number;
 }
 
-const hours = (min: number) => `${(min / 60).toFixed(min % 60 === 0 ? 0 : 1)} h`;
+// "5 h 40 min", never "5.7 h" (DESIGN.md, Numbers); a per-day average keeps one decimal at most.
+const hours = (min: number) => (Math.round(min) > 0 ? fmtDuration(Math.round(min)) : "—");
+const count = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(1).replace(/\.0$/, ""));
 const hoursRange = (a: number, b: number) => `${(a / 60).toFixed(0)} to ${(b / 60).toFixed(0)} h`;
 
 /**
@@ -127,14 +130,14 @@ export function checkDay(t: DayTotals, days: number, complete: boolean): CheckRo
   };
   const rows: CheckRow[] = [];
   const feeds = t.breast_count + t.bottle_count;
-  rows.push({ key: "feeds", label: "Feeds", value: `${feeds}`, typical: `${norms.feeds.low} to ${norms.feeds.high}`, verdict: judge(feeds, norms.feeds), note: norms.feeds.note });
+  rows.push({ key: "feeds", label: "Feeds", value: count(feeds), typical: `${norms.feeds.low} to ${norms.feeds.high}`, verdict: judge(feeds, norms.feeds), note: norms.feeds.note });
   if (t.bottle_count > 0 && t.breast_count === 0) {
     rows.push({ key: "ml", label: "Milk by bottle", value: `${Math.round(t.bottle_ml)} ml`, typical: `${norms.bottleMl.low} to ${norms.bottleMl.high} ml`, verdict: judge(t.bottle_ml, norms.bottleMl) });
   } else if (t.bottle_ml > 0) {
-    rows.push({ key: "ml", label: "Milk by bottle", value: `${Math.round(t.bottle_ml)} ml`, typical: "No range with breastfeeds", verdict: complete ? "ok" : "so_far" });
+    rows.push({ key: "ml", label: "Milk by bottle", value: `${Math.round(t.bottle_ml)} ml`, typical: "", note: "No usual amount alongside breastfeeds", verdict: complete ? "ok" : "so_far" });
   }
-  rows.push({ key: "wet", label: "Wet diapers", value: `${t.diapers_wet}`, typical: `${norms.wet.low} to ${norms.wet.high}`, verdict: judge(t.diapers_wet, norms.wet) });
-  rows.push({ key: "dirty", label: "Dirty diapers", value: `${t.diapers_dirty}`, typical: `${norms.dirty.low} to ${norms.dirty.high}`, verdict: judge(t.diapers_dirty, norms.dirty), note: norms.dirty.note });
+  rows.push({ key: "wet", label: "Wet nappies", value: count(t.diapers_wet), typical: `${norms.wet.low} to ${norms.wet.high}`, verdict: judge(t.diapers_wet, norms.wet) });
+  rows.push({ key: "dirty", label: "Dirty nappies", value: count(t.diapers_dirty), typical: `${norms.dirty.low} to ${norms.dirty.high}`, verdict: judge(t.diapers_dirty, norms.dirty), note: norms.dirty.note });
   rows.push({ key: "sleep", label: "Sleep in 24 h", value: hours(t.sleep_min), typical: hoursRange(norms.sleepMin.low, norms.sleepMin.high), verdict: judge(t.sleep_min, norms.sleepMin) });
   rows.push({ key: "night", label: "Night sleep", value: hours(t.night_sleep_min), typical: hoursRange(norms.nightSleepMin.low, norms.nightSleepMin.high), verdict: judge(t.night_sleep_min, norms.nightSleepMin), note: norms.nightSleepMin.note });
   return rows;

@@ -2,34 +2,26 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { awayParent, awayParentOn } from "@/lib/handover";
-import type { AttendanceData, CalendarData, DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, NotesData, RpcError, Suggestion } from "@/lib/types";
+import type { DueItem, EntryRow, HomeSummary, HouseholdToday, Me, MilkData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
-import { possessive } from "@/lib/names";
-import { addDays, fmtDate, fmtTime, todayYmd, dayRange } from "@/lib/time";
-import { SuggestionCards } from "@/components/SuggestionCards";
-import { AttendanceButton } from "@/components/AttendanceButton";
+import { addDays, fmtDate, fmtTime, fmtWhen, todayYmd, dayRange } from "@/lib/time";
 import { BottleCountdown } from "@/components/BottleCountdown";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { SimpleHome } from "@/components/SimpleHome";
-import { LanaHero } from "@/components/LanaHero";
 import { LanaNow } from "@/components/LanaNow";
-import { RightNow } from "@/components/RightNow";
-import { LanaGuide } from "@/components/LanaGuide";
-import { PumpTarget } from "@/components/PumpTarget";
 import { HandoverSince } from "@/components/HandoverSince";
 import { FridgePlan } from "@/components/FridgePlan";
-import { DayStrip } from "@/components/DayStrip";
-import { SayIt } from "@/components/SayIt";
-import { EntryChecks } from "@/components/EntryChecks";
-import { NextNap } from "@/components/NextNap";
-import { Backfill } from "@/components/Backfill";
 import { ageDays } from "@/lib/norms";
 import { ThawReminder } from "@/components/MilkInsights";
 import { nextFeedAt } from "@/lib/forecast";
-import { milkForecast } from "@/lib/milk-insights";
 import { Icon } from "@/components/Icon";
-import { Fold } from "@/components/Fold";
 import { meOnce } from "@/lib/server/me";
+import { HomeHeader } from "@/components/HomeHeader";
+import { HomeState } from "@/components/HomeState";
+import { HomeToday } from "@/components/HomeToday";
+import { DueNotice } from "@/components/DueNotice";
+import { nextNap } from "@/lib/child-insights";
+import { checkEntries } from "@/lib/entry-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -54,22 +46,16 @@ export default async function HomePage() {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  const [{ data: hhData }, { data: sumData }, { data: calData }, { data: dueData }, { data: sugData }, { data: notesData }, { data: attData }, { data: milkData }] = await Promise.all([
+  // Four questions to the database, all at once: Home shows only what is needed now.
+  const [{ data: hhData }, { data: sumData }, { data: dueData }, { data: milkData }] = await Promise.all([
     supabase.rpc("household_today"),
     can(me, "lana", "view") ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
-    can(me, "calendar", "view") ? supabase.rpc("calendar_list", { p_from: today, p_to: addDays(today, 1) }) : Promise.resolve({ data: null }),
     can(me, "lana", "view") ? supabase.rpc("care_due_list", { p_days_ahead: 14 }) : Promise.resolve({ data: null }),
-    supabase.rpc("suggestions_refresh"),
-    can(me, "notes", "view") ? supabase.rpc("notes_list", { p_limit: 5 }) : Promise.resolve({ data: null }),
-    supabase.rpc("attendance_today"),
     can(me, "lana", "view") ? supabase.rpc("milk_list") : Promise.resolve({ data: null }),
   ]);
-  const notes = notesData as NotesData | RpcError | null;
-  const attendance = attData as AttendanceData | RpcError | null;
   const milkStash = milkData as MilkData | RpcError | null;
   const milkOk = milkStash && milkStash.ok ? milkStash : null;
   const household = hhData as HouseholdToday | RpcError;
-  const staffToday = household.ok ? household.members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id) : [];
   // The away parent (breastfeeding, else the working parent) works today and it is within their hours.
   const hhm = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).format(now).replace(":", ""));
   const mama = household.ok ? awayParent(household.members) : null;
@@ -80,16 +66,12 @@ export default async function HomePage() {
   const dayStart = Date.parse(dayRange(today, tz).from);
   const atLocal = (h: number) => new Date(dayStart + (Math.floor(h / 100) * 60 + (h % 100)) * 60_000).toISOString();
   const part: "morning" | "away" | "evening" | "night" = hour < 6 || hour >= 21 ? "night" : mamaWorks && hhm < from ? "morning" : mamaAway ? "away" : "evening";
-  const suggestions = ((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[];
   const due = ((dueData as { items?: DueItem[] } | null)?.items ?? []) as DueItem[];
   const summary = sumData as HomeSummary | RpcError | null;
-  const calendar = calData as CalendarData | RpcError | null;
-  const todays = calendar && calendar.ok ? calendar.events.filter((e) => e.date === today) : [];
 
   // Entries from yesterday noon until now: the night and today, for the child's strip and current state.
   let recent: EntryRow[] = [];
   let lastMilk: string | null = null;
-  let pumps: EntryRow[] = [];
   // The day and the week in one round trip: each question to the database is a wait.
   let weekRows: EntryRow[] | null = null;
   if (summary && summary.ok) {
@@ -103,8 +85,6 @@ export default async function HomePage() {
     weekRows = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? null) as EntryRow[] | null;
     const lastBottle = recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle" && typeof e.payload.milk === "string");
     lastMilk = (lastBottle?.payload.milk as string | undefined) ?? null;
-    const evening = new Date(new Date(dayRange(addDays(today, -1), tz).from).getTime() + 18 * 3600 * 1000).toISOString();
-    pumps = recent.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
   }
 
   if (me.member.simple_mode && summary && summary.ok) {
@@ -123,13 +103,6 @@ export default async function HomePage() {
     return mama.work_days.includes(wd) && hm >= from && hm <= to;
   };
   const sitter = me.role.id === "sitter";
-  let milkLasts: string | null = null;
-  if (milkOk) {
-    const safe = milkOk.bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);
-    const mf = milkForecast(safe, week);
-    if (mf.usePerDay > 0) milkLasts = mf.until != null ? `lasts to ${fmtDate(new Date(mf.until).toISOString(), tz, { weekday: "short" })} ${fmtTime(new Date(mf.until).toISOString(), tz)}` : "pumping keeps up";
-  }
-  const feedGapMin = (summary && summary.ok ? summary.types.find((t) => t.id === "lana.feed")?.due_after_min : null) ?? 180;
   const bottleGapMin = milkOk?.bottle_interval_min ?? 120;
   // While Mama is away the bottle interval is the gap, shortened after a small bottle.
   const nextBottle = mamaAway ? nextFeedAt(week, { gapMin: bottleGapMin, awayCapMin: bottleGapMin, away: awayAt }) : null;
@@ -141,7 +114,6 @@ export default async function HomePage() {
   const tTo = hhmm(tomorrowsParent?.work_to, WORK_TO);
   const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(tTo / 100) * 60 + (tTo % 100)) - (Math.floor(tFrom / 100) * 60 + (tFrom % 100)), intervalMin: bottleGapMin, hour };
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
-  const showPump = me.member.breastfeeds || me.role.id === "admin";
 
   // The alerts of this hour, in order. Each is one line or a small card; they are never folded.
   const alerts: Record<string, React.ReactNode> =
@@ -161,101 +133,111 @@ export default async function HomePage() {
     : part === "evening" ? ["thaw", "handover"]
     : part === "night" ? ["thaw", "countdown"]
     : ["countdown"];
-  const inHouse = household.ok ? household.members.filter((m) => m.presence?.in_house).map((m) => m.name) : [];
   const vaccine = summary && summary.ok ? due.find((d) => d.kind === "vaccine" && d.subject_id === summary.subject.id) : undefined;
-  const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
 
-  return (
-    <div className="flex flex-col gap-4">
-      {summary && summary.ok ? (
-        <>
-          <LanaHero summary={summary} me={me} today={today} />
-          <div className="flex flex-wrap gap-2">
-            {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt compact />}
-            <Link href="/baby/emergency" className="chip tint-danger">
-              <Icon name="phone" size={18} /> Emergency
+  // ---- the Now slot (DESIGN.md, rule 3): candidates in order, safety first; only the first
+  // that renders anything shows (.now-queue). Whatever else applies waits on the child's page.
+  const feedDue = summary && summary.ok ? summary.last["lana.feed"]?.next_due ?? null : null;
+  // The feed and nap reminders show themselves on the phone when their time comes
+  // (DueNotice), so Home left open still says so; these flags only size "N more".
+  const feeding = !!(summary && summary.ok && summary.ongoing.some((e) => e.type_id === "lana.feed"));
+  const feedIsDue = !!feedDue && Date.parse(feedDue) <= now.getTime() && !feeding;
+  const hourOf = (iso: string) => {
+    const p = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
+    return Number(p.find((x) => x.type === "hour")?.value ?? 0) + Number(p.find((x) => x.type === "minute")?.value ?? 0) / 60;
+  };
+  const nap = summary && summary.ok && summary.subject.birth_date ? nextNap(week, ageDays(summary.subject.birth_date, today), now.getTime(), hourOf) : null;
+  const napWatch = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= 12 * 60;
+  const napSoon = napWatch && nap!.at! - now.getTime() <= 20 * 60_000;
+  const checks = summary && summary.ok && can(me, "lana", "edit") ? checkEntries(week).length : 0;
+  const known = [vaccine?.overdue, mamaAway && !!milkOk, feedIsDue, napSoon, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
+
+  return summary && summary.ok ? (
+    <div className="screen-fill">
+      <HomeHeader summary={summary} me={me} today={today} />
+      <HomeState summary={summary} timezone={tz} />
+      <div className="now-queue">
+        <div>
+          {vaccine?.overdue && (
+            <Link href="/baby/vaccines" className="notice notice-danger flex items-center gap-2 no-underline">
+              <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is overdue</span> <Icon name="forward" size={18} />
             </Link>
-            {vaccine && (
-              <Link href="/baby/vaccines" className={`chip ${vaccine.overdue ? "tint-danger" : "tint-meds"}`}>
-                <Icon name="syringe" size={18} /> Vaccines {vaccine.overdue ? "overdue" : "due"}
-              </Link>
-            )}
-          </div>
-          {can(me, "lana", "edit") && <EntryChecks entries={week} timezone={tz} compact canDelete={can(me, "lana", "delete")} />}
-          <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
-          <RightNow summary={summary} milk={milkOk} timezone={tz} milkLasts={milkLasts} />
-          {summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
-          {order.map((k) => alerts[k])}
+          )}
+        </div>
+        <div>{mamaAway ? alerts.countdown : null}</div>
+        <div>
+          {feedDue && !feeding && (
+            <DueNotice fromMs={Date.parse(feedDue)}>
+              <b>Feed due now</b>
+              {lastFeedAt ? ` · last ${fmtWhen(lastFeedAt, tz, now)}` : ""}
+            </DueNotice>
+          )}
+        </div>
+        <div>
+          {napWatch && nap?.at != null && (
+            <DueNotice fromMs={nap.at - 20 * 60_000}>
+              <b>
+                {nap.isBedtime ? "Bedtime" : "Nap"} around {fmtTime(new Date(nap.at).toISOString(), tz)}
+              </b>{" "}
+              · start winding down
+            </DueNotice>
+          )}
+        </div>
+        <div>{order.includes("plan") ? alerts.plan : null}</div>
+        <div>{order.includes("handover") ? alerts.handover : null}</div>
+        <div>{order.includes("thaw") ? alerts.thaw : null}</div>
+        <div>
+          {checks > 0 && (
+            <Link href="/baby" className="notice notice-warn flex items-center gap-2 no-underline">
+              <span className="flex-1 font-semibold">
+                {checks} {checks === 1 ? "entry" : "entries"} to check
+              </span>
+              <Icon name="forward" size={18} />
+            </Link>
+          )}
+        </div>
+        <div>
+          {vaccine && !vaccine.overdue && (
+            <Link href="/baby/vaccines" className="notice flex items-center gap-2 no-underline tint-meds">
+              <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is due</span> <Icon name="forward" size={18} />
+            </Link>
+          )}
+        </div>
+        <div>
+          {milkOk && milkOk.fridge_ml < lastBottleMl && (
+            <Link href="/baby/milk" className="notice flex items-center gap-2 no-underline tint-milk">
+              <Icon name="droplet" size={20} /> <span className="flex-1 font-semibold">Fridge is low: {milkOk.fridge_ml} ml</span> <Icon name="forward" size={18} />
+            </Link>
+          )}
+        </div>
+        <div>
           {sitter && (
-            <nav aria-label="While you are with the child" className="grid grid-cols-2 gap-2">
-              <Link href="/baby?tab=handover" className="btn">
-                Handover
-              </Link>
-              <Link href="/baby/when-to-call" className="btn">
-                When to call
-              </Link>
-            </nav>
+            <Link href="/baby?tab=handover" className="notice flex items-center gap-2 no-underline">
+              <span className="flex-1 font-semibold">The handover</span> <Icon name="forward" size={18} />
+            </Link>
           )}
-
-          <LanaGuide fold entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedGapMin} />
-          {showPump && (
-            <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${me.household.milk_target_ml ?? 400} ml`} open={part === "morning" && !!me.member.breastfeeds}>
-              <PumpTarget pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} canLog={can(me, "lana", "add")} />
-            </Fold>
-          )}
-          <Fold title="Day so far" icon="history" tint="feed" hint={`${recent.filter((e) => e.occurred_at >= dayRange(today, tz).from).length} logged`}>
-            <DayStrip entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} />
-            <Backfill subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} entries={week} feedIntervalMin={feedGapMin} />
-          </Fold>
-
-          <nav aria-label="Shortcuts" className="grid grid-cols-4 gap-2">
-            {(
-              [
-                { href: "/baby", icon: "baby", label: summary.subject.name, tint: "feed", hint: null },
-                { href: "/baby/milk", icon: "droplet", label: "Milk", tint: "milk", hint: milkOk ? `${milkOk.fridge_ml} ml` : null },
-                { href: "/baby?tab=handover", icon: "clipboard", label: "Handover", tint: "pump", hint: null },
-                { href: "/baby/doctor", icon: "phone", label: "Doctor", tint: "meds", hint: null },
-                { href: "/calendar", icon: "calendar", label: "Calendar", tint: "cal", hint: todays.length ? `${todays.length} today` : null },
-                { href: "/notes", icon: "note", label: "Notes", tint: "notes", hint: notes && notes.ok && notes.notes.length ? `${notes.notes.length}` : null },
-                { href: "/members", icon: "users", label: "Who's home", tint: "house", hint: inHouse.length ? `${inHouse.length} here` : null },
-                { href: "/ask", icon: "sparkles", label: "Ask", tint: "guide", hint: null },
-              ] as const
-            )
-              .filter((t) => (t.href === "/calendar" ? !!calendar?.ok : t.href === "/notes" ? !!notes?.ok : t.href === "/members" ? household.ok && !sitter : t.href === "/ask" ? can(me, "assistant", "view") : true))
-              .map((t) => (
-                <Link key={t.href} href={t.href} className={`tile tile-sm tint-${t.tint}`}>
-                  <span className="icon-disc" style={{ width: 36, height: 36 }}>
-                    <Icon name={t.icon} size={20} />
-                  </span>
-                  <span className="w-full text-xs font-bold leading-tight">{t.label}</span>
-                  {t.hint && <span className="muted text-[10px] leading-none">{t.hint}</span>}
-                </Link>
-              ))}
-          </nav>
-        </>
-      ) : (
-        <header className="page-header page-header-large">
-          <p className="muted">{fmtDate(now.toISOString(), tz, { weekday: "long", day: "numeric", month: "long" })}</p>
-          <h1 className="page-title">
-            {greeting}, {me.member.display_name}
-          </h1>
-        </header>
+        </div>
+      </div>
+      {known > 1 && (
+        <Link href="/baby" className="muted -mt-3 flex min-h-[44px] items-center self-end px-1 text-sm font-semibold">
+          {known - 1} more ›
+        </Link>
       )}
+      <div className="grow-space" />
+      <HomeToday entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} />
+      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
+    </div>
+  ) : (
+    <div className="flex flex-col gap-4">
+      <header className="page-header page-header-large">
+        <p className="muted">{fmtDate(now.toISOString(), tz, { weekday: "long", day: "numeric", month: "long" })}</p>
+        <h1 className="page-title">
+          {greeting}, {me.member.display_name}
+        </h1>
+      </header>
       {summary && !summary.ok && (
         <div className="card">
           <p>{summary.message}</p>
-        </div>
-      )}
-
-      <SuggestionCards suggestions={suggestions} />
-      {attendance && attendance.ok && (attendance.open.length > 0 || (can(me, "members", "edit") && staffToday.length > 0)) && (
-        <div className="flex flex-wrap items-center gap-2 px-1">
-          {attendance.open.map((o) => (
-            <span key={o.member_id} className="pill pill-ok">
-              {o.name} here since {fmtTime(o.in_at, tz)}
-            </span>
-          ))}
-          {can(me, "members", "edit") && staffToday.map((m) => <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={tz} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />)}
         </div>
       )}
     </div>
