@@ -47,7 +47,8 @@ export function AgeCheck({
         </div>
       )}
       {(subtitle || bare) && <p className="muted text-sm">{[subtitle, bare ? `${ageLabel(days)} old` : null].filter(Boolean).join(" ")}</p>}
-      {short.length > 0 && (
+      {/* Inside a fold the red "short" pills on the rows say it; no box in a box. */}
+      {short.length > 0 && !bare && (
         <p className="notice notice-warn flex items-center gap-2">
           <Icon name="bell" size={20} className="shrink-0" />
           <span>Short on {short.map((r) => r.label.toLowerCase()).join(", ")}. If the day was fully logged, keep an eye on it.</span>

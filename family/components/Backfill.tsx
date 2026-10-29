@@ -17,9 +17,10 @@ const LASTED: Record<string, number[]> = { sleep: [20, 30, 45, 60, 90, 120], fee
  * "Forgot to log something?" One card that writes a finished entry into the
  * past: what, when it started, how long it lasted (for sleeps and
  * breastfeeds), and the one or two details the type needs. Collapsed to a
- * line until tapped. On a past day the time defaults to that day.
+ * line until tapped. On a past day the time defaults to that day. `bare` drops the card
+ * and its heading, for inside a sheet that already says what it is.
  */
-export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, defaultOpen = false }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; defaultOpen?: boolean }) {
+export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, defaultOpen = false, bare = false, onSaved }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; defaultOpen?: boolean; bare?: boolean; onSaved?: () => void }) {
   const me = useMe();
   const router = useRouter();
   const flags = me.member as unknown as Record<string, boolean>;
@@ -94,6 +95,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     setDetail({});
     setWhen(pastDay ? { kind: "at", local: `${day}T12:00` } : { kind: "ago", min: 30 });
     router.refresh();
+    if (r.status === "saved") onSaved?.();
   }
 
   if (!can(me, "lana", "add") || choices.length === 0) return null;
@@ -112,14 +114,16 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     );
   }
   return (
-    <section className="card flex flex-col gap-3" aria-labelledby="backfill-h">
-      <div className="flex items-baseline justify-between">
+    <section className={bare ? "flex flex-col gap-3" : "card flex flex-col gap-3"} aria-labelledby="backfill-h">
+      <div className={bare ? "sr-only" : "flex items-baseline justify-between"}>
         <h2 id="backfill-h" className="font-semibold">
           {pastDay ? `Add to ${day}` : "Log something from earlier"}
         </h2>
-        <button type="button" className="text-sm font-semibold text-[var(--accent)]" onClick={() => setOpen(false)}>
-          Close
-        </button>
+        {!bare && (
+          <button type="button" className="text-sm font-semibold text-[var(--accent)]" onClick={() => setOpen(false)}>
+            Close
+          </button>
+        )}
       </div>
       {hint && <p className="notice notice-warn text-sm">{hint}</p>}
       <div className="flex flex-wrap gap-2" role="group" aria-label="What">

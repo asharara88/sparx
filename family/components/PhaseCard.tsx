@@ -29,7 +29,7 @@ export function PhaseCard({ ageDays, name }: { ageDays: number; name: string }) 
         Usual awake window {o.awakeWindowMin[0]} to {o.awakeWindowMin[1]} min. Every baby differs; {name} sets the pace.
       </p>
       {w && (
-        <Link href="/baby/weeks" className="mt-2 block text-sm font-semibold text-[var(--accent)] no-underline">
+        <Link href="/baby/weeks" className="mt-1 flex min-h-[44px] items-center text-sm font-semibold text-[var(--accent)] no-underline">
           Week {w.week}: {w.band.title.toLowerCase()} ›
         </Link>
       )}

@@ -30,7 +30,7 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
           <div key={tip.title} className={`notice ${tip.level === "red" ? "notice-danger" : tip.level === "yellow" ? "notice-warn" : ""}`}>
             <p className="font-semibold">{tip.title}</p>
             <p className="mt-1 text-sm opacity-90">{tip.body}</p>
-            <Link href={`/baby/when-to-call#${tip.topic}`} className="mt-1 inline-block text-sm font-semibold underline">
+            <Link href={`/baby/when-to-call#${tip.topic}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold underline">
               When to call the doctor
             </Link>
           </div>

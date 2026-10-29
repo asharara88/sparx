@@ -212,7 +212,7 @@ export default async function HomePage() {
         </div>
         <div>
           {sitter && (
-            <Link href="/baby?tab=handover" className="notice flex items-center gap-2 no-underline">
+            <Link href="/baby/handover" className="notice flex items-center gap-2 no-underline">
               <span className="flex-1 font-semibold">The handover</span> <Icon name="forward" size={18} />
             </Link>
           )}

@@ -3,11 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { awayParent, awayParentOn } from "@/lib/handover";
 import type { Me, MilkData, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
-import { MilkStash } from "@/components/MilkStash";
+import { MilkPutAway, MilkStash } from "@/components/MilkStash";
 import { PageHeader } from "@/components/PageHeader";
 import { FridgePlan } from "@/components/FridgePlan";
-import { MilkScan } from "@/components/MilkScan";
-import { MilkInsights } from "@/components/MilkInsights";
+import { MilkInsights, ThawReminder } from "@/components/MilkInsights";
 import { PumpTarget } from "@/components/PumpTarget";
 import { Fold } from "@/components/Fold";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
@@ -61,18 +60,23 @@ export default async function MilkPage() {
   const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
   const target = me.household.milk_target_ml ?? 400;
   const showPump = !!me.member.breastfeeds || me.role.id === "admin";
+  // DESIGN.md, "Milk": what is in the fridge and freezer as lists, the plan only on a day
+  // someone is away, the rest folded, "Put a bottle away" at the bottom.
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/baby" title="Milk stash" subtitle="What is in the fridge and freezer, oldest first. A bottle feed takes its milk out by itself." />
-      {can(me, "lana", "add") && <MilkScan timezone={tz} />}
+      <PageHeader title="Milk" large />
       {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} />}
-      <MilkStash data={milk} timezone={me.household.timezone} />
+      <ThawReminder milk={milk} entries={history} timezone={tz} opts={thaw} />
+      <MilkStash data={milk} timezone={tz} />
+      <Fold title="How long it will last" icon="trend" tint="milk" hint="estimate">
+        <MilkInsights bare milk={milk} entries={history} timezone={tz} thaw={thaw} />
+      </Fold>
       {showPump && (
         <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${target} ml`}>
           <PumpTarget pumps={pumps} milk={milk} target={target} canLog={can(me, "lana", "add")} />
         </Fold>
       )}
-      <MilkInsights milk={milk} entries={history} timezone={tz} thaw={thaw} />
+      <MilkPutAway timezone={tz} canScan={can(me, "lana", "add")} />
     </div>
   );
 }
