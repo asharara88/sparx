@@ -9,6 +9,7 @@ import { addDays, dayRange, describePayload, fmtDuration, fmtTime, todayYmd } fr
 import { ageDays, ageLabel } from "@/lib/norms";
 import { AgeCheck } from "@/components/AgeCheck";
 import { LanaGuide } from "@/components/LanaGuide";
+import { AvatarUpload } from "@/components/AvatarUpload";
 import { SuggestionCards } from "@/components/SuggestionCards";
 import { Avatar } from "@/components/Avatar";
 import { DayStrip } from "@/components/DayStrip";
@@ -77,7 +78,7 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large flex items-center gap-3">
-        <Avatar name={s.name} path={photo} size={64} />
+        {can(me, "lana", "edit") ? <AvatarUpload compact name={s.name} path={photo} subject={{ id: s.id, profile: s.profile }} size={64} /> : <Avatar name={s.name} path={photo} size={64} />}
         <div className="min-w-0 flex-1">
           <h1 className="page-title">{s.name}</h1>
           <p className="muted">{age}</p>
