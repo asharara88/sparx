@@ -133,6 +133,18 @@ Where things stood on 29 October 2026, before the phone passes (every screen was
 | Weeks, Activities | | | 744–1277 | 4.9–5.6 | |
 | Calendar, Notes, Chat, More, settings screens | 2–5 | 0–5 | 24–121 | 1–1.7 | mostly fine |
 
+After phone pass 3 (the child's page, Milk, More; same demo day). Numbers run over only on
+screens that are lists: each row carries its time or amount, and a list of rows is the
+pattern this bible asks for, so that overrun is the accepted exception.
+
+| Screen | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| The child's page, Today | 8 | 25 | 146 | 1.6 | none |
+| The child's page, Week | 8 | 23 | 95 | 1.4 | none |
+| The child's page, About her | 6 | 1 | 39 | 1.7 | none |
+| Milk | 8 | 23 | 93 | 1.5 | none |
+| More | 7 | 1 | 48 | 1.5 | the photo link, the email line (as before) |
+
 ## What lives where
 
 Three levels, no more.
@@ -141,7 +153,7 @@ Three levels, no more.
 |---|---|---|
 | **Now** | Home | Her state (asleep or awake, for how long, the last feed); the one thing that matters now; today in one line; the four log buttons. |
 | **Today** | The child's page | Today / Week / About her. Today: the totals strip and every entry as a list, "+ Log" at the bottom for anything less common than the four. |
-| **Deeper** | Milk, Chat, More | Milk: the fridge and freezer as lists. More: one grouped list (family, health, you) with everything else: who's home, calendar, notes and handover, doctor and when to call, vaccines, medicine, growth and firsts, the helper, settings. |
+| **Deeper** | Milk, Chat, More | Milk: the fridge and freezer as lists. More: one grouped list: Family (members and who's here, calendar, notes, audit log), The helper (ask, what it remembers, what it can do), You (settings). Health and growth live under About her on the child's page. |
 
 The bottom bar has Home, the child, Milk, Chat and More. Calendar lives in More. Home does
 not repeat the bottom bar as a grid of tiles.
@@ -166,19 +178,31 @@ tiles (the bottom bar and More); the helper's arrived/left buttons (Who's home).
 
 ### The child's page
 
-Title, then a segmented control: Today / Week / About her. Today: the day switcher, the
-totals strip, the day's entries as a timeline list (time, feature icon, what), and a
-"+ Log" button at the bottom right that opens a sheet of every entry type. Week holds the
-patterns, the age check, mood and sleep, coming up. About her holds what was "More about
-her": growth, firsts, vaccines, medicine, story, doctor, as one list.
+The photo, name and age (tap the photo to change it), then a segmented control: Today /
+Week / About her.
+
+- **Today**: the date with arrows for the days before, the totals strip, *To check* and the
+  guide as folds when they have something, the day's entries as a timeline list (time,
+  icon, what, who) and **+ Log** as the bottom button. + Log opens a sheet: how she is right
+  now (one tap), every kind of entry as a row, and *From earlier* for something missed.
+- **Week**: the two-week pattern bars, then folds: against her age (a day's average),
+  coming up, sleep rhythm, day by day, the helper. Mood sits under the pattern.
+- **About her**: what this age brings (a fold), then three groups of rows: Health (doctor,
+  when to call, vaccines, medicine, emergency, for the doctor), Growing (growth and trends,
+  firsts, week by week, play, story), Care (handover, ask about her).
+
+Handover is its own screen (`/baby/handover`); old links to the Patterns, Handover and Ask
+tabs go to Week, that screen and Ask.
 
 ### Milk
 
 The two totals (fridge, freezer) as two tinted blocks; then FRIDGE and FREEZER as list
-rows ("90 ml · use first", "Pumped today 08:00", "3 days" on the right); tapping a bottle
-opens a sheet with Warmed (or Thaw), Used and Bin. "Put a bottle away" is the bottom button
-and opens a sheet. The thaw plan shows only on a day someone is away; how long milk keeps
-sits behind "How long does milk keep?".
+rows ("90 ml · use first", "Pumped today 08:00", "3 days left" on the right; a pill only
+when under a day or past); tapping a bottle opens a sheet with Warmed (or Thaw), Used and
+Bin. "Put a bottle away" is the bottom button and opens a sheet: fridge or freezer, the
+usual amounts, another amount, a photo of the label, and one line on how long milk keeps.
+The plan for the day shows only on a day someone is away; how long the fridge will last
+and pumping are folds.
 
 ## The parts to build with
 
@@ -188,7 +212,8 @@ Use these; extend one before adding a new one, and add any new one here.
 |---|---|---|---|
 | Page header | `PageHeader` | The top of every screen | Title alone on its line; subtitle and any action on the line under it. |
 | List row | `.row` in a white `ul` | Any set of like things | First line what and when, second line muted detail, number on the right. |
-| Sheet | `.sheet` | Logging, editing, choosing | Opens from a tile or a row; Save at the bottom says what is missing. |
+| Sheet | `Sheet` (`.sheet`) | Logging, editing, choosing | Opens from a tile, a row or the bottom button; Escape or a tap outside closes it; Save at the bottom says what is missing. |
+| Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls. |
 | Log tile | `.action` in `LanaNow` | The four things logged most | Icon, one word, how long ago. Tint = the feature. |
 | Stat strip | `DayStrip` tiles | A day's sums | Four at most, a dash for none. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |

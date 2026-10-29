@@ -16,8 +16,11 @@ export const MOODS = [
   { key: "Unsettled", face: "😢" },
 ] as const;
 
-/** One tap for how the child is right now. It lands on the day like any entry, so Patterns can set it against sleep. */
-export function MoodTap({ subjectId, today, timezone }: { subjectId: string; today: EntryRow[]; timezone: string }) {
+/**
+ * One tap for how the child is right now. It lands on the day like any entry, so the week's
+ * pattern can set it against sleep. `bare` is the faces alone, for inside the log sheet.
+ */
+export function MoodTap({ subjectId, today, timezone, bare = false }: { subjectId: string; today: EntryRow[]; timezone: string; bare?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,8 +38,8 @@ export function MoodTap({ subjectId, today, timezone }: { subjectId: string; tod
   }
 
   return (
-    <section className="card" aria-labelledby="mood-h">
-      <div className="flex items-baseline justify-between">
+    <section className={bare ? "" : "card"} aria-labelledby="mood-h">
+      <div className={`flex items-baseline justify-between ${bare ? "text-sm" : ""}`}>
         <h2 id="mood-h" className="font-semibold">
           How is {childName(me)} right now?
         </h2>

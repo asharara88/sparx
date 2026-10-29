@@ -7,19 +7,20 @@ import { Icon } from "@/components/Icon";
 /**
  * Milk sense on the Milk page: when the fridge runs out at this pace, how the
  * pumping is going morning versus night and week on week, and tonight's thaw
- * plan. All estimates from the last 7 to 14 days; nothing is written.
+ * plan. All estimates from the last 7 to 14 days; nothing is written. `bare` is the flat
+ * version inside a fold, without the thaw reminder (the page shows that on its own).
  */
-export function MilkInsights({ milk, entries, timezone, thaw }: { milk: MilkData; entries: EntryRow[]; timezone: string; thaw: Parameters<typeof thawPlan>[2] }) {
+export function MilkInsights({ milk, entries, timezone, thaw, bare = false }: { milk: MilkData; entries: EntryRow[]; timezone: string; thaw: Parameters<typeof thawPlan>[2]; bare?: boolean }) {
   const safe = milk.bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);
   const f = milkForecast(safe, entries);
   const p = pumpInsights(entries, timezone);
   const soon = f.until != null && f.until - Date.now() < 2 * 86_400_000;
   return (
     <>
-      <ThawReminder milk={milk} entries={entries} timezone={timezone} opts={thaw} />
-      <section className="card flex flex-col gap-2" aria-labelledby="mf-h">
+      {!bare && <ThawReminder milk={milk} entries={entries} timezone={timezone} opts={thaw} />}
+      <section className={bare ? "flex flex-col gap-2" : "card flex flex-col gap-2"} aria-labelledby="mf-h">
         <div>
-          <h2 id="mf-h" className="font-semibold">
+          <h2 id="mf-h" className={bare ? "sr-only" : "font-semibold"}>
             Milk forecast
           </h2>
           <p className="muted text-sm">An estimate from the last 7 days.</p>
@@ -28,7 +29,7 @@ export function MilkInsights({ milk, entries, timezone, thaw }: { milk: MilkData
           <p className="muted text-sm">No bottles logged this week yet.</p>
         ) : (
           <>
-            <p className={`notice ${soon ? "notice-warn" : f.until == null ? "notice-ok" : ""} font-semibold`}>
+            <p className={bare ? `font-semibold ${soon ? "text-[var(--warn)]" : ""}` : `notice ${soon ? "notice-warn" : f.until == null ? "notice-ok" : ""} font-semibold`}>
               {f.until != null ? `Fridge milk lasts until about ${fmtDate(new Date(f.until).toISOString(), timezone, { weekday: "short" })} ${fmtTime(new Date(f.until).toISOString(), timezone)}` : "Pumping is keeping up with the bottles."}
             </p>
             <p className="muted text-sm">
@@ -62,7 +63,7 @@ export function MilkInsights({ milk, entries, timezone, thaw }: { milk: MilkData
               {p.prevDay ? ` · last week ${p.prevDay} ml` : ""}
               {p.change != null ? ` (${p.change >= 0 ? "+" : ""}${Math.round(p.change * 100)}%)` : ""}
             </p>
-            {p.dropping && <p className="notice notice-warn text-sm">Supply is a bit lower than last week. Rest, water and not skipping pumps usually help. If it keeps dropping, a lactation consultant can help.</p>}
+            {p.dropping && <p className={bare ? "text-sm font-semibold text-[var(--warn)]" : "notice notice-warn text-sm"}>Supply is a bit lower than last week. Rest, water and not skipping pumps usually help. If it keeps dropping, a lactation consultant can help.</p>}
           </div>
         )}
       </section>

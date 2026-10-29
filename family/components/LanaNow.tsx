@@ -9,6 +9,7 @@ import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
 import { Boobs } from "./Boobs";
+import { Sheet as BaseSheet } from "./Sheet";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
 import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
@@ -377,22 +378,13 @@ function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, di
   );
 }
 
-/** The bottom sheet a tile opens: a title, the "when" chips, the amounts. Defined at
- *  module level so the clock tick does not remount it (and lose a half-picked time). */
+/** The bottom sheet a tile opens: the shared sheet with the "when" chips on top. Defined
+ *  at module level so the clock tick does not remount it (and lose a half-picked time). */
 function Sheet({ title, onClose, when, onWhen, timezone, busy, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; timezone: string; busy: boolean; children: React.ReactNode }) {
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="flex items-center justify-between">
-          <p className="action-label">{title}</p>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            <Icon name="x" size={22} />
-          </button>
-        </div>
-        <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} />
-        {children}
-      </div>
-    </div>
+    <BaseSheet title={title} onClose={onClose}>
+      <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} />
+      {children}
+    </BaseSheet>
   );
 }

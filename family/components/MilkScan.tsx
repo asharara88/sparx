@@ -8,9 +8,10 @@ import { Icon } from "@/components/Icon";
 
 /**
  * Point the camera at a bag label or a bottle; the amount, date and morning/night
- * come back filled in. Check them, pick fridge or freezer, tap Add.
+ * come back filled in. Check them, pick fridge or freezer, tap Add. `bare` is the version
+ * inside the "Put a bottle away" sheet.
  */
-export function MilkScan({ timezone }: { timezone: string }) {
+export function MilkScan({ timezone, bare = false }: { timezone: string; bare?: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -81,15 +82,15 @@ export function MilkScan({ timezone }: { timezone: string }) {
   }
 
   return (
-    <section className="card flex flex-col gap-2">
+    <section className={bare ? "flex flex-col gap-2 border-t border-[var(--line)] pt-3" : "card flex flex-col gap-2"}>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Read a bag or bottle</h2>
+        <h2 className="font-semibold">{bare ? "Or take a photo of the label" : "Read a bag or bottle"}</h2>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
         <button type="button" className="btn" style={{ minHeight: 40 }} disabled={busy} onClick={() => fileRef.current?.click()}>
           <Icon name="camera" size={18} /> {busy && !reading ? "Reading…" : "Photo"}
         </button>
       </div>
-      <p className="muted text-sm">Snap the handwritten label on a bag, or the scale on a bottle. The amount and date fill in; check them, then add.</p>
+      {!bare && <p className="muted text-sm">Snap the handwritten label on a bag, or the scale on a bottle. The amount and date fill in; check them, then add.</p>}
       {reading && (
         <div className="flex flex-col gap-2 rounded-xl bg-[var(--card-2)] p-3">
           <p className="text-sm">
