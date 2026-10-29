@@ -12,8 +12,9 @@ import { Boobs } from "./Boobs";
 import { Sheet as BaseSheet } from "./Sheet";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
-import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
-import { fromLocalInput } from "@/lib/time";
+import { NOW, type When, whenToIso, isEarlier, recallWhen } from "@/lib/when";
+import { fromLocalInput, toLocalInput } from "@/lib/time";
+import { bottleChoices, napLengths, overlappingSleep } from "@/lib/backlog";
 import { possessive } from "@/lib/names";
 import { isNightAt } from "@/lib/night";
 
@@ -47,10 +48,15 @@ export function LanaNow({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
-  // "When": now by default; "20 min ago" when the tap comes late. Every tap below honours it.
+  // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
   const [when, setWhen] = useState<When>(NOW);
-  // The sheet a tile opened (feed, nappy, pump); closes when the tap saves.
-  const [sheet, setSheet] = useState<"feed" | "diaper" | "pump" | null>(null);
+  // The sheet a tile opened (feed, nappy, pump, or a sleep from earlier); closes when the tap saves.
+  const [sheet, setSheet] = useState<"feed" | "diaper" | "pump" | "sleep" | null>(null);
+  // The time last used for an entry from earlier: the next sheet opened within a minute
+  // starts on it (a bottle and a nappy from the same moment). One-tap tiles never use it.
+  const lastEarlier = useRef<{ when: When; at: number } | null>(null);
+  // A sleep from earlier that lands on one already logged, waiting for "Log anyway".
+  const [clash, setClash] = useState<{ entry: EntryRow; lastedMin: number | null } | null>(null);
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
@@ -76,7 +82,8 @@ export function LanaNow({
   const diaperType = types.find((t) => t.key === "diaper");
   const pumpType = types.find((t) => t.key === "pump");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
-  const bottleQuick = (feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[];
+  // The last bottle's amount is the usual one: marked on the sheet, and always a chip.
+  const bottle = bottleChoices((feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[], Number(recent.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle")?.payload.amount_ml) || null);
   const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
   const now = new Date();
   const whenIso = whenToIso(when, now.getTime(), (l) => fromLocalInput(l, timezone));
@@ -140,16 +147,18 @@ export function LanaNow({
     if (r.status === "queued") queuedRef.current = true;
     return r;
   }
-  async function run(label: string, fn: () => Promise<unknown>) {
+  async function run(label: string, fn: () => Promise<unknown>, sayTime = true) {
     setBusy(true);
     setMsg(null);
     queuedRef.current = false;
     try {
       await fn();
-      const base = isEarlier(when) ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
+      const base = isEarlier(when) && sayTime ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
       setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
+      if (isEarlier(when)) lastEarlier.current = { when: { kind: "at", local: toLocalInput(whenIso, timezone) }, at: Date.now() };
       setWhen(NOW);
       setSheet(null);
+      setClash(null);
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Could not save.");
@@ -159,7 +168,6 @@ export function LanaNow({
   }
 
   const realNowIso = now.toISOString();
-  const sinceText = (iso: string) => `${fmtTime(iso, timezone)} · ${fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)))}`;
 
   const elapsed = (iso: string) => fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)));
   // Each tile says when it last happened ("1 h 50 min ago"); a day or more is the tile's
@@ -170,20 +178,60 @@ export function LanaNow({
     const m = minutesBetween(last.ended_at ?? last.occurred_at, realNowIso);
     return m >= 0 && m < 24 * 60 ? `${fmtDuration(m)} ago` : fallback;
   };
-  const awakeSub = state.kind === "awake" && state.since && minutesBetween(state.since, realNowIso) <= 12 * 60 ? `awake ${elapsed(state.since)}` : "Tap when asleep";
+  // The big line above says "Awake for 1 h 50 min"; the tile does not say it again.
+  const awakeKnown = state.kind === "awake" && !!state.since && minutesBetween(state.since, realNowIso) <= 12 * 60;
 
-  // Closing a sheet without saving also drops a "when" picked inside it, so the next
-  // direct tap (Asleep has no chips) is not quietly backdated.
+  // A sheet opens on now, or on the time from earlier used under a minute ago.
+  const openSheet = (k: NonNullable<typeof sheet>) => {
+    setWhen(recallWhen(lastEarlier.current, Date.now()));
+    setClash(null);
+    setSheet(k);
+  };
+  // Closing a sheet without saving drops a "when" picked inside it, so the next one-tap
+  // tile (Asleep) is never quietly backdated.
   const closeSheet = () => {
     setWhen(NOW);
     setSheet(null);
+    setClash(null);
   };
-  const tileProps = { disabled: busy || !canAdd };
+  // At night while she sleeps, "Up for the day" joins the four tiles; they give up a little
+  // height (a smaller disc, a tighter gap) so Home still fits one screen without scrolling.
+  const upForDay = state.kind === "asleep" && isNight;
+  const tileProps = { disabled: busy || !canAdd, short: upForDay };
   const startSleep = () =>
     run("Sleep started.", async () => {
       if (state.kind === "night_awake") await end(state.entry);
       await start(sleepType, {});
     });
+  const wake = (entry: OngoingEntry) =>
+    run(isNight ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
+      await end(entry);
+      if (isNight && wakeType) await start(wakeType, {});
+    });
+  // A sleep from earlier: from the picked time, either still going or for `lastedMin`.
+  // One already logged in that span is shown first, with the way to change it.
+  const logSleep = (lastedMin: number | null, anyway = false) => {
+    const from = Date.parse(whenIso);
+    const to = lastedMin == null ? now.getTime() : from + lastedMin * 60_000;
+    const other = anyway ? null : overlappingSleep(recent, from, to, now.getTime(), sleepType?.id);
+    if (other) return setClash({ entry: other, lastedMin });
+    const endIso = lastedMin == null ? null : new Date(to).toISOString();
+    return run(
+      endIso ? `Sleep ${fmtTime(whenIso, timezone)} to ${fmtTime(endIso, timezone)} saved.` : `Asleep since ${fmtTime(whenIso, timezone)}.`,
+      async () => {
+        if (state.kind === "night_awake") await end(state.entry);
+        await start(sleepType, {}, endIso);
+      },
+      false,
+    );
+  };
+  // The sleep tile's "earlier?": the same When chips the other sheets have, for a tile
+  // that is otherwise one tap. A sibling of the tile, never inside it.
+  const earlier = (
+    <button type="button" className="chip absolute right-2 top-2 z-10 px-3 text-sm" disabled={busy || !canAdd} onClick={() => openSheet("sleep")}>
+      earlier?
+    </button>
+  );
 
   return (
     <section className="flex flex-col gap-3" aria-live="polite">
@@ -195,16 +243,8 @@ export function LanaNow({
 
       {/* ---- feeding: the timer, switch side or finish */}
       {state.kind === "feeding" && (
-        <div className="card tint-feed flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <span className="icon-disc">
-              <Icon name="bottle" size={22} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="action-label">Feeding{state.side ? `, ${state.side.toLowerCase()}` : ""}</p>
-              <p className="text-3xl font-bold tabular-nums">{elapsed(state.entry.occurred_at)}</p>
-            </div>
-          </div>
+        <div className="card tint-feed flex flex-col gap-3" aria-label={`Feeding${state.side ? `, ${state.side.toLowerCase()}` : ""}`}>
+          {/* "Feeding 9 min" is the big line above; the card is only the taps. */}
           {breastfeeds && (
             <Boobs
               active={state.side === "Left" || state.side === "Right" ? state.side : null}
@@ -233,42 +273,24 @@ export function LanaNow({
         </div>
       )}
 
-      {/* ---- asleep: one tap wakes (a night wake-up at night) */}
-      {state.kind === "asleep" && (
-        <div className="flex flex-col gap-3">
-          <Tile {...tileProps}
-            row
-            tint="sleep"
-            icon="moon"
-            label={`Asleep · ${elapsed(state.entry.occurred_at)}`}
-            sub={`since ${fmtTime(state.entry.occurred_at, timezone)}`}
-            trailing="Woke up"
-            onClick={() =>
-              run(isNight ? "Night wake-up started." : `Good morning, ${subject.name}.`, async () => {
-                await end(state.entry);
-                if (isNight && wakeType) await start(wakeType, {});
-              })
-            }
-          />
-          {isNight && <Tile {...tileProps} row tint="pump" icon="sun" label="Up for the day" onClick={() => run("Up for the day.", () => end(state.entry))} />}
-        </div>
-      )}
-
-      {/* ---- awake (day or night): four tiles */}
-      {(state.kind === "awake" || state.kind === "night_awake") && (
+      {/* ---- the four tiles in every state but a feed: the sleep tile is Asleep (Back to
+           sleep at night) or Woke up, one tap, with "earlier?" beside it for a late tap */}
+      {state.kind !== "feeding" && (
         <div className="grid grid-cols-2 gap-3">
-          <Tile {...tileProps} tint="feed" icon="bottle" label="Feed" sub={ago(feedType?.id, breastfeeds ? "Breast or bottle" : "Bottle")} onClick={() => setSheet("feed")} />
-          <Tile {...tileProps}
-            tint="sleep"
-            icon="zzz"
-            label={state.kind === "night_awake" ? "Back to sleep" : "Asleep"}
-            sub={state.kind === "night_awake" ? `awake since ${fmtTime(state.entry.occurred_at, timezone)}` : awakeSub}
-            onClick={startSleep}
-          />
-          <Tile {...tileProps} tint="diaper" icon="diaper" label="Nappy" sub={ago(diaperType?.id, "Wet or dirty")} onClick={() => setSheet("diaper")} />
-          {breastfeeds && pumpType ? <Tile {...tileProps} tint="pump" icon="droplet" label="Pump" sub={ago(pumpType?.id, "To the fridge")} onClick={() => setSheet("pump")} /> : <Tile {...tileProps} tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
+          <Tile {...tileProps} tint="feed" icon="bottle" label="Feed" sub={ago(feedType?.id, breastfeeds ? "Breast or bottle" : "Bottle")} onClick={() => openSheet("feed")} />
+          <div className="relative grid">
+            {state.kind === "asleep" ? (
+              <Tile {...tileProps} tint="sleep" icon="sun" label="Woke up" onClick={() => wake(state.entry)} />
+            ) : (
+              <Tile {...tileProps} tint="sleep" icon="zzz" label={state.kind === "night_awake" ? "Back to sleep" : "Asleep"} sub={awakeKnown || state.kind === "night_awake" ? undefined : "Tap when asleep"} onClick={startSleep} />
+            )}
+            {canAdd && earlier}
+          </div>
+          <Tile {...tileProps} tint="diaper" icon="diaper" label="Nappy" sub={ago(diaperType?.id, "Wet or dirty")} onClick={() => openSheet("diaper")} />
+          {breastfeeds && pumpType ? <Tile {...tileProps} tint="pump" icon="droplet" label="Pump" sub={ago(pumpType?.id, "To the fridge")} onClick={() => openSheet("pump")} /> : <Tile {...tileProps} tint="meds" icon="clock" label="Medicine" sub="Log a dose" href="/baby/medicine" />}
         </div>
       )}
+      {upForDay && <Tile {...tileProps} short={false} row tint="pump" icon="sun" label="Up for the day" onClick={() => run("Up for the day.", () => end(state.entry))} />}
 
       {sheet === "feed" && (
         <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
@@ -285,11 +307,12 @@ export function LanaNow({
               </div>
             )}
             <div className="grid grid-cols-3 gap-2">
-              {bottleQuick.map((ml) => (
+              {bottle.amounts.map((ml) => (
                 <button
                   key={ml}
                   type="button"
                   className="chip min-h-[60px] text-xl"
+                  aria-pressed={ml === bottle.usual}
                   disabled={busy || !canAdd}
                   onClick={() =>
                     run(`Bottle ${ml} ml saved.`, async () => {
@@ -340,10 +363,52 @@ export function LanaNow({
                   })
                 }
               >
-                {ml}
+                {ml} ml
               </button>
             ))}
           </div>
+        </Sheet>
+      )}
+      {sheet === "sleep" && (
+        <Sheet title={state.kind === "asleep" ? "Woke up" : state.kind === "night_awake" ? "Back to sleep" : "Asleep"} onClose={closeSheet} when={when} onWhen={(w) => { setWhen(w); setClash(null); }} timezone={timezone} busy={busy} whenOpen>
+          {state.kind === "asleep" ? (
+            <button type="button" className="btn btn-primary btn-lg" disabled={busy || !canAdd} onClick={() => wake(state.entry)}>
+              Woke up {isEarlier(when) ? `at ${fmtTime(whenIso, timezone)}` : "now"}
+            </button>
+          ) : !isEarlier(when) ? (
+            <button type="button" className="btn btn-primary btn-lg" disabled={busy || !canAdd} onClick={startSleep}>
+              Asleep now
+            </button>
+          ) : clash ? (
+            <div className="notice notice-warn flex flex-col gap-2" role="alert">
+              <p className="font-semibold">
+                On top of a sleep from {fmtTime(clash.entry.occurred_at, timezone)}
+                {clash.entry.ended_at ? ` to ${fmtTime(clash.entry.ended_at, timezone)}` : ", still going"}.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Link href={`/baby/entry/${clash.entry.id}`} className="btn">
+                  Change it
+                </Link>
+                <button type="button" className="btn" disabled={busy} onClick={() => logSleep(clash.lastedMin, true)}>
+                  Log anyway
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="font-semibold">How long?</p>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-label="How long">
+                <button type="button" className="chip col-span-3 min-h-[52px]" disabled={busy || !canAdd} onClick={() => logSleep(null)}>
+                  Still asleep
+                </button>
+                {napLengths(Date.parse(whenIso), now.getTime()).map((m) => (
+                  <button key={m} type="button" className="chip min-h-[52px]" disabled={busy || !canAdd} onClick={() => logSleep(m)}>
+                    {fmtDuration(m)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </Sheet>
       )}
 
@@ -353,10 +418,10 @@ export function LanaNow({
 }
 
 /** A big tile: the feature's colour, the icon on a white disc, two or three words. */
-function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, disabled }: { tint: string; icon: "zzz" | "sun" | "moon" | "bottle" | "diaper" | "droplet" | "clock"; label: string; sub?: string; onClick?: () => void; href?: string; row?: boolean; trailing?: string; disabled: boolean }) {
+function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, disabled, short = false }: { tint: string; icon: "zzz" | "sun" | "moon" | "bottle" | "diaper" | "droplet" | "clock"; label: string; sub?: string; onClick?: () => void; href?: string; row?: boolean; trailing?: string; disabled: boolean; short?: boolean }) {
   const inner = (
     <>
-      <span className="icon-disc">
+      <span className="icon-disc" style={short && !row ? { width: 40, height: 40 } : undefined}>
         <Icon name={icon} size={22} />
       </span>
       <span className="min-w-0 flex-1">
@@ -367,12 +432,13 @@ function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, di
     </>
   );
   const cls = `action ${row ? "" : "action-col"} tint-${tint}`;
+  const style = short && !row ? { minHeight: 112, gap: 8 } : undefined;
   return href ? (
-    <Link href={href} className={cls}>
+    <Link href={href} className={cls} style={style}>
       {inner}
     </Link>
   ) : (
-    <button type="button" className={cls} onClick={onClick} disabled={disabled}>
+    <button type="button" className={cls} style={style} onClick={onClick} disabled={disabled}>
       {inner}
     </button>
   );
@@ -380,10 +446,10 @@ function Tile({ tint, icon, label, sub, onClick, href, row = false, trailing, di
 
 /** The bottom sheet a tile opens: the shared sheet with the "when" chips on top. Defined
  *  at module level so the clock tick does not remount it (and lose a half-picked time). */
-function Sheet({ title, onClose, when, onWhen, timezone, busy, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; timezone: string; busy: boolean; children: React.ReactNode }) {
+function Sheet({ title, onClose, when, onWhen, timezone, busy, whenOpen = false, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; timezone: string; busy: boolean; whenOpen?: boolean; children: React.ReactNode }) {
   return (
     <BaseSheet title={title} onClose={onClose}>
-      <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} />
+      <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} defaultOpen={whenOpen} />
       {children}
     </BaseSheet>
   );

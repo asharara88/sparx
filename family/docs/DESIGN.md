@@ -145,6 +145,21 @@ pattern this bible asks for, so that overrun is the accepted exception.
 | Milk | 8 | 23 | 93 | 1.5 | none |
 | More | 7 | 1 | 48 | 1.5 | the photo link, the email line (as before) |
 
+Home, re-measured on 29 October 2026 (pass 3 never did), at 390 × 844 as Dana on a normal
+day with one Now notice, before and after the backlogging pass:
+
+| Home | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| Awake | 6 → 6 | 16 → 14 | 62 → 58 | 1 → 1 | none |
+| Asleep | 6 → 6 | 12 → 13 | 44 → 53 | 1 → 1 | none |
+| Feed timer running | 6 → 6 | 10 → 12 | 46 → 51 | 1 → 1 | none |
+| Simple mode | 5 → 5 | 5 → 6 | 33 → 35 | 1 → 1 | none (unchanged; the clock moved) |
+
+Awake was one number over: the Asleep tile repeated "awake 2 h 6 min" from the big line.
+Asleep and a running feed went up a little because they now show the last nappy and sleep
+too (the four tiles while she sleeps; "Woke 14:29 · nappy 1 h 38 min ago" during a feed),
+and the feed card's own "Feeding, left · 9 min" header went.
+
 ## What lives where
 
 Three levels, no more.
@@ -169,6 +184,32 @@ not repeat the bottom bar as a grid of tiles.
 4. **Today**, one row: "5 feeds · 1 h 20 sleep · 4 nappies ›", opening the child's page.
 5. **Log**: the four big tiles at the bottom (Feed, Asleep/Woke up, Nappy, Pump or Medicine),
    each with how long ago it last happened. Tapping one opens its sheet; Save is at the bottom.
+   They stay in every state but a running feed (then the feed card holds the sides and Done,
+   and the line under "Feeding 9 min" says when she woke and the last nappy), so the last
+   feed, sleep and nappy are always on Home without scrolling. The sleep tile is one tap
+   (Asleep, Back to sleep at night, or Woke up) with an *earlier?* chip in its corner for a
+   late tap. At night while she sleeps, *Up for the day* joins them as a row.
+
+### Logging what already happened
+
+Dana's second ask. The yardstick is Huckleberry's "Set time" and BabyLog's two or three taps:
+
+- **When** is one line on every log sheet: "When: now · earlier?". Earlier opens clock times
+  on a ten-minute grid for the last two hours (13:50, 13:40, …) and *At a time…* (the phone's
+  picker) for anything else. Clock times, never only "80 min ago". Picking one folds the line.
+- **The time carries over for a minute.** After an entry from earlier, the next sheet opened
+  within a minute starts on that time (a bottle and a nappy from the same moment). A one-tap
+  tile never uses it, so a direct tap is never quietly backdated.
+- **No keyboard on Home's sheets.** Every amount is a chip; the last bottle's amount is marked
+  as the usual one (and added as a chip if it is not one).
+- **A sleep from earlier** is *earlier?* → a time → "Still asleep" or how long (20 min to 2 h).
+  One landing on a sleep already logged says so in the sheet ("On top of a sleep from 13:00
+  to 13:45") with *Change it* and *Log anyway*, never a silent stack.
+- **Anything else from earlier** (a breastfeed with its length, a pump, a past day) is the
+  child's page → + Log → *From earlier*. It stays off Home: Home's four tiles already take
+  their own entries from earlier, and another row would break Home's one screen.
+- Measured (`scripts/backlog-scenario.mjs`): at 14:00, a 90 ml bottle at 12:40 is 4 taps from
+  Home (Feed, When, 12:40, 90 ml) and a 13:00–13:45 nap is 3 (earlier?, 13:00, 45 min).
 
 Off Home: the "Say it / Emergency / Vaccines" chips (the first two move into the header, a
 vaccine that is due becomes a Now item); the right-now carousel; the milk card (a Now item
@@ -219,6 +260,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |
 | Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. |
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
+| When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. |
 | Pill | `.pill` | A state beside a headline | "use first", "short", "expired". One line. Not for numbers that are fine. |
 
 ## Colour, type and space
