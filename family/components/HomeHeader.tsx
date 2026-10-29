@@ -21,10 +21,11 @@ export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: M
       <Avatar name={s.name} path={photo} size={48} />
       <div className="min-w-0 flex-1">
         <h1 className="truncate font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">{s.name}</h1>
-        <p className="muted truncate text-[0.95rem]">
-          {age && <>{age} · </>}
+        {/* A div, not a <p>: the custody switch holds a menu, and nothing here clips it. */}
+        <div className="muted flex min-w-0 items-center gap-1 text-[0.95rem]">
+          {age && <span className="shrink-0">{age} ·</span>}
           <CustodyToggle inline subjectId={s.id} custody={summary.custody} />
-        </p>
+        </div>
       </div>
       {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt icon />}
       <Link href="/baby/emergency" className="round-btn tint-danger" aria-label="Emergency">

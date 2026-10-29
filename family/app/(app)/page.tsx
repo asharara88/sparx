@@ -19,6 +19,7 @@ import { meOnce } from "@/lib/server/me";
 import { HomeHeader } from "@/components/HomeHeader";
 import { HomeState } from "@/components/HomeState";
 import { HomeToday } from "@/components/HomeToday";
+import { DueNotice } from "@/components/DueNotice";
 import { nextNap } from "@/lib/child-insights";
 import { checkEntries } from "@/lib/entry-checks";
 
@@ -137,13 +138,17 @@ export default async function HomePage() {
   // ---- the Now slot (DESIGN.md, rule 3): candidates in order, safety first; only the first
   // that renders anything shows (.now-queue). Whatever else applies waits on the child's page.
   const feedDue = summary && summary.ok ? summary.last["lana.feed"]?.next_due ?? null : null;
-  const feedIsDue = !!feedDue && Date.parse(feedDue) <= now.getTime() && !(summary && summary.ok && summary.ongoing.some((e) => e.type_id === "lana.feed"));
+  // The feed and nap reminders show themselves on the phone when their time comes
+  // (DueNotice), so Home left open still says so; these flags only size "N more".
+  const feeding = !!(summary && summary.ok && summary.ongoing.some((e) => e.type_id === "lana.feed"));
+  const feedIsDue = !!feedDue && Date.parse(feedDue) <= now.getTime() && !feeding;
   const hourOf = (iso: string) => {
     const p = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
     return Number(p.find((x) => x.type === "hour")?.value ?? 0) + Number(p.find((x) => x.type === "minute")?.value ?? 0) / 60;
   };
   const nap = summary && summary.ok && summary.subject.birth_date ? nextNap(week, ageDays(summary.subject.birth_date, today), now.getTime(), hourOf) : null;
-  const napSoon = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= 12 * 60 && nap.at - now.getTime() <= 20 * 60_000;
+  const napWatch = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= 12 * 60;
+  const napSoon = napWatch && nap!.at! - now.getTime() <= 20 * 60_000;
   const checks = summary && summary.ok && can(me, "lana", "edit") ? checkEntries(week).length : 0;
   const known = [vaccine?.overdue, mamaAway && !!milkOk, feedIsDue, napSoon, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
 
@@ -161,21 +166,21 @@ export default async function HomePage() {
         </div>
         <div>{mamaAway ? alerts.countdown : null}</div>
         <div>
-          {feedIsDue && (
-            <p className="notice notice-warn">
+          {feedDue && !feeding && (
+            <DueNotice fromMs={Date.parse(feedDue)}>
               <b>Feed due now</b>
               {lastFeedAt ? ` · last ${fmtWhen(lastFeedAt, tz, now)}` : ""}
-            </p>
+            </DueNotice>
           )}
         </div>
         <div>
-          {napSoon && nap?.at != null && (
-            <p className="notice notice-warn">
+          {napWatch && nap?.at != null && (
+            <DueNotice fromMs={nap.at - 20 * 60_000}>
               <b>
-                {nap.isBedtime ? "Bedtime" : "Nap"} {nap.at <= now.getTime() ? "was due" : "due"} around {fmtTime(new Date(nap.at).toISOString(), tz)}
+                {nap.isBedtime ? "Bedtime" : "Nap"} around {fmtTime(new Date(nap.at).toISOString(), tz)}
               </b>{" "}
               · start winding down
-            </p>
+            </DueNotice>
           )}
         </div>
         <div>{order.includes("plan") ? alerts.plan : null}</div>

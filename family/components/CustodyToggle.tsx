@@ -14,7 +14,8 @@ export function CustodyToggle({
 }: {
   subjectId: string;
   custody: { member_id: string; name: string | null } | null;
-  /** Home's header: plain words after the age ("with Dana ▾"), not a chip. */
+  /** Home's header: plain words after the age ("with Dana ▾"), not a chip; its menu opens
+   *  across the screen under the header, so a narrow spot cannot push it off the edge. */
   inline?: boolean;
 }) {
   const me = useMe();
@@ -53,7 +54,7 @@ export function CustodyToggle({
         {shown} ▾
       </button>
       {open && (
-        <div className={`absolute ${inline ? "left-0" : "right-0"} z-10 mt-2 w-64 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg`}>
+        <div className={`${inline ? "fixed inset-x-4 top-[calc(env(safe-area-inset-top)+5.5rem)] z-40" : "absolute right-0 z-10 mt-2 w-64"} rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg`}>
           <p className="muted px-2 py-1 text-sm">Who has {name} now?</p>
           {members.length === 0 && <p className="px-2 py-2">Loading…</p>}
           {members.map((m) => (
