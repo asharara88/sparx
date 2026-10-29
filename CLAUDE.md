@@ -72,6 +72,10 @@ Dependabot was added and removed on purpose: do not bring it back.
 
 ## The app
 
+- **Before changing anything a person sees, read `family/docs/DESIGN.md`** (the design
+  bible: one screen one question, one alert at a time, one number per card, budgets per
+  screen). Measure with `node family/scripts/ui-audit.mjs <route>` in screenshot mode and put
+  the before/after numbers in the PR. A screen does not grow without something leaving it.
 - A function exported from a `"use client"` file cannot be called while rendering a
   server page (React refuses, the page answers 500). Shared helpers live in `lib/`.
   This took the Members screen down for a day.
