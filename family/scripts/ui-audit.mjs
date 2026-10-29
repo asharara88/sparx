@@ -25,15 +25,12 @@ let over = 0;
 for (const theme of ["light", "night"]) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light" });
   await ctx.addCookies([{ name: "shot_as", value: as, domain: new URL(base).hostname, path: "/" }]);
-  // Night is the 3 am screen: force it on (or off) whatever the clock says.
-  await ctx.addInitScript((t) => {
-    const set = () => (t === "night" ? document.documentElement.setAttribute("data-theme", "night") : document.documentElement.removeAttribute("data-theme"));
-    new MutationObserver(set).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    document.addEventListener("DOMContentLoaded", set);
-  }, theme);
   const page = await ctx.newPage();
   for (const route of routes) {
     const res = await page.goto(base + route, { waitUntil: "networkidle", timeout: 240_000 });
+    // Night is the 3 am screen. Force it on (or off) right before the shot, whatever the
+    // clock says: the app's own night switch runs after load and would otherwise win.
+    await page.evaluate((t) => (t === "night" ? document.documentElement.setAttribute("data-theme", "night") : document.documentElement.removeAttribute("data-theme")), theme);
     await page.waitForTimeout(300);
     const name = route === "/" ? "home" : route.slice(1).replaceAll("/", "_");
     await page.screenshot({ path: `${out}/${name}-${theme}.png`, fullPage: true });
