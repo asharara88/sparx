@@ -27,6 +27,8 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
     if (!alwaysOpen) setOpen(false);
   };
   const times = clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), marks);
+  // The picker shows once asked for, or for a time no chip holds (a past day's noon).
+  const picker = custom || (value.kind === "at" && !times.includes(value.local));
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={label}>
       <div className="grid grid-cols-4 gap-2">
@@ -38,14 +40,15 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
             {local.slice(11)}
           </button>
         ))}
-        <button type="button" className="chip col-span-2 px-0" aria-pressed={custom} disabled={disabled} onClick={() => {
+        <button type="button" className="chip col-span-2 px-0" aria-pressed={picker} disabled={disabled} onClick={() => {
             setCustom(true);
-            onChange({ kind: "at", local: toLocalInput(new Date(Date.now() - 30 * 60_000).toISOString(), timezone) });
+            // Keep a time already chosen (its day too, on a past day); else half an hour ago.
+            if (value.kind !== "at") onChange({ kind: "at", local: toLocalInput(new Date(Date.now() - 30 * 60_000).toISOString(), timezone) });
           }}>
           At a time…
         </button>
       </div>
-      {custom && value.kind === "at" && <input className="input" type="datetime-local" value={value.local} max={toLocalInput(new Date().toISOString(), timezone)} onChange={(e) => e.target.value && onChange({ kind: "at", local: e.target.value })} aria-label="Time it happened" />}
+      {picker && value.kind === "at" && <input className="input" type="datetime-local" value={value.local} max={toLocalInput(new Date().toISOString(), timezone)} onChange={(e) => e.target.value && onChange({ kind: "at", local: e.target.value })} aria-label="Time it happened" />}
     </div>
   );
 }

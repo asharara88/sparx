@@ -219,7 +219,13 @@ export function LanaNow({
     return run(
       endIso ? `Sleep ${fmtTime(whenIso, timezone)} to ${fmtTime(endIso, timezone)} saved.` : `Asleep since ${fmtTime(whenIso, timezone)}.`,
       async () => {
-        if (state.kind === "night_awake") await end(state.entry);
+        // Back to sleep after a night wake ends the wake; a nap that ended before the wake
+        // began leaves it alone. Still asleep since before the wake makes no sense.
+        if (state.kind === "night_awake") {
+          const wokeAt = Date.parse(state.entry.occurred_at);
+          if (from >= wokeAt) await end(state.entry);
+          else if (endIso == null || to > wokeAt) throw new Error(`She was awake from ${fmtTime(state.entry.occurred_at, timezone)}. Pick a time after that.`);
+        }
         await start(sleepType, {}, endIso);
       },
       false,
