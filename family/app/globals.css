@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* The smallest text size is 13 px or more on a phone (DESIGN.md, "Built for a phone"):
+   Tailwind's text-xs is 0.75 rem, which is 12.75 px at this app's 17 px root. */
+@theme {
+  --text-xs: 0.8rem;
+  --text-xs--line-height: 1.35;
+}
+
 /* ============================================================================
    Design tokens. Light by default, dark follows the phone, "night" is the
    Ask screen's own very dark mode. Everything else reads these variables.
@@ -254,7 +261,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 8px 16px;
-  min-height: 42px;
+  min-height: 44px;
+  white-space: nowrap; /* a chip's label never breaks onto a second line */
   background: var(--card-2);
   color: var(--fg);
   font-weight: 600;
@@ -276,6 +284,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: var(--card-2);
   color: var(--muted);
   min-height: 0;
+  white-space: nowrap;
 }
 .pill-ok { background: var(--ok-soft); color: var(--ok); }
 .pill-warn { background: var(--warn-soft); color: var(--warn); }
@@ -463,9 +472,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .fold-chev { flex: none; transition: transform 150ms ease; opacity: 0.6; }
 .fold[open] > summary .fold-chev { transform: rotate(90deg); }
 .fold-body { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
-/* Cards inside a fold sit flat on the fold's colour. */
-.fold-body > .card { border: none; box-shadow: none; }
-.fold:not([class*="tint-"]) .fold-body > .card { background: var(--card-2); }
+/* A card inside a fold or a card is not a second box: it sits flat on its parent
+   (DESIGN.md, "Built for a phone": no card in a card). */
+.fold-body .card, .card .card { background: transparent; border: none; box-shadow: none; padding: 0; border-radius: 0; }
 
 /* ---- hero ------------------------------------------------------------------ */
 .hero {
@@ -497,7 +506,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   justify-content: center;
   gap: 3px;
   min-height: var(--tabbar-h);
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
   text-decoration: none;
@@ -673,9 +682,9 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   border-bottom-left-radius: 1.1rem;
   border-bottom-right-radius: 0.35rem;
 }
-.chat-author { font-size: 0.75rem; font-weight: 700; opacity: 0.75; margin-bottom: 0.1rem; }
+.chat-author { font-size: 0.78rem; font-weight: 700; opacity: 0.75; margin-bottom: 0.1rem; }
 .chat-photo { max-height: 16rem; width: auto; max-width: 100%; margin-bottom: 0.35rem; }
-.chat-meta { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.15rem; font-size: 0.7rem; opacity: 0.7; }
+.chat-meta { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.15rem; font-size: 0.78rem; opacity: 0.7; }
 .chat-delete { display: inline-flex; padding: 0.15rem; border-radius: 999px; opacity: 0.8; }
 .chat-composer {
   position: sticky;

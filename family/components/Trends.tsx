@@ -18,7 +18,9 @@ const RANGES = [
 ] as const;
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
-const h = (min: number) => `${(min / 60).toFixed(1)} h`;
+// "1 h 30 min", not "1.5 h"; a per-day average keeps one decimal at most (DESIGN.md, Numbers).
+const h = (min: number) => fmtDuration(Math.round(min));
+const n1 = (x: number) => (Number.isInteger(x) ? `${x}` : x.toFixed(1).replace(/\.0$/, ""));
 const mean = (days: DayStats[], k: keyof DayStats) => avg(days.map((d) => Number(d[k] ?? 0)));
 
 export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: string; birthDate: string | null }) {
@@ -37,11 +39,11 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
     { label: "Sleep a day", now: h(mean(thisWeek, "sleep_min")), delta: mean(thisWeek, "sleep_min") - mean(lastWeek, "sleep_min"), unit: "min" },
     { label: "Night sleep", now: h(mean(thisWeek, "night_sleep_min")), delta: mean(thisWeek, "night_sleep_min") - mean(lastWeek, "night_sleep_min"), unit: "min" },
     { label: "Longest stretch", now: h(mean(thisWeek, "longest_stretch_min")), delta: mean(thisWeek, "longest_stretch_min") - mean(lastWeek, "longest_stretch_min"), unit: "min" },
-    { label: "Night feeds", now: mean(thisWeek, "night_feeds").toFixed(1), delta: mean(thisWeek, "night_feeds") - mean(lastWeek, "night_feeds"), unit: "" },
-    { label: "Breastfeeds a day", now: mean(thisWeek, "breast_count").toFixed(1), delta: mean(thisWeek, "breast_count") - mean(lastWeek, "breast_count"), unit: "" },
+    { label: "Night feeds", now: n1(mean(thisWeek, "night_feeds")), delta: mean(thisWeek, "night_feeds") - mean(lastWeek, "night_feeds"), unit: "" },
+    { label: "Breastfeeds a day", now: n1(mean(thisWeek, "breast_count")), delta: mean(thisWeek, "breast_count") - mean(lastWeek, "breast_count"), unit: "" },
     { label: "At the breast", now: fmtDuration(Math.round(mean(thisWeek, "breast_min"))), delta: mean(thisWeek, "breast_min") - mean(lastWeek, "breast_min"), unit: "min" },
     { label: "Bottle a day", now: `${Math.round(mean(thisWeek, "bottle_ml"))} ml`, delta: mean(thisWeek, "bottle_ml") - mean(lastWeek, "bottle_ml"), unit: "ml" },
-    { label: "Diapers a day", now: mean(thisWeek, "diapers").toFixed(1), delta: mean(thisWeek, "diapers") - mean(lastWeek, "diapers"), unit: "" },
+    { label: "Nappies a day", now: n1(mean(thisWeek, "diapers")), delta: mean(thisWeek, "diapers") - mean(lastWeek, "diapers"), unit: "" },
   ];
   const weekTotals = {
     breast_count: mean(thisWeek, "breast_count"),
@@ -69,8 +71,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
               <p className="text-xl font-bold">{t.now}</p>
               {t.delta != null && lastWeek.length > 0 && (
                 <p className="muted text-sm">
-                  {t.delta > 0 ? "▲" : t.delta < 0 ? "▼" : "•"} {Math.abs(t.unit === "min" && Math.abs(t.delta) >= 60 ? t.delta / 60 : t.delta).toFixed(1)}
-                  {t.unit === "min" ? (Math.abs(t.delta) >= 60 ? " h" : " min") : t.unit ? ` ${t.unit}` : ""}
+                  {t.delta > 0 ? "▲" : t.delta < 0 ? "▼" : "•"} {t.unit === "min" ? h(Math.abs(t.delta)) : `${t.unit === "ml" ? Math.round(Math.abs(t.delta)) : n1(Math.round(Math.abs(t.delta) * 10) / 10)}${t.unit ? ` ${t.unit}` : ""}`}
                 </p>
               )}
             </div>
@@ -166,22 +167,24 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
             {weights.length > 1 ? `, up ${(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg)).toFixed(2)} kg since ${weights[0].day}` : ""}.
           </p>
           {birthDate ? <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate} /> : <WeightChart points={weights} ageWeeks={ageWeeks} />}
-          <table className="mt-2 w-full text-sm">
-            <tbody>
-              {weights
-                .slice()
-                .reverse()
-                .slice(0, 6)
-                .map((w) => (
-                  <tr key={w.day}>
-                    <td className="py-0.5">{w.day}</td>
-                    <td className="muted">{ageWeeks(w.day) != null ? `${ageWeeks(w.day)} wk` : ""}</td>
-                    <td className="text-right font-semibold">{w.weight_kg} kg</td>
-                    <td className="muted text-right">{w.length_cm ? `${w.length_cm} cm` : ""}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+          <ul className="mt-2 flex flex-col">
+            {weights
+              .slice()
+              .reverse()
+              .slice(0, 6)
+              .map((w) => (
+                <li key={w.day} className="row">
+                  <span className="min-w-0 flex-1">
+                    <span className="block">{w.day}</span>
+                    {ageWeeks(w.day) != null && <span className="muted block text-sm">{ageWeeks(w.day)} weeks old</span>}
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block font-semibold tabular-nums">{w.weight_kg} kg</span>
+                    {w.length_cm && <span className="muted block text-sm tabular-nums">{w.length_cm} cm</span>}
+                  </span>
+                </li>
+              ))}
+          </ul>
         </section>
       )}
       {birthDate && lengths.length > 0 && <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} />}

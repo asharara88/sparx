@@ -177,7 +177,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
       )}
       {dayStats && (
         <Fold title={day === today ? `Today against ${pr.their} age` : `Against ${pr.their} age`} icon="trend" tint="guide" hint={day === today ? "so far" : undefined}>
-          <AgeCheck totals={dayStats} birthDate={summary.subject.birth_date} day={day} complete={day < today} title={day === today ? `Today against ${pr.their} age` : `Against ${pr.their} age`} subtitle={day === today ? "Counts so far. Nothing is flagged until the day is over." : undefined} />
+          <AgeCheck totals={dayStats} birthDate={summary.subject.birth_date} day={day} complete={day < today} title={day === today ? `Today against ${pr.their} age` : `Against ${pr.their} age`} subtitle={day === today ? "So far today." : undefined} bare />
         </Fold>
       )}
       {isToday && can(me, "assistant", "view") && (

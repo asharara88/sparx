@@ -7,6 +7,7 @@ import { addDays, dayRange, todayYmd } from "@/lib/time";
 import { Trends } from "@/components/Trends";
 import { Icon } from "@/components/Icon";
 import { PatternBars } from "@/components/PatternBars";
+import { PageHeader } from "@/components/PageHeader";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -32,17 +33,15 @@ export default async function LanaTrendsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="page-header flex items-center justify-between gap-2">
-        <h1 className="page-title">{summary.subject.name} · Trends</h1>
-        <div className="flex gap-2">
+      <PageHeader
+        back="/baby"
+        title="Trends"
+        action={
           <Link href="/baby/export" className="btn">
             <Icon name="printer" size={20} /> For the doctor
           </Link>
-          <Link href="/baby" className="btn">
-            Day by day
-          </Link>
-        </div>
-      </header>
+        }
+      />
       <PatternBars entries={entries} days={days} timezone={tz} today={today} />
       {stats.ok ? (
         <Trends stats={stats} today={today} birthDate={summary.subject.birth_date} />

@@ -1,4 +1,5 @@
 import type { DayStats, EntryRow } from "@/lib/types";
+import { fmtDuration } from "@/lib/time";
 
 const FACE: Record<string, string> = { Happy: "😊", Calm: "😌", Fussy: "😣", Unsettled: "😢" };
 const GOOD = new Set(["Happy", "Calm"]);
@@ -31,33 +32,22 @@ export function MoodPattern({ entries, days, stats, timezone }: { entries: Entry
     else if (lo - hi >= 0.25) reading = `The happier days were not the longer-sleep days this week; something else sets the mood more than sleep right now.`;
     else reading = `Mood and sleep moved together only loosely this week.`;
   }
-  const fmt = (min: number | null) => (min == null ? "" : `${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ""}`.trim());
+  const dayName = (day: string) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
   return (
     <section className="card" aria-labelledby="moodp-h">
       <h2 id="moodp-h" className="font-semibold">
         Mood and sleep
       </h2>
-      <table className="mt-1 w-full text-sm">
-        <thead className="muted text-xs">
-          <tr>
-            <th className="text-left font-normal">Day</th>
-            <th className="text-left font-normal">Taps</th>
-            <th className="text-right font-normal">Sleep</th>
-            <th className="text-right font-normal">Night</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.day}>
-              <td className="py-0.5">{r.day.slice(5)}</td>
-              <td className="text-lg leading-tight">{r.faces || <span className="muted text-sm">·</span>}</td>
-              <td className="text-right">{fmt(r.sleepMin)}</td>
-              <td className="muted text-right">{fmt(r.nightMin)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted mt-2 text-sm">{reading ?? "Tap the mood a few times a day for three days or more and the pattern shows here."}</p>
+      <p className="muted text-sm">{reading ?? "Tap the mood a few times a day for three days or more and the pattern shows here."}</p>
+      <ul className="mt-1 flex flex-col">
+        {rows.map((r) => (
+          <li key={r.day} className="row">
+            <span className="w-16 shrink-0 font-semibold">{dayName(r.day)}</span>
+            <span className="min-w-0 flex-1 truncate text-lg leading-tight">{r.faces || <span className="muted text-sm">no taps</span>}</span>
+            <span className="muted shrink-0 text-sm tabular-nums">{r.sleepMin ? `slept ${fmtDuration(Math.round(r.sleepMin))}` : ""}</span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
