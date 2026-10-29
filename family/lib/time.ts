@@ -25,6 +25,15 @@ export function dateWords(date: Date, opts: Intl.DateTimeFormatOptions): string 
     .trim();
 }
 
+/** When something happened, the way people say it: "today 08:00", "yesterday 23:10", older "Sat 19 Sept". */
+export function fmtWhen(iso: string, tz: string, now: Date = new Date()): string {
+  const day = ymdInZone(new Date(iso), tz);
+  const today = todayYmd(tz, now);
+  if (day === today) return `today ${fmtTime(iso, tz)}`;
+  if (day === addDays(today, -1)) return `yesterday ${fmtTime(iso, tz)}`;
+  return fmtDate(iso, tz);
+}
+
 export function fmtDateTime(iso: string, tz: string): string {
   return `${fmtDate(iso, tz)} ${fmtTime(iso, tz)}`;
 }

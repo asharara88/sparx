@@ -5,7 +5,7 @@ import type { MilkBottle, MilkData } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { addDays, fmtDate, fmtTime, todayYmd, ymdInZone } from "@/lib/time";
+import { fmtWhen } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 
 const QUICK = [60, 90, 120, 150, 180];
@@ -18,14 +18,6 @@ function left(iso: string, now: Date): string {
   return `${Math.round(min / 1440)} days left`;
 }
 
-/** "today 08:00", "yesterday 11:55", or "Thu 17 Sep" for anything older. */
-function when(iso: string, tz: string, now: Date): string {
-  const day = ymdInZone(new Date(iso), tz);
-  const today = todayYmd(tz, now);
-  if (day === today) return `today ${fmtTime(iso, tz)}`;
-  if (day === addDays(today, -1)) return `yesterday ${fmtTime(iso, tz)}`;
-  return fmtDate(iso, tz);
-}
 
 /**
  * Every bottle in the fridge and freezer, oldest first (use that one). Fridge milk keeps
@@ -83,7 +75,7 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
           </span>
         </div>
         <p className="muted text-sm">
-          {b.location === "freezer" ? "Frozen" : "Pumped"} {when(b.pumped_at, timezone, now)}
+          {b.location === "freezer" ? "Frozen" : "Pumped"} {fmtWhen(b.pumped_at, timezone, now)}
           {b.note ? ` · ${b.note}` : ""}
         </p>
         {canAdd && (

@@ -10,9 +10,12 @@ import { childName } from "@/lib/names";
 export function CustodyToggle({
   subjectId,
   custody,
+  inline = false,
 }: {
   subjectId: string;
   custody: { member_id: string; name: string | null } | null;
+  /** Home's header: plain words after the age ("with Dana ▾"), not a chip. */
+  inline?: boolean;
 }) {
   const me = useMe();
   const router = useRouter();
@@ -41,15 +44,16 @@ export function CustodyToggle({
 
   const name = childName(me);
   const label = custody?.name ? `With ${custody.member_id === me.member.id ? "me" : custody.name}` : `Who has ${name}?`;
-  if (!allowed) return <span className="chip">{label}</span>;
+  const shown = inline ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+  if (!allowed) return <span className={inline ? "" : "chip"}>{shown}</span>;
 
   return (
-    <div className="relative">
-      <button className="chip" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        {label} ▾
+    <div className={inline ? "relative inline-block" : "relative"}>
+      <button className={inline ? "-my-3 py-3 font-semibold" : "chip"} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {shown} ▾
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg">
+        <div className={`absolute ${inline ? "left-0" : "right-0"} z-10 mt-2 w-64 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg`}>
           <p className="muted px-2 py-1 text-sm">Who has {name} now?</p>
           {members.length === 0 && <p className="px-2 py-2">Loading…</p>}
           {members.map((m) => (

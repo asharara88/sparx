@@ -105,6 +105,12 @@ html[data-theme="night"] {
   --night: #b9c6a8;
   --night-soft: #262b22;
   --ok: #b9c6a8;
+  --ok-soft: #1f251b;
+  --warn: #e8b468;
+  --warn-soft: #2a2010;
+  --danger: #f08a85;
+  --danger-soft: #2e1416;
+  --info-soft: #3a2030;
   --shadow: none;
   --feed: #2a1420; --feed-fg: #f1c9d4;
   --sleep: #221a33; --sleep-fg: #d0c4ea;
@@ -262,13 +268,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-radius: 999px;
   padding: 8px 16px;
   min-height: 44px;
-  white-space: nowrap; /* a chip's label never breaks onto a second line */
+  white-space: nowrap; /* a chip's label never breaks onto a second line… */
+  max-width: 100%;
   background: var(--card-2);
   color: var(--fg);
   font-weight: 600;
   transition: background-color 120ms ease, transform 120ms ease;
 }
 .chip:active { transform: scale(0.97); }
+/* …but a chip that holds a sentence (a question to ask, words heard) wraps inside the screen. */
+.chip-say { white-space: normal; text-align: left; justify-content: flex-start; border-radius: 18px; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .card .chip { background: var(--bg); }
 .card .chip[aria-pressed="true"] { background: var(--accent); }
@@ -708,3 +717,28 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   background: rgb(0 0 0 / 0.85);
 }
 .lightbox-img { max-width: 100%; max-height: 80dvh; object-fit: contain; }
+
+/* ---- Home fills one phone screen (DESIGN.md, "Home"): what is tapped most sits at the
+   bottom by the thumb, a spacer takes up whatever height is left. */
+.screen-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: calc(100dvh - env(safe-area-inset-top) - var(--tabbar-h) - env(safe-area-inset-bottom) - 40px);
+}
+.screen-fill > .grow-space { flex: 1 1 0; min-height: 4px; }
+/* The Now slot shows only the first thing that applies: a candidate that renders nothing
+   collapses, and every candidate after the first that renders something is hidden. */
+.now-queue > :empty { display: none; }
+.now-queue > :not(:empty) ~ * { display: none; }
+.round-btn {
+  width: 44px; height: 44px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; border: none;
+}
+.say-heard {
+  position: fixed; inset-inline: 16px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 40; margin: 0 auto; max-width: 24rem;
+  padding: 12px 16px; border-radius: 16px;
+  background: var(--fg); color: var(--bg); font-weight: 600; text-align: center;
+}

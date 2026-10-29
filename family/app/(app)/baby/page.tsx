@@ -2,12 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { awayParentOn } from "@/lib/handover";
-import type { ActivitiesData, BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError } from "@/lib/types";
+import type { ActivitiesData, BagItem, DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, MedicinesData, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childPronouns, possessive, type Pronouns } from "@/lib/names";
 import { addDays, dayRange, describePayload, fmtDuration, fmtTime, todayYmd } from "@/lib/time";
 import { ageDays, ageLabel } from "@/lib/norms";
 import { AgeCheck } from "@/components/AgeCheck";
+import { LanaGuide } from "@/components/LanaGuide";
+import { SuggestionCards } from "@/components/SuggestionCards";
 import { Avatar } from "@/components/Avatar";
 import { DayStrip } from "@/components/DayStrip";
 import { HandoverPanel } from "@/components/HandoverPanel";
@@ -107,13 +109,14 @@ type SB = Awaited<ReturnType<typeof createClient>>;
 async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabase: SB; me: Me; summary: HomeSummary; day: string; today: string; tz: string; pr: Pronouns }) {
   const { from, to } = dayRange(day, tz);
   const isToday = day === today;
-  const [{ data: listData }, { data: stripData }, { data: statsData }, { data: medData }, { data: weekData }, { data: hhData }] = await Promise.all([
+  const [{ data: listData }, { data: stripData }, { data: statsData }, { data: medData }, { data: weekData }, { data: hhData }, { data: sugData }] = await Promise.all([
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: from, p_to: to }),
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(new Date(from).getTime() - 12 * 3600 * 1000).toISOString(), p_to: to }),
     supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: day, p_to: day }),
     isToday ? supabase.rpc("medicines_list", { p_subject_id: summary.subject.id }) : Promise.resolve({ data: null }),
     isToday ? supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : Promise.resolve({ data: null }),
     isToday ? supabase.rpc("household_today") : Promise.resolve({ data: null }),
+    isToday ? supabase.rpc("suggestions_refresh") : Promise.resolve({ data: null }),
   ]);
   const { data: planData } = isToday ? await supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }) : { data: null };
   const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
@@ -157,6 +160,8 @@ async function TodayTab({ supabase, me, summary, day, today, tz, pr }: { supabas
           <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />
         </Fold>
       )}
+      {isToday && <LanaGuide fold entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />}
+      {isToday && <SuggestionCards suggestions={((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]} />}
       {isToday && summary.subject.birth_date && <NextNap entries={week} ageDays={ageDays(summary.subject.birth_date, today)} timezone={tz} compact />}
       {isToday && <MoodTap subjectId={summary.subject.id} today={entries} timezone={tz} />}
       {isToday && (
@@ -305,7 +310,7 @@ function AskTab({ me, name, pr }: { me: Me; name: string; pr: Pronouns }) {
       </Link>
       <div className="flex flex-wrap gap-2">
         {prompts.map((p) => (
-          <Link key={p} href={`/ask?from=child&q=${encodeURIComponent(p)}`} className="chip">
+          <Link key={p} href={`/ask?from=child&q=${encodeURIComponent(p)}`} className="chip chip-say">
             {p}
           </Link>
         ))}

@@ -106,10 +106,12 @@ sources at the bottom.
 
 Measured by `scripts/ui-audit.mjs` at 390 × 844 (an iPhone), as an admin with a normal
 day logged. It opens every fold before checking, and saves light and night screenshots.
+Every digit group counts as a number ("1 h 5 min" is two); Home's 15 is what the agreed
+mockup uses, mostly the tiles' "40 min ago".
 
 | Screen | Top-level blocks | Numbers on screen | Words | Screens tall |
 |---|---|---|---|---|
-| Home | 6 | 8 | 80 | 1 (one screen, no scroll) |
+| Home | 6 | 15 | 80 | 1 (one screen, no scroll) |
 | Every other screen | 8 | 12 | 150 | 2.5 |
 
 The phone checks must all read zero: *wide* (anything past the screen's edge), *sideways*

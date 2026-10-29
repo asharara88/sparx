@@ -20,7 +20,7 @@ const routes = process.argv.slice(2).length ? process.argv.slice(2) : ["/", "/ba
 
 // docs/DESIGN.md, "Budgets". Home is stricter than every other screen.
 const budget = (route) =>
-  route === "/" ? { blocks: 6, numbers: 8, words: 80, screens: 1 } : { blocks: 8, numbers: 12, words: 150, screens: 2.5 };
+  route === "/" ? { blocks: 6, numbers: 15, words: 80, screens: 1 } : { blocks: 8, numbers: 12, words: 150, screens: 2.5 };
 
 mkdirSync(out, { recursive: true });
 const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -47,7 +47,7 @@ for (const theme of ["light", "night"]) {
       const column = main.querySelector(":scope > div, :scope > section") ?? main;
       const text = main.innerText;
       return {
-        blocks: [...column.children].filter(shown).length,
+        blocks: [...column.children].filter((el) => shown(el) && !el.classList.contains("grow-space")).length, // a spacer is not a block
         cards: [...main.querySelectorAll(".card, .tile, details, .action, .notice")].filter(shown).length,
         taps: [...main.querySelectorAll("a, button, summary")].filter(shown).length,
         numbers: (text.match(/\b\d+(?:[.:]\d+)?\b/g) ?? []).length,

@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { FridgePlan } from "@/components/FridgePlan";
 import { MilkScan } from "@/components/MilkScan";
 import { MilkInsights } from "@/components/MilkInsights";
+import { PumpTarget } from "@/components/PumpTarget";
+import { Fold } from "@/components/Fold";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { addDays, dayRange, todayYmd } from "@/lib/time";
@@ -52,12 +54,24 @@ export default async function MilkPage() {
     const b = summary.today_entries.find((e: EntryRow) => e.type_id === "lana.feed" && e.payload.method === "Bottle");
     if (b && Number(b.payload.amount_ml)) lastBottleMl = Number(b.payload.amount_ml);
   }
+  // Pumping since yesterday evening, against the day's target: it lived on Home until the
+  // phone pass moved everything that is not "now" off it (DESIGN.md, "Home").
+  const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
+  const pumps = history.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
+  const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
+  const target = me.household.milk_target_ml ?? 400;
+  const showPump = !!me.member.breastfeeds || me.role.id === "admin";
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby" title="Milk stash" subtitle="What is in the fridge and freezer, oldest first. A bottle feed takes its milk out by itself." />
       {can(me, "lana", "add") && <MilkScan timezone={tz} />}
       {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} />}
       <MilkStash data={milk} timezone={me.household.timezone} />
+      {showPump && (
+        <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${target} ml`}>
+          <PumpTarget pumps={pumps} milk={milk} target={target} canLog={can(me, "lana", "add")} />
+        </Fold>
+      )}
       <MilkInsights milk={milk} entries={history} timezone={tz} thaw={thaw} />
     </div>
   );
