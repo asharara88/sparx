@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { EntryRow } from "@/lib/types";
 import { nextNap } from "@/lib/child-insights";
-import { fmtTime } from "@/lib/time";
+import { fmtDuration, fmtTime } from "@/lib/time";
 
 /**
  * "Next nap around 11:40": the last wake-up plus the child's own awake window,
@@ -14,9 +14,12 @@ export function NextNap({ entries, ageDays, timezone, now = Date.now(), compact 
   };
   const n = nextNap(entries, ageDays, now, hourOf);
   if (!n || n.asleepSince) return null;
+  // No sleep logged for 12 hours means the log has a gap, not a baby awake that long
+  // (it once said "awake 1214 min"): say nothing rather than something wrong.
+  if (n.awakeMin > 12 * 60) return null;
   const inMin = Math.round((n.at! - now) / 60_000);
   const what = n.isBedtime ? "Bedtime" : "Next nap";
-  const when = inMin >= 0 ? `in about ${inMin >= 60 ? `${Math.floor(inMin / 60)} h ${inMin % 60 ? `${inMin % 60} min` : ""}`.trim() : `${inMin} min`}` : `${-inMin} min past the window`;
+  const when = inMin >= 0 ? `in about ${fmtDuration(inMin)}` : `${fmtDuration(-inMin)} past the window`;
   const tone = inMin < 0 ? "notice-warn" : inMin <= 15 ? "notice-night" : "";
   if (compact) {
     return (
@@ -24,7 +27,7 @@ export function NextNap({ entries, ageDays, timezone, now = Date.now(), compact 
         <b>
           {what} ~{fmtTime(new Date(n.at!).toISOString(), timezone)}
         </b>{" "}
-        · {when} · awake {n.awakeMin} min
+        · {when} · awake {fmtDuration(n.awakeMin)}
       </p>
     );
   }
@@ -35,7 +38,7 @@ export function NextNap({ entries, ageDays, timezone, now = Date.now(), compact 
       </h2>
       <p className="text-lg">{when}.</p>
       <p className="muted text-sm">
-        Awake since {fmtTime(n.since!, timezone)} ({n.awakeMin} min). The window is about {n.windowMin} min, from {n.basis}. It moves with the day: a late nap pushes the next one.
+        Awake since {fmtTime(n.since!, timezone)} ({fmtDuration(n.awakeMin)}). The window is about {n.windowMin} min, from {n.basis}. It moves with the day: a late nap pushes the next one.
       </p>
       {inMin < 0 && <p className="muted text-sm">Past the window a baby gets wired rather than sleepy. Start the wind-down now rather than later.</p>}
       <Link href="/baby/quick/sleep" className="btn mt-2">

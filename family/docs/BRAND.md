@@ -34,22 +34,22 @@ every platform's icon mask leaves it whole.
 
 ## Colour
 
-Four colours, each with one job. Light theme tokens (`app/globals.css`); the dark and night
-themes carry the same roles.
+Each colour has one job. Light theme tokens (`app/globals.css`, the source of truth); the
+dark and night themes carry the same names.
 
 | Role | Token | Value | Use |
 |---|---|---|---|
-| Ivory | `--bg` | `#FFF9F0` | The page. Warm, never grey. |
-| Plum | `--fg`, `--accent` | `#4B203F` | Text, titles, primary buttons, the active tab, the icon tile. Plum does the work. |
-| Plum soft | `--accent-soft` | `#F3E4EC` | Tinted chips and notices. |
-| Apricot | `--apricot` | `#F29B78` | Decoration only: the "el", the little one on the mark, a warm tint. Never a button, never body text. |
-| Sage | `--night`, `--ok` | `#6F7F60` on `#E8EDE1` | Calm: sleep and night notices, done, on track. |
+| Blush | `--bg` | `#FFF4F6` | The page. Warm, never grey. |
+| Plum | `--fg` | `#4B203F` | Text and titles. |
+| Rose | `--accent` | `#C2476A` | Primary buttons, the active tab, links. Rose does the work. |
+| Rose soft | `--accent-soft` | `#FBE1E8` | Tinted chips and notices. |
+| Apricot | `--apricot` | `#F29B78` | Decoration only: the "el", the little one on the mark. Never a button, never body text. |
 | Amber | `--warn` | `#9A5B00` | Needs a look. |
 | Brick | `--danger` | `#B8322F` | Stop, delete, call. |
+| Feature tints | `--feed`, `--sleep`, `--diaper`, `--meds`, `--milk`, `--pump`, `--house`, `--cal`, `--notes`, `--guide` | pastel, each with its own dark `-fg` | One per feature, so a card says what it is before it is read. How to use them: `DESIGN.md`. |
 
-Dark theme: deep plum ground (`#2A1526`), ivory text, and apricot becomes the accent for
-buttons and the active tab, since plum on plum cannot. The Ask screen's night mode goes
-darker still for 3 am.
+Dark theme: deep plum ground (`#2A1526`), ivory text, a lighter rose accent. The night
+theme (3 am, and the hours the family sets) goes darker still, with apricot as the accent.
 
 ## Type
 
