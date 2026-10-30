@@ -316,6 +316,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Rows in a list card. */
 .row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
 .row + .row { border-top: 1px solid var(--line); }
+/* A row stacked as a column (a label over chips) stretches: Tailwind's items-* is layered and loses to .row. */
+.row.flex-col { align-items: stretch; }
 .row-link { color: inherit; text-decoration: none; }
 .row-link:active { opacity: 0.7; }
 .avatar {
@@ -752,3 +754,67 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   margin-top: 4px;
 }
 .bottom-action > .btn { box-shadow: 0 6px 24px rgb(0 0 0 / 0.18); }
+
+/* ---- Home's log rows (DESIGN.md, "Home"): an activity per row, the row opens its sheet,
+   the round button on the right is the one-tap action (start, stop, add). */
+.log-row { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 0; }
+.log-row + .log-row { border-top: 1px solid var(--line); }
+.log-row-body {
+  flex: 1 1 auto; min-width: 0; min-height: 72px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px 10px 16px;
+  background: transparent; border: none; color: inherit; text-align: start; text-decoration: none; font: inherit;
+}
+.log-row-body:active { opacity: 0.7; }
+.round-go {
+  width: 52px; height: 52px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; border: none;
+  background: var(--accent); color: var(--accent-fg);
+}
+.round-go:active { transform: scale(0.95); }
+.round-go:disabled { opacity: 0.5; }
+.round-go-stop { background: var(--fg); color: var(--bg); }
+
+/* Two or three views of one thing (DESIGN.md, "Segmented control"). */
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 16px; background: var(--card-2); }
+.segmented > button { min-height: 44px; border: none; border-radius: 12px; background: transparent; color: var(--muted); font: inherit; font-weight: 700; white-space: nowrap; }
+.segmented > button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
+
+/* The timer sheets' one big button: now, in one tap (Huckleberry's Start). */
+.big-timer {
+  width: 188px; height: 188px; border-radius: 999px; border: 10px solid var(--card);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: var(--tint); color: var(--tint-fg);
+  font-family: var(--font-display); font-weight: 600; font-size: 1.35rem;
+  box-shadow: var(--shadow);
+}
+.big-timer:active { transform: scale(0.97); }
+.big-timer:disabled { opacity: 0.5; }
+.big-timer-sub { font-family: inherit; font-size: 0.9rem; font-weight: 600; opacity: 0.8; }
+.divider-label { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+.divider-label::before, .divider-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+/* A disc that carries its own feature tint (list rows on white): the tint, not white. */
+.icon-disc[class*="tint-"] { background: var(--tint); color: var(--tint-fg); }
+/* The next-nap bar: filling from waking towards the window, the window a lighter band. */
+.nap-bar { position: relative; height: 10px; border-radius: 999px; background: var(--card); overflow: hidden; }
+.nap-bar-window { position: absolute; top: 0; bottom: 0; right: 0; background: color-mix(in oklab, var(--tint-fg) 25%, transparent); }
+.nap-bar-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 999px; background: var(--tint-fg); }
+/* A time you tap to change: the phone's own picker, shown as the value on the right of a row. */
+.time-field { min-height: 44px; border: none; background: transparent; color: var(--accent); font: inherit; font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; }
+.time-field:disabled { color: var(--fg); opacity: 1; }
+/* The week as 24-hour columns (WeekColumns): sleep blocks and feed ticks in the features' colours. */
+.week-col { position: relative; display: block; border-radius: 8px; background: var(--card-2); }
+.week-col-today { box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--accent) 35%, transparent); }
+.week-sleep { position: absolute; left: 3px; right: 3px; border-radius: 5px; background: color-mix(in oklab, var(--sleep-fg) 70%, transparent); }
+.week-feed { position: absolute; left: 2px; right: 2px; height: 4px; border-radius: 2px; background: var(--feed-fg); }
+.week-now { position: absolute; left: -2px; right: -2px; height: 2px; background: var(--accent); }
+/* The bar's ＋ (DESIGN.md, "The bottom bar"): the log sheet from any screen, raised at the thumb. */
+.tab-log { justify-content: center; }
+.tab-log-disc {
+  width: 52px; height: 52px; margin-top: -14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: var(--accent); color: var(--accent-fg);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--accent) 40%, transparent);
+}
+.tab-log-disc svg { padding: 0; background: none; }
