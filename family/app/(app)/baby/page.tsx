@@ -5,7 +5,7 @@ import { awayParentOn } from "@/lib/handover";
 import type { DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childPronouns, type Pronouns } from "@/lib/names";
-import { addDays, dayRange, describePayload, fmtDuration, fmtTime, todayYmd } from "@/lib/time";
+import { addDays, dayRange, fmtDuration, todayYmd } from "@/lib/time";
 import { ageDays, ageLabel } from "@/lib/norms";
 import { AgeCheck } from "@/components/AgeCheck";
 import { LanaGuide } from "@/components/LanaGuide";
@@ -16,7 +16,8 @@ import { DayStrip } from "@/components/DayStrip";
 import { Icon, type IconName } from "@/components/Icon";
 import { LanaTabs, type LanaTab } from "@/components/LanaTabs";
 import { LogMenu } from "@/components/LogMenu";
-import { PatternBars } from "@/components/PatternBars";
+import { EntryList } from "@/components/EntryList";
+import { WeekColumns } from "@/components/WeekColumns";
 import { LanaForecast } from "@/components/LanaForecast";
 import { SleepCoach } from "@/components/SleepCoach";
 import { PlanCard } from "@/components/PlanCard";
@@ -29,7 +30,6 @@ import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { checkEntries } from "@/lib/entry-checks";
 import { Fold, type Tint } from "@/components/Fold";
-import { tintFor } from "@/lib/tints";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +95,6 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
   const [fromMs, toMs] = [Date.parse(from), Date.parse(to)];
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
   const checks = isToday ? checkEntries(week).length : 0;
-  const lasted = (e: EntryRow) => (e.ended_at ? Math.round((Date.parse(e.ended_at) - Date.parse(e.occurred_at)) / 60_000) || null : null);
   // The date, not a second "Today" under the Today tab.
   const label = day === addDays(today, -1) ? "Yesterday" : new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
   return (
@@ -120,27 +119,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
       {entries.length === 0 ? (
         <p className="muted px-1">Nothing logged on this day.</p>
       ) : (
-        <ul className="card flex flex-col p-0">
-          {entries.map((e) => (
-            <li key={e.id} className="row px-4">
-              <Link href={`/baby/entry/${e.id}`} className="row-link flex min-h-[44px] w-full items-center gap-3">
-                <span className="w-12 shrink-0 font-semibold tabular-nums">{fmtTime(e.occurred_at, tz)}</span>
-                <span aria-hidden className={`icon-disc tint-${tintFor(e.type_id.split(".")[1])} text-lg`} style={{ width: 32, height: 32 }}>
-                  {e.icon}
-                </span>
-                <span className="min-w-0 flex-1">
-                  {/* How long on the first line ("Sleep · 45 min"), when it ended on the second; a
-                      bottle, logged with its end at its start, has neither. */}
-                  <span className="block truncate font-semibold">
-                    {e.type_label}
-                    {lasted(e) ? <span className="muted font-normal"> · {fmtDuration(lasted(e)!)}</span> : !e.ended_at && e.type_id === "lana.sleep" ? <span className="muted font-normal"> still asleep</span> : null}
-                  </span>
-                  <span className="muted block truncate text-sm">{[lasted(e) ? `until ${fmtTime(e.ended_at!, tz)}` : null, describePayload(e.payload), e.note, e.attributed_name ?? e.logged_by_name].filter(Boolean).join(" · ")}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <EntryList entries={entries} types={summary.types} timezone={tz} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} />
       )}
       <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} />
     </>
@@ -178,7 +157,7 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   const dayName = (d: string) => (d === today ? "Today" : d === addDays(today, -1) ? "Yesterday" : new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" }));
   return (
     <>
-      <PatternBars entries={entries} days={days} timezone={tz} today={today} />
+      <WeekColumns entries={entries} days={days.slice(-7)} prevDays={days.slice(0, 7)} timezone={tz} today={today} />
       {full.length > 0 && (
         <Fold title={`Against ${pr.their} age`} icon="trend" tint="guide" hint="a day this week">
           <AgeCheck

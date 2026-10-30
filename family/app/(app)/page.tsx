@@ -18,7 +18,6 @@ import { Icon } from "@/components/Icon";
 import { meOnce } from "@/lib/server/me";
 import { HomeHeader } from "@/components/HomeHeader";
 import { HomeState } from "@/components/HomeState";
-import { HomeToday } from "@/components/HomeToday";
 import { DueNotice } from "@/components/DueNotice";
 import { nextNap } from "@/lib/child-insights";
 import { checkEntries } from "@/lib/entry-checks";
@@ -28,9 +27,9 @@ export const dynamic = "force-dynamic";
 /**
  * Home answers "what does she need now, and what do I tap?" on one phone screen without
  * scrolling (DESIGN.md, "Home"): the header (photo, name, age, who has her, Say it,
- * Emergency); her state in big type with the last feed; one Now notice, the first that
- * applies, with "N more ›"; today in one row; and the four log tiles at the bottom.
- * Everything else lives on the child's page, Milk or More.
+ * Emergency); a card with her state, awake as the next-nap window; one Now notice, the first
+ * that applies, with "N more ›"; and a row per activity at the bottom, each saying when it
+ * last happened with its one-tap button. Everything else lives on the child's page, Milk or More.
  */
 export default async function HomePage() {
   const supabase = await createClient();
@@ -149,14 +148,13 @@ export default async function HomePage() {
   };
   const nap = summary && summary.ok && summary.subject.birth_date ? nextNap(week, ageDays(summary.subject.birth_date, today), now.getTime(), hourOf) : null;
   const napWatch = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= 12 * 60;
-  const napSoon = napWatch && nap!.at! - now.getTime() <= 20 * 60_000;
   const checks = summary && summary.ok && can(me, "lana", "edit") ? checkEntries(week).length : 0;
-  const known = [vaccine?.overdue, mamaAway && !!milkOk, feedIsDue, napSoon, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
+  const known = [vaccine?.overdue, mamaAway && !!milkOk, feedIsDue, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
 
   return summary && summary.ok ? (
     <div className="screen-fill">
       <HomeHeader summary={summary} me={me} today={today} />
-      <HomeState summary={summary} timezone={tz} />
+      <HomeState summary={summary} timezone={tz} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <div className="now-queue">
         <div>
           {vaccine?.overdue && (
@@ -171,16 +169,6 @@ export default async function HomePage() {
             <DueNotice fromMs={Date.parse(feedDue)}>
               <b>Feed due now</b>
               {lastFeedAt ? ` · last ${fmtWhen(lastFeedAt, tz, now)}` : ""}
-            </DueNotice>
-          )}
-        </div>
-        <div>
-          {napWatch && nap?.at != null && (
-            <DueNotice fromMs={nap.at - 20 * 60_000}>
-              <b>
-                {nap.isBedtime ? "Bedtime" : "Nap"} around {fmtTime(new Date(nap.at).toISOString(), tz)}
-              </b>{" "}
-              · start winding down
             </DueNotice>
           )}
         </div>
@@ -225,8 +213,7 @@ export default async function HomePage() {
         </Link>
       )}
       <div className="grow-space" />
-      <HomeToday entries={recent} day={today} timezone={tz} nowIso={now.toISOString()} />
-      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} />
+      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} />
     </div>
   ) : (
     <div className="flex flex-col gap-4">

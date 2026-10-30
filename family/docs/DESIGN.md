@@ -29,7 +29,7 @@ From top to bottom, always in this order:
 2. **The content**, one column, the full width of the phone less a 20 px margin each side.
 3. **The main action**, if the screen has one, as one wide button at the bottom, just above
    the tab bar, where the thumb already is ("Put a bottle away", "+ Log", "Save").
-4. **The tab bar**: Home, the child, Milk, Chat, More. Nothing else is fixed to the screen.
+4. **The tab bar**: Home, the child, a round ＋ (log), Milk, More. Nothing else is fixed to the screen.
 
 The thumb reaches the bottom half of the phone easily and the top corners hardly at all.
 What people tap often lives low; what they tap rarely (or must not tap by accident, like
@@ -47,10 +47,12 @@ reference page that is longer is split into rows that open their own screen.
 | **Segmented control** | Two or three views of the same thing (Breast / Bottle, Today / Week) | Tabs that scroll sideways; a row of chips |
 | **One bottom button** | The screen's main action | Buttons scattered through the page |
 | **Stat strip** | Up to four numbers in one white bar, each a value over one word | A grid of number cards |
+| **Log row** (Huckleberry's) | The few things logged all day: icon, name, how long ago, and a round start/stop/+ button on the right | A grid of tiles; a button per option |
+| **Timer sheet** | Starting something now or saying it already happened: a big round *now* button, then "or it already happened" and clock times | A form with a time field first |
 
 A list row's first line says what and when ("13:08 · Bottle 60 ml"), its second line, muted,
 says the detail; the number sits on the right. Tapping a row opens it or opens a sheet of
-its actions; a row carries buttons only when there is no room for a sheet.
+its actions; a row carries a button only as Home's log rows do (one round start or stop).
 
 ### What a phone screen never has
 
@@ -155,6 +157,22 @@ day with one Now notice, before and after the backlogging pass:
 | Feed timer running | 6 → 6 | 10 → 12 | 46 → 51 | 1 → 1 | none |
 | Simple mode | 5 → 5 | 5 → 6 | 33 → 35 | 1 → 1 | none (unchanged; the clock moved) |
 
+After the Huckleberry pass (30 October 2026; the same four states, the log 40 minutes old).
+The Today row went (the rows carry how long ago), the tiles became rows, the nap notice went
+into the card at the top:
+
+| Home | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| Awake | 6 → 5 | 14 → 14 | 58 → 57 | 1 → 1 | none |
+| Asleep | 6 → 5 | 13 → 10 | 53 → 44 | 1 → 1 | none |
+| Feed timer running | 6 → 5 | 12 → 9 | 51 → 43 | 1 → 1 | none |
+| Simple mode | 5 → 5 | 6 → 5 | 35 → 33 | 1 → 1 | none |
+
+The other screens it touched, on the demo day: the child's page Today 8 → 7 blocks, 25 → 22
+numbers, 1.6 → 1.3 screens (a list: the accepted exception); Week 8 → 8 blocks, 23 → 11
+numbers, 95 → 69 words (the columns replace the bars and their figures); More and Milk as
+before, More one row longer (Chat).
+
 Awake was one number over: the Asleep tile repeated "awake 2 h 6 min" from the big line.
 Asleep and a running feed went up a little because they now show the last nappy and sleep
 too (the four tiles while she sleeps; "Woke 14:29 · nappy 1 h 38 min ago" during a feed),
@@ -166,29 +184,46 @@ Three levels, no more.
 
 | Level | Screen | Holds |
 |---|---|---|
-| **Now** | Home | Her state (asleep or awake, for how long, the last feed); the one thing that matters now; today in one line; the four log buttons. |
+| **Now** | Home | Her state (the next-nap window while awake, the running time while asleep or feeding); the one thing that matters now; the four log rows. |
 | **Today** | The child's page | Today / Week / About her. Today: the totals strip and every entry as a list, "+ Log" at the bottom for anything less common than the four. |
-| **Deeper** | Milk, Chat, More | Milk: the fridge and freezer as lists. More: one grouped list: Family (members and who's here, calendar, notes, audit log), The helper (ask, what it remembers, what it can do), You (settings). Health and growth live under About her on the child's page. |
+| **Deeper** | Milk, More | Milk: the fridge and freezer as lists. More: one grouped list: Family (chat, members and who's here, calendar, notes, audit log), The helper (ask, what it remembers, what it can do), You (settings). Health and growth live under About her on the child's page. |
 
-The bottom bar has Home, the child, Milk, Chat and More. Calendar lives in More. Home does
-not repeat the bottom bar as a grid of tiles.
+The bottom bar has Home, the child, a round **＋** in the middle, Milk and More (Huckleberry's
+centre button). ＋ opens the child's log sheet (every kind of entry, *From earlier*) from any
+screen. Chat and Calendar live in More. Simple mode has no Milk. Home does not repeat the
+bottom bar as a grid of tiles.
 
 ### Home
 
 1. **Header**: the child's initial, name, age and who has her; on the right, two round
    buttons: *Say it* (microphone, rose) and *Emergency* (phone, red).
-2. **Her state**, large: "Awake for 1 h 50 min" or "Asleep 42 min", and under it the last
-   feed ("Last feed 10:20, bottle 90 ml").
-3. **Now**: one notice, the top of the order in rule 3, or nothing ("Nap due around 11:30"
-   with a "She's asleep" button). "2 more ›" opens the rest.
-4. **Today**, one row: "5 feeds · 1 h 20 sleep · 4 nappies ›", opening the child's page.
-5. **Log**: the four big tiles at the bottom (Feed, Asleep/Woke up, Nappy, Pump or Medicine),
-   each with how long ago it last happened. Tapping one opens its sheet; Save is at the bottom.
-   They stay in every state but a running feed (then the feed card holds the sides and Done,
-   and the line under "Feeding 9 min" says when she woke and the last nappy), so the last
-   feed, sleep and nappy are always on Home without scrolling. The sleep tile is one tap
-   (Asleep, Back to sleep at night, or Woke up) with an *earlier?* chip in its corner for a
-   late tap. At night while she sleeps, *Up for the day* joins them as a row.
+2. **Her state**, one card in big type. Awake: the **next-nap window** (Huckleberry's
+   SweetSpot): "Next nap" or "Bedtime", how long she has been awake, the window as
+   "11:20 – 11:50" (the forecast ± 15 minutes, on five-minute marks), a bar filling towards
+   it, and one line: "In 25 min. Start winding down.", "Now.", or "Past the window by 20 min".
+   Over an hour past it a nap was most likely not logged, so the card says when she last
+   woke instead. Asleep: "Asleep 42 min, since 13:10". Feeding: "Feeding 9 min". With no
+   sleep in 12 hours, plain "Awake for", or nothing (rule 6).
+3. **Now**: one notice, the top of the order in rule 3, or nothing. "2 more ›" opens the rest.
+   The nap is no longer a notice: the card says it.
+4. **Log**: four rows in one white group at the thumb (Feed, Sleep, Nappy, Pump or Medicine).
+   Each row: the tinted icon, the name, and how long ago with the one detail ("40 min ago ·
+   90 ml", "Asleep · since 13:10", "Feeding, left · 9 min"); on the right a round button.
+   ▶ starts (Sleep: asleep now, one tap; Feed: opens its sheet), ■ stops (Woke up, Done
+   feeding), ＋ opens the sheet. Tapping the row itself opens the sheet. At night while she
+   sleeps, *Up for the day* is in the sleep sheet.
+
+**Timer sheets.** Feed: *When*, then Breast / Bottle as a segmented control (it opens on the
+method of the last feed). Breast: Left and Right as two big buttons, the running side marked,
+and Done. Bottle: which milk and the amounts as chips, the usual one marked. Sleep: a big
+round *Asleep now* (or *Woke up now*, *Back to sleep*) button, then "or it already happened"
+with the clock times already open; picking one asks *Still asleep* or when she woke, as
+clock times ("13:45 · 45 min").
+
+**Edit an entry** (the child's page): tapping an entry opens a sheet, not a page: when it
+started (the phone's own picker), when it ended as clock-time chips, its choices and amounts
+as chips, Save, and *Delete this sleep* (a second tap confirms). *All details ›* opens the
+full form for a note or a photo.
 
 ### Logging what already happened
 
@@ -198,24 +233,25 @@ Dana's second ask. The yardstick is Huckleberry's "Set time" and BabyLog's two o
   on a ten-minute grid for the last two hours (13:50, 13:40, …) and *At a time…* (the phone's
   picker) for anything else. Clock times, never only "80 min ago". Picking one folds the line.
 - **The time carries over for a minute.** After an entry from earlier, the next sheet opened
-  within a minute starts on that time (a bottle and a nappy from the same moment). A one-tap
-  tile never uses it, so a direct tap is never quietly backdated.
+  within a minute starts on that time (a bottle and a nappy from the same moment). A round
+  ▶ or ■ never uses it, so a direct tap is never quietly backdated.
 - **No keyboard on Home's sheets.** Every amount is a chip; the last bottle's amount is marked
   as the usual one (and added as a chip if it is not one).
-- **A sleep from earlier** is *earlier?* → a time → "Still asleep" or how long (20 min to 2 h).
+- **A sleep from earlier** is the Sleep row → a time → "Still asleep" or when she woke (20 min to 2 h after).
   One landing on a sleep already logged says so in the sheet ("On top of a sleep from 13:00
   to 13:45") with *Change it* and *Log anyway*, never a silent stack.
 - **Anything else from earlier** (a breastfeed with its length, a pump, a past day) is the
-  child's page → + Log → *From earlier*. It stays off Home: Home's four tiles already take
+  ＋ → *From earlier*. It stays off Home: Home's four rows already take
   their own entries from earlier, and another row would break Home's one screen.
 - Measured (`scripts/backlog-scenario.mjs`): at 14:00, a 90 ml bottle at 12:40 is 4 taps from
-  Home (Feed, When, 12:40, 90 ml) and a 13:00–13:45 nap is 3 (earlier?, 13:00, 45 min).
+  Home (Feed ▶, When, 12:40, 90 ml) and a 13:00–13:45 nap is 3 (the Sleep row, 13:00, 13:45).
 
 Off Home: the "Say it / Emergency / Vaccines" chips (the first two move into the header, a
 vaccine that is due becomes a Now item); the right-now carousel; the milk card (a Now item
 only when the fridge will not cover today); the guide's warnings (one Now item at most, the
 rest on the child's page); Pumping (Milk); Day so far (the Today row); the eight shortcut
-tiles (the bottom bar and More); the helper's arrived/left buttons (Who's home).
+tiles (the bottom bar and More); the helper's arrived/left buttons (Who's home); the Today
+row (the log rows say how long ago); the nap notice (the card at the top).
 
 ### The child's page
 
@@ -224,9 +260,14 @@ Week / About her.
 
 - **Today**: the date with arrows for the days before, the totals strip, *To check* and the
   guide as folds when they have something, the day's entries as a timeline list (time,
-  icon, what, who) and **+ Log** as the bottom button. + Log opens a sheet: how she is right
+  icon, what and how long, who; a tap opens its edit sheet), and **Add to this day** as the
+  bottom button on a past day (today, the bar's ＋ does it). The log sheet: how she is right
   now (one tap), every kind of entry as a row, and *From earlier* for something missed.
-- **Week**: the two-week pattern bars, then folds: against her age (a day's average),
+- **Week**: the last seven days as **24-hour columns** (Huckleberry's schedule view):
+  midnight at the top, sleep as lilac blocks, feeds as ticks, a line for now, today outlined.
+  The title is the answer ("Longest sleep 6 h 40 min, up from 5 h"). A whole day's column is
+  the tap target and opens that day (feed ticks and short naps are far under 44 px, so they
+  are not taps of their own). Then folds: against her age (a day's average),
   coming up, sleep rhythm, day by day, the helper. Mood sits under the pattern.
 - **About her**: what this age brings (a fold), then three groups of rows: Health (doctor,
   when to call, vaccines, medicine, emergency, for the doctor), Growing (growth and trends,
@@ -255,7 +296,12 @@ Use these; extend one before adding a new one, and add any new one here.
 | List row | `.row` in a white `ul` | Any set of like things | First line what and when, second line muted detail, number on the right. |
 | Sheet | `Sheet` (`.sheet`) | Logging, editing, choosing | Opens from a tile, a row or the bottom button; Escape or a tap outside closes it; Save at the bottom says what is missing. |
 | Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls. |
-| Log tile | `.action` in `LanaNow` | The four things logged most | Icon, one word, how long ago. Tint = the feature. |
+| Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` ▶ / ■ / ＋ on the right; the row opens its sheet. Tint = the feature. |
+| Big timer | `.big-timer` | Start or end something now, in a timer sheet | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. |
+| Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle) | Two or three words; the chosen one raised. |
+| Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. |
+| Week columns | `WeekColumns` | The shape of a week | Seven columns, midnight at the top; a column is one tap target. |
+| Edit sheet | `EntrySheet` from `EntryList` | Changing or deleting an entry | Time picker, end chips, field chips, Save, Delete with a second tap. |
 | Stat strip | `DayStrip` tiles | A day's sums | Four at most, a dash for none. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |
 | Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. |

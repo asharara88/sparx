@@ -1,6 +1,7 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { EntryRow, EntryType } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
@@ -11,22 +12,37 @@ import { Backfill } from "./Backfill";
 import { Icon } from "./Icon";
 
 /**
- * "+ Log", the child's page's one bottom button (DESIGN.md, "The child's page"). It opens a
- * sheet: how she is right now (one tap), every kind of entry as a row, and "From earlier"
- * for something that was missed. Home keeps the four most common as tiles.
+ * The log sheet (DESIGN.md, "The bottom bar"): how she is right now (one tap), every kind
+ * of entry as a row, and "From earlier" for something that was missed. The bar's ＋ opens
+ * it from anywhere (it lands here with ?log=1); on a past day the page's own bottom button
+ * opens "Add to this day". Home keeps the four most common as rows.
  */
 export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number }) {
   const me = useMe();
+  const router = useRouter();
+  const path = usePathname();
+  const params = useSearchParams();
   const [open, setOpen] = useState<"menu" | "earlier" | null>(null);
+  // The bar's ＋ arrives as ?log=1: open the sheet, and drop the flag so Back does not reopen it.
+  const wanted = params.get("log") === "1";
+  useEffect(() => {
+    if (!wanted) return;
+    setOpen("menu");
+    const rest = new URLSearchParams(params.toString());
+    rest.delete("log");
+    router.replace(rest.size ? `${path}?${rest}` : path, { scroll: false });
+  }, [wanted, params, path, router]);
   const close = useCallback(() => setOpen(null), []);
   if (!can(me, "lana", "add")) return null;
   return (
     <>
-      <div className="bottom-action">
-        <button type="button" className="btn btn-primary btn-lg w-full" onClick={() => setOpen(isToday ? "menu" : "earlier")}>
-          <Icon name="plus" size={20} /> {isToday ? "Log" : "Add to this day"}
-        </button>
-      </div>
+      {!isToday && (
+        <div className="bottom-action">
+          <button type="button" className="btn btn-primary btn-lg w-full" onClick={() => setOpen("earlier")}>
+            <Icon name="plus" size={20} /> Add to this day
+          </button>
+        </div>
+      )}
       {open === "menu" && (
         <Sheet title="Log" onClose={close}>
           <MoodTap bare subjectId={subjectId} today={todayEntries} timezone={timezone} />

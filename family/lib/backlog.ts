@@ -47,3 +47,51 @@ export function overlappingSleep<T extends SleepLike>(entries: readonly T[], sta
   }
   return null;
 }
+
+/** Half the width of the next-nap window either side of the predicted time, minutes. */
+export const NAP_WINDOW_HALF_MIN = 15;
+
+/**
+ * The next-nap window on Home (Huckleberry's SweetSpot idea): from a quarter of an hour
+ * before the predicted nap (on the five minutes) to a quarter after, how far she is along from waking to the end
+ * of it (for the bar, as percentages), the minutes until it opens, and how late it is.
+ */
+export function napWindow(wokeMs: number, atMs: number, nowMs: number): { from: number; to: number; pct: number; windowStartPct: number; untilMin: number; late: number } {
+  // On the five minutes, so it reads like a clock ("11:20 – 11:50", not "11:21 – 11:51").
+  const mid = Math.round(atMs / 300_000) * 300_000;
+  const from = mid - NAP_WINDOW_HALF_MIN * 60_000;
+  const to = mid + NAP_WINDOW_HALF_MIN * 60_000;
+  const span = Math.max(60_000, to - wokeMs);
+  const clamp = (x: number) => Math.min(100, Math.max(0, Math.round(x)));
+  return {
+    from,
+    to,
+    pct: clamp(((nowMs - wokeMs) / span) * 100),
+    windowStartPct: clamp(((from - wokeMs) / span) * 100),
+    untilMin: Math.max(0, Math.round((from - nowMs) / 60_000)),
+    late: Math.max(0, Math.round((nowMs - to) / 60_000)),
+  };
+}
+
+interface TimedLike {
+  type_id: string;
+  occurred_at: string;
+  ended_at: string | null;
+}
+
+/**
+ * The longest finished sleep that started in [fromMs, toMs), minutes; 0 when there was
+ * none. An open sleep counts up to now unless it is a timer left on (over 12 hours).
+ */
+export function longestSleep(entries: readonly TimedLike[], fromMs: number, toMs: number, nowMs: number, sleepTypeId = "lana.sleep"): number {
+  let best = 0;
+  for (const e of entries) {
+    if (e.type_id !== sleepTypeId) continue;
+    const s = Date.parse(e.occurred_at);
+    if (s < fromMs || s >= toMs) continue;
+    const end = e.ended_at ? Date.parse(e.ended_at) : nowMs;
+    if (!e.ended_at && end - s > STALE_OPEN_SLEEP_MS) continue;
+    best = Math.max(best, Math.round((end - s) / 60_000));
+  }
+  return best;
+}
