@@ -31,8 +31,10 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
   const startMs = Date.parse(fromLocalInput(start, timezone));
   const endMs = end ? Date.parse(fromLocalInput(end, timezone)) : null;
   const lastedMin = endMs != null ? Math.round((endMs - startMs) / 60_000) : null;
-  // An end applies to timers (a sleep, a breastfeed), never to a bottle logged with its end at its start.
-  const timed = !!type?.has_end && (!!entry.ended_at ? Date.parse(entry.ended_at) - Date.parse(entry.occurred_at) >= 60_000 : true) && payload.method !== "Bottle";
+  // An end applies to timers (a sleep, a breastfeed), never to a bottle logged with its end at
+  // its start. A bottle changed to Breast becomes one, and must be given its end.
+  const wasBottle = entry.payload?.method === "Bottle";
+  const timed = !!type?.has_end && (!!entry.ended_at ? Date.parse(entry.ended_at) - Date.parse(entry.occurred_at) >= 60_000 || wasBottle : true) && payload.method !== "Bottle";
   const lengths = entry.type_id === "lana.sleep" ? NAP_LENGTHS : FEED_LENGTHS;
   const endChoices = lengths.map((m) => toLocalInput(new Date(startMs + m * 60_000).toISOString(), timezone)).filter((l) => Date.parse(fromLocalInput(l, timezone)) <= Date.now());
   const visible = (type?.fields ?? []).filter((f) => !f.show_if || Object.entries(f.show_if).every(([k, v]) => payload[k] === v));
@@ -41,7 +43,9 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
   const noun = entry.type_label.toLowerCase();
 
   async function save() {
-    if (endMs != null && endMs < startMs) return setMsg("It ends before it starts. Pick a later end.");
+    // Only a timer's end is checked: an instant entry's hidden end moves with its start.
+    if (timed && endMs != null && endMs < startMs) return setMsg("It ends before it starts. Pick a later end.");
+    if (timed && wasBottle && (endMs == null || endMs <= startMs)) return setMsg("Pick when the feed ended.");
     setBusy(true);
     setMsg(null);
     const { data, error } = await supabaseBrowser().rpc("care_entry_update", {

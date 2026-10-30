@@ -117,6 +117,10 @@ export function LanaNow({
       : openWake
         ? { kind: "night_awake", entry: openWake }
         : { kind: "awake", since: lastSleep?.ended_at ?? null };
+  // The Sleep row's own state: a feed can run while she sleeps (or during a night wake), and
+  // the row must still end the sleep, so it does not go through the combined state above.
+  const sleepEntry = openSleep ?? null;
+  const nightWake = openSleep ? null : (openWake ?? null);
 
   const isNight = isNightAt(now, timezone, subject.settings);
 
@@ -203,7 +207,7 @@ export function LanaNow({
   const off = busy || !canAdd;
   const startSleep = () =>
     run("Sleep started.", async () => {
-      if (state.kind === "night_awake") await end(state.entry);
+      if (nightWake) await end(nightWake);
       await start(sleepType, {});
     });
   // A night wake or the morning by the time she woke (a wake from earlier can fall either side).
@@ -227,10 +231,10 @@ export function LanaNow({
       async () => {
         // Back to sleep after a night wake ends the wake; a nap that ended before the wake
         // began leaves it alone. Still asleep since before the wake makes no sense.
-        if (state.kind === "night_awake") {
-          const wokeAt = Date.parse(state.entry.occurred_at);
-          if (from >= wokeAt) await end(state.entry);
-          else if (endIso == null || to > wokeAt) throw new Error(`She was awake from ${fmtTime(state.entry.occurred_at, timezone)}. Pick a time after that.`);
+        if (nightWake) {
+          const wokeAt = Date.parse(nightWake.occurred_at);
+          if (from >= wokeAt) await end(nightWake);
+          else if (endIso == null || to > wokeAt) throw new Error(`She was awake from ${fmtTime(nightWake.occurred_at, timezone)}. Pick a time after that.`);
         }
         await start(sleepType, {}, endIso);
       },
@@ -255,15 +259,14 @@ export function LanaNow({
         : breastfeeds ? "Breast or bottle" : "Bottle";
   const napLen = lastSleep?.ended_at ? Math.round((Date.parse(lastSleep.ended_at) - Date.parse(lastSleep.occurred_at)) / 60_000) : 0;
   const sleepSub =
-    state.kind === "asleep" ? `Asleep · since ${fmtTime(state.entry.occurred_at, timezone)}`
-    : state.kind === "night_awake" ? `Awake since ${fmtTime(state.entry.occurred_at, timezone)}`
+    sleepEntry ? `Asleep · since ${fmtTime(sleepEntry.occurred_at, timezone)}`
+    : nightWake ? `Awake since ${fmtTime(nightWake.occurred_at, timezone)}`
     : lastSleep?.ended_at && minutesBetween(lastSleep.ended_at, realNowIso) <= 12 * 60 && napLen > 0 ? `Last sleep ${fmtDuration(napLen)}`
     : "Tap when she falls asleep";
   const lastNappy = lastOf(diaperType?.id);
   const nappySub = lastNappy && ago(diaperType?.id, "") !== "" ? `${ago(diaperType?.id, "")}${lastNappy.payload.kind ? ` · ${String(lastNappy.payload.kind).toLowerCase()}` : ""}` : "Wet or dirty";
   const lastPump = lastOf(pumpType?.id);
   const pumpSub = lastPump && ago(pumpType?.id, "") !== "" ? `${ago(pumpType?.id, "")}${lastPump.payload.amount_ml ? ` · ${lastPump.payload.amount_ml} ml` : ""}` : "To the fridge";
-  const sleepEntry = state.kind === "asleep" ? state.entry : null;
   const feedEntry = state.kind === "feeding" ? state.entry : null;
   const feedSide = state.kind === "feeding" && (state.side === "Left" || state.side === "Right") ? state.side : null;
 
@@ -279,7 +282,7 @@ export function LanaNow({
         <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={off} onOpen={() => openSheet("feed")}
           action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "play", label: "Start a feed", onClick: () => openSheet("feed") }} />
         <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={off} onOpen={() => openSheet("sleep")}
-          action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: state.kind === "night_awake" ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
+          action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
         <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={off} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
         {breastfeeds && pumpType ? (
           <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={off} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
@@ -403,7 +406,7 @@ export function LanaNow({
             <div className="flex flex-col items-center gap-2 py-1">
               <button type="button" className="big-timer tint-sleep" disabled={off} onClick={() => (sleepEntry ? wake(sleepEntry) : startSleep())}>
                 <Icon name={sleepEntry ? "sun" : "zzz"} size={30} />
-                <span>{sleepEntry ? "Woke up now" : state.kind === "night_awake" ? "Back to sleep" : "Asleep now"}</span>
+                <span>{sleepEntry ? "Woke up now" : nightWake ? "Back to sleep" : "Asleep now"}</span>
                 {sleepEntry && <span className="big-timer-sub">asleep {elapsed(sleepEntry.occurred_at)}</span>}
               </button>
               {sleepEntry && isNight && (
