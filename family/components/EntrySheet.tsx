@@ -32,9 +32,11 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
   const endMs = end ? Date.parse(fromLocalInput(end, timezone)) : null;
   const lastedMin = endMs != null ? Math.round((endMs - startMs) / 60_000) : null;
   // An end applies to timers (a sleep, a breastfeed), never to a bottle logged with its end at
-  // its start. A bottle changed to Breast becomes one, and must be given its end.
+  // its start. A bottle changed to Breast becomes one, and must be given its end. A type that
+  // was switched off is not in the list: the entry's own end says whether it is a timer.
   const wasBottle = entry.payload?.method === "Bottle";
-  const timed = !!type?.has_end && (!!entry.ended_at ? Date.parse(entry.ended_at) - Date.parse(entry.occurred_at) >= 60_000 || wasBottle : true) && payload.method !== "Bottle";
+  const hasEnd = type ? type.has_end : !!entry.ended_at;
+  const timed = hasEnd && (!!entry.ended_at ? Date.parse(entry.ended_at) - Date.parse(entry.occurred_at) >= 60_000 || wasBottle : true) && payload.method !== "Bottle";
   const lengths = entry.type_id === "lana.sleep" ? NAP_LENGTHS : FEED_LENGTHS;
   const endChoices = lengths.map((m) => toLocalInput(new Date(startMs + m * 60_000).toISOString(), timezone)).filter((l) => Date.parse(fromLocalInput(l, timezone)) <= Date.now());
   const visible = (type?.fields ?? []).filter((f) => !f.show_if || Object.entries(f.show_if).every(([k, v]) => payload[k] === v));
@@ -53,7 +55,8 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
       p_occurred_at: new Date(startMs).toISOString(),
       // A bottle is logged with its end at its start: moving it moves both.
       p_ended_at: timed ? (endMs != null ? new Date(endMs).toISOString() : null) : entry.ended_at ? new Date(startMs).toISOString() : null,
-      p_payload: payload,
+      // A field its condition now hides (the side of a feed changed to Bottle) is dropped.
+      p_payload: Object.fromEntries(Object.entries(payload).filter(([k]) => !(type?.fields ?? []).some((f) => f.key === k && !visible.includes(f)))),
       p_note: entry.note,
     });
     setBusy(false);
