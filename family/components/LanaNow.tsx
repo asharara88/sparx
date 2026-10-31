@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EntryRow, EntryType, OngoingEntry, Subject } from "@/lib/types";
@@ -7,7 +7,7 @@ import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, mergeRecent, newClientId, onQueueChange, QUEUED_ID_PREFIX, readQueueFor, releaseConfirmed, sendOrQueue, type QueuedOp, type RecentEntry } from "@/lib/offline";
 import { Boobs } from "./Boobs";
 import { Sheet as BaseSheet } from "./Sheet";
 import { Icon, type IconName } from "@/components/Icon";
@@ -37,6 +37,7 @@ export function LanaNow({
   ongoing: serverOngoing,
   recent,
   timezone,
+  clockIso,
   lastMilk,
   lastFeedMethod,
 }: {
@@ -45,13 +46,17 @@ export function LanaNow({
   ongoing: OngoingEntry[];
   recent: EntryRow[];
   timezone: string;
+  /** The server's clock when the page was made: the first paint counts from it, this phone's clock after. */
+  clockIso: string;
   lastMilk: string | null;
   /** How the last feed went ("Bottle", "Breast"), however long ago: the Feed sheet opens on it. */
   lastFeedMethod: string | null;
 }) {
   const me = useMe();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  // Requests out right now. The sheets' Save waits for them; the rows never do (rule 9).
+  const [inFlight, setInFlight] = useState(0);
+  const busy = inFlight > 0;
   const [msg, setMsg] = useState<string | null>(null);
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
   // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
@@ -62,12 +67,21 @@ export function LanaNow({
   // starts on it (a bottle and a nappy from the same moment). One-tap tiles never use it.
   const lastEarlier = useRef<{ when: When; at: number } | null>(null);
   // A sleep from earlier that lands on one already logged, waiting for "Log anyway".
-  const [clash, setClash] = useState<{ entry: EntryRow; lastedMin: number | null } | null>(null);
-  const [, setTick] = useState(0);
+  const [clash, setClash] = useState<{ entry: EntryRow | RecentEntry; lastedMin: number | null } | null>(null);
+  // The rows' "40 min ago": the server's time on the first paint (so the server-rendered
+  // screen and the first client render agree), this phone's from then on.
+  const [clock, setClock] = useState(() => Date.parse(clockIso));
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 15_000);
+    setClock(Date.now());
+    const t = setInterval(() => setClock(Date.now()), 15_000);
     return () => clearInterval(t);
   }, []);
+  // A tap shows at once (the operation in flight, lib/offline.ts) and the page refreshes
+  // behind it; once the refresh has landed, the in-flight copy leaves.
+  const [refreshing, startRefresh] = useTransition();
+  useEffect(() => {
+    if (!refreshing) releaseConfirmed();
+  }, [refreshing]);
   // Timers waiting on this phone count as running too (read after mount, so the
   // server-rendered screen and the first client render agree).
   const [queue, setQueue] = useState<QueuedOp[]>([]);
@@ -78,6 +92,8 @@ export function LanaNow({
     return onQueueChange(load);
   }, []);
   const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
+  // What the rows say happened last, with this phone's taps counted before the server answers.
+  const seen = mergeRecent(recent, subject.id, queue);
   const queuedRef = useRef(false);
 
   const canAdd = can(me, "lana", "add");
@@ -89,7 +105,7 @@ export function LanaNow({
   const pumpType = types.find((t) => t.key === "pump");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
   // The last bottle's amount is the usual one: marked on the sheet, and always a chip.
-  const bottle = bottleChoices((feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[], Number(recent.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle")?.payload.amount_ml) || null);
+  const bottle = bottleChoices((feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[], Number(seen.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle")?.payload.amount_ml) || null);
   const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
   const now = new Date();
   const whenIso = whenToIso(when, now.getTime(), (l) => fromLocalInput(l, timezone));
@@ -99,8 +115,8 @@ export function LanaNow({
   const openSleep = ongoing.find((e) => e.type_id === sleepType?.id);
   const openFeed = ongoing.find((e) => e.type_id === feedType?.id);
   const openWake = ongoing.find((e) => e.type_id === wakeType?.id);
-  const lastSleep = recent.find((e) => e.type_id === sleepType?.id && e.ended_at);
-  const breastFeeds = recent.filter((e) => e.type_id === feedType?.id && e.payload.method === "Breast");
+  const lastSleep = seen.find((e) => e.type_id === sleepType?.id && e.ended_at);
+  const breastFeeds = seen.filter((e) => e.type_id === feedType?.id && e.payload.method === "Breast");
   const lastSide = (breastFeeds[0]?.payload.side as "Left" | "Right" | undefined) ?? null;
   const suggestedSide: "Left" | "Right" | null = lastSide === "Left" ? "Right" : lastSide === "Right" ? "Left" : null;
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now);
@@ -158,7 +174,7 @@ export function LanaNow({
     return r;
   }
   async function run(label: string, fn: () => Promise<unknown>, sayTime = true) {
-    setBusy(true);
+    setInFlight((n) => n + 1);
     setMsg(null);
     queuedRef.current = false;
     try {
@@ -169,21 +185,21 @@ export function LanaNow({
       setWhen(NOW);
       setSheet(null);
       setClash(null);
-      router.refresh();
+      startRefresh(() => router.refresh());
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
-      setBusy(false);
+      setInFlight((n) => n - 1);
     }
   }
 
-  const realNowIso = now.toISOString();
+  const realNowIso = new Date(clock).toISOString();
 
   const elapsed = (iso: string) => fmtDuration(Math.max(0, minutesBetween(iso, realNowIso)));
   // Each tile says when it last happened ("1 h 50 min ago"); a day or more is the tile's
   // plain hint instead, and a log gap of 12 hours never reads as "awake 20 h".
   const ago = (typeId: string | undefined, fallback: string) => {
-    const last = typeId ? recent.find((e) => e.type_id === typeId) : undefined;
+    const last = typeId ? seen.find((e) => e.type_id === typeId) : undefined;
     if (!last) return fallback;
     const m = minutesBetween(last.ended_at ?? last.occurred_at, realNowIso);
     return m >= 0 && m < 24 * 60 ? `${fmtDuration(m)} ago` : fallback;
@@ -223,7 +239,8 @@ export function LanaNow({
   const logSleep = (lastedMin: number | null, anyway = false) => {
     const from = Date.parse(whenIso);
     const to = lastedMin == null ? now.getTime() : from + lastedMin * 60_000;
-    const other = anyway ? null : overlappingSleep(recent, from, to, now.getTime(), sleepType?.id);
+    // Checked against what this phone has seen, taps still on their way to the server included.
+    const other = anyway ? null : overlappingSleep(seen, from, to, now.getTime(), sleepType?.id);
     if (other) return setClash({ entry: other, lastedMin });
     const endIso = lastedMin == null ? null : new Date(to).toISOString();
     return run(
@@ -249,7 +266,7 @@ export function LanaNow({
     });
 
   // What each row says: when it last happened and one detail, or what is running now.
-  const lastOf = (typeId: string | undefined) => (typeId ? recent.find((e) => e.type_id === typeId) : undefined);
+  const lastOf = (typeId: string | undefined) => (typeId ? seen.find((e) => e.type_id === typeId) : undefined);
   const lastFeed = lastOf(feedType?.id);
   const feedSub =
     state.kind === "feeding"
@@ -279,15 +296,15 @@ export function LanaNow({
       )}
 
       <ul className="card flex flex-col p-0" aria-label="Log">
-        <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={off} onOpen={() => openSheet("feed")}
+        <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")}
           action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "play", label: "Start a feed", onClick: () => openSheet("feed") }} />
-        <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={off} onOpen={() => openSheet("sleep")}
+        <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
           action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
-        <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={off} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
+        <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
         {breastfeeds && pumpType ? (
-          <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={off} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
+          <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
         ) : (
-          <Row tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={off} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
+          <Row tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
         )}
       </ul>
 
@@ -430,7 +447,7 @@ export function LanaNow({
                   {clash.entry.ended_at ? ` to ${fmtTime(clash.entry.ended_at, timezone)}` : ", still going"}.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <Link href={`/baby/entry/${clash.entry.id}`} className="btn">
+                  <Link href={clash.entry.id.startsWith(QUEUED_ID_PREFIX) ? "/baby?tab=today" : `/baby/entry/${clash.entry.id}`} className="btn">
                     Change it
                   </Link>
                   <button type="button" className="btn" disabled={busy} onClick={() => logSleep(clash.lastedMin, true)}>

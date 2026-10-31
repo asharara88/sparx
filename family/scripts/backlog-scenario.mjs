@@ -13,7 +13,9 @@
 //   SCENARIO_DB=family_accept node scripts/backlog-scenario.mjs
 // Env: SCENARIO_DB, SCENARIO_URL (default http://localhost:3000), SCENARIO_OUT (default
 // /tmp/backlog-scenario), SCENARIO_DAY (the demo log's day, default today in Dubai: the
-// browser clock is set to 14:00 on it). Writes go to that database, so use a throwaway copy.
+// browser clock is set to 14:00 on it), SCENARIO_LAG (ms the browser's requests to the
+// server take, 0 by default: 600 stands for the phone in Dubai and a cold server).
+// Writes go to that database, so use a throwaway copy.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -35,12 +37,20 @@ function rpc(fn, args) {
   return res.trim().split("\n").pop();
 }
 const out = process.env.SCENARIO_OUT ?? "/tmp/backlog-scenario";
+const LAG = Number(process.env.SCENARIO_LAG ?? 0);
+const lag = () => new Promise((r) => setTimeout(r, LAG));
 const base = process.env.SCENARIO_URL ?? "http://localhost:3000";
 mkdirSync(out, { recursive: true });
 const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, timezoneId: "Asia/Dubai" });
 await ctx.addCookies([{ name: "shot_as", value: DANA, domain: new URL(base).hostname, path: "/" }]);
+// The page refreshes it asks for after a tap take the same time as the taps' own requests.
+await ctx.route(`${base}/**`, async (route) => {
+  if (LAG && route.request().headers()["rsc"] === "1") await lag();
+  await route.continue();
+});
 await ctx.route("https://example.supabase.co/**", async (route) => {
+  if (LAG) await lag();
   const url = new URL(route.request().url());
   const m = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/);
   if (!m) return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
@@ -54,7 +64,7 @@ const p = await ctx.newPage();
 const day = process.env.SCENARIO_DAY ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date());
 await p.clock.install({ time: Date.parse(`${day}T14:00:00+04:00`) });
 const errs = [];
-p.on("pageerror", (e) => errs.push(e.message));
+p.on("pageerror", (e) => errs.push(`${new URL(p.url()).pathname}: ${e.message}`));
 let n = 0;
 const shot = async (name) => p.screenshot({ path: `${out}/${String(++n).padStart(2, "0")}-${name}.png` });
 const taps = { bottle: [], nap: [] };
@@ -124,5 +134,20 @@ const timeField = p.locator('.sheet input[type="datetime-local"]').first();
 const timeValue = await timeField.inputValue().catch(() => null);
 const pickers = await p.locator('.sheet input[type="datetime-local"]').count();
 const del = await p.locator(".sheet").getByRole("button", { name: /delete/i }).count();
-console.log(JSON.stringify({ taps: { bottle: taps.bottle, nap: taps.nap }, usual, recalledOnNapSheet: recalled, bottleMsg, napMsg, clash, keyboardInputs: { feed: kbFeed, nappy: kbNappy, pump: kbPump }, childToday: mine, editTaps, editPickers: pickers, editTimeValue: timeValue, editDelete: del, errors: errs, rpcs: rpcLog }, null, 2));
+// ---- a tap answers at once (DESIGN.md, rule 9): from tapping Asleep now until the Sleep
+// row offers Woke up, and back, with the server SCENARIO_LAG ms away. On real time: the
+// database's clock cannot be moved to the demo day, and a sleep started "two days ago"
+// by its clock would read as a timer left on and not as running.
+await p.clock.setSystemTime(Date.now());
+await p.goto(`${base}/`, { waitUntil: "networkidle" });
+const tapMs = async (tap, then) => {
+  const t0 = Date.now();
+  await p.getByRole("button", { name: tap, exact: true }).click();
+  await p.getByRole("button", { name: then, exact: true }).waitFor();
+  return Date.now() - t0;
+};
+const tapToScreenMs = { serverLagMs: LAG, asleepNow: await tapMs("Asleep now", "Woke up"), wokeUp: await tapMs("Woke up", "Asleep now") };
+await shot("tap-answers");
+
+console.log(JSON.stringify({ tapToScreenMs, taps: { bottle: taps.bottle, nap: taps.nap }, usual, recalledOnNapSheet: recalled, bottleMsg, napMsg, clash, keyboardInputs: { feed: kbFeed, nappy: kbNappy, pump: kbPump }, childToday: mine, editTaps, editPickers: pickers, editTimeValue: timeValue, editDelete: del, errors: errs, rpcs: rpcLog }, null, 2));
 await b.close();

@@ -207,3 +207,107 @@ test("when this phone cannot keep an entry, the carer is told, not shown 'saved'
   assert.equal(ok.status, "queued");
   assert.equal(readQueue().length, 1);
 });
+
+// ---- a tap answers at once: the operation shows while its request is out (DESIGN.md, rule 9)
+const { readPending, releaseConfirmed, mergeRecent } = await import("./offline.ts");
+const online = (on: boolean) => Object.defineProperty(globalThis.navigator, "onLine", { value: on, configurable: true });
+
+test("in flight: pending while the request is out, kept until the screen has caught up, then released", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  try {
+    let answer!: (v: unknown) => void;
+    const gate = new Promise((r) => (answer = r));
+    const { client, calls } = fakeSupabase("u1", async () => {
+      await gate;
+      return { ok: true, id: "srv-1" };
+    });
+    const sent = sendOrQueue(client, { client_id: "c1", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    while (!calls.length) await new Promise((r) => setImmediate(r)); // the request is out
+    assert.equal(readPending().length, 1, "shown the instant it is tapped");
+    assert.equal(readPending()[0].server_id, null);
+    answer(null);
+    const r = await sent;
+    assert.equal(r.status, "saved");
+    assert.deepEqual(readPending().map((x) => x.server_id), ["srv-1"], "stays until the refreshed screen carries it");
+    assert.equal(readQueue().length, 0, "never in the queue that is sent again");
+    releaseConfirmed();
+    assert.equal(readPending().length, 0);
+  } finally {
+    online(false);
+  }
+});
+
+test("in flight: a refusal takes the operation off the screen; a network failure moves it to the queue", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  try {
+    const refused = fakeSupabase("u1", async () => ({ ok: false, message: "No." }));
+    const r1 = await sendOrQueue(refused.client, { client_id: "c2", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    assert.equal(r1.status, "error");
+    assert.equal(readPending().length, 0);
+    const down = fakeSupabase("u1", async () => {
+      throw new Error("fetch failed");
+    });
+    const r2 = await sendOrQueue(down.client, { client_id: "c3", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null }).catch(() => ({ status: "threw" }));
+    assert.notEqual(r2.status, "saved");
+    assert.equal(readPending().length, 0, "not shown twice: the queue shows it now");
+  } finally {
+    online(false);
+    store.clear();
+  }
+});
+
+test("mergeRecent: a tap just made is at the front, an ended timer carries its end, a server copy is not doubled", () => {
+  const recent = [
+    { id: "e2", type_id: "lana.sleep", occurred_at: "2026-10-30T09:00:00.000Z", ended_at: null, payload: {} },
+    { id: "e1", type_id: "lana.feed", occurred_at: "2026-10-30T08:00:00.000Z", ended_at: "2026-10-30T08:00:00.000Z", payload: { method: "Bottle", amount_ml: 90 } },
+  ];
+  const t = "2026-10-30T10:00:00.000Z";
+  const q = [
+    { op: "log" as const, client_id: "n1", subject_id: "s", type_id: "lana.diaper", occurred_at: t, ended_at: t, payload: { kind: "Wet" }, note: null, queued_at: t, owner: "u1", home: null },
+    { op: "end" as const, client_id: "x1", entry_id: "e2", start_client_id: null, ended_at: t, queued_at: t, owner: "u1", home: null },
+    { op: "log" as const, client_id: "n2", subject_id: "s", type_id: "lana.feed", occurred_at: "2026-10-30T09:30:00.000Z", ended_at: null, payload: {}, note: null, queued_at: t, owner: "u1", home: null, server_id: "e9" },
+  ];
+  const seen = mergeRecent(recent, "s", q);
+  assert.deepEqual(seen.map((e) => e.id), [QUEUED_ID_PREFIX + "n1", QUEUED_ID_PREFIX + "n2", "e2", "e1"]);
+  assert.equal(seen.find((e) => e.id === "e2")?.ended_at, t, "the sleep being ended reads as ended");
+  const after = mergeRecent([{ id: "e9", type_id: "lana.feed", occurred_at: "2026-10-30T09:30:00.000Z", ended_at: null, payload: {} }, ...recent], "s", q);
+  assert.equal(after.filter((e) => e.type_id === "lana.feed" && e.occurred_at.startsWith("2026-10-30T09:30")).length, 1, "once the server has it, only its copy shows");
+});
+
+test("in flight: an end tapped while its start is still on its way shows at once, then goes by the start's server id", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  try {
+    let answerStart!: (v: unknown) => void;
+    const gate = new Promise((r) => (answerStart = r));
+    const { client, calls } = fakeSupabase("u1", async (fn) => {
+      if (fn === "care_entry_log") {
+        await gate;
+        return { ok: true, id: "srv-start" };
+      }
+      return { ok: true, id: "srv-start" };
+    });
+    const started = sendOrQueue(client, { client_id: "s1", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    while (!calls.length) await new Promise((r) => setImmediate(r));
+    const ended = endOrQueue(client, QUEUED_ID_PREFIX + "s1", "2026-10-30T10:30:00.000Z");
+    await new Promise((r) => setImmediate(r));
+    const shown = mergeOngoing([], "s", readPending(), null, [{ id: "lana.sleep", has_end: true, settings: {} }]);
+    assert.equal(shown.length, 0, "the screen shows the sleep ended before the server has either");
+    answerStart(null);
+    await started;
+    const r = await ended;
+    assert.equal(r.status, "saved");
+    const endCall = calls.find((c) => c.fn === "care_entry_end");
+    assert.equal(endCall?.args.p_id, "srv-start", "ended by the server id the start got");
+    releaseConfirmed();
+    assert.equal(readPending().length, 0);
+  } finally {
+    online(false);
+    store.clear();
+  }
+});
