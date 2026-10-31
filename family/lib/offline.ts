@@ -154,12 +154,14 @@ function amend(clientId: string, op: QueuedOp) {
   announce();
 }
 /**
- * Confirmed operations the refreshed screen now carries under their server ids leave
- * the moment any screen sees them, so no screen needs to know when its refresh landed
- * and a timer never reads as running twice, or as running after its end.
+ * Confirmed starts the refreshed screen now carries under their server ids leave the
+ * moment any screen sees them, so no screen needs to know when its refresh landed and a
+ * timer never reads as running twice, or as running after its end. Only starts: a
+ * confirmed end names the entry it ended, which the screen still lists as open until its
+ * refresh lands, so the end must keep hiding it (the post-refresh release takes ends).
  */
 function releaseSeen(queue: QueuedOp[], serverIds: Set<string>) {
-  const seen = queue.filter((x) => onServer(x, serverIds)).map((x) => x.client_id);
+  const seen = queue.filter((x) => (x.op ?? "log") === "log" && onServer(x, serverIds)).map((x) => x.client_id);
   if (!seen.length) return;
   queueMicrotask(() => {
     const before = pending.length;

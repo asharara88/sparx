@@ -403,3 +403,27 @@ test("in flight: an end tapped during a start that is then kept for later rides 
     store.clear();
   }
 });
+
+test("in flight: a confirmed end keeps hiding the sleep while the screen's list still carries it open", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  releaseConfirmed();
+  try {
+    const { client } = fakeSupabase("u1", async () => ({ ok: true, id: "srv-open" }));
+    const r = await endOrQueue(client, "srv-open", "2026-10-30T10:30:00.000Z");
+    assert.equal(r.status, "saved");
+    const types = [{ id: "lana.sleep", has_end: true, settings: {} }];
+    const stale = [{ id: "srv-open", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", payload: {}, by: null }];
+    // A queue change re-reads the queue before the refresh lands: the old open sleep is still in the list.
+    assert.equal(mergeOngoing(stale, "s", readPending(), null, types).length, 0, "hidden");
+    await new Promise((r) => setImmediate(r));
+    assert.equal(readPending().length, 1, "the end is not released by the stale list");
+    assert.equal(mergeOngoing(stale, "s", readPending(), null, types).length, 0, "still hidden");
+    releaseConfirmed(); // the refresh landed
+    assert.equal(readPending().length, 0);
+  } finally {
+    online(false);
+    store.clear();
+  }
+});
