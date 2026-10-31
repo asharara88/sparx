@@ -154,7 +154,7 @@ export default async function HomePage() {
   return summary && summary.ok ? (
     <div className="screen-fill">
       <HomeHeader summary={summary} me={me} today={today} />
-      <HomeState summary={summary} timezone={tz} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
+      <HomeState summary={summary} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <div className="now-queue">
         <div>
           {vaccine?.overdue && (
@@ -213,7 +213,7 @@ export default async function HomePage() {
         </Link>
       )}
       <div className="grow-space" />
-      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} />
+      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} />
     </div>
   ) : (
     <div className="flex flex-col gap-4">

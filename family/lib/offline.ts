@@ -115,6 +115,71 @@ export function enqueue(e: QueuedOp): boolean {
   return writeQueue([...readQueue().filter((x) => x.client_id !== e.client_id), e]);
 }
 
+// ---- In flight (DESIGN.md, rule 9): the screen changes the instant a tap is made, while
+// the request is out, and keeps the change until the refreshed page carries it. Memory
+// only: a reload asks the server anyway. A refused request leaves the screen as it was.
+/** An operation in flight; `server_id` once the server has it, so a refreshed screen that already shows it does not show it twice. */
+export type PendingOp = QueuedOp & { server_id?: string | null };
+/** How an operation in flight ended: the server took it, this phone kept it for later, or it was refused. */
+type Outcome = { serverId: string | null } | { kept: true } | null;
+type Pending = { op: QueuedOp; confirmed: boolean; serverId: string | null; done: Promise<Outcome>; settle: (o: Outcome) => void };
+let pending: Pending[] = [];
+function announce() {
+  try {
+    window.dispatchEvent(new Event(EVENT));
+  } catch {
+    /* not in a browser */
+  }
+}
+function hold(op: QueuedOp) {
+  if (pending.some((p) => p.op.client_id === op.client_id)) return;
+  let settle!: (o: Outcome) => void;
+  const done = new Promise<Outcome>((r) => (settle = r));
+  pending = [...pending, { op, confirmed: false, serverId: null, done, settle }];
+  announce();
+}
+function confirm(op: QueuedOp, serverId: string | null) {
+  pending = pending.map((p) => (p.op.client_id === op.client_id ? { ...p, confirmed: true, serverId } : p));
+  pending.find((p) => p.op.client_id === op.client_id)?.settle({ serverId });
+}
+/** The operation leaves the screen: refused (`null`), or kept on this phone for later (`{ kept }`, the queue shows it now). */
+function drop(op: QueuedOp, outcome: Outcome = null) {
+  pending.find((p) => p.op.client_id === op.client_id)?.settle(outcome);
+  pending = pending.filter((p) => p.op.client_id !== op.client_id);
+  announce();
+}
+/** An operation in flight learns something while out (an end finds its start's server id). */
+function amend(clientId: string, op: QueuedOp) {
+  pending = pending.map((p) => (p.op.client_id === clientId ? { ...p, op } : p));
+  announce();
+}
+/**
+ * Confirmed starts the refreshed screen now carries under their server ids leave the
+ * moment any screen sees them, so no screen needs to know when its refresh landed and a
+ * timer never reads as running twice, or as running after its end. Only starts: a
+ * confirmed end names the entry it ended, which the screen still lists as open until its
+ * refresh lands, so the end must keep hiding it (the post-refresh release takes ends).
+ */
+function releaseSeen(queue: QueuedOp[], serverIds: Set<string>) {
+  const seen = queue.filter((x) => (x.op ?? "log") === "log" && onServer(x, serverIds)).map((x) => x.client_id);
+  if (!seen.length) return;
+  queueMicrotask(() => {
+    const before = pending.length;
+    pending = pending.filter((p) => !(p.confirmed && seen.includes(p.op.client_id)));
+    if (pending.length !== before) announce();
+  });
+}
+/** Operations in flight, or confirmed but not yet on the refreshed screen. */
+export function readPending(): PendingOp[] {
+  return pending.map((p) => ({ ...p.op, server_id: p.serverId }));
+}
+/** The screen has caught up with the server: confirmed operations leave it. */
+export function releaseConfirmed() {
+  if (!pending.some((p) => p.confirmed)) return;
+  pending = pending.filter((p) => !p.confirmed);
+  announce();
+}
+
 export function readFailed(owner?: string | null): FailedOp[] {
   const f = readJson<FailedOp>(FAILED_KEY);
   return owner === undefined ? f : f.filter((x) => (x.op.owner ?? null) === null || x.op.owner === owner);
@@ -163,9 +228,9 @@ export function isTransient(error: Pick<PostgrestError, "code" | "message"> | { 
   return false;
 }
 
-/** The signed-in user's waiting operations (plus any queued before owners existed). */
-export async function readQueueFor(supabase: SupabaseClient): Promise<QueuedOp[]> {
-  return readQueue(await currentOwner(supabase));
+/** The signed-in user's waiting operations (plus any queued before owners existed), and the ones in flight. */
+export async function readQueueFor(supabase: SupabaseClient): Promise<PendingOp[]> {
+  return [...readQueue(await currentOwner(supabase)), ...readPending()];
 }
 
 async function currentOwner(supabase: SupabaseClient): Promise<string | null> {
@@ -217,13 +282,29 @@ export async function sendOrQueue(supabase: SupabaseClient, e: Omit<QueuedEntry,
   const owner = await currentOwner(supabase);
   const queued: QueuedEntry = { ...e, op: "log", queued_at: new Date().toISOString(), owner, home: queueHome };
   if (typeof navigator !== "undefined" && !navigator.onLine) return keep(queued);
-  const { data, error } = await rpcLog(supabase, queued);
+  hold(queued);
+  let data: unknown, error: PostgrestError | null;
+  try {
+    ({ data, error } = await rpcLog(supabase, queued));
+  } catch (e) {
+    drop(queued); // a request that threw never reached the server: the screen goes back
+    throw e;
+  }
   if (error) {
-    if (isTransient(error)) return keep(queued);
+    if (isTransient(error)) {
+      const kept = keep(queued);
+      drop(queued, kept.status === "queued" ? { kept: true } : null);
+      return kept;
+    }
+    drop(queued);
     return { status: "error", message: error.message };
   }
   const res = data as RpcRes;
-  if (!res?.ok) return { status: "error", message: res?.message ?? "Could not save." };
+  if (!res?.ok) {
+    drop(queued);
+    return { status: "error", message: res?.message ?? "Could not save." };
+  }
+  confirm(queued, res.id ?? null);
   return { status: "saved", id: res.id!, open: res.open === true };
 }
 
@@ -237,11 +318,28 @@ export async function endOrQueue(supabase: SupabaseClient, entryId: string, ende
   if (entryId.startsWith(QUEUED_ID_PREFIX)) {
     const startId = entryId.slice(QUEUED_ID_PREFIX.length);
     // Only this user's queued starts: another user's timer on a shared phone is not ours to end.
-    const start = readQueue(owner).find((x) => (x.op ?? "log") === "log" && x.client_id === startId) as QueuedEntry | undefined;
-    if (start) {
-      if (Date.parse(endedAt) < Date.parse(start.occurred_at)) return { status: "error", message: "The end time is before the start time." };
-      if (!writeQueue(readQueue().map((x) => (x.client_id === startId ? { ...start, ended_at: endedAt } : x)))) return { status: "error", message: NOT_KEPT };
-      return { status: "queued" };
+    const kept = endKeptStart(owner, startId, endedAt);
+    if (kept) return kept;
+    // A start still on its way to the server, or there and not yet on the refreshed screen:
+    // the end shows at once and waits for the start's outcome. Taken: the end learns the
+    // server id (so the refreshed screen, which carries the start, keeps it hidden) and goes
+    // by it. Kept on this phone for later: the end rides with it. Refused: the end goes too.
+    const held = pending.find((p) => p.op.client_id === startId);
+    if (held) {
+      const e: QueuedEnd = { op: "end", client_id: newClientId(), entry_id: null, start_client_id: startId, ended_at: endedAt, queued_at: new Date().toISOString(), owner, home: queueHome };
+      hold(e);
+      const outcome = await held.done;
+      if (outcome && "kept" in outcome) {
+        drop(e);
+        return endKeptStart(owner, startId, endedAt) ?? { status: "error", message: NOT_KEPT };
+      }
+      if (!outcome?.serverId) {
+        drop(e);
+        return { status: "error", message: "The start was not saved, so there is nothing to end." };
+      }
+      const byId: QueuedEnd = { ...e, entry_id: outcome.serverId };
+      amend(e.client_id, byId);
+      return endOp(supabase, byId);
     }
     // The start went out between the screen loading and this tap: end it by its client_id.
     return endOp(supabase, { op: "end", client_id: newClientId(), entry_id: null, start_client_id: startId, ended_at: endedAt, queued_at: new Date().toISOString(), owner, home: queueHome });
@@ -253,15 +351,40 @@ function keep(e: QueuedOp): SendResult {
   return enqueue(e) ? { status: "queued" } : { status: "error", message: NOT_KEPT };
 }
 
+/** End a start waiting on this phone: its end rides with it (flushQueue sends both). Nothing when it is not here. */
+function endKeptStart(owner: string | null, startId: string, endedAt: string): SendResult | null {
+  const start = readQueue(owner).find((x) => (x.op ?? "log") === "log" && x.client_id === startId) as QueuedEntry | undefined;
+  if (!start) return null;
+  if (Date.parse(endedAt) < Date.parse(start.occurred_at)) return { status: "error", message: "The end time is before the start time." };
+  if (!writeQueue(readQueue().map((x) => (x.client_id === startId ? { ...start, ended_at: endedAt } : x)))) return { status: "error", message: NOT_KEPT };
+  return { status: "queued" };
+}
+
 async function endOp(supabase: SupabaseClient, e: QueuedEnd): Promise<SendResult> {
   if (typeof navigator !== "undefined" && !navigator.onLine) return keep(e);
-  const { data, error } = await rpcEnd(supabase, e);
+  hold(e);
+  let data: unknown, error: PostgrestError | null;
+  try {
+    ({ data, error } = await rpcEnd(supabase, e));
+  } catch (err) {
+    drop(e);
+    throw err;
+  }
   if (error) {
-    if (isTransient(error)) return keep(e);
+    if (isTransient(error)) {
+      const kept = keep(e);
+      drop(e, kept.status === "queued" ? { kept: true } : null);
+      return kept;
+    }
+    drop(e);
     return { status: "error", message: error.message };
   }
   const res = data as RpcRes;
-  if (!res?.ok) return { status: "error", message: res?.message ?? "Could not save." };
+  if (!res?.ok) {
+    drop(e);
+    return { status: "error", message: res?.message ?? "Could not save." };
+  }
+  confirm(e, res.id ?? null);
   return { status: "saved", id: res.id! };
 }
 
@@ -358,9 +481,44 @@ export function mergeOngoing<T extends LocalOngoing>(server: T[], subjectId: str
   const endedIds = new Set(queue.filter((x): x is QueuedEnd => x.op === "end" && !!x.entry_id).map((x) => x.entry_id!));
   const endedStarts = new Set(queue.filter((x): x is QueuedEnd => x.op === "end" && !!x.start_client_id).map((x) => x.start_client_id!));
   const kept = server.filter((e) => !endedIds.has(e.id));
+  const serverIds = new Set(server.map((e) => e.id));
+  releaseSeen(queue, serverIds);
   const local: LocalOngoing[] = queue
-    .filter((x): x is QueuedEntry => (x.op ?? "log") === "log")
+    .filter((x): x is QueuedEntry => (x.op ?? "log") === "log" && !onServer(x, serverIds))
     .filter((x) => x.subject_id === subjectId && x.ended_at === null && !endedStarts.has(x.client_id) && isTimer(types, x.type_id, x.payload))
     .map((x) => ({ id: QUEUED_ID_PREFIX + x.client_id, type_id: x.type_id, occurred_at: x.occurred_at, payload: x.payload, by: byName }));
   return [...kept, ...local].sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
+}
+
+/** An in-flight operation the refreshed screen already shows under its server id. */
+function onServer(x: QueuedOp, serverIds: Set<string>): boolean {
+  const id = (x as PendingOp).server_id;
+  return !!id && serverIds.has(id);
+}
+
+/** The fields of an entry the rows' "40 min ago · 90 ml" lines read. */
+export interface RecentEntry {
+  id: string;
+  type_id: string;
+  occurred_at: string;
+  ended_at: string | null;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Recent entries with this phone's waiting and in-flight operations applied, newest
+ * first: an entry just logged is at the front, a timer just ended carries its end. The
+ * rows' "40 min ago" and "Last sleep 45 min" lines read this, so a tap shows at once.
+ */
+export function mergeRecent<T extends RecentEntry>(recent: T[], subjectId: string, queue: QueuedOp[]): (T | RecentEntry)[] {
+  const ends = new Map(queue.filter((x): x is QueuedEnd => x.op === "end" && !!x.entry_id).map((x) => [x.entry_id!, x.ended_at]));
+  const endsByStart = new Map(queue.filter((x): x is QueuedEnd => x.op === "end" && !!x.start_client_id).map((x) => [x.start_client_id!, x.ended_at]));
+  const kept = recent.map((e) => (ends.has(e.id) && !e.ended_at ? { ...e, ended_at: ends.get(e.id)! } : e));
+  const serverIds = new Set(recent.map((e) => e.id));
+  releaseSeen(queue, serverIds);
+  const local: RecentEntry[] = queue
+    .filter((x): x is QueuedEntry => (x.op ?? "log") === "log")
+    .filter((x) => x.subject_id === subjectId && !onServer(x, serverIds))
+    .map((x) => ({ id: QUEUED_ID_PREFIX + x.client_id, type_id: x.type_id, occurred_at: x.occurred_at, ended_at: x.ended_at ?? endsByStart.get(x.client_id) ?? null, payload: x.payload }));
+  return [...local, ...kept].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
 }

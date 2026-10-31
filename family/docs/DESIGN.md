@@ -104,6 +104,11 @@ sources at the bottom.
 10. **Plain words, the family's words.** "Nappy", "Pumped today 08:00", "3 days left".
     No jargon, no percentages, no "entries", no exclamation marks (see `BRAND.md`, Voice).
 
+9. **A tap answers at once.** The screen changes the instant a tap is made (the row's
+   button, the card, "40 min ago" becomes "just now") and the server catches up behind
+   it; a refused tap puts the screen back and says why. Nothing on screen waits for a
+   round trip: a tap that waits for the server feels like a tap that did nothing.
+
 ## Budgets and phone checks
 
 Measured by `scripts/ui-audit.mjs` at 390 × 844 (an iPhone), as an admin with a normal
@@ -245,6 +250,12 @@ Dana's second ask. The yardstick is Huckleberry's "Set time" and BabyLog's two o
   their own entries from earlier, and another row would break Home's one screen.
 - Measured (`scripts/backlog-scenario.mjs`): at 14:00, a 90 ml bottle at 12:40 is 4 taps from
   Home (Feed ▶, When, 12:40, 90 ml) and a 13:00–13:45 nap is 3 (the Sleep row, 13:00, 13:45).
+- **A tap answers at once** (rule 9), measured by the same script with the server 600 ms
+  away (`SCENARIO_LAG=600`: a phone in Dubai and a cold server): from tapping *Asleep now*
+  to the Sleep row offering *Woke up* was 1.86 s and is 61 ms; *Woke up* back to *Asleep
+  now* was 1.83 s and is 43 ms. The rows are never locked while a request is out, so a
+  correcting tap right after a wrong one works. Home's four states measured the same
+  before and after (31 October 2026).
 
 Off Home: the "Say it / Emergency / Vaccines" chips (the first two move into the header, a
 vaccine that is due becomes a Now item); the right-now carousel; the milk card (a Now item

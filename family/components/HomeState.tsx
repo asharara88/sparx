@@ -16,17 +16,19 @@ const H12 = 12 * 60;
  * a nap was most likely not logged). Asleep or feeding, the running time. A gap
  * in the log (no sleep for 12 hours) says nothing rather than "awake 20 h" (rule 6). The last
  * feed, sleep and nappy are on the rows below, so the card does not repeat them. Timers
- * started or ended on this phone without signal count straight away (the offline queue).
- * Ticks every 30 seconds.
+ * started or ended on this phone, or still on their way to the server, count straight
+ * away (lib/offline.ts). The clock starts on the server's time, so the first paint shows
+ * the number (not a dash) and matches the server-rendered screen; this phone's clock
+ * takes over after, every 30 seconds.
  */
-export function HomeState({ summary, timezone, nap }: { summary: HomeSummary; timezone: string; nap: { at: number; isBedtime: boolean } | null }) {
-  const [now, setNow] = useState<number | null>(null);
+export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeSummary; timezone: string; clockIso: string; nap: { at: number; isBedtime: boolean } | null }) {
+  const [now, setNow] = useState(() => Date.parse(clockIso));
   useEffect(() => {
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
-  const mins = (iso: string) => (now == null ? null : Math.max(0, Math.round((now - Date.parse(iso)) / 60_000)));
+  const mins = (iso: string) => Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
 
   const me = useMe();
   const [queue, setQueue] = useState<QueuedOp[]>([]);
@@ -54,9 +56,9 @@ export function HomeState({ summary, timezone, nap }: { summary: HomeSummary; ti
     </section>
   );
 
-  if (feeding) return big("Feeding", now == null ? "—" : fmtDuration(mins(feeding.occurred_at)!), "tint-feed");
-  if (asleep) return big("Asleep", now == null ? "—" : fmtDuration(mins(asleep.occurred_at)!), "tint-sleep", `since ${fmtTime(asleep.occurred_at, timezone)}`);
-  const w = awakeKnown && nap && woke && now != null ? napWindow(Date.parse(woke), nap.at, now) : null;
+  if (feeding) return big("Feeding", fmtDuration(mins(feeding.occurred_at)), "tint-feed");
+  if (asleep) return big("Asleep", fmtDuration(mins(asleep.occurred_at)), "tint-sleep", `since ${fmtTime(asleep.occurred_at, timezone)}`);
+  const w = awakeKnown && nap && woke ? napWindow(Date.parse(woke), nap.at, now) : null;
   // Over an hour past the window, a nap was most likely not logged: say when she woke, not "late by 5 h".
   if (w && w.late > 60) return big("Last woke", fmtTime(woke!, timezone), "", "If she napped since, log it below.");
   if (w && nap) {

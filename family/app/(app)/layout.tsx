@@ -20,7 +20,8 @@ import { meOnce } from "@/lib/server/me";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isConfigured()) return <NotConfigured />;
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
+  // Who is signed in, and who they are in the home, asked together: each is a round trip.
+  const [{ data: auth }, meRes] = await Promise.all([supabase.auth.getUser(), meOnce()]);
   if (!auth.user) {
     // A "view as" token the database no longer accepts must not look like a sign-out:
     // end the preview and come back as the admin.
@@ -28,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
-  const { data, error } = await meOnce();
+  const { data, error } = meRes;
   const me = data as Me | RpcError | null;
 
   // In no home yet: make one, or wait to be added (docs/MULTI_HOME.md).
