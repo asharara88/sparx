@@ -35,7 +35,11 @@ function fakeSupabase(owner: string, answer: (fn: string, args: Record<string, u
         then(resolve: (v: { data: unknown; error: null }) => void, reject: (e: unknown) => void) {
           calls.push(call);
           Promise.resolve()
-            .then(async () => ({ data: await answer(fn, args), error: null }))
+            .then(async () => {
+              const v = await answer(fn, args);
+              // An answer of { __error } stands for a request that came back with an error (a network failure, a refusal).
+              return v && typeof v === "object" && "__error" in v ? { data: null, error: (v as { __error: unknown }).__error } : { data: v, error: null };
+            })
             .then(resolve, reject);
         },
       };
@@ -216,6 +220,7 @@ test("in flight: pending while the request is out, kept until the screen has cau
   online(true);
   store.clear();
   storageBroken = false;
+  releaseConfirmed(); // nothing left over from an earlier test
   try {
     let answer!: (v: unknown) => void;
     const gate = new Promise((r) => (answer = r));
@@ -243,6 +248,7 @@ test("in flight: a refusal takes the operation off the screen; a network failure
   online(true);
   store.clear();
   storageBroken = false;
+  releaseConfirmed(); // nothing left over from an earlier test
   try {
     const refused = fakeSupabase("u1", async () => ({ ok: false, message: "No." }));
     const r1 = await sendOrQueue(refused.client, { client_id: "c2", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
@@ -282,6 +288,7 @@ test("in flight: an end tapped while its start is still on its way shows at once
   online(true);
   store.clear();
   storageBroken = false;
+  releaseConfirmed(); // nothing left over from an earlier test
   try {
     let answerStart!: (v: unknown) => void;
     const gate = new Promise((r) => (answerStart = r));
@@ -305,6 +312,91 @@ test("in flight: an end tapped while its start is still on its way shows at once
     const endCall = calls.find((c) => c.fn === "care_entry_end");
     assert.equal(endCall?.args.p_id, "srv-start", "ended by the server id the start got");
     releaseConfirmed();
+    assert.equal(readPending().length, 0);
+  } finally {
+    online(false);
+    store.clear();
+  }
+});
+
+test("in flight: once a screen shows the server's copy of a confirmed start, the in-flight copy leaves on its own", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  releaseConfirmed(); // nothing left over from an earlier test
+  try {
+    const { client } = fakeSupabase("u1", async () => ({ ok: true, id: "srv-7" }));
+    await sendOrQueue(client, { client_id: "k1", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    assert.equal(readPending().length, 1);
+    const types = [{ id: "lana.sleep", has_end: true, settings: {} }];
+    const shown = mergeOngoing([{ id: "srv-7", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", payload: {}, by: null }], "s", readPending(), null, types);
+    assert.equal(shown.length, 1, "never shown twice");
+    await new Promise((r) => setImmediate(r));
+    assert.equal(readPending().length, 0, "released without anyone calling releaseConfirmed");
+    // Ended later by its server id: nothing lingers to reappear as running.
+    const after = mergeOngoing([], "s", readPending(), null, types);
+    assert.equal(after.length, 0);
+  } finally {
+    online(false);
+    store.clear();
+  }
+});
+
+test("in flight: an end tapped during a start learns the start's server id as soon as it has one", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  releaseConfirmed(); // nothing left over from an earlier test
+  try {
+    let answerStart!: (v: unknown) => void;
+    const startGate = new Promise((r) => (answerStart = r));
+    let answerEnd!: (v: unknown) => void;
+    const endGate = new Promise((r) => (answerEnd = r));
+    const { client, calls } = fakeSupabase("u1", async (fn) => {
+      if (fn === "care_entry_log") await startGate;
+      else await endGate;
+      return { ok: true, id: "srv-s" };
+    });
+    const started = sendOrQueue(client, { client_id: "s2", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    while (!calls.length) await new Promise((r) => setImmediate(r));
+    const ended = endOrQueue(client, QUEUED_ID_PREFIX + "s2", "2026-10-30T10:30:00.000Z");
+    answerStart(null);
+    await started;
+    while (calls.length < 2) await new Promise((r) => setImmediate(r)); // the end's request is out
+    const end = readPending().find((x) => x.op === "end");
+    assert.equal(end?.op === "end" && end.entry_id, "srv-s", "the held end names the server's sleep before its own request answers");
+    // The start's refresh lands now, carrying the sleep: it stays hidden.
+    const shown = mergeOngoing([{ id: "srv-s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", payload: {}, by: null }], "s", readPending(), null, [{ id: "lana.sleep", has_end: true, settings: {} }]);
+    assert.equal(shown.length, 0, "the sleep does not reappear as running");
+    answerEnd(null);
+    assert.equal((await ended).status, "saved");
+  } finally {
+    online(false);
+    store.clear();
+  }
+});
+
+test("in flight: an end tapped during a start that is then kept for later rides with it in the queue", async () => {
+  online(true);
+  store.clear();
+  storageBroken = false;
+  releaseConfirmed(); // nothing left over from an earlier test
+  try {
+    let failStart!: (v: unknown) => void;
+    const gate = new Promise((r) => (failStart = r));
+    const { client, calls } = fakeSupabase("u1", async () => {
+      await gate;
+      return { __error: { code: "", message: "fetch failed" } }; // the network, not the request: kept for later
+    });
+    const started = sendOrQueue(client, { client_id: "s3", subject_id: "s", type_id: "lana.sleep", occurred_at: "2026-10-30T10:00:00.000Z", ended_at: null, payload: {}, note: null });
+    while (!calls.length) await new Promise((r) => setImmediate(r));
+    const ended = endOrQueue(client, QUEUED_ID_PREFIX + "s3", "2026-10-30T10:30:00.000Z");
+    failStart(null);
+    assert.equal((await started).status, "queued");
+    assert.equal((await ended).status, "queued");
+    const q = readQueue("u1");
+    assert.equal(q.length, 1);
+    assert.equal(q[0].op === "log" && q[0].ended_at, "2026-10-30T10:30:00.000Z", "the kept start carries its end for the replay");
     assert.equal(readPending().length, 0);
   } finally {
     online(false);
