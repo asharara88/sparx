@@ -126,10 +126,10 @@ household*); nothing in the code is tied to these people.
 - **Memory:** what the helper remembers is about the home, the child or a person (`kind` and
   a link on `assistant_memories`), can expire, and can be changed in place. Every answer gets
   the memories about the person asking plus the ones that match the question, grouped, in the
-  five-minute cached block. Set `ASSISTANT_REMEMBER=1` on the server and the helper also reads
-  each saved chat once it has two new questions (one small model call, Haiku by default,
-  `ASSISTANT_REMEMBER_MODEL` to change it) and lists what it noticed as suggestions on
-  "What it remembers", where anyone keeps or drops them with one tap. Off, it spends nothing.
+  five-minute cached block. The helper also reads each saved chat once it has two new
+  questions (one small model call, Haiku by default, `ASSISTANT_REMEMBER_MODEL` to change it)
+  and lists what it noticed as suggestions on "What it remembers", where anyone keeps or
+  drops them with one tap. `ASSISTANT_REMEMBER=0` on the server switches the reading off.
 - **Context:** the model sees the situation (asleep or awake since when, last feed and nappy,
   today's counts, last night, the usual day lately, who is in the house), the earlier turns
   with what happened to each card (saved or not), a digest of a long chat's cut part, and the
