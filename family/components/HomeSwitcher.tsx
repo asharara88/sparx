@@ -67,7 +67,7 @@ export function HomeSwitcher({ homes, recover = false }: { homes: HomeListing[];
       )}
       {/* Not on the recovery screen: that page sits under the same layout and would show this screen again. */}
       {!recover && (
-        <Link href="/me/homes/new" className="btn">
+        <Link prefetch={false} href="/me/homes/new" className="btn">
           <Icon name="plus" size={18} /> Create another home
         </Link>
       )}

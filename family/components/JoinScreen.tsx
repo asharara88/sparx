@@ -62,7 +62,7 @@ export function JoinScreen({ token, invite, email, error = null }: { token: stri
       <div className="card flex flex-col gap-3">
         <h2 className="text-2xl font-bold">That link is not one we sent</h2>
         <p className="muted">It may have been copied wrongly. Ask the person who invited you to send it again.</p>
-        <Link href="/login" className="btn">
+        <Link prefetch={false} href="/login" className="btn">
           Go to sign in
         </Link>
       </div>
@@ -83,7 +83,7 @@ export function JoinScreen({ token, invite, email, error = null }: { token: stri
               ? `Someone has already joined ${invite.home} as ${invite.display_name}. If that was you, sign in. Otherwise ask ${invite.invited_by ?? "the admin"} for a new link.`
               : `Ask ${invite.invited_by ?? "the admin"} of ${invite.home} to add you again.`}
         </p>
-        <Link href="/login" className="btn">
+        <Link prefetch={false} href="/login" className="btn">
           Go to sign in
         </Link>
       </div>

@@ -85,14 +85,14 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
       />
       <nav className="no-print flex items-center justify-between text-sm">
         {month > 1 ? (
-          <Link href={`/baby/story/${month - 1}`} className="btn">
+          <Link prefetch={false} href={`/baby/story/${month - 1}`} className="btn">
             <Icon name="back" size={16} /> Month {month - 1}
           </Link>
         ) : (
           <span />
         )}
         {month < latest ? (
-          <Link href={`/baby/story/${month + 1}`} className="btn">
+          <Link prefetch={false} href={`/baby/story/${month + 1}`} className="btn">
             Month {month + 1} <Icon name="forward" size={16} />
           </Link>
         ) : (

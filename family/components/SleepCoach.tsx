@@ -35,7 +35,7 @@ export function SleepCoach({ entries, ageDays, timezone, bare = false }: { entri
             ))}
           </ul>
           <p className="muted text-sm">From {c.naps} daytime naps in the last 14 days. An estimate, not advice.</p>
-          <Link href={`/ask?from=patterns&say=${encodeURIComponent("Look at the sleep log over the last two weeks and tell me what to try for better naps and bedtime.")}`} className="btn">
+          <Link prefetch={false} href={`/ask?from=patterns&say=${encodeURIComponent("Look at the sleep log over the last two weeks and tell me what to try for better naps and bedtime.")}`} className="btn">
             Talk to the coach
           </Link>
         </>

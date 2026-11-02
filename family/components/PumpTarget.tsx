@@ -26,7 +26,7 @@ export function PumpTarget({ pumps, milk, target, canLog }: { pumps: EntryRow[];
         {milk ? ` · at home now: ${milk.fridge_ml} ml in the fridge, ${milk.freezer_ml} ml frozen` : ""}
       </p>
       {canLog && (
-        <Link href="/baby/log/pump" className="btn btn-primary">
+        <Link prefetch={false} href="/baby/log/pump" className="btn btn-primary">
           Log a pump
         </Link>
       )}

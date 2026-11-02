@@ -25,7 +25,7 @@ export default async function VaccinesPage() {
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby" title={`${summary.subject.name} · Vaccines`} subtitle={`Dated from ${childPronouns(me).their} birthday.`}
         action={
-          <Link href="/baby/doctor" className="btn btn-secondary">
+          <Link prefetch={false} href="/baby/doctor" className="btn btn-secondary">
             <Icon name="phone" size={18} /> Doctor
           </Link>
         }

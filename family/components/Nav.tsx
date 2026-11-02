@@ -1,10 +1,12 @@
 "use client";
+import type React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { childName } from "@/lib/names";
 import { Icon, type IconName } from "@/components/Icon";
+import { usePageSwap } from "@/components/PageSwap";
 
 /**
  * Home, the child, ＋, Milk, More (DESIGN.md, "The bottom bar"): the ＋ in the middle opens
@@ -14,6 +16,13 @@ import { Icon, type IconName } from "@/components/Icon";
 export function Nav() {
   const me = useMe();
   const path = usePathname();
+  const swap = usePageSwap();
+  // The skeleton shows the moment a tab is tapped (rule 9): a plain tap only, not a
+  // click that opens the tab elsewhere (a modifier key, a middle button) and leaves this page.
+  const go = (e: React.MouseEvent, href: string) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    swap(href);
+  };
   const staff = !can(me, "lana", "view");
   const items: { href: string; label: string; icon: IconName; log?: boolean }[] = [];
   if (staff) {
@@ -38,7 +47,7 @@ export function Nav() {
           if (it.log)
             return (
               <li key={it.href}>
-                <Link href={it.href} className="tab tab-log" aria-label="Log something">
+                <Link prefetch={false} href={it.href} onClick={(e) => go(e, it.href)} className="tab tab-log" aria-label="Log something">
                   <span className="tab-log-disc">
                     <Icon name="plus" size={28} strokeWidth={2.4} />
                   </span>
@@ -47,7 +56,7 @@ export function Nav() {
             );
           return (
             <li key={it.href}>
-              <Link href={it.href} aria-current={active ? "page" : undefined} className="tab">
+              <Link prefetch={false} href={it.href} onClick={(e) => go(e, it.href)} aria-current={active ? "page" : undefined} className="tab">
                 <Icon name={it.icon} size={24} strokeWidth={active ? 2.25 : 1.75} />
                 <span>{it.label}</span>
               </Link>

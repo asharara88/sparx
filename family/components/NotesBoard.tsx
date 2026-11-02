@@ -53,7 +53,7 @@ export function NotesBoard({ notes, compact = false, bare = false }: { notes: No
             Notes
           </h2>
           {compact && (
-            <Link href="/notes" className="text-sm font-semibold text-[var(--accent)]">
+            <Link prefetch={false} href="/notes" className="text-sm font-semibold text-[var(--accent)]">
               All notes ›
             </Link>
           )}
@@ -107,7 +107,7 @@ export function NotesBoard({ notes, compact = false, bare = false }: { notes: No
         </ul>
       )}
     {bare && compact && (
-        <Link href="/notes" className="text-sm font-semibold underline">
+        <Link prefetch={false} href="/notes" className="text-sm font-semibold underline">
           All notes ›
         </Link>
       )}

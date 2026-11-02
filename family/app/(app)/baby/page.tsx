@@ -100,11 +100,11 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
   return (
     <>
       <div className="flex items-center justify-between">
-        <Link href={`/baby?tab=today&d=${addDays(day, -1)}`} className="icon-btn" aria-label="Previous day">
+        <Link prefetch={false} href={`/baby?tab=today&d=${addDays(day, -1)}`} className="icon-btn" aria-label="Previous day">
           <Icon name="back" size={22} />
         </Link>
         <p className="font-semibold">{label}</p>
-        <Link href={`/baby?tab=today&d=${addDays(day, 1)}`} className="icon-btn" aria-label="Next day" aria-disabled={isToday} style={isToday ? { visibility: "hidden" } : undefined}>
+        <Link prefetch={false} href={`/baby?tab=today&d=${addDays(day, 1)}`} className="icon-btn" aria-label="Next day" aria-disabled={isToday} style={isToday ? { visibility: "hidden" } : undefined}>
           <Icon name="forward" size={22} />
         </Link>
       </div>
@@ -250,7 +250,7 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
               .filter((r) => r.show !== false)
               .map((r) => (
                 <li key={r.href} className="row px-4">
-                  <Link href={r.href} className="row-link flex min-h-[44px] w-full items-center gap-3">
+                  <Link prefetch={false} href={r.href} className="row-link flex min-h-[44px] w-full items-center gap-3">
                     <span className={`icon-disc tint-${r.tint}`} style={{ width: 36, height: 36 }}>
                       <Icon name={r.icon} size={19} />
                     </span>

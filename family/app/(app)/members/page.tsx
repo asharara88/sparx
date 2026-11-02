@@ -40,7 +40,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large flex items-center justify-between">
         <h1 className="page-title">Members</h1>
-        <Link href="/members/new" className="btn btn-primary">
+        <Link prefetch={false} href="/members/new" className="btn btn-primary">
           <Icon name="plus" size={18} /> Add
         </Link>
       </header>
@@ -69,7 +69,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       <ul className="flex flex-col gap-2">
         {data.members.map((m) => (
           <li key={m.id} className="card flex flex-col gap-2">
-            <Link href={`/members/${m.id}`} className="flex items-center gap-3">
+            <Link prefetch={false} href={`/members/${m.id}`} className="flex items-center gap-3">
               <Avatar name={m.name} path={photos.get(m.id)} size={48} />
               <span className="min-w-0 grow">
               <span className="flex items-baseline justify-between">
@@ -99,7 +99,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       </ul>
       {(inactive as { id: string; display_name: string }[] | null)?.length ? (
         <p className="muted">
-          Inactive: {(inactive as { id: string; display_name: string }[]).map((m) => <Link key={m.id} href={`/members/${m.id}`} className="underline">{m.display_name}</Link>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}
+          Inactive: {(inactive as { id: string; display_name: string }[]).map((m) => <Link prefetch={false} key={m.id} href={`/members/${m.id}`} className="underline">{m.display_name}</Link>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}
         </p>
       ) : null}
       <nav aria-label="Home settings" className="card flex flex-col p-0">
@@ -110,7 +110,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             { href: "/members/types", icon: "list", label: "Entry types", hint: null },
           ] as const
         ).map((r) => (
-          <Link key={r.href} href={r.href} className="row row-link px-4">
+          <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
             <Icon name={r.icon} size={20} className="shrink-0 text-[var(--accent)]" />
             <span className="flex-1 font-semibold">{r.label}</span>
             {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}

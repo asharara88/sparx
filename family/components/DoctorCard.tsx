@@ -170,7 +170,7 @@ export function DoctorCard({ subject, canEdit }: { subject: Subject; canEdit: bo
         {msg && !editing && <p className="text-[var(--danger)]">{msg}</p>}
       </section>
 
-      <Link href="/baby/log/appointment" className="btn btn-secondary">
+      <Link prefetch={false} href="/baby/log/appointment" className="btn btn-secondary">
         <Icon name="plus" size={18} /> Log a visit
       </Link>
     </div>

@@ -158,7 +158,7 @@ export default async function HomePage() {
       <div className="now-queue">
         <div>
           {vaccine?.overdue && (
-            <Link href="/baby/vaccines" className="notice notice-danger flex items-center gap-2 no-underline">
+            <Link prefetch={false} href="/baby/vaccines" className="notice notice-danger flex items-center gap-2 no-underline">
               <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is overdue</span> <Icon name="forward" size={18} />
             </Link>
           )}
@@ -177,7 +177,7 @@ export default async function HomePage() {
         <div>{order.includes("thaw") ? alerts.thaw : null}</div>
         <div>
           {checks > 0 && (
-            <Link href="/baby" className="notice notice-warn flex items-center gap-2 no-underline">
+            <Link prefetch={false} href="/baby" className="notice notice-warn flex items-center gap-2 no-underline">
               <span className="flex-1 font-semibold">
                 {checks} {checks === 1 ? "entry" : "entries"} to check
               </span>
@@ -187,28 +187,28 @@ export default async function HomePage() {
         </div>
         <div>
           {vaccine && !vaccine.overdue && (
-            <Link href="/baby/vaccines" className="notice flex items-center gap-2 no-underline tint-meds">
+            <Link prefetch={false} href="/baby/vaccines" className="notice flex items-center gap-2 no-underline tint-meds">
               <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is due</span> <Icon name="forward" size={18} />
             </Link>
           )}
         </div>
         <div>
           {milkOk && milkOk.fridge_ml < lastBottleMl && (
-            <Link href="/baby/milk" className="notice flex items-center gap-2 no-underline tint-milk">
+            <Link prefetch={false} href="/baby/milk" className="notice flex items-center gap-2 no-underline tint-milk">
               <Icon name="droplet" size={20} /> <span className="flex-1 font-semibold">Fridge is low: {milkOk.fridge_ml} ml</span> <Icon name="forward" size={18} />
             </Link>
           )}
         </div>
         <div>
           {sitter && (
-            <Link href="/baby/handover" className="notice flex items-center gap-2 no-underline">
+            <Link prefetch={false} href="/baby/handover" className="notice flex items-center gap-2 no-underline">
               <span className="flex-1 font-semibold">The handover</span> <Icon name="forward" size={18} />
             </Link>
           )}
         </div>
       </div>
       {known > 1 && (
-        <Link href="/baby" className="muted -mt-3 flex min-h-[44px] items-center self-end px-1 text-sm font-semibold">
+        <Link prefetch={false} href="/baby" className="muted -mt-3 flex min-h-[44px] items-center self-end px-1 text-sm font-semibold">
           {known - 1} more ›
         </Link>
       )}

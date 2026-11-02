@@ -62,12 +62,12 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
   return (
     <div className="flex flex-col gap-4 print:gap-2">
       <header className="page-header no-print flex items-center justify-between gap-2">
-        <Link href="/baby/trends" className="icon-btn" aria-label="Back">
+        <Link prefetch={false} href="/baby/trends" className="icon-btn" aria-label="Back">
           <Icon name="back" size={24} />
         </Link>
         <div className="flex flex-wrap gap-2">
           {ranges.map((r) => (
-            <Link key={r.label} href={`/baby/export?from=${r.from}&to=${today}`} className="chip" aria-pressed={from === r.from && to === today}>
+            <Link prefetch={false} key={r.label} href={`/baby/export?from=${r.from}&to=${today}`} className="chip" aria-pressed={from === r.from && to === today}>
               {r.label}
             </Link>
           ))}

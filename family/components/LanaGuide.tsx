@@ -30,7 +30,7 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
           <div key={tip.title} className={`notice ${tip.level === "red" ? "notice-danger" : tip.level === "yellow" ? "notice-warn" : ""}`}>
             <p className="font-semibold">{tip.title}</p>
             <p className="mt-1 text-sm opacity-90">{tip.body}</p>
-            <Link href={`/baby/when-to-call#${tip.topic}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold underline">
+            <Link prefetch={false} href={`/baby/when-to-call#${tip.topic}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold underline">
               When to call the doctor
             </Link>
           </div>
@@ -52,7 +52,7 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
     <section className="flex flex-col gap-2" aria-labelledby="guide-h">
       <div className="flex items-baseline justify-between">
         <h2 id="guide-h" className="section-title">{possessive(childName(me))} guide</h2>
-        <Link href="/baby/when-to-call" className="text-sm font-semibold text-[var(--accent)]">
+        <Link prefetch={false} href="/baby/when-to-call" className="text-sm font-semibold text-[var(--accent)]">
           When to call ›
         </Link>
       </div>

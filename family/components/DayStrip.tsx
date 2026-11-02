@@ -80,7 +80,7 @@ export function DayStrip({
           <ul className="mt-3 flex flex-col">
             {rows.map((e) => (
               <li key={e.id} className="row">
-                <Link href={`/baby/entry/${e.id}`} className="flex w-full items-center gap-3 no-underline">
+                <Link prefetch={false} href={`/baby/entry/${e.id}`} className="flex w-full items-center gap-3 no-underline">
                   <span aria-hidden className={`icon-disc tint-${tintFor(e.type_id.split(".")[1])} text-lg`} style={{ width: 32, height: 32 }}>
                     {e.icon}
                   </span>

@@ -191,7 +191,7 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
           {openSleep ? <Big icon="sun" label={L("wokeUp")} onClick={() => endSleep(openSleep)} /> : <Big icon="zzz" label={L("fellAsleep")} onClick={() => log(sleepType, {}, false)} />}
           <Big icon="note" label={L("note")} onClick={() => setPanel("note")} />
           {can(me, "assistant", "view") && (
-            <Link href="/ask" className="btn flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
+            <Link prefetch={false} href="/ask" className="btn flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
               <Icon name="mic" size={36} />
               {L("ask")}
             </Link>

@@ -83,7 +83,7 @@ export default async function MePage() {
               {g.rows
                 .filter((r) => r.show)
                 .map((r) => (
-                  <Link key={r.href} href={r.href} className="row row-link px-4">
+                  <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
                     <span className={`icon-disc tint-${r.tint}`} style={{ width: 36, height: 36 }}>
                       <Icon name={r.icon} size={19} />
                     </span>
@@ -99,7 +99,7 @@ export default async function MePage() {
       <h2 className="section-title">You</h2>
       <nav aria-label="Settings" className="card flex flex-col p-0">
         {settings.map((r) => (
-          <Link key={r.href} href={r.href} className="row row-link px-4">
+          <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
             <Icon name={r.icon} size={20} className="shrink-0 text-[var(--accent)]" />
             <span className="flex-1 font-semibold">{r.label}</span>
             {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}
