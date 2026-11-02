@@ -49,11 +49,18 @@ function words(text: string): string[] {
   return (text.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []).filter((w) => !STOP.has(w));
 }
 
-/** Word overlap as a share of the shorter sentence: 0 to 1. */
+/**
+ * Word overlap as a share of the shorter sentence: 0 to 1. Two sentences that
+ * disagree on a number (19:00 against 19:30, 120 ml against 150 ml) are not the
+ * same memory: the new one updates the old, so it must be offered.
+ */
 function similarity(a: string, b: string): number {
   const wa = new Set(words(a));
   const wb = new Set(words(b));
   if (!wa.size || !wb.size) return 0;
+  const na = [...wa].filter((w) => /\p{N}/u.test(w)).sort().join(" ");
+  const nb = [...wb].filter((w) => /\p{N}/u.test(w)).sort().join(" ");
+  if (na !== nb) return 0;
   let n = 0;
   for (const w of wa) if (wb.has(w)) n++;
   return n / Math.min(wa.size, wb.size);
@@ -77,6 +84,6 @@ export function rememberPrompt(opts: { people: string[]; children: string[]; exi
 - Not one-off events (she fed at 14:10), not what the log already holds, not questions, not the helper's advice unless the member agreed to try it, not health details beyond what the member stated as fact.
 - "kind": "child" when it is about a child (then "about" is the child's name: ${opts.children.join(", ") || "none"}); "person" when about a member (then "about" is their first name: ${opts.people.join(", ") || "none"}); otherwise "home" with "about" null.
 - One plain sentence each, under 200 characters, in English, present tense, naming who or what it is about.
-- Skip anything already remembered: ${opts.existing.length ? opts.existing.map((e) => JSON.stringify(e)).join("; ") : "(nothing yet)"}.
+- Skip anything already remembered, unless it updates a value (a new time, amount or date): ${opts.existing.length ? opts.existing.map((e) => JSON.stringify(e)).join("; ") : "(nothing yet)"}.
 - If nothing qualifies, return [].`;
 }

@@ -30,6 +30,8 @@ test("newCandidates drops what is already remembered, or said twice", () => {
     ["She sleeps better with the white noise on."],
   );
   assert.deepEqual(out.map((c) => c.body), ["Wafa prefers answers in Arabic."]);
+  const updated = newCandidates([{ body: "Bedtime is 19:30 from Monday.", kind: "home" }, { body: "Bedtime is 19:00 from Monday.", kind: "home" }], ["Bedtime is 19:00 from Monday."]);
+  assert.deepEqual(updated.map((c) => c.body), ["Bedtime is 19:30 from Monday."], "a changed number is an update, not a duplicate");
 });
 
 test("the reading prompt names the people, the children and what is already known", () => {
