@@ -43,9 +43,9 @@ export interface ToolContext {
   routines: { name: string; routine: string }[];
   /** Every active member: first name, role label and relationship ("Mido's mother"), for the prompt. */
   people: { name: string; role: string; relationship: string | null }[];
-  /** What the family told the assistant to remember, the ones that matter for this question. */
-  memories: string[];
-  /** All confirmed facts with ids (for forget_memory). */
+  /** What the family told the assistant to remember (and what it noticed itself), the ones that matter for this question. */
+  memories: MemoryFact[];
+  /** All live facts with ids (for forget_memory). */
   facts: MemoryFact[];
   /** This member's recent chats, one line each. */
   recaps: ChatRecap[];
@@ -63,6 +63,8 @@ export interface ToolContext {
   screen: string | null;
   /** The situation snapshot, filled in by the run. */
   situation: string;
+  /** The earlier part of a long chat, one line per question, when the turns were cut. */
+  digest?: string;
 }
 
 export interface AssistantTool {
@@ -708,7 +710,7 @@ function remember(): AssistantTool {
     run: async (input, ctx) => {
       const body = String(input.body ?? "").trim();
       if (body.length < 2 || body.length > 300) return { error: "bad_body", message: "One sentence, under 300 characters." };
-      if (ctx.memories.some((m) => m.toLowerCase() === body.toLowerCase())) return { ok: true, already: true, message: "Already remembered." };
+      if (ctx.facts.some((m) => m.status !== "suggested" && m.body.toLowerCase() === body.toLowerCase())) return { ok: true, already: true, message: "Already remembered." };
       const p: AssistantProposal = { id: newId(), kind: "memory", summary: `Remember: ${body}`, memory: { body } };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT saved yet." };
@@ -763,7 +765,7 @@ function roleLabel(roleId: string, roles: { id: string; label: string }[]): stri
 }
 
 /** Load what the member may see, once per request. RLS does the filtering. */
-export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null } = {}): Promise<ToolContext> {
+export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null; chat?: string | null } = {}): Promise<ToolContext> {
   type MemberRow = { display_name: string; routine: string | null; role_id: string; relationship: string | null };
   type SubjectRow = Omit<SubjectInfo, "sex" | "species"> & { profile: Record<string, unknown> | null };
   const [{ data: subjects }, { data: types }, { data: members }, { data: roles }, { data: memData }, { data: skillData }, { data: recapData }] = await Promise.all([
@@ -773,7 +775,8 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     supabase.from("roles").select("id,label"),
     supabase.rpc("memory_list"),
     supabase.rpc("skill_list", { p_all: false }),
-    supabase.rpc("ask_chat_recaps", { p_limit: 6 }),
+    // The chat in progress is not one of the earlier chats.
+    opts.chat ? supabase.rpc("ask_chat_recaps", { p_limit: 6, p_exclude: opts.chat }) : supabase.rpc("ask_chat_recaps", { p_limit: 6 }),
   ]);
   const subs: SubjectInfo[] = (((subjects as SubjectRow[] | null) ?? []) as SubjectRow[]).map(({ profile, ...s }) => ({
     ...s,
@@ -783,8 +786,8 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
   const people = ((members as MemberRow[] | null) ?? []).map((m) => ({ name: m.display_name, routine: m.routine, relationship: m.relationship, role: roleLabel(m.role_id, (roles as { id: string; label: string }[] | null) ?? []) }));
   // Names are noise when matching memories to a question: the household's subjects and members.
   const names = [...subs.map((s) => s.name), ...people.map((p) => p.name)];
-  const facts = (((memData as { ok?: boolean; items?: MemoryFact[] } | null)?.items ?? []) as MemoryFact[]).map((m) => ({ id: m.id, body: m.body, created_at: m.created_at, by: m.by }));
-  const memories = selectMemories(opts.question ?? "", opts.history ?? [], facts, MAX_FACTS, names).map((m) => `[${m.id.slice(0, 8)}] ${m.body}`);
+  const facts = (((memData as { ok?: boolean; items?: MemoryFact[] } | null)?.items ?? []) as MemoryFact[]).map((m) => ({ id: m.id, body: m.body, kind: m.kind, status: m.status, about: m.about ?? null, subject: m.subject ?? null, expires_at: m.expires_at ?? null, created_at: m.created_at, by: m.by }));
+  const memories = selectMemories(opts.question ?? "", opts.history ?? [], facts, MAX_FACTS, names, me.member.id);
   const recaps = ((recapData as { ok?: boolean; items?: ChatRecap[] } | null)?.items ?? []) as ChatRecap[];
   const skills = (((skillData as { ok?: boolean; items?: AssistantSkill[] } | null)?.items ?? []) as AssistantSkill[]).map((s) => ({ ...s, triggers: Array.isArray(s.triggers) ? s.triggers : [] }));
   const child = subs.find((s) => s.kind === "child" && s.birth_date);

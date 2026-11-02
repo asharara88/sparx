@@ -123,6 +123,17 @@ household*); nothing in the code is tied to these people.
 - Model: Claude Opus 5.5 through the Anthropic API, with the stable part of the system prompt
   cached for an hour and server-side refusal fallback on. Needs `ANTHROPIC_API_KEY` on the
   server (Vercel project env). Cost is roughly a cent or two per question.
+- **Memory:** what the helper remembers is about the home, the child or a person (`kind` and
+  a link on `assistant_memories`), can expire, and can be changed in place. Every answer gets
+  the memories about the person asking plus the ones that match the question, grouped, in the
+  five-minute cached block. Set `ASSISTANT_REMEMBER=1` on the server and the helper also reads
+  each saved chat once it has two new questions (one small model call, Haiku by default,
+  `ASSISTANT_REMEMBER_MODEL` to change it) and lists what it noticed as suggestions on
+  "What it remembers", where anyone keeps or drops them with one tap. Off, it spends nothing.
+- **Context:** the model sees the situation (asleep or awake since when, last feed and nappy,
+  today's counts, last night, the usual day lately, who is in the house), the earlier turns
+  with what happened to each card (saved or not), a digest of a long chat's cut part, and the
+  member's earlier chats' recaps (never the chat in progress).
 
 **Step 6 — the proactive layer (this release)**
 

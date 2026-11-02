@@ -5,15 +5,16 @@ import { can } from "@/lib/types";
 import { fmtDate } from "@/lib/time";
 import { childName, possessive } from "@/lib/names";
 import { coreBlock, routedBlock, skillIndex } from "./skills";
-import { recapsBlock } from "./memory";
+import { memoriesBlock, recapsBlock } from "./memory";
 
 /**
  * The system prompt has three blocks, longest-lived first so the cache works:
  *  1. stable (cached 1 h): who the helper is, the rules, the household, the
  *     always-on skills and the index of the others. Nothing in it may depend
  *     on the clock or the question.
- *  2. skills (cached 5 min): the skills the router picked for this question.
- *     A thread about sleep keeps hitting the same block.
+ *  2. skills and memories (cached 5 min): the skills the router picked for
+ *     this question and the memories that matter for it (grouped by what they
+ *     are about). A thread about sleep keeps hitting the same block.
  *  3. volatile (never cached): the time, who is asking, where the child is
  *     right now (the situation snapshot) and which screen they came from.
  */
@@ -97,13 +98,11 @@ Members use their first names${people ? `: ${people}` : ""}.${
     ctx.routines.length ? `\n\nRoutines the family told us (use them for "is someone home", "when are they back"; the log and calendar win if they disagree):\n${ctx.routines.map((r) => `- ${r.name}: ${r.routine}`).join("\n")}` : ""
   }${hh.notes ? `\n\nHousehold notes: ${hh.notes}` : ""}${
     hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day.` : ""
-  }${
-    ctx.memories.length ? `\n\nThings the family asked you to remember (follow them; they are not log data, so do not cite them; the id in brackets is for forget_memory):\n${ctx.memories.map((m) => `- ${m}`).join("\n")}` : ""
   }${hasChild && ctx.selection.core.length ? `\n\n${coreBlock(ctx.selection.core)}` : ""}${hasChild ? `\n\n${skillIndex(ctx.skills)}` : ""}`;
 }
 
 export function skillsSystem(ctx: ToolContext): string {
-  return routedBlock(ctx.selection.routed);
+  return [routedBlock(ctx.selection.routed), memoriesBlock(ctx.memories, { id: ctx.me.member.id, name: ctx.me.member.display_name })].filter(Boolean).join("\n\n");
 }
 
 export function volatileSystem(ctx: ToolContext): string {
@@ -122,7 +121,7 @@ export function volatileSystem(ctx: ToolContext): string {
   const who = `${me.member.display_name} (${me.role.label}${me.member.relationship ? `, ${me.member.relationship}` : ""}${me.member.simple_mode ? ", uses the simple screen" : ""})`;
   const screen = ctx.screen && SCREEN_LABELS[ctx.screen] ? ` They opened you from ${SCREEN_LABELS[ctx.screen]}.` : "";
   const recaps = recapsBlock(ctx.recaps, (iso) => fmtDate(iso, ctx.tz, { day: "numeric", month: "short" }));
-  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). ${ages} You are talking to ${who}.${lang}${screen}${ctx.situation ? `\n\nSITUATION (from the log, as of now; not citable):\n${ctx.situation}` : ""}${recaps ? `\n\n${recaps}` : ""}`;
+  return `Now: ${weekday} ${nowLocal} (${ctx.tz}). ${ages} You are talking to ${who}.${lang}${screen}${ctx.situation ? `\n\nSITUATION (from the log, as of now; not citable):\n${ctx.situation}` : ""}${recaps ? `\n\n${recaps}` : ""}${ctx.digest ? `\n\n${ctx.digest}` : ""}`;
 }
 
 export function systemBlocks(ctx: ToolContext): Anthropic.Beta.BetaTextBlockParam[] {

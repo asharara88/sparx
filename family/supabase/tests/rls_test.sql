@@ -734,6 +734,62 @@ select pg_temp.assert((select count(*) from jsonb_array_elements((public.ask_cha
 reset role;
 update public.ask_chats set deleted_at = now() where id = (select id from rc1);
 
+-- Helper memory, second pass (migration 5600): kinds and links, suggestions, edits, expiry,
+-- and the chat in progress left out of its own earlier chats.
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.memory_add('Wafa likes a short answer in Arabic.', 'person', :wafa, null, null))->>'ok' = 'true', 'Dana adds a memory about Wafa');
+select pg_temp.assert((public.memory_add('Lana settles faster with white noise.', 'child', null, :lana, null))->>'ok' = 'true', 'and one about Lana');
+select pg_temp.assert((public.memory_add('A memory about nobody', 'person', null, null, null))->>'error' = 'bad_about', 'a person memory needs the person');
+select pg_temp.assert((public.memory_add('A memory about a stranger', 'person', gen_random_uuid(), null, null))->>'error' = 'bad_about', 'and the person must be in this home');
+select pg_temp.assert((public.memory_add('A memory with a link it should not have', 'home', :wafa, null, null))->>'error' = 'bad_about', 'a home memory carries no link');
+select pg_temp.assert((public.memory_add('Yesterday''s memory', 'home', null, null, now() - interval '1 day'))->>'error' = 'bad_expiry', 'an expiry must be in the future');
+select pg_temp.assert((public.memory_add('Bad kind', 'pet', null, null, null))->>'error' = 'bad_kind', 'only home, child and person');
+select (public.memory_add('The guests leave on Sunday.', 'home', null, null, now() + interval '2 days'))->>'id' as m_guests \gset
+select pg_temp.assert((select x->>'kind' = 'person' and x->'about'->>'name' = 'Wafa' from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' like 'Wafa likes%'), 'memory_list says what each memory is about');
+select pg_temp.assert((select x->'subject'->>'name' = 'Lana' from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' like 'Lana settles%'), 'and names the child');
+select pg_temp.assert((public.memory_update(:'m_guests', 'The guests leave on Monday.', null))->>'ok' = 'true', 'the author changes a memory in place');
+select pg_temp.assert((public.memory_update(:'m_guests', 'Wafa likes a short answer in Arabic.', null))->>'error' = 'duplicate', 'but not into one that exists');
+reset role;
+update public.assistant_memories set expires_at = now() - interval '1 minute' where id = :'m_guests';
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' like 'The guests%') = 0, 'an expired memory is gone from the list');
+-- Suggestions: only for one of the member's own chats, never a duplicate, capped.
+create temp table rc2 as select ((public.ask_chat_save(null, 'Bedtime', '[{"role":"user","text":"bedtime"},{"role":"assistant","text":"ok"},{"role":"user","text":"more"},{"role":"assistant","text":"ok"}]'::jsonb, 'bedtime → ok'))->>'id')::uuid as id;
+select pg_temp.assert((public.memory_suggest((select id from rc2), 2, '[{"body":"Bedtime is 19:00 from Monday.","kind":"home"},{"body":"Wafa likes a short answer in Arabic.","kind":"person","about_member_id":"00000000-0000-4000-8000-000000000003"},{"body":"Lana is teething, says Dana.","kind":"child","subject_id":"00000000-0000-4000-8000-00000000a001"},{"body":"A fourth one that is over the three.","kind":"home"}]'::jsonb))->>'added' = '2', 'two of four are new (one is remembered already, one is past the three)');
+select pg_temp.assert((select mined_turns from public.ask_chats where id = (select id from rc2)) = 2, 'the chat remembers how far it was read');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items') x where x->>'status' = 'suggested') = 2, 'the suggestions are listed');
+select pg_temp.assert((select x->>'status' from jsonb_array_elements((public.memory_list())->'items') x limit 1) = 'suggested', 'suggestions come first');
+select pg_temp.assert((public.memory_suggest(gen_random_uuid(), 2, '[{"body":"From a chat that is not mine.","kind":"home"}]'::jsonb))->>'error' = 'not_found', 'only for the member''s own chat');
+select pg_temp.assert((public.memory_suggest((select id from rc2), 2, '"nope"'::jsonb))->>'error' = 'bad_items', 'items must be a list');
+select (x->>'id') as m_sugg from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' like 'Bedtime is 19:00%' \gset
+-- The chat in progress is not one of the earlier chats.
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.ask_chat_recaps(6, (select id from rc2)))->'items') x where x->>'id' = (select id::text from rc2)) = 0, 'ask_chat_recaps leaves out the chat in progress');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.ask_chat_recaps(6, null))->'items') x where x->>'id' = (select id::text from rc2)) = 1, 'and lists it when none is excluded');
+reset role;
+-- Wafa (not an admin, not the author) keeps one suggestion and drops the other; cannot edit Dana's memory.
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.memory_keep(:'m_sugg'))->>'ok' = 'true', 'anyone who sees a suggestion can keep it');
+select pg_temp.assert((select x->>'status' = 'kept' and x->>'by' = 'Wafa' from jsonb_array_elements((public.memory_list())->'items') x where x->>'id' = :'m_sugg'), 'it is a memory now, hers');
+select pg_temp.assert((public.memory_keep(:'m_sugg'))->>'error' = 'not_found', 'a second keep finds nothing');
+select pg_temp.assert((public.memory_add('Lana is teething, says Dana.', 'home', null, null, null))->>'kept_suggestion' = 'true', 'typing a suggested sentence by hand keeps the suggestion');
+select pg_temp.assert((public.memory_update((select (x->>'id')::uuid from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' like 'Lana settles%'), 'Changed by Wafa', null))->>'error' = 'not_found', 'but cannot change Dana''s memory');
+create temp table rc3 as select ((public.ask_chat_save(null, 'Walks', '[{"role":"user","text":"walks"},{"role":"assistant","text":"ok"},{"role":"user","text":"more"},{"role":"assistant","text":"ok"}]'::jsonb, 'walks → ok'))->>'id')::uuid as id;
+select pg_temp.assert((public.memory_suggest((select id from rc3), 2, '[{"body":"Lana naps best in the pram after a walk.","kind":"child","subject_id":"00000000-0000-4000-8000-00000000a001"}]'::jsonb))->>'added' = '1', 'a carer''s own chat can suggest too');
+select pg_temp.assert((public.memory_remove((select (x->>'id')::uuid from jsonb_array_elements((public.memory_list())->'items') x where x->>'status' = 'suggested' limit 1)))->>'ok' = 'true', 'and anyone can drop a suggestion');
+reset role;
+select pg_temp.preview_as(:mido, :wafa);
+set role authenticated;
+select pg_temp.assert((public.memory_keep(gen_random_uuid()))->>'error' = 'not_allowed', 'nothing is kept in a preview');
+select pg_temp.assert((public.memory_update(:'m_sugg', 'x y', null))->>'error' = 'not_allowed', 'nor changed');
+select pg_temp.assert((public.memory_suggest((select id from rc2), 9, '[]'::jsonb))->>'error' = 'not_allowed', 'nor suggested');
+reset role;
+select pg_temp.assert((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('memory_list', 'memory_add', 'memory_update', 'memory_keep', 'memory_remove', 'memory_suggest', 'ask_chat_recaps') and pg_get_userbyid(p.proowner) = 'app_rls') = 9, 'the memory functions run as app_rls');
+update public.ask_chats set deleted_at = now() where id in (select id from rc2 union select id from rc3);
+update public.assistant_memories set deleted_at = now() where body in ('Lana naps best in the pram after a walk.', 'Wafa likes a short answer in Arabic.', 'Lana settles faster with white noise.', 'Bedtime is 19:00 from Monday.', 'Lana is teething, says Dana.') or id = :'m_guests';
+
 \o
 \echo
 

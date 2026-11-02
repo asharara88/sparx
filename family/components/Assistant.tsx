@@ -14,13 +14,15 @@ import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
 import { primeVoices } from "@/lib/voice";
 import { speak as sayAloud, stopSpeaking, unlockAudio } from "@/lib/speak";
 import { retireProposals, type ProposalState } from "@/lib/assistant/retire";
-import { recapOf } from "@/lib/assistant/memory";
+import { recapOf, withOutcomes } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
 
 /**
  * The Ask screen. Type or speak a question; the answer cites the log. If you ask
  * it to log something, it prepares a card and you tap Confirm — nothing is saved
- * until then. The conversation stays on this phone (session storage) only.
+ * until then. The conversation is kept in this tab while it goes on and saved
+ * to the member's chats after each reply; a saved chat may be read once more for
+ * things worth remembering (suggestions the family keeps or drops).
  */
 
 interface Msg {
@@ -176,6 +178,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const { data } = await supabaseBrowser().rpc("ask_chat_save", { p_id: chatId, p_title: title, p_messages: payload, p_summary: firstQ && lastA ? recapOf(firstQ, lastA) : null });
       const res = data as { ok: boolean; id?: string } | null;
       if (res?.ok && res.id && res.id !== chatId) setChatId(res.id);
+      // Two questions in, the server may read the chat for things worth remembering (off until it is switched on there).
+      if (res?.ok && res.id && msgs.filter((m) => m.role === "user").length >= 2) void apiFetch("/api/assistant/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat: res.id }) }).catch(() => undefined);
     }, 800);
     return () => {
       if (saveRef.current) clearTimeout(saveRef.current);
@@ -208,7 +212,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       setInput("");
       setBusy(true);
       spokeRef.current = false;
-      const turns: AssistantTurn[] = msgs.filter((m) => !m.error && !m.streaming).map((m) => ({ role: m.role, text: m.text }));
+      // Earlier turns go back with what happened to each card, so a follow-up knows what was saved.
+      const turns: AssistantTurn[] = withOutcomes(msgs, pstate);
       // The answer is written into a streaming bubble as it arrives, then replaced by the final reply.
       setMsgs((m) => [...m, { role: "user", text: q }, { role: "assistant", text: "", streaming: true, status: "Thinking…" }]);
       const patch = (f: (last: Msg) => Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), f(m[m.length - 1])] : m));
@@ -216,7 +221,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const res = await apiFetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true }), signal: controller.signal });
+        const res = await apiFetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, turns, screen, stream: true, chat: chatId }), signal: controller.signal });
         if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").includes("ndjson")) {
           const data = (await res.json().catch(() => null)) as AssistantReply | RpcError | null;
           if (data && data.ok) {
@@ -266,7 +271,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         setBusy(false);
       }
     },
-    [busy, msgs, screen],
+    [busy, msgs, pstate, chatId, screen],
   );
 
   // Said on Home ("Say it to log"): send it straight away, once.
