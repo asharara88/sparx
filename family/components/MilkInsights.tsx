@@ -76,7 +76,7 @@ export function ThawReminder({ milk, entries, timezone, opts }: { milk: MilkData
   const plan = thawPlan(milk.bottles, entries, opts);
   if (!plan || (plan.picks.length === 0 && !plan.short)) return null;
   return (
-    <Link href="/baby/milk" className="notice notice-warn row-link flex items-start gap-3 no-underline">
+    <Link prefetch={false} href="/baby/milk" className="notice notice-warn row-link flex items-start gap-3 no-underline">
       <Icon name="droplet" size={22} className="mt-0.5 shrink-0" />
       <span className="min-w-0 grow">
         <span className="block text-xs font-bold uppercase tracking-wide opacity-75">Tonight, for tomorrow</span>

@@ -17,7 +17,7 @@ export function LanaForecast({ entries, timezone, away, feedIntervalMin, hours =
   if (shown.length === 0) return null;
   if (compact) {
     return (
-      <Link href="/baby" className="card-flat row-link flex items-center gap-3 no-underline" aria-label={title}>
+      <Link prefetch={false} href="/baby" className="card-flat row-link flex items-center gap-3 no-underline" aria-label={title}>
         <Icon name="clock" size={20} />
         <span className="min-w-0 flex-1 truncate text-sm">
           {shown.map((i, n) => (

@@ -42,7 +42,7 @@ export default async function DoctorPage() {
         back="/baby"
         title={`${s.name} · Paediatrician`}
         action={
-          <Link href="/baby/vaccines" className="btn btn-secondary">
+          <Link prefetch={false} href="/baby/vaccines" className="btn btn-secondary">
             <Icon name="syringe" size={18} /> Vaccines
           </Link>
         }
@@ -53,7 +53,7 @@ export default async function DoctorPage() {
       <section className="card flex flex-col gap-2">
         <h2 className="section-title">Coming up</h2>
         {nextVisit && nextVisit.due_on && (
-          <Link href="/baby/vaccines" className="row-link flex items-center gap-3">
+          <Link prefetch={false} href="/baby/vaccines" className="row-link flex items-center gap-3">
             <Icon name="syringe" size={20} className="shrink-0" />
             <span className="flex-1">
               <span className="font-semibold">{nextVisit.visit} vaccines</span>
@@ -65,7 +65,7 @@ export default async function DoctorPage() {
           </Link>
         )}
         {appointments.map((e) => (
-          <Link key={e.id} href="/calendar" className="row-link flex items-center gap-3">
+          <Link prefetch={false} key={e.id} href="/calendar" className="row-link flex items-center gap-3">
             <Icon name="calendar" size={20} className="shrink-0" />
             <span className="flex-1">
               <span className="font-semibold">{e.title}</span>
@@ -85,7 +85,7 @@ export default async function DoctorPage() {
           <ul className="flex flex-col divide-y divide-[var(--line)]">
             {visits.map((e) => (
               <li key={e.id}>
-                <Link href={`/baby/entry/${e.id}`} className="row-link flex items-center gap-3 py-2">
+                <Link prefetch={false} href={`/baby/entry/${e.id}`} className="row-link flex items-center gap-3 py-2">
                   <span className="flex-1">
                     <span className="font-semibold">{fmtDate(e.occurred_at, tz, { day: "numeric", month: "short", year: "numeric" })}</span>
                     <span className="muted block text-sm">{[describePayload(e.payload), e.note].filter(Boolean).join(" · ") || "Appointment"}</span>

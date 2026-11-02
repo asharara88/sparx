@@ -24,7 +24,7 @@ export default async function ChatPage() {
         subtitle="Everyone at home sees these."
         action={
           can(me, "assistant", "view") ? (
-            <Link href="/ask" className="btn btn-secondary">
+            <Link prefetch={false} href="/ask" className="btn btn-secondary">
               <Icon name="sparkles" size={18} /> Ask
             </Link>
           ) : undefined

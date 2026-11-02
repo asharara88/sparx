@@ -37,7 +37,7 @@ export default async function LanaTrendsPage() {
         back="/baby"
         title="Trends"
         action={
-          <Link href="/baby/export" className="btn">
+          <Link prefetch={false} href="/baby/export" className="btn">
             <Icon name="printer" size={20} /> For the doctor
           </Link>
         }

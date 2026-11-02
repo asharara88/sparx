@@ -64,7 +64,7 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
                 <Icon name={ICON[s.kind]} size={18} />
               </span>
               {s.href && s.kind !== "plan" ? (
-                <Link href={s.href} className="row-link flex min-w-0 grow items-center gap-2 text-lg font-bold leading-snug">
+                <Link prefetch={false} href={s.href} className="row-link flex min-w-0 grow items-center gap-2 text-lg font-bold leading-snug">
                   <span className="grow">{s.title}</span>
                   <Icon name="forward" size={18} className="shrink-0 text-[var(--muted)]" />
                 </Link>

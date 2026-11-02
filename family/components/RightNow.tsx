@@ -31,7 +31,7 @@ export function RightNow({ summary, milk, timezone, milkLasts = null }: { summar
   const badge = "icon-disc";
   return (
     <section aria-label="Right now" className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1">
-      <Link href="/baby" className={`${tile} ${feedDue ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "tint-feed"}`}>
+      <Link prefetch={false} href="/baby" className={`${tile} ${feedDue ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "tint-feed"}`}>
         <span className={badge}>
           <Icon name="bottle" size={22} />
         </span>
@@ -41,7 +41,7 @@ export function RightNow({ summary, milk, timezone, milkLasts = null }: { summar
           <p className="text-sm opacity-80">{hint ?? (feed ? `last ${fmtTime(feed.occurred_at, timezone)}` : "No feed yet")}</p>
         </div>
       </Link>
-      <Link href="/baby" className={`${tile} ${asleep ? "bg-[var(--fg)] text-[var(--bg)]" : "tint-sleep"}`}>
+      <Link prefetch={false} href="/baby" className={`${tile} ${asleep ? "bg-[var(--fg)] text-[var(--bg)]" : "tint-sleep"}`}>
         <span className={badge}>
           <Icon name={asleep ? "zzz" : "sun"} size={22} />
         </span>
@@ -51,7 +51,7 @@ export function RightNow({ summary, milk, timezone, milkLasts = null }: { summar
           <p className="text-sm opacity-80">{asleep ? `since ${fmtTime(asleep.occurred_at, timezone)}` : sleep?.ended_at ? `woke ${fmtTime(sleep.ended_at, timezone)}` : "no sleep logged"}</p>
         </div>
       </Link>
-      <Link href="/baby/milk" className={`${tile} ${milk && fridge < 120 ? "tint-meds" : "tint-milk"}`}>
+      <Link prefetch={false} href="/baby/milk" className={`${tile} ${milk && fridge < 120 ? "tint-meds" : "tint-milk"}`}>
         <span className={badge}>
           <Icon name="droplet" size={22} />
         </span>

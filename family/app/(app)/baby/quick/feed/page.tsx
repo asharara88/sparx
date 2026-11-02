@@ -82,16 +82,16 @@ export default async function QuickFeedPage() {
         timezone={tz}
       />
       <div className="grid grid-cols-2 gap-2">
-        <Link href="/baby/quick/sleep" className="btn">
+        <Link prefetch={false} href="/baby/quick/sleep" className="btn">
           Sleep
         </Link>
-        <Link href="/baby/log/diaper" className="btn">
+        <Link prefetch={false} href="/baby/log/diaper" className="btn">
           Diaper
         </Link>
       </div>
       <p className="muted text-sm">
         A bottle, or a feed that started earlier:{" "}
-        <Link href="/baby" className="underline">
+        <Link prefetch={false} href="/baby" className="underline">
           {summary.subject.name}&apos;s screen
         </Link>
         .

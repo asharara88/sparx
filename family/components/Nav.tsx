@@ -5,6 +5,7 @@ import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { childName } from "@/lib/names";
 import { Icon, type IconName } from "@/components/Icon";
+import { usePageSwap } from "@/components/PageSwap";
 
 /**
  * Home, the child, ＋, Milk, More (DESIGN.md, "The bottom bar"): the ＋ in the middle opens
@@ -14,6 +15,7 @@ import { Icon, type IconName } from "@/components/Icon";
 export function Nav() {
   const me = useMe();
   const path = usePathname();
+  const go = usePageSwap(); // the skeleton shows the moment a tab is tapped (rule 9)
   const staff = !can(me, "lana", "view");
   const items: { href: string; label: string; icon: IconName; log?: boolean }[] = [];
   if (staff) {
@@ -38,7 +40,7 @@ export function Nav() {
           if (it.log)
             return (
               <li key={it.href}>
-                <Link href={it.href} className="tab tab-log" aria-label="Log something">
+                <Link prefetch={false} href={it.href} onClick={() => go(it.href)} className="tab tab-log" aria-label="Log something">
                   <span className="tab-log-disc">
                     <Icon name="plus" size={28} strokeWidth={2.4} />
                   </span>
@@ -47,7 +49,7 @@ export function Nav() {
             );
           return (
             <li key={it.href}>
-              <Link href={it.href} aria-current={active ? "page" : undefined} className="tab">
+              <Link prefetch={false} href={it.href} onClick={() => go(it.href)} aria-current={active ? "page" : undefined} className="tab">
                 <Icon name={it.icon} size={24} strokeWidth={active ? 2.25 : 1.75} />
                 <span>{it.label}</span>
               </Link>

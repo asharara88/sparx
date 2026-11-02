@@ -29,7 +29,7 @@ function inline(text: string, refs: Record<string, AssistantRef>, keyBase: strin
     const ref = hrefFor(m[1], m[2], refs);
     out.push(
       ref ? (
-        <Link key={`${keyBase}-c${n}`} href={ref.href} className="cite">
+        <Link prefetch={false} key={`${keyBase}-c${n}`} href={ref.href} className="cite">
           {ref.label}
         </Link>
       ) : (

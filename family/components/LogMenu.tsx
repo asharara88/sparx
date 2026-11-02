@@ -51,7 +51,7 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
               .filter((t) => t.key !== "mood")
               .map((t) => (
                 <li key={t.id} className="row px-4">
-                  <Link href={`/baby/log/${t.key}`} className="row-link flex min-h-[44px] w-full items-center gap-3">
+                  <Link prefetch={false} href={`/baby/log/${t.key}`} className="row-link flex min-h-[44px] w-full items-center gap-3">
                     <span aria-hidden className={`icon-disc tint-${tintFor(t.key)} text-xl`} style={{ width: 36, height: 36 }}>
                       {t.icon}
                     </span>

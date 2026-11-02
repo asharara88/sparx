@@ -126,7 +126,7 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
         </button>
       )}
       <div className="flex items-center justify-between gap-2">
-        <Link href={`/baby/entry/${entry.id}`} className="flex min-h-[44px] items-center text-sm font-semibold">
+        <Link prefetch={false} href={`/baby/entry/${entry.id}`} className="flex min-h-[44px] items-center text-sm font-semibold">
           All details ›
         </Link>
         {canDelete && (

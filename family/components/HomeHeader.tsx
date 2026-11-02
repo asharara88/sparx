@@ -28,7 +28,7 @@ export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: M
         </div>
       </div>
       {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt icon />}
-      <Link href="/baby/emergency" className="round-btn tint-danger" aria-label="Emergency">
+      <Link prefetch={false} href="/baby/emergency" className="round-btn tint-danger" aria-label="Emergency">
         <Icon name="phone" size={21} />
       </Link>
     </header>

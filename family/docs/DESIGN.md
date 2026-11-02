@@ -108,6 +108,11 @@ sources at the bottom.
    button, the card, "40 min ago" becomes "just now") and the server catches up behind
    it; a refused tap puts the screen back and says why. Nothing on screen waits for a
    round trip: a tap that waits for the server feels like a tap that did nothing.
+   The same for a tab: the loading skeleton shows the moment it is tapped (`PageSwap`), and
+   no link prefetches: each prefetch was a whole server render with its own sign-in checks,
+   six of them on every open of Home and thirteen on More, for a skeleton the phone can show
+   by itself. Measured 1 November 2026 with the server 600 ms away: tap to skeleton 90 ms;
+   server requests on opening Home 6 → 1, More 13 → 1, Week 6 → 2.
 
 ## Budgets and phone checks
 

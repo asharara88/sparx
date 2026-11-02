@@ -12,7 +12,7 @@ export function LanaTabs({ active, day, them }: { active: LanaTab; day?: string;
   return (
     <nav aria-label="Child sections" className="grid grid-cols-3 gap-1 rounded-2xl bg-[var(--card-2)] p-1">
       {LANA_TABS.map((t) => (
-        <Link
+        <Link prefetch={false}
           key={t}
           href={t === "today" && day ? `/baby?tab=today&d=${day}` : `/baby?tab=${t}`}
           aria-current={active === t ? "page" : undefined}

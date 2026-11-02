@@ -44,11 +44,11 @@ export function CalendarView({
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header flex items-center justify-between gap-2">
-        <Link href={`/calendar?d=${addDays(from, -14)}`} className="icon-btn" aria-label="Earlier">
+        <Link prefetch={false} href={`/calendar?d=${addDays(from, -14)}`} className="icon-btn" aria-label="Earlier">
           <Icon name="back" size={24} />
         </Link>
         <h1 className="page-title">Calendar</h1>
-        <Link href={`/calendar?d=${addDays(from, 14)}`} className="icon-btn" aria-label="Later">
+        <Link prefetch={false} href={`/calendar?d=${addDays(from, 14)}`} className="icon-btn" aria-label="Later">
           <Icon name="forward" size={24} />
         </Link>
       </header>
@@ -81,7 +81,7 @@ export function CalendarView({
             {due
               .filter((d) => d.due_on === day.date.slice(0, 10))
               .map((d) => (
-                <Link key={d.label + d.due_at} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
+                <Link prefetch={false} key={d.label + d.due_at} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
                   {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
                 </Link>
               ))}

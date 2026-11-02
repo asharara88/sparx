@@ -72,7 +72,7 @@ export function Medicines({ subjectId, items, timezone, compact = false }: { sub
           Medicine
         </h2>
         {compact ? (
-          <Link href="/baby/medicine" className="text-sm font-semibold text-[var(--accent)]">
+          <Link prefetch={false} href="/baby/medicine" className="text-sm font-semibold text-[var(--accent)]">
             All medicine ›
           </Link>
         ) : (

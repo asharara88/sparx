@@ -183,7 +183,7 @@ export function CreateHome({ email, another = false }: { email: string | null; a
           {busy ? "Creating…" : "Create the home"}
         </button>
         {another ? (
-          <Link href="/me" className="btn">
+          <Link prefetch={false} href="/me" className="btn">
             Back
           </Link>
         ) : (

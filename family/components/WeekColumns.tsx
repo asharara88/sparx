@@ -54,7 +54,7 @@ export function WeekColumns({ entries, days, prevDays, timezone, today }: { entr
         </div>
         <div className="grid flex-1 grid-cols-7 gap-1">
           {cols.map((c) => (
-            <Link key={c.day} href={`/baby?tab=today&d=${c.day}`} aria-label={c.label} className="flex min-w-0 flex-col items-stretch gap-1 no-underline">
+            <Link prefetch={false} key={c.day} href={`/baby?tab=today&d=${c.day}`} aria-label={c.label} className="flex min-w-0 flex-col items-stretch gap-1 no-underline">
               <span className={`week-col ${c.isToday ? "week-col-today" : ""}`} style={{ height: H }} aria-hidden>
                 {c.sleeps.map((b, i) => (
                   <span key={`s${i}`} className="week-sleep" style={{ top: b.top, height: b.h }} />

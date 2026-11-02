@@ -40,7 +40,7 @@ export default async function MilestonesPage() {
         subtitle={`${s.name}'s milestones, newest first.`}
         action={
           canAdd ? (
-            <Link href="/baby/log/milestone" className="btn btn-primary" style={{ minHeight: 40 }}>
+            <Link prefetch={false} href="/baby/log/milestone" className="btn btn-primary" style={{ minHeight: 40 }}>
               <Icon name="plus" size={18} /> Add
             </Link>
           ) : undefined
@@ -59,7 +59,7 @@ export default async function MilestonesPage() {
             const age = s.birth_date ? ageLabel(ageDays(s.birth_date, day)) : null;
             return (
               <li key={e.id}>
-                <Link href={`/baby/entry/${e.id}`} className="card flex gap-3 no-underline">
+                <Link prefetch={false} href={`/baby/entry/${e.id}`} className="card flex gap-3 no-underline">
                   {photo ? (
                     <Photo path={photo} alt="" className="h-24 w-24 shrink-0 rounded-xl object-cover" />
                   ) : (

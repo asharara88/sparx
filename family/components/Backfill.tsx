@@ -216,7 +216,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
                 {clash.ended_at ? ` to ${fmtTime(clash.ended_at, timezone)}` : ", still going"}.
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <Link href={`/baby/entry/${clash.id}`} className="btn">
+                <Link prefetch={false} href={`/baby/entry/${clash.id}`} className="btn">
                   Change it
                 </Link>
                 <button type="button" className="btn" disabled={busy} onClick={() => void save(true)}>

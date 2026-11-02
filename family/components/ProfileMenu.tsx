@@ -24,7 +24,7 @@ export function ProfileMenu({ name, path }: { name: string; path?: string | null
       </button>
       {open && (
         <div className="absolute right-0 z-30 mt-2 w-44 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--card)] shadow-[var(--shadow)]">
-          <Link href="/me" className="flex items-center gap-2 px-4 py-3 font-semibold" onClick={() => setOpen(false)}>
+          <Link prefetch={false} href="/me" className="flex items-center gap-2 px-4 py-3 font-semibold" onClick={() => setOpen(false)}>
             <Icon name="user" size={18} /> {name}
           </Link>
           <SignOutForm>

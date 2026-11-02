@@ -13,19 +13,28 @@ import { HomeSwitcher } from "@/components/HomeSwitcher";
 import { OfflineFlusher } from "@/components/OfflineFlusher";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { BindHome } from "@/components/RememberHome";
+import { PageSwap, PageSwapProvider } from "@/components/PageSwap";
 import { NightScreen } from "@/components/NightScreen";
 import { nightWindow } from "@/lib/night";
 import { meOnce } from "@/lib/server/me";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   if (!isConfigured()) return <NotConfigured />;
   const supabase = await createClient();
   // Who is signed in, and who they are in the home, asked together: each is a round trip.
-  const [{ data: auth }, meRes] = await Promise.all([supabase.auth.getUser(), meOnce()]);
+  const [{ data: auth }, meRes] = await Promise.all([
+    supabase.auth.getUser(),
+    meOnce(),
+  ]);
   if (!auth.user) {
     // A "view as" token the database no longer accepts must not look like a sign-out:
     // end the preview and come back as the admin.
-    if ((await cookies()).get(PREVIEW_COOKIE)?.value) redirect("/api/view-as/exit");
+    if ((await cookies()).get(PREVIEW_COOKIE)?.value)
+      redirect("/api/view-as/exit");
     redirect("/login");
   }
 
@@ -33,7 +42,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const me = data as Me | RpcError | null;
 
   // In no home yet: make one, or wait to be added (docs/MULTI_HOME.md).
-  if (me && !me.ok && me.error === "no_member") return <CreateHome email={auth.user.email ?? null} />;
+  if (me && !me.ok && me.error === "no_member")
+    return <CreateHome email={auth.user.email ?? null} />;
 
   // This device was showing a home the account is no longer in (removed, or deleted):
   // nothing runs as it; pick one of the others (the switch binds the device to it).
@@ -79,14 +89,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const night = nightWindow(me.subjects?.[0] ?? null);
   return (
     <MeProvider me={me}>
-      <div data-size={large ? "large" : undefined} className="mx-auto flex min-h-dvh max-w-2xl flex-col">
-        {me.preview && <PreviewBanner name={me.member.display_name} role={me.role.label} />}
-        <main className="flex-1">{children}</main>
-        <Nav />
-        <OfflineFlusher />
-        <NightScreen from={night.from} to={night.to} timezone={me.household.timezone} />
-        {!me.preview && <BindHome id={me.household.id} name={me.household.name} />}
-      </div>
+      <PageSwapProvider>
+        <div
+          data-size={large ? "large" : undefined}
+          className="mx-auto flex min-h-dvh max-w-2xl flex-col"
+        >
+          {me.preview && (
+            <PreviewBanner name={me.member.display_name} role={me.role.label} />
+          )}
+          <main className="flex-1">
+            <PageSwap>{children}</PageSwap>
+          </main>
+          <Nav />
+          <OfflineFlusher />
+          <NightScreen
+            from={night.from}
+            to={night.to}
+            timezone={me.household.timezone}
+          />
+          {!me.preview && (
+            <BindHome id={me.household.id} name={me.household.name} />
+          )}
+        </div>
+      </PageSwapProvider>
     </MeProvider>
   );
 }

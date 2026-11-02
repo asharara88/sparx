@@ -447,7 +447,7 @@ export function LanaNow({
                   {clash.entry.ended_at ? ` to ${fmtTime(clash.entry.ended_at, timezone)}` : ", still going"}.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <Link href={clash.entry.id.startsWith(QUEUED_ID_PREFIX) ? "/baby?tab=today" : `/baby/entry/${clash.entry.id}`} className="btn">
+                  <Link prefetch={false} href={clash.entry.id.startsWith(QUEUED_ID_PREFIX) ? "/baby?tab=today" : `/baby/entry/${clash.entry.id}`} className="btn">
                     Change it
                   </Link>
                   <button type="button" className="btn" disabled={busy} onClick={() => logSleep(clash.lastedMin, true)}>
@@ -514,7 +514,7 @@ function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, act
   return (
     <li className="log-row">
       {href ? (
-        <Link href={href} className="log-row-body">
+        <Link prefetch={false} href={href} className="log-row-body">
           {body}
         </Link>
       ) : (
@@ -523,7 +523,7 @@ function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, act
         </button>
       )}
       {action.href ? (
-        <Link href={action.href} className={btnCls} aria-label={action.label}>
+        <Link prefetch={false} href={action.href} className={btnCls} aria-label={action.label}>
           {svg}
         </Link>
       ) : (

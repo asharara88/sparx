@@ -12,7 +12,7 @@ export function PageHeader({ title, back, subtitle, action, large = false }: { t
     <header className={`page-header ${large ? "page-header-large" : ""}`}>
       <div className="flex items-center gap-2">
         {back && (
-          <Link href={back} className="icon-btn" aria-label="Back">
+          <Link prefetch={false} href={back} className="icon-btn" aria-label="Back">
             <Icon name="back" size={24} />
           </Link>
         )}
