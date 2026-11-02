@@ -9,8 +9,9 @@ export const maxDuration = 60;
 
 /**
  * POST { chat }: read one of the caller's saved chats for things worth
- * remembering, and store them as suggestions. Answers { ok, off: true } while
- * ASSISTANT_REMEMBER is not set, so the screen can call it without checking.
+ * remembering, and store them as suggestions. Answers { ok, off: true } when
+ * ASSISTANT_REMEMBER=0 (or no model is configured), so the screen can call it
+ * without checking.
  */
 export async function POST(req: Request) {
   const supabase = await createClient();

@@ -83,8 +83,8 @@ Done and live:
   assistant with skills and memory, push notifications, the daily cron.
 - The helper's memory, second pass (2 November, migration `…5600`): memories about the
   home, the child or a person, with expiry and editing; suggestions the helper draws from
-  a saved chat (`ASSISTANT_REMEMBER=1`, off until Mido sets it; one Haiku call per chat
-  read); the situation block grew (awake since, last nappy, last night, the usual day,
+  a saved chat (on by default since 2 November; `ASSISTANT_REMEMBER=0` switches it off;
+  one Haiku call per chat read); the situation block grew (awake since, last nappy, last night, the usual day,
   who is in the house); earlier turns carry each card's outcome and a long chat's cut
   part comes as a digest. README, "Memory" and "Context", has the detail.
 - Branding as elnunu, plum and ivory, self-hosted fonts, icons and manifest.

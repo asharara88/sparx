@@ -8,15 +8,17 @@ import { newCandidates, parseCandidates, rememberPrompt, shouldMine, type Memory
 /**
  * Reads one of the member's saved chats and stores what the helper noticed as
  * suggestions (memory_suggest), for the family to keep or drop on the memory
- * screen. One small model call per chat read, so it is off until
- * ASSISTANT_REMEMBER=1 is set on the server. Never writes a kept memory.
+ * screen. One small model call per chat read; on by default where the model
+ * is configured, off with ASSISTANT_REMEMBER=0 on the server. Never writes a
+ * kept memory.
  */
 
 export const REMEMBER_MODEL = process.env.ASSISTANT_REMEMBER_MODEL ?? "claude-haiku-5-5";
 
 export function rememberEnabled(): boolean {
   const v = (process.env.ASSISTANT_REMEMBER ?? "").trim().toLowerCase();
-  return (v === "1" || v === "true" || v === "on") && !!(anthropicApiKey() || federationConfigured());
+  const off = v === "0" || v === "false" || v === "off";
+  return !off && !!(anthropicApiKey() || federationConfigured());
 }
 
 type Msg = { role?: string; text?: string };
