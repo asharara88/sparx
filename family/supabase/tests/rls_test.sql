@@ -1305,6 +1305,27 @@ select pg_temp.assert((public.care_entry_end(:'feed5', now() - interval '80 minu
 reset role;
 select pg_temp.assert((select ended_at - occurred_at between interval '34 minutes' and interval '36 minutes' and (payload ? 'auto_end') = false and coalesce(note, '') not like '%Timer left on%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000005'),
   'the feed carries the real end, no guess flag and no note');
+-- A hand that corrects a guessed end in the sheet wins over a stop that syncs later.
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000008', :lana, 'lana', 'lana.feed', now() - interval '3 hours', '{"method":"Breast","side":"Right"}', :mido, (select household_id from public.care_subjects where id = :lana));
+select id as feed8 from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000008' \gset
+select pg_temp.act_as(:mido);
+set role authenticated;
+select private.timers_close_overdue(:lana, 'lana.feed');
+select pg_temp.assert((public.care_entry_update(:'feed8', now() - interval '3 hours', now() - interval '140 minutes', '{"method":"Breast","side":"Right","auto_end":true}'::jsonb, 'Timer left on; end set to 20 min.'))->>'ok' = 'true',
+  'the sheet corrects a guessed end, sending the payload and note it was given');
+select pg_temp.assert((public.care_entry_end(:'feed8', now() - interval '100 minutes'))->>'error' = 'already_ended', 'a stop syncing after the correction is refused');
+reset role;
+select pg_temp.assert((select ended_at - occurred_at between interval '39 minutes' and interval '41 minutes' and (payload ? 'auto_end') = false and note is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000008'),
+  'the corrected end stays, the guess flag and its note are gone');
+-- The same through the entry check: keeping or ending a flagged entry clears the flag.
+update public.care_entries set ended_at = occurred_at + interval '20 minutes', payload = payload || '{"auto_end": true}', note = 'Timer left on; end set to 20 min.' where id = :'feed8';
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_check(:'feed8', 'end', now() - interval '130 minutes'))->>'ok' = 'true', 'the check ends a flagged entry');
+select pg_temp.assert((public.care_entry_end(:'feed8', now() - interval '100 minutes'))->>'error' = 'already_ended', 'and a stop syncing after that is refused too');
+reset role;
+select pg_temp.assert((select (payload ? 'auto_end') = false and note is null and payload->>'checked' = 'true' from public.care_entries where id = :'feed8'), 'the check cleared the flag and the note');
 select pg_temp.assert((select ended_at is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000006'), 'the sleep of 20 hours was left alone');
 -- Past the day, the sleep goes too, at 12 h.
 update public.care_entries set occurred_at = now() - interval '25 hours' where client_id = 'cccccccc-0000-4000-8000-000000000006';

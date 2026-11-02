@@ -50,13 +50,13 @@ test("a sleep timer still running after a day is ended at the next entry; a feed
 });
 
 test("a timer its limit stopped is shown once, so the guessed end gets a look", () => {
-  const stopped = { ...mk("feed", 0, 20, { method: "Breast" }), note: "Timer left on; end set to 20 min." };
+  const stopped = { ...mk("feed", 0, 20, { method: "Breast", auto_end: true }), note: "Timer left on; end set to 20 min." };
   const flags = checkEntries([stopped], { now: T0 + 3 * 3_600_000 });
   assert.equal(flags.length, 1);
   assert.equal(flags[0].kind, "timer_limit");
   assert.match(flags[0].title, /Feed stopped at its limit/);
-  const flagged = checkEntries([mk("feed", 0, 20, { method: "Breast", auto_end: true })], { now: T0 + 3 * 3_600_000 });
-  assert.equal(flagged[0]?.kind, "timer_limit", "the flag the server sets is enough on its own");
+  const corrected = { ...mk("feed", 0, 40, { method: "Breast" }), note: "Timer left on; end set to 20 min." };
+  assert.equal(checkEntries([corrected], { now: T0 + 3 * 3_600_000 }).length, 0, "a hand that saved the sheet cleared the flag; the note alone is not a flag");
   assert.equal(checkEntries([mk("feed", 0, 35, { method: "Breast" })], { now: T0 + 3 * 3_600_000 }).length, 0, "a real end that replaced the guess is not flagged");
 });
 

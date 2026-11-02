@@ -11,7 +11,8 @@
 --   3. home_summary never lists a timer past its limit as running.
 --   4. An end the limit guessed is marked (payload auto_end) and gives way to a real end that
 --      arrives later, from a phone that stopped the timer with no signal and synced after
---      the hour; an end a hand set stays locked (migration 4200).
+--      the hour; an end a hand set stays locked (migration 4200). A hand that edits or checks
+--      the entry clears the mark, so its correction is not replaced by a stop syncing later.
 -- ---------------------------------------------------------------------------
 create or replace function private.timer_limit(p_key text) returns interval
 language sql immutable as $$
@@ -242,4 +243,64 @@ begin
   end if;
   perform private.audit_write(v_module, 'edit', true, 'care_entries', p_id::text, '{"end": true}'::jsonb);
   return jsonb_build_object('ok', true, 'id', p_id, 'ended_at', v_end);
+end $$;
+
+-- 5. care_entry_update and care_entry_check: as in migrations 0200 and 2900, clearing the guess mark.
+create or replace function public.care_entry_update(
+  p_id uuid, p_occurred_at timestamptz, p_ended_at timestamptz, p_payload jsonb, p_note text
+) returns jsonb
+language plpgsql security invoker set search_path = public as $$
+declare
+  v_module text := private.entry_module(p_id);
+begin
+  if v_module is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
+  if not public.has_permission(v_module, 'edit') then
+    perform private.audit_write(v_module, 'edit', false, 'care_entries', p_id::text);
+    return private.denied('You are not allowed to change this entry.');
+  end if;
+  -- A hand that saves the sheet has decided the end: the limit's guess flag goes (migration
+  -- 5500), and its note goes when the end changed, so a stop syncing later cannot replace it.
+  update public.care_entries
+     set occurred_at = coalesce(p_occurred_at, occurred_at),
+         ended_at    = p_ended_at,
+         payload     = coalesce(p_payload, payload) - 'auto_end',
+         note        = case when payload->>'auto_end' = 'true' and p_ended_at is distinct from ended_at
+                            then nullif(btrim(regexp_replace(coalesce(p_note, ''), 'Timer left on; end set to [^.]*\.', '')), '')
+                            else nullif(btrim(p_note), '') end
+   where id = p_id and deleted_at is null;
+  perform private.audit_write(v_module, 'edit', true, 'care_entries', p_id::text);
+  return jsonb_build_object('ok', true, 'id', p_id);
+end $$;
+
+create or replace function public.care_entry_check(p_id uuid, p_action text, p_ended_at timestamptz default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  e public.care_entries;
+  v_raw_min integer;
+begin
+  select * into e from public.care_entries where id = p_id and deleted_at is null;
+  if e.id is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
+  if p_action = 'delete' then
+    if not private.authz(e.module_id, 'delete', 'care_entries', p_id::text) then return private.denied('You are not allowed to delete this entry.'); end if;
+    update public.care_entries set deleted_at = now() where id = p_id;
+    return jsonb_build_object('ok', true, 'id', p_id, 'deleted', true);
+  end if;
+  if not private.authz(e.module_id, 'edit', 'care_entries', p_id::text, jsonb_build_object('check', p_action)) then return private.denied('You are not allowed to change this entry.'); end if;
+  if p_action = 'ok' then
+    update public.care_entries set payload = (payload || '{"checked": true}'::jsonb) - 'auto_end' where id = p_id;
+    return jsonb_build_object('ok', true, 'id', p_id, 'kept', true);
+  end if;
+  if p_action = 'end' then
+    if p_ended_at is null or p_ended_at < e.occurred_at or p_ended_at > now() + interval '5 minutes' then
+      return jsonb_build_object('ok', false, 'error', 'bad_end', 'message', 'The end must be after the start and not in the future.');
+    end if;
+    v_raw_min := case when e.ended_at is not null then round(extract(epoch from e.ended_at - e.occurred_at) / 60)::int else round(extract(epoch from now() - e.occurred_at) / 60)::int end;
+    update public.care_entries
+       set ended_at = p_ended_at,
+           payload = (payload || jsonb_build_object('checked', true, 'timer_capped', true, 'raw_minutes', v_raw_min, 'duration_min', round(extract(epoch from p_ended_at - e.occurred_at) / 60)::int)) - 'auto_end',
+           note = nullif(btrim(regexp_replace(coalesce(note, ''), 'Timer left on; end set to [^.]*\.', '')), '')
+     where id = p_id;
+    return jsonb_build_object('ok', true, 'id', p_id, 'ended_at', p_ended_at);
+  end if;
+  return jsonb_build_object('ok', false, 'error', 'bad_action');
 end $$;
