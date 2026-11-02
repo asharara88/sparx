@@ -55,6 +55,9 @@ test("a timer its limit stopped is shown once, so the guessed end gets a look", 
   assert.equal(flags.length, 1);
   assert.equal(flags[0].kind, "timer_limit");
   assert.match(flags[0].title, /Feed stopped at its limit/);
+  const flagged = checkEntries([mk("feed", 0, 20, { method: "Breast", auto_end: true })], { now: T0 + 3 * 3_600_000 });
+  assert.equal(flagged[0]?.kind, "timer_limit", "the flag the server sets is enough on its own");
+  assert.equal(checkEntries([mk("feed", 0, 35, { method: "Breast" })], { now: T0 + 3 * 3_600_000 }).length, 0, "a real end that replaced the guess is not flagged");
 });
 
 test("one-second timers and double nappies suggest delete", () => {

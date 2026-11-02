@@ -1297,6 +1297,14 @@ select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.home_su
 reset role;
 select pg_temp.assert((select ended_at = occurred_at + interval '20 minutes' and note like '%Timer left on; end set to 20 min.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000005'),
   'the feed past the hour was closed at 20 min with a note when Home opened');
+-- The real end, stopped on a phone with no signal and synced after the hour, replaces the guess.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_end(:'feed5', now() - interval '85 minutes'))->>'ok' = 'true', 'a real end replaces the end the limit guessed');
+select pg_temp.assert((public.care_entry_end(:'feed5', now() - interval '80 minutes'))->>'error' = 'already_ended', 'and a second end is refused as before');
+reset role;
+select pg_temp.assert((select ended_at - occurred_at between interval '34 minutes' and interval '36 minutes' and (payload ? 'auto_end') = false and coalesce(note, '') not like '%Timer left on%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000005'),
+  'the feed carries the real end, no guess flag and no note');
 select pg_temp.assert((select ended_at is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000006'), 'the sleep of 20 hours was left alone');
 -- Past the day, the sleep goes too, at 12 h.
 update public.care_entries set occurred_at = now() - interval '25 hours' where client_id = 'cccccccc-0000-4000-8000-000000000006';

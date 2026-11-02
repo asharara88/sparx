@@ -84,7 +84,7 @@ export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): Chec
     const end = e.ended_at ? t(e.ended_at) : null;
 
     // 0. A timer its limit stopped (migration 5500): the end is a guess, worth a look.
-    if (isTimer(e) && end != null && !checked(e) && /Timer left on; end set to/.test(e.note ?? "")) {
+    if (isTimer(e) && end != null && !checked(e) && (e.payload.auto_end === true || /Timer left on; end set to/.test(e.note ?? ""))) {
       push({ kind: "timer_limit", entry: e, title: `${k === "feed" ? "Feed" : k === "sleep" ? "Sleep" : "Wake"} stopped at its limit`, detail: `The timer ran past ${k === "sleep" ? "a day" : "an hour"}, so it was stopped and set to ${hm(end - start)}. Fix the end if you know it.`, fix: null, suggestDelete: false });
       continue;
     }

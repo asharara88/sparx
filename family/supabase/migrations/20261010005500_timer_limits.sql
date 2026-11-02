@@ -9,6 +9,9 @@
 --      The nightly job runs it for every home; home_summary runs it for the child when
 --      the caller may log for them; care_entry_log runs it for the type being started.
 --   3. home_summary never lists a timer past its limit as running.
+--   4. An end the limit guessed is marked (payload auto_end) and gives way to a real end that
+--      arrives later, from a phone that stopped the timer with no signal and synced after
+--      the hour; an end a hand set stays locked (migration 4200).
 -- ---------------------------------------------------------------------------
 create or replace function private.timer_limit(p_key text) returns interval
 language sql immutable as $$
@@ -43,6 +46,7 @@ begin
   ), u as (
     update public.care_entries e
        set ended_at = e.occurred_at + t.cap,
+           payload = e.payload || '{"auto_end": true}'::jsonb, -- a guess: a real end may still replace it
            note = concat_ws(' ', nullif(e.note, ''), 'Timer left on; end set to ' || t.cap_text || '.'),
            updated_at = now()
       from t where e.id = t.id and e.ended_at is null -- still open: a hand that ended it meanwhile wins
@@ -195,4 +199,47 @@ begin
                       where e.subject_id = v_subject and e.deleted_at is null
                         and (e.occurred_at at time zone v_tz)::date = v_today)
   );
+end $$;
+
+-- 4. care_entry_end: as in migration 4200, letting a real end replace a guessed one.
+create or replace function public.care_entry_end(p_id uuid, p_ended_at timestamptz default now()) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_module text := private.entry_module(p_id);
+  v_row public.care_entries;
+  v_tz text := coalesce((select timezone from public.household limit 1), 'UTC');
+  v_end timestamptz := coalesce(p_ended_at, now());
+begin
+  if v_module is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
+  -- The lock: whoever comes second waits here and then sees the end the first one set.
+  select * into v_row from public.care_entries where id = p_id and deleted_at is null for update;
+  if v_row.id is null then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
+  if not (public.has_permission(v_module, 'edit') or (v_row.logged_by = public.current_member_id() and public.has_permission(v_module, 'add'))) then
+    perform private.audit_write(v_module, 'edit', false, 'care_entries', p_id::text, '{"end": true}'::jsonb);
+    return private.denied('You are not allowed to change this entry.');
+  end if;
+  if v_end < v_row.occurred_at then
+    return jsonb_build_object('ok', false, 'error', 'bad_time', 'message', 'The end time is before the start time.');
+  end if;
+  -- An end the limit guessed (migration 5500) gives way to the real one, which may arrive
+  -- later from a phone that had no signal; an end a hand set stays, as before.
+  if v_row.ended_at is not null and v_row.payload->>'auto_end' = 'true' then
+    update public.care_entries
+       set ended_at = v_end, payload = payload - 'auto_end',
+           note = nullif(btrim(regexp_replace(coalesce(note, ''), 'Timer left on; end set to [^.]*\.', '')), ''),
+           updated_at = now()
+     where id = p_id and deleted_at is null;
+    perform private.audit_write(v_module, 'edit', true, 'care_entries', p_id::text, '{"end": true, "replaced_auto_end": true}'::jsonb);
+    return jsonb_build_object('ok', true, 'id', p_id, 'ended_at', v_end);
+  end if;
+  if v_row.ended_at is not null then
+    return jsonb_build_object('ok', false, 'error', 'already_ended', 'ended_at', v_row.ended_at,
+      'message', 'It was already ended at ' || to_char(v_row.ended_at at time zone v_tz, 'HH24:MI') || '.');
+  end if;
+  update public.care_entries set ended_at = v_end where id = p_id and deleted_at is null and ended_at is null;
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'already_ended', 'message', 'It was already ended.');
+  end if;
+  perform private.audit_write(v_module, 'edit', true, 'care_entries', p_id::text, '{"end": true}'::jsonb);
+  return jsonb_build_object('ok', true, 'id', p_id, 'ended_at', v_end);
 end $$;
