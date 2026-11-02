@@ -755,6 +755,8 @@ update public.assistant_memories set expires_at = now() - interval '1 minute' wh
 select pg_temp.act_as(:dana);
 set role authenticated;
 select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' like 'The guests%') = 0, 'an expired memory is gone from the list');
+select pg_temp.assert((public.memory_add('The guests leave on Monday.', 'home', null, null, null))->>'duplicate' is null, 'and the same sentence can be remembered again');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.memory_list())->'items') x where x->>'body' = 'The guests leave on Monday.') = 1, 'as a new live memory');
 -- Suggestions: only for one of the member's own chats, never a duplicate, capped.
 create temp table rc2 as select ((public.ask_chat_save(null, 'Bedtime', '[{"role":"user","text":"bedtime"},{"role":"assistant","text":"ok"},{"role":"user","text":"more"},{"role":"assistant","text":"ok"}]'::jsonb, 'bedtime → ok'))->>'id')::uuid as id;
 select pg_temp.assert((public.memory_suggest((select id from rc2), 2, '[{"body":"Bedtime is 19:00 from Monday.","kind":"home"},{"body":"Wafa likes a short answer in Arabic.","kind":"person","about_member_id":"00000000-0000-4000-8000-000000000003"},{"body":"Lana is teething, says Dana.","kind":"child","subject_id":"00000000-0000-4000-8000-00000000a001"},{"body":"A fourth one that is over the three.","kind":"home"}]'::jsonb))->>'added' = '2', 'two of four are new (one is remembered already, one is past the three)');
@@ -779,6 +781,8 @@ select pg_temp.assert((public.memory_update((select (x->>'id')::uuid from jsonb_
 create temp table rc3 as select ((public.ask_chat_save(null, 'Walks', '[{"role":"user","text":"walks"},{"role":"assistant","text":"ok"},{"role":"user","text":"more"},{"role":"assistant","text":"ok"}]'::jsonb, 'walks → ok'))->>'id')::uuid as id;
 select pg_temp.assert((public.memory_suggest((select id from rc3), 2, '[{"body":"Lana naps best in the pram after a walk.","kind":"child","subject_id":"00000000-0000-4000-8000-00000000a001"}]'::jsonb))->>'added' = '1', 'a carer''s own chat can suggest too');
 select pg_temp.assert((public.memory_remove((select (x->>'id')::uuid from jsonb_array_elements((public.memory_list())->'items') x where x->>'status' = 'suggested' limit 1)))->>'ok' = 'true', 'and anyone can drop a suggestion');
+select pg_temp.assert((public.memory_suggest((select id from rc3), 4, '[{"body":"Lana naps best in the pram after a walk.","kind":"home"}]'::jsonb))->>'added' = '0', 'a dropped suggestion is never suggested again');
+select pg_temp.assert((select count(*) from jsonb_array_elements_text((public.memory_list())->'dropped') d where d = 'Lana naps best in the pram after a walk.') = 1, 'and memory_list hands the reader what was dropped');
 reset role;
 select pg_temp.preview_as(:mido, :wafa);
 set role authenticated;
@@ -788,7 +792,7 @@ select pg_temp.assert((public.memory_suggest((select id from rc2), 9, '[]'::json
 reset role;
 select pg_temp.assert((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('memory_list', 'memory_add', 'memory_update', 'memory_keep', 'memory_remove', 'memory_suggest', 'ask_chat_recaps') and pg_get_userbyid(p.proowner) = 'app_rls') = 9, 'the memory functions run as app_rls');
 update public.ask_chats set deleted_at = now() where id in (select id from rc2 union select id from rc3);
-update public.assistant_memories set deleted_at = now() where body in ('Lana naps best in the pram after a walk.', 'Wafa likes a short answer in Arabic.', 'Lana settles faster with white noise.', 'Bedtime is 19:00 from Monday.', 'Lana is teething, says Dana.') or id = :'m_guests';
+update public.assistant_memories set deleted_at = now() where body in ('Lana naps best in the pram after a walk.', 'The guests leave on Monday.', 'Wafa likes a short answer in Arabic.', 'Lana settles faster with white noise.', 'Bedtime is 19:00 from Monday.', 'Lana is teething, says Dana.') or id = :'m_guests';
 
 \o
 \echo

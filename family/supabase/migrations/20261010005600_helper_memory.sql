@@ -14,6 +14,11 @@
 --      it was read (mined_turns), so the same chat is not read twice.
 --   4. ask_chat_recaps can leave out the chat in progress, which used to show
 --      up in its own "earlier chats".
+-- A memory is live while it is not deleted and not expired: an expired one is
+-- out of every list, duplicate check and cap, so the same sentence can be
+-- remembered again. A suggestion the family dropped stays dropped: the same
+-- sentence is never suggested again, and memory_list hands the reader those
+-- dropped lines so it does not offer them either.
 -- All of it under the home policy, owned by app_rls like the rest.
 
 alter table public.assistant_memories
@@ -60,7 +65,10 @@ begin
     left join public.members m on m.id = a.created_by
     left join public.members am on am.id = a.about_member_id
     left join public.care_subjects s on s.id = a.subject_id
-    where a.deleted_at is null and (a.expires_at is null or a.expires_at > now())), '[]'::jsonb));
+    where a.deleted_at is null and (a.expires_at is null or a.expires_at > now())), '[]'::jsonb),
+  'dropped', coalesce((
+    select jsonb_agg(d.body order by d.deleted_at desc) from (
+      select body, deleted_at from public.assistant_memories where status = 'suggested' and deleted_at is not null order by deleted_at desc limit 50) d), '[]'::jsonb));
 end $$;
 
 create or replace function public.memory_add(p_body text, p_kind text, p_about_member_id uuid, p_subject_id uuid, p_expires_at timestamptz) returns jsonb
@@ -72,8 +80,8 @@ begin
   if length(v_body) < 2 or length(v_body) > 300 then return jsonb_build_object('ok', false, 'error', 'bad_body', 'message', 'Keep a memory between 2 and 300 characters.'); end if;
   v_bad := private.memory_check(v_kind, p_about_member_id, p_subject_id, p_expires_at);
   if v_bad is not null then return jsonb_build_object('ok', false, 'error', v_bad, 'message', case v_bad when 'bad_expiry' then 'The date to forget it on must be in the future.' else 'Say who or what the memory is about.' end); end if;
-  if (select count(*) from public.assistant_memories where deleted_at is null and status = 'kept') >= 200 then return jsonb_build_object('ok', false, 'error', 'full', 'message', 'The helper already remembers 200 things. Remove some first.'); end if;
-  select id, status into v_id, v_status from public.assistant_memories where deleted_at is null and lower(body) = lower(v_body) limit 1;
+  if (select count(*) from public.assistant_memories where deleted_at is null and (expires_at is null or expires_at > now()) and status = 'kept') >= 200 then return jsonb_build_object('ok', false, 'error', 'full', 'message', 'The helper already remembers 200 things. Remove some first.'); end if;
+  select id, status into v_id, v_status from public.assistant_memories where deleted_at is null and (expires_at is null or expires_at > now()) and lower(body) = lower(v_body) limit 1;
   if v_id is not null and v_status = 'kept' then return jsonb_build_object('ok', true, 'id', v_id, 'duplicate', true); end if;
   if v_id is not null then
     -- The same thing the helper had suggested: keeping it by hand is the confirmation.
@@ -105,7 +113,7 @@ begin
   if v_row.id is null or not (v_row.created_by = public.current_member_id() or public.has_permission('members', 'edit')) then
     return jsonb_build_object('ok', false, 'error', 'not_found', 'message', 'Only whoever added a memory, or an admin, can change it.');
   end if;
-  if exists (select 1 from public.assistant_memories where deleted_at is null and id <> p_id and lower(body) = lower(v_body)) then
+  if exists (select 1 from public.assistant_memories where deleted_at is null and (expires_at is null or expires_at > now()) and id <> p_id and lower(body) = lower(v_body)) then
     return jsonb_build_object('ok', false, 'error', 'duplicate', 'message', 'It already remembers that.');
   end if;
   update public.assistant_memories set body = v_body, expires_at = p_expires_at, updated_at = now() where id = p_id;
@@ -118,7 +126,7 @@ language plpgsql security definer set search_path = public as $$
 begin
   if not private.authz('assistant', 'view', 'assistant_memories', p_id::text) then return private.denied(); end if;
   if private.read_only_preview() then return private.denied('Read only while viewing as someone else.'); end if;
-  if (select count(*) from public.assistant_memories where deleted_at is null and status = 'kept') >= 200 then return jsonb_build_object('ok', false, 'error', 'full', 'message', 'The helper already remembers 200 things. Remove some first.'); end if;
+  if (select count(*) from public.assistant_memories where deleted_at is null and (expires_at is null or expires_at > now()) and status = 'kept') >= 200 then return jsonb_build_object('ok', false, 'error', 'full', 'message', 'The helper already remembers 200 things. Remove some first.'); end if;
   update public.assistant_memories set status = 'kept', created_by = public.current_member_id(), created_at = now(), updated_at = now()
    where id = p_id and deleted_at is null and status = 'suggested';
   if not found then return jsonb_build_object('ok', false, 'error', 'not_found', 'message', 'That suggestion is gone.'); end if;
@@ -160,7 +168,8 @@ begin
     v_subject := case when v_kind = 'child' then nullif(v_item->>'subject_id', '')::uuid end;
     if length(v_body) < 2 or length(v_body) > 300 then continue; end if;
     if private.memory_check(v_kind, v_about, v_subject, null) is not null then continue; end if;
-    if exists (select 1 from public.assistant_memories where deleted_at is null and lower(body) = lower(v_body)) then continue; end if;
+    if exists (select 1 from public.assistant_memories where lower(body) = lower(v_body)
+                  and ((deleted_at is null and (expires_at is null or expires_at > now())) or (status = 'suggested' and deleted_at is not null))) then continue; end if;
     insert into public.assistant_memories (body, kind, about_member_id, subject_id, status, source_chat_id, created_by)
     values (v_body, v_kind, v_about, v_subject, 'suggested', p_chat_id, null);
     v_added := v_added + 1;

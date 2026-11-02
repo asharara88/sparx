@@ -48,7 +48,9 @@ export async function rememberFromChat(supabase: SupabaseClient, me: Me, chatId:
     supabase.from("members").select("id, display_name").eq("is_active", true),
     supabase.from("care_subjects").select("id, name").eq("is_active", true),
   ]);
-  const existing = (((memData as { ok?: boolean; items?: MemoryFact[] } | null)?.items ?? []) as MemoryFact[]).map((m) => m.body);
+  const mem = memData as { ok?: boolean; items?: MemoryFact[]; dropped?: string[] } | null;
+  // What it knows, and what the family already dropped: neither is offered again.
+  const existing = [...((mem?.items ?? []) as MemoryFact[]).map((m) => m.body), ...((mem?.dropped ?? []) as string[])];
   const people = ((members as { id: string; display_name: string }[] | null) ?? []).map((m) => ({ id: m.id, name: m.display_name }));
   const kids = ((subjects as { id: string; name: string }[] | null) ?? []).map((s) => ({ id: s.id, name: s.name }));
 

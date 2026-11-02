@@ -665,6 +665,8 @@ export interface MemoryItem {
 export interface MemoryData {
   ok: true;
   items: MemoryItem[];
+  /** Suggestions the family dropped (bodies, newest first), so the reader does not offer them again. */
+  dropped?: string[];
 }
 
 export interface BackupRow {

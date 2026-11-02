@@ -59,7 +59,7 @@ function similarity(a: string, b: string): number {
   return n / Math.min(wa.size, wb.size);
 }
 
-/** Drop a candidate that says what a memory (kept or suggested) already says, or repeats another candidate. */
+/** Drop a candidate that says what a memory (kept, suggested, or dropped by the family) already says, or repeats another candidate. */
 export function newCandidates(cands: MemoryCandidate[], existing: string[], threshold = 0.7): MemoryCandidate[] {
   const out: MemoryCandidate[] = [];
   for (const c of cands) {
