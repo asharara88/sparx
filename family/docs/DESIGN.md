@@ -228,7 +228,9 @@ method of the last feed). Breast: Left and Right as two big buttons, the running
 and Done. Bottle: which milk and the amounts as chips, the usual one marked. Sleep: a big
 round *Asleep now* (or *Woke up now*, *Back to sleep*) button, then "or it already happened"
 with the clock times already open; picking one asks *Still asleep* or when she woke, as
-clock times ("13:45 · 45 min").
+clock times ("13:45 · 45 min"). A feed timer runs an hour at most and a sleep a day: past that it was
+left on, so it stops by itself at the usual length (a feed 20 min, a sleep 12 h), says so in
+its note, and *To check* shows it. Home never shows a timer past its limit as running.
 
 **Edit an entry** (the child's page): tapping an entry opens a sheet, not a page: when it
 started (the phone's own picker), when it ended as clock-time chips, its choices and amounts

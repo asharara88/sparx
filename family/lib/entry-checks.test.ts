@@ -37,15 +37,24 @@ test("a sleep over 10 hours with nothing logged during it is flagged without a f
   assert.equal(checkEntries([mk("sleep", 0, 9 * 60)], { now: T0 + 14 * 3_600_000 }).length, 0, "nine hours is a good night");
 });
 
-test("a sleep timer still running after 12 hours is ended at the next entry", () => {
+test("a sleep timer still running after a day is ended at the next entry; a feed after an hour", () => {
   const sleep = mk("sleep", 0, null);
   const diaper = mk("diaper", 8 * 60, null, { kind: "Dirty" });
-  const flags = checkEntries([sleep, diaper], { now: T0 + 13 * 3_600_000 });
+  const flags = checkEntries([sleep, diaper], { now: T0 + 25 * 3_600_000 });
   assert.equal(flags[0].kind, "open_timer");
   assert.equal(flags[0].fix?.ended_at, diaper.occurred_at);
-  const feedOpen = checkEntries([mk("feed", 0, null, { method: "Breast" })], { now: T0 + 60 * 60_000 });
+  const feedOpen = checkEntries([mk("feed", 0, null, { method: "Breast" })], { now: T0 + 90 * 60_000 });
   assert.equal(feedOpen[0].fix?.label, "End it at 20 min");
-  assert.equal(checkEntries([mk("sleep", 0, null)], { now: T0 + 4 * 3_600_000 }).length, 0, "four hours asleep is fine");
+  assert.equal(checkEntries([mk("sleep", 0, null)], { now: T0 + 20 * 3_600_000 }).length, 0, "twenty hours asleep is within the day");
+  assert.equal(checkEntries([mk("feed", 0, null, { method: "Breast" })], { now: T0 + 50 * 60_000 }).length, 0, "fifty minutes feeding is within the hour");
+});
+
+test("a timer its limit stopped is shown once, so the guessed end gets a look", () => {
+  const stopped = { ...mk("feed", 0, 20, { method: "Breast" }), note: "Timer left on; end set to 20 min." };
+  const flags = checkEntries([stopped], { now: T0 + 3 * 3_600_000 });
+  assert.equal(flags.length, 1);
+  assert.equal(flags[0].kind, "timer_limit");
+  assert.match(flags[0].title, /Feed stopped at its limit/);
 });
 
 test("one-second timers and double nappies suggest delete", () => {

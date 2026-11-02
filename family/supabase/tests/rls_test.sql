@@ -987,14 +987,14 @@ select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_member_id', 'has_permission', 'link_current_user', 'household_create', 'my_homes', 'home_switch', 'household_delete',
-                            'timers_close_forgotten', 'member_invite_create', 'member_invite_peek', 'member_invite_accept', 'members_accounts')) = 0,
+                            'timers_close_forgotten', 'timers_close_overdue', 'member_invite_create', 'member_invite_peek', 'member_invite_accept', 'members_accounts')) = 0,
   'every definer function in public belongs to app_rls, except the twelve that must see across homes or read the accounts');
 select pg_temp.assert(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
                             'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home',
-                            'preview_member_id', 'timers_close_forgotten', 'user_signed_in')) = 0,
+                            'preview_member_id', 'timers_close_forgotten', 'timers_close_overdue', 'user_signed_in')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
 -- And none of them may reach into the auth schema: the token is read through public.current_member_id()
@@ -1238,6 +1238,13 @@ reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
 reset role;
+-- An earlier check's feed is still open, two hours in; the limits (migration 5500) would close
+-- it too, so it is ended by hand first and the count below is the wake-up's alone.
+update public.care_entries set ended_at = occurred_at + interval '10 minutes' where client_id = 'aaaaaaaa-0000-4000-8000-000000000001' and ended_at is null;
+-- The wake-up above was closed the moment Mido opened Home (migration 5500), so the nightly
+-- gets a wake-up of its own, left on for two days with nobody opening Home in between.
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000007', :lana, 'lana', 'lana.wake', now() - interval '2 days', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
 -- As the server: its own key, no member behind it (the production cron), so no home in scope.
 select set_config('request.jwt.claims', '{"role":"service_role"}', false);
 set role service_role;
@@ -1257,6 +1264,49 @@ select pg_temp.assert((select ended_at = occurred_at + interval '12 hours' and n
   'the sleep left on ends 12 h after it started, with a note, instead of being handed back');
 reset role;
 update public.care_entries set ended_at = now() where client_id in ('cccccccc-0000-4000-8000-000000000003', 'cccccccc-0000-4000-8000-000000000004');
+select pg_temp.assert((select ended_at = occurred_at + interval '1 hour' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000007'), 'the nightly closed its wake-up at 1 h');
+
+-- Timer limits (migration 5500): a feed runs an hour at most, a sleep a day. Past that it
+-- is closed at its usual length the moment someone who may log for the child opens Home.
+-- The feed is a timer for these checks, as in a home that breastfeeds (the demo's is).
+select has_end as feed_was_timer from public.care_entry_types where id = 'lana.feed' \gset
+update public.care_entry_types set has_end = true where id = 'lana.feed';
+insert into public.care_entries (client_id, subject_id, module_id, type_id, occurred_at, payload, logged_by, household_id) values
+  ('cccccccc-0000-4000-8000-000000000005', :lana, 'lana', 'lana.feed', now() - interval '2 hours', '{"method":"Breast","side":"Left"}', :mido, (select household_id from public.care_subjects where id = :lana)),
+  ('cccccccc-0000-4000-8000-000000000006', :lana, 'lana', 'lana.sleep', now() - interval '20 hours', '{}', :mido, (select household_id from public.care_subjects where id = :lana));
+select id as feed5 from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000005' \gset
+select id as sleep6 from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000006' \gset
+-- A member who may only look (the carer, logging taken away for the check) closes nothing.
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action = 'add';
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.home_summary(:lana))->>'ok' = 'true', 'Home still opens for a member who may not log');
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.home_summary(:lana))->'ongoing') o where o->>'id' = :'feed5'), 'but a feed past the hour is not shown as running to anyone');
+reset role;
+update public.permissions set allowed = true where role_id = 'home_carer' and module_id = 'lana' and action = 'add';
+select pg_temp.assert((select ended_at is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000005'), 'a member who may not log leaves the timer to be closed by one who may');
+-- Nor a view-as preview.
+select pg_temp.preview_as(:mido, :lilly);
+set role authenticated;
+select pg_temp.assert((private.timers_close_overdue(:lana))->>'error' = 'not_allowed', 'a view-as preview cannot close timers');
+reset role;
+-- Mido opens Home: the feed past the hour is closed at 20 min; the sleep at 20 h still runs.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.home_summary(:lana))->'ongoing') o where o->>'id' = :'sleep6'), 'a sleep of 20 hours is still running: the limit is a day');
+reset role;
+select pg_temp.assert((select ended_at = occurred_at + interval '20 minutes' and note like '%Timer left on; end set to 20 min.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000005'),
+  'the feed past the hour was closed at 20 min with a note when Home opened');
+select pg_temp.assert((select ended_at is null from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000006'), 'the sleep of 20 hours was left alone');
+-- Past the day, the sleep goes too, at 12 h.
+update public.care_entries set occurred_at = now() - interval '25 hours' where client_id = 'cccccccc-0000-4000-8000-000000000006';
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.home_summary(:lana))->'ongoing') o where o->>'id' = :'sleep6'), 'past a day the sleep is not running either');
+reset role;
+select pg_temp.assert((select ended_at = occurred_at + interval '12 hours' and note like '%Timer left on; end set to 12 h.%' from public.care_entries where client_id = 'cccccccc-0000-4000-8000-000000000006'),
+  'a sleep past the day was closed at 12 h with a note when Home opened');
+update public.care_entry_types set has_end = :'feed_was_timer' where id = 'lana.feed';
 
 -- ============================================================================
 -- Joining by invite link (migration 5300): an admin sends a link, whoever opens it

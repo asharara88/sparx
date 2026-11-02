@@ -27,7 +27,7 @@ test("overlappingSleep: a nap from earlier on top of one already logged is found
   assert.equal(overlappingSleep(logged, ms("12:30"), ms("13:30"), ms("14:30")), null);
 });
 
-test("overlappingSleep: an open sleep runs to now, unless it is a timer left on for over 12 hours", () => {
+test("overlappingSleep: an open sleep runs to now, unless it is a timer left on for over a day", () => {
   const open = [{ id: "open", type_id: "lana.sleep", occurred_at: at("13:30"), ended_at: null }];
   assert.equal(overlappingSleep(open, ms("13:00"), ms("13:45"), ms("14:00"))?.id, "open");
   const stale = [{ id: "stale", type_id: "lana.sleep", occurred_at: at("13:30", "24"), ended_at: null }];
