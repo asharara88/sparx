@@ -7,8 +7,18 @@
 /** Nap lengths offered for a sleep from earlier, minutes. */
 export const NAP_LENGTHS = [20, 30, 45, 60, 90, 120] as const;
 
+/**
+ * How long a timer may run before it was left on (migration 5500, the server's rule too):
+ * a feed an hour, a night wake-up an hour, a sleep a day. Past that it is not running.
+ */
+export const TIMER_LIMIT_MS: Record<string, number> = { feed: 3_600_000, wake: 3_600_000, sleep: 24 * 3_600_000 };
 /** An open sleep older than this is a timer left on, not a sleep (DESIGN.md, rule 6). */
-export const STALE_OPEN_SLEEP_MS = 12 * 3_600_000;
+export const STALE_OPEN_SLEEP_MS = TIMER_LIMIT_MS.sleep;
+
+/** The timers still within their limit; the server closes the others on its next read. */
+export function runningTimers<T extends { type_id: string; occurred_at: string }>(ongoing: T[], nowMs: number): T[] {
+  return ongoing.filter((e) => nowMs - Date.parse(e.occurred_at) <= (TIMER_LIMIT_MS[e.type_id.split(".")[1] ?? ""] ?? TIMER_LIMIT_MS.sleep));
+}
 
 /**
  * The bottle chips and the one to mark: the last bottle's amount is the usual one, and it
@@ -34,7 +44,7 @@ interface SleepLike {
 
 /**
  * The first sleep already logged that shares time with [startMs, endMs). An open sleep
- * runs to now, unless it is older than 12 hours (a timer left on). Touching ends (one nap
+ * runs to now, unless it is older than a day (a timer left on). Touching ends (one nap
  * ends at 13:00, the next starts at 13:00) do not count.
  */
 export function overlappingSleep<T extends SleepLike>(entries: readonly T[], startMs: number, endMs: number, nowMs: number, sleepTypeId = "lana.sleep"): T | null {
@@ -81,7 +91,7 @@ interface TimedLike {
 
 /**
  * The longest finished sleep that started in [fromMs, toMs), minutes; 0 when there was
- * none. An open sleep counts up to now unless it is a timer left on (over 12 hours).
+ * none. An open sleep counts up to now unless it is a timer left on (over a day).
  */
 export function longestSleep(entries: readonly TimedLike[], fromMs: number, toMs: number, nowMs: number, sleepTypeId = "lana.sleep"): number {
   let best = 0;

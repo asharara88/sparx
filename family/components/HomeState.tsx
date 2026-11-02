@@ -5,7 +5,7 @@ import { fmtDuration, fmtTime } from "@/lib/time";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { mergeOngoing, onQueueChange, readQueueFor, type QueuedOp } from "@/lib/offline";
-import { napWindow } from "@/lib/backlog";
+import { napWindow, runningTimers } from "@/lib/backlog";
 
 const H12 = 12 * 60;
 
@@ -38,7 +38,7 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
     load();
     return onQueueChange(load);
   }, []);
-  const ongoing = mergeOngoing(summary.ongoing, summary.subject.id, queue, me.member.display_name, summary.types);
+  const ongoing = runningTimers(mergeOngoing(summary.ongoing, summary.subject.id, queue, me.member.display_name, summary.types), now);
   const asleep = ongoing.find((e) => e.type_id === "lana.sleep");
   const feeding = ongoing.find((e) => e.type_id === "lana.feed");
   // A sleep ended on this phone and not yet sent: she woke then.

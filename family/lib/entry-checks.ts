@@ -10,6 +10,7 @@
  */
 
 export interface CheckEntry {
+  note?: string | null;
   id: string;
   type_id: string;
   occurred_at: string;
@@ -17,7 +18,7 @@ export interface CheckEntry {
   payload: Record<string, unknown>;
 }
 
-export type CheckKind = "long_feed" | "long_sleep" | "overlap" | "open_timer" | "double" | "big_bottle" | "short_timer";
+export type CheckKind = "long_feed" | "long_sleep" | "overlap" | "open_timer" | "timer_limit" | "double" | "big_bottle" | "short_timer";
 
 export interface CheckFlag {
   id: string;
@@ -41,9 +42,9 @@ export interface CheckOptions {
 export const LONG_FEED_MIN = 45;
 export const KEEP_FEED_MIN = 20;
 export const LONG_SLEEP_HOURS = 10;
-export const OPEN_SLEEP_HOURS = 12;
-export const OPEN_FEED_MIN = 45;
-export const OPEN_WAKE_HOURS = 3;
+export const OPEN_SLEEP_HOURS = 24;
+export const OPEN_FEED_MIN = 60;
+export const OPEN_WAKE_HOURS = 1;
 export const BIG_BOTTLE_ML = 240;
 export const DOUBLE_WINDOW_MIN = 2;
 export const SHORT_TIMER_SEC = 45;
@@ -82,6 +83,11 @@ export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): Chec
     const start = t(e.occurred_at);
     const end = e.ended_at ? t(e.ended_at) : null;
 
+    // 0. A timer its limit stopped (migration 5500): the end is a guess, worth a look.
+    if (isTimer(e) && end != null && !checked(e) && e.payload.auto_end === true) {
+      push({ kind: "timer_limit", entry: e, title: `${k === "feed" ? "Feed" : k === "sleep" ? "Sleep" : "Wake"} stopped at its limit`, detail: `The timer ran past ${k === "sleep" ? "a day" : "an hour"}, so it was stopped and set to ${hm(end - start)}. Fix the end if you know it.`, fix: null, suggestDelete: false });
+      continue;
+    }
     // 1. A timer that is still running far too long.
     if (isTimer(e) && end == null && !checked(e)) {
       const ran = now - start;

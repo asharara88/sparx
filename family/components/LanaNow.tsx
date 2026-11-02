@@ -14,7 +14,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
 import { NOW, type When, whenToIso, isEarlier, recallWhen } from "@/lib/when";
 import { fromLocalInput, toLocalInput } from "@/lib/time";
-import { bottleChoices, napLengths, overlappingSleep } from "@/lib/backlog";
+import { bottleChoices, napLengths, overlappingSleep, runningTimers } from "@/lib/backlog";
 import { possessive } from "@/lib/names";
 import { isNightAt } from "@/lib/night";
 
@@ -91,7 +91,8 @@ export function LanaNow({
     load();
     return onQueueChange(load);
   }, []);
-  const ongoing = mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types);
+  // A timer past its limit (a feed an hour, a sleep a day) is not running, whatever the server last said.
+  const ongoing = runningTimers(mergeOngoing(serverOngoing, subject.id, queue, me.member.display_name, types), Date.now());
   // What the rows say happened last, with this phone's taps counted before the server answers.
   const seen = mergeRecent(recent, subject.id, queue);
   const queuedRef = useRef(false);
