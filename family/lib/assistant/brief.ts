@@ -94,7 +94,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
   const yesterday = addDays(day, -1);
   const data: Record<string, unknown> = {
     who_is_home: await run("who_is_home", {}),
-    calendar: await run("calendar", { from: kind === "morning" ? day : day, to: addDays(day, 1) }),
+    calendar: await run("calendar", { from: day, to: addDays(day, 1) }),
     due_soon: await run("due_soon", { days_ahead: 7 }),
   };
   for (const s of ctx.subjects) {
@@ -112,8 +112,8 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
 
   const ask =
     kind === "morning"
-      ? `Write this morning's brief for ${me.member.display_name}. Cover, in this order and only if there is something to say: how the night went for the baby (sleep stretches, night feeds, wake-ups; what is still running now); milk for the day if the log shows pumping (ml pumped since last evening against the household target of ${me.household.milk_target_ml ?? 400} ml, and what has already gone into bottles); who is home today and who is working; what is on today's calendar; anything due or overdue (treatments, next meal); what is running low; anything open or urgent in the house. Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] / [ticket:ID] / [item:ID] as instructed. If a section has nothing, leave it out rather than saying "nothing".`
-      : `Write this evening's digest of what happened today for ${me.member.display_name}: the baby's day in numbers (feeds and ml or minutes, naps and total sleep, diapers, medicine) and anything unusual against the week; what was logged for the cat; what got done in the house; what is on tomorrow's calendar and who is home; what is due tomorrow. Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] / [ticket:ID] / [item:ID] as instructed. Leave out empty sections.`;
+      ? `Write this morning's brief for ${me.member.display_name}. Cover, in this order and only if there is something to say: how the night went for the baby (sleep stretches, night feeds, wake-ups; what is still running now); milk for the day if the log shows pumping (ml pumped since last evening against the household target of ${me.household.milk_target_ml ?? 400} ml, and what has already gone into bottles); who is home today and who is working; what is on today's calendar; anything due or overdue (treatments, next meal). Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. If a section has nothing, leave it out rather than saying "nothing".`
+      : `Write this evening's digest of what happened today for ${me.member.display_name}: the baby's day in numbers (feeds and ml or minutes, naps and total sleep, diapers, medicine) and anything unusual against the week; what is on tomorrow's calendar and who is home; what is due tomorrow. Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. Leave out empty sections.`;
 
   const t0 = Date.now();
   const res = await compose(

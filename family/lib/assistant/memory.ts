@@ -1,16 +1,28 @@
+import type { AssistantProposal, AssistantTurn } from "../types";
+
 /**
- * Memory selection. The helper has three kinds of memory:
- *  - facts the family confirmed (assistant_memories): household-wide, each a
- *    sentence; the prompt gets the ones that matter for this question;
+ * Memory selection. The helper has four kinds of memory:
+ *  - facts the family confirmed (assistant_memories): about the home, a child
+ *    or a person, each a sentence; the prompt gets the ones that matter for
+ *    this question, and always the ones about the person asking;
+ *  - what the helper noticed in earlier chats and nobody has confirmed yet
+ *    (the same table, status "suggested"): offered with care, never as fact;
  *  - recaps of the member's own earlier chats (ask_chats.summary): episodic,
  *    newest first, so a follow-up a week later starts where it ended;
  *  - outcomes of coach plans, which the situation snapshot carries.
  * Pure, so it is unit-tested.
  */
 
+export type MemoryKind = "home" | "child" | "person";
+
 export interface MemoryFact {
   id: string;
   body: string;
+  kind?: MemoryKind;
+  status?: "kept" | "suggested";
+  about?: { id: string; name: string } | null;
+  subject?: { id: string; name: string } | null;
+  expires_at?: string | null;
   created_at?: string;
   by?: string | null;
 }
@@ -68,21 +80,92 @@ function overlap(a: string[], b: Set<string>): number {
 }
 
 export const MAX_FACTS = 30;
+export const MAX_SUGGESTED = 5;
 
 /**
- * Which confirmed facts go into the prompt. All of them while there are few;
- * past the cap, the ones that share words with the question and the last turns
- * come first, then the newest (memory_list returns newest first).
+ * Which facts go into the prompt. All of them while there are few; past the
+ * cap, the ones about the person asking always, then the ones that share words
+ * with the question and the last turns, then the newest (memory_list returns
+ * newest first). Suggestions (unconfirmed) are capped separately and come last.
  */
-export function selectMemories(question: string, history: string[], facts: MemoryFact[], max = MAX_FACTS, names: Iterable<string> = []): MemoryFact[] {
-  if (facts.length <= max) return facts;
+export function selectMemories(question: string, history: string[], facts: MemoryFact[], max = MAX_FACTS, names: Iterable<string> = [], askerId: string | null = null): MemoryFact[] {
+  const kept = facts.filter((f) => f.status !== "suggested");
+  const suggested = facts.filter((f) => f.status === "suggested").slice(0, MAX_SUGGESTED);
+  if (kept.length <= max) return [...kept, ...suggested];
   const skip = Array.from(names);
   const q = new Set(words([question, ...history.slice(-2)].join(" "), skip));
-  return [...facts]
-    .map((f, i) => ({ f, score: overlap(words(f.body, skip), q) * 10 + (facts.length - i) / facts.length }))
+  const picked = [...kept]
+    .map((f, i) => ({ f, score: (askerId && f.about?.id === askerId ? 1000 : 0) + overlap(words(f.body, skip), q) * 10 + (kept.length - i) / kept.length }))
     .sort((a, b) => b.score - a.score)
     .slice(0, max)
     .map((x) => x.f);
+  return [...picked, ...suggested];
+}
+
+/**
+ * The prompt's memory block, grouped by what each memory is about: the home,
+ * each child, each person (the person asking first, named as such). The id in
+ * brackets is for forget_memory. Suggestions come last, marked as unconfirmed.
+ */
+export function memoriesBlock(facts: MemoryFact[], asker: { id: string; name: string } | null): string {
+  if (!facts.length) return "";
+  const line = (f: MemoryFact) => `- [${f.id.slice(0, 8)}] ${f.body}`;
+  const kept = facts.filter((f) => f.status !== "suggested");
+  const suggested = facts.filter((f) => f.status === "suggested");
+  const groups: { title: string; items: MemoryFact[] }[] = [];
+  const home = kept.filter((f) => !f.kind || f.kind === "home");
+  if (home.length) groups.push({ title: "About the home", items: home });
+  const bySubject = new Map<string, { name: string; items: MemoryFact[] }>();
+  for (const f of kept.filter((f) => f.kind === "child")) {
+    const k = f.subject?.id ?? "?";
+    if (!bySubject.has(k)) bySubject.set(k, { name: f.subject?.name ?? "the child", items: [] });
+    bySubject.get(k)!.items.push(f);
+  }
+  for (const g of bySubject.values()) groups.push({ title: `About ${g.name}`, items: g.items });
+  const byPerson = new Map<string, { name: string; items: MemoryFact[] }>();
+  for (const f of kept.filter((f) => f.kind === "person")) {
+    const k = f.about?.id ?? "?";
+    if (!byPerson.has(k)) byPerson.set(k, { name: f.about?.name ?? "someone", items: [] });
+    byPerson.get(k)!.items.push(f);
+  }
+  const people = [...byPerson.entries()].sort(([a], [b]) => (a === asker?.id ? -1 : b === asker?.id ? 1 : 0));
+  for (const [id, g] of people) groups.push({ title: `About ${g.name}${id === asker?.id ? " (the person you are talking to)" : ""}`, items: g.items });
+  const out = [
+    "Things the family asked you to remember (follow them; they are not log data, so do not cite them; the id in brackets is for forget_memory):",
+    ...groups.map((g) => `${g.title}:\n${g.items.map(line).join("\n")}`),
+  ];
+  if (suggested.length) out.push(`Things you noticed in earlier chats that nobody has confirmed yet (treat as likely, not certain; say "I think" if you lean on one; the family keeps or drops them on the memory screen):\n${suggested.map(line).join("\n")}`);
+  return out.join("\n\n");
+}
+
+/**
+ * The messages sent back to the model carry what happened to each proposal
+ * card, so a follow-up knows the bottle was logged and the memory kept, or not.
+ */
+export function withOutcomes(msgs: { role: "user" | "assistant"; text: string; proposals?: AssistantProposal[]; error?: boolean; streaming?: boolean }[], states: Record<string, { status: string; note?: string }>): AssistantTurn[] {
+  return msgs
+    .filter((m) => !m.error && !m.streaming)
+    .map((m) => {
+      const lines = (m.proposals ?? []).map((p) => {
+        const s = states[p.id]?.status;
+        return `[${s === "saved" ? "Confirmed and saved" : s === "dropped" || s === "error" ? "Not saved" : "Not confirmed yet"}: ${p.summary}]`;
+      });
+      return { role: m.role, text: lines.length ? `${m.text}\n${lines.join("\n")}`.trim() : m.text };
+    });
+}
+
+/**
+ * A long chat is cut to its last turns before it reaches the model; the earlier
+ * part comes along as one line per question asked, so the thread still makes
+ * sense ("the bottle we talked about"). Empty when nothing was cut.
+ */
+export function chatDigest(turns: AssistantTurn[], keep: number, maxLines = 10): string {
+  if (turns.length <= keep) return "";
+  const dropped = turns.slice(0, turns.length - keep);
+  const asked = dropped.filter((t) => t.role === "user").map((t) => t.text.replace(/\s+/g, " ").trim().slice(0, 100));
+  const confirmed = dropped.flatMap((t) => [...t.text.matchAll(/\[Confirmed and saved: ([^\]]+)\]/g)].map((m) => m[1].slice(0, 100)));
+  const lines = [...asked.slice(-maxLines).map((q) => `- asked: ${q}`), ...confirmed.slice(-5).map((c) => `- saved: ${c}`)];
+  return lines.length ? `EARLIER IN THIS CHAT (cut for length; what they asked and what was saved):\n${lines.join("\n")}` : "";
 }
 
 /** The recap line saved with a chat: the first question and where the last answer landed, citations stripped. */

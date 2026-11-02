@@ -102,7 +102,9 @@ Dependabot was added and removed on purpose: do not bring it back.
   it is on. Never enable Supabase's "OAuth Server" for this: that is a different feature.
 - Open on Mido's side: the Google provider switch; Supabase "Confirm email" never checked
   in the dashboard; the "often" cron needs Vercel Pro; the assistant eval has never run
-  against the live app; Codex automatic reviews still on.
+  against the live app; Codex automatic reviews still on; `ASSISTANT_REMEMBER=1` on Vercel
+  if he wants the helper to suggest memories from chats (migration 5600; costs one small
+  model call per chat read).
 
 ## How to behave
 

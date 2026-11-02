@@ -196,7 +196,7 @@ Three levels, no more.
 |---|---|---|
 | **Now** | Home | Her state (the next-nap window while awake, the running time while asleep or feeding); the one thing that matters now; the four log rows. |
 | **Today** | The child's page | Today / Week / About her. Today: the totals strip and every entry as a list, "+ Log" at the bottom for anything less common than the four. |
-| **Deeper** | Milk, More | Milk: the fridge and freezer as lists. More: one grouped list: Family (chat, members and who's here, calendar, notes, audit log), The helper (ask, what it remembers, what it can do), You (settings). Health and growth live under About her on the child's page. |
+| **Deeper** | Milk, More | Milk: the fridge and freezer as lists. More: one grouped list: Family (chat, members and who's here, calendar, notes, audit log), The helper (ask, what it remembers: suggestions to keep or drop first, then one line to teach it, then the list; what it can do), You (settings). Health and growth live under About her on the child's page. |
 
 The bottom bar has Home, the child, a round **＋** in the middle, Milk and More (Huckleberry's
 centre button). ＋ opens the child's log sheet (every kind of entry, *From earlier*) from any

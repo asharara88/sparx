@@ -4,6 +4,7 @@ import type { AssistantEvent, AssistantReply, AssistantTurn, AssistantUsage, Me,
 import { can } from "@/lib/types";
 import { buildTools, loadContext, type AssistantTool, type ToolContext } from "./tools";
 import { systemBlocks } from "./prompt";
+import { chatDigest } from "./memory";
 import { loadSituation } from "./situation";
 import { anthropicOptions, modelConfigured } from "@/lib/server/anthropic";
 import { isAbort, withTimeout } from "./wait";
@@ -37,7 +38,7 @@ export function assistantConfigured(): boolean {
 }
 
 let _client: Anthropic | null = null;
-function client(): Anthropic {
+export function client(): Anthropic {
   if (!_client) _client = new Anthropic(anthropicOptions({ timeout: 90_000 }));
   return _client;
 }
@@ -46,6 +47,8 @@ export interface RunInput {
   supabase: SupabaseClient;
   me: Me;
   turns: AssistantTurn[];
+  /** The saved chat these turns belong to, so its own recap is not read back as an earlier chat. */
+  chat?: string | null;
   question: string;
   /** Which screen the member came from (home, lana, milk, plan…). */
   screen?: string | null;
@@ -100,7 +103,7 @@ function statusFor(calls: Anthropic.Beta.BetaToolUseBlock[]): string {
   return `${STATUS[first] ?? "Looking"}…`;
 }
 
-export async function askAssistant({ supabase, me, turns, question, screen = null, onEvent, signal }: RunInput): Promise<AssistantReply | RpcError> {
+export async function askAssistant({ supabase, me, turns, question, screen = null, chat = null, onEvent, signal }: RunInput): Promise<AssistantReply | RpcError> {
   const t0 = Date.now();
   const emit = (e: AssistantEvent) => {
     try {
@@ -128,8 +131,9 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
 
   const history = turns.filter((t) => t.role === "user").map((t) => t.text);
   if (signal?.aborted) return stopped();
-  const ctx = await loadContext(supabase, me, new Date(), { question, history, screen });
+  const ctx = await loadContext(supabase, me, new Date(), { question, history, screen, chat });
   ctx.signal = signal;
+  ctx.digest = chatDigest(turns, MAX_TURNS);
   // A conversation ended during the context reads goes no further: no situation snapshot, no model.
   if (signal?.aborted) return stopped();
   ctx.situation = await loadSituation(ctx).catch(() => "");

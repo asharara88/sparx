@@ -650,6 +650,14 @@ export interface MedicinesData {
 export interface MemoryItem {
   id: string;
   body: string;
+  /** What it is about: the home, a child (subject) or a person (about). */
+  kind: "home" | "child" | "person";
+  /** "suggested": the helper noticed it in a chat and nobody has kept it yet. */
+  status: "kept" | "suggested";
+  about: { id: string; name: string } | null;
+  subject: { id: string; name: string } | null;
+  expires_at: string | null;
+  source_chat_id: string | null;
   created_at: string;
   by: string | null;
   mine: boolean;
@@ -657,6 +665,8 @@ export interface MemoryItem {
 export interface MemoryData {
   ok: true;
   items: MemoryItem[];
+  /** Suggestions the family dropped (bodies, newest first), so the reader does not offer them again. */
+  dropped?: string[];
 }
 
 export interface BackupRow {

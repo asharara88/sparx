@@ -7,7 +7,9 @@ import { friendlyModelError } from "@/lib/server/anthropic";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const SCREENS = new Set(["home", "lana", "patterns", "milk", "plan", "calendar", "simple"]);
+const SCREENS = new Set(["home", "child", "patterns", "milk", "plan", "calendar", "simple"]);
+/** Older links said "lana" for the child's screen. */
+const SCREEN_ALIAS: Record<string, string> = { lana: "child" };
 
 /**
  * POST { question, turns?, screen?, stream? }.
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
   const me = meData as Me | RpcError | null;
   if (!me || !me.ok) return NextResponse.json({ ok: false, error: "no_member", message: "We could not load your details." }, { status: 403 });
 
-  let body: { question?: unknown; turns?: unknown; screen?: unknown; stream?: unknown };
+  let body: { question?: unknown; turns?: unknown; screen?: unknown; stream?: unknown; chat?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -43,13 +45,15 @@ export async function POST(req: Request) {
         .filter((t): t is AssistantTurn => !!t && typeof t === "object" && ((t as AssistantTurn).role === "user" || (t as AssistantTurn).role === "assistant") && typeof (t as AssistantTurn).text === "string")
         .map((t) => ({ role: t.role, text: t.text.slice(0, 4000) }))
     : [];
-  const screen = typeof body.screen === "string" && SCREENS.has(body.screen) ? body.screen : null;
+  const screenRaw = typeof body.screen === "string" ? (SCREEN_ALIAS[body.screen] ?? body.screen) : "";
+  const screen = SCREENS.has(screenRaw) ? screenRaw : null;
+  const chat = typeof body.chat === "string" && /^[0-9a-f-]{36}$/.test(body.chat) ? body.chat : null;
 
   if (stop.signal.aborted) return NextResponse.json({ ok: false, error: "cancelled", message: "Stopped." }, { status: 499 });
 
   if (body.stream !== true) {
     try {
-      const reply = await askAssistant({ supabase, me, turns, question, screen, signal: stop.signal });
+      const reply = await askAssistant({ supabase, me, turns, question, screen, chat, signal: stop.signal });
       return NextResponse.json(reply, { status: reply.ok ? 200 : reply.error === "not_allowed" ? 403 : reply.error === "cancelled" ? 499 : 503 });
     } catch (e) {
       console.error("assistant:", e);
@@ -71,7 +75,7 @@ export async function POST(req: Request) {
         }
       };
       try {
-        const reply = await askAssistant({ supabase, me, turns, question, screen, signal: stop.signal, onEvent: (e) => e.type !== "done" && send(e) });
+        const reply = await askAssistant({ supabase, me, turns, question, screen, chat, signal: stop.signal, onEvent: (e) => e.type !== "done" && send(e) });
         if (reply.ok) send({ type: "done", reply });
         else send({ type: "error", error: reply.error, message: reply.message ?? "The assistant could not answer." });
       } catch (e) {
