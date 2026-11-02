@@ -45,7 +45,17 @@ export function PageSwapProvider({ children }: { children: ReactNode }) {
   return <State.Provider value={{ pending, go }}>{children}</State.Provider>;
 }
 
-/** The page slot: the skeleton while a tapped tab's page is on its way, the page otherwise. */
+/**
+ * The page slot: the skeleton while a tapped tab's page is on its way, the page otherwise.
+ * The page stays mounted, only hidden, so a navigation that never lands gives it back as
+ * it was (an open sheet, a note half typed), not a fresh copy.
+ */
 export function PageSwap({ children }: { children: ReactNode }) {
-  return useContext(State).pending ? <Loading /> : <>{children}</>;
+  const pending = !!useContext(State).pending;
+  return (
+    <>
+      {pending && <Loading />}
+      <div hidden={pending}>{children}</div>
+    </>
+  );
 }
