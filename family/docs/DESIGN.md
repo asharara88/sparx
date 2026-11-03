@@ -302,7 +302,12 @@ when under a day or past); tapping a bottle opens a sheet with Warmed (or Thaw),
 Bin. "Put a bottle away" is the bottom button and opens a sheet: fridge or freezer, the
 usual amounts, another amount, a photo of the label, and one line on how long milk keeps.
 The plan for the day shows only on a day someone is away; how long the fridge will last
-and pumping are folds.
+is a fold. Pumping is a row ("Pumping · 250 / 400 ml ›") that opens its own screen,
+`/baby/milk/pumping`: the goal card (pumped since last evening, the bar to the goal, how
+many pumps), the bottles at home as two tiles (fridge, freezer: bottles and ml), and "A
+usual day" (the average of the last seven days' pumping days, one small bar per day with
+today beside them, one line on how today compares); "Log a pump" is the bottom button.
+Dana asked for it on 3 November when the fold hid the day's total.
 
 ## The parts to build with
 
