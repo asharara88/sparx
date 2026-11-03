@@ -87,6 +87,8 @@ Done and live:
   one Haiku call per chat read); the situation block grew (awake since, last nappy, last night, the usual day,
   who is in the house); earlier turns carry each card's outcome and a long chat's cut
   part comes as a digest. README, "Memory" and "Context", has the detail.
+- Pumping has its own screen under Milk (3 November): today against the goal, the bottles
+  at home by fridge and freezer, the usual day from the last week with today beside it.
 - Branding as elnunu, plum and ivory, self-hosted fonts, icons and manifest.
 - The full Lovable history, 5 June to 20 October, imported as real entries
   (migration `…3200` at the time; the data is in the project and its nightly

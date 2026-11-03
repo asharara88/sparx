@@ -7,8 +7,9 @@ import { MilkPutAway, MilkStash } from "@/components/MilkStash";
 import { PageHeader } from "@/components/PageHeader";
 import { FridgePlan } from "@/components/FridgePlan";
 import { MilkInsights, ThawReminder } from "@/components/MilkInsights";
-import { PumpTarget } from "@/components/PumpTarget";
+import Link from "next/link";
 import { Fold } from "@/components/Fold";
+import { Icon } from "@/components/Icon";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { addDays, dayRange, todayYmd } from "@/lib/time";
@@ -54,7 +55,8 @@ export default async function MilkPage() {
     if (b && Number(b.payload.amount_ml)) lastBottleMl = Number(b.payload.amount_ml);
   }
   // Pumping since yesterday evening, against the day's target: it lived on Home until the
-  // phone pass moved everything that is not "now" off it (DESIGN.md, "Home").
+  // phone pass moved everything that is not "now" off it (DESIGN.md, "Home"); the row
+  // here opens the Pumping screen (today, the bottles at home, the usual day).
   const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
   const pumps = history.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
   const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
@@ -72,9 +74,16 @@ export default async function MilkPage() {
         <MilkInsights bare milk={milk} entries={history} timezone={tz} thaw={thaw} />
       </Fold>
       {showPump && (
-        <Fold title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${target} ml`}>
-          <PumpTarget pumps={pumps} milk={milk} target={target} canLog={can(me, "lana", "add")} />
-        </Fold>
+        <nav className="card py-0" aria-label="Pumping">
+          <Link prefetch={false} href="/baby/milk/pumping" className="row row-link">
+            <span className="icon-disc tint-pump" style={{ width: 36, height: 36 }}>
+              <Icon name="droplet" size={19} />
+            </span>
+            <span className="flex-1 font-semibold">Pumping</span>
+            <span className="muted text-sm tabular-nums">{pumpedMl} / {target} ml</span>
+            <Icon name="forward" size={18} className="muted" />
+          </Link>
+        </nav>
       )}
       <MilkPutAway timezone={tz} canScan={can(me, "lana", "add")} />
     </div>
