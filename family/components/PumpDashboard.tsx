@@ -6,13 +6,15 @@ import { PumpTarget } from "@/components/PumpTarget";
 /**
  * The pumping screen: today's millilitres against the goal, the bottles at
  * home split by fridge and freezer, and the usual day from the last week
- * with today drawn beside it. Server-rendered; the only client part is the
- * goal card it shares with the old fold.
+ * with today drawn beside it. The goal card counts since yesterday evening
+ * (a night pump feeds the next day); the bars and the comparison use the
+ * calendar day, like the daily stats they come from, so a day is never
+ * counted twice. Server-rendered; the only client part is the goal card.
  */
 export function PumpDashboard({ pumps, milk, target, days, today, hourOfDay }: { pumps: EntryRow[]; milk: MilkData | null; target: number; days: PumpDay[]; today: string; hourOfDay: number }) {
-  const todayMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
-  const s = pumpSummary(days, today, todayMl);
-  const bars = [...s.week.map((d) => ({ ...d, today: false })), { day: today, ml: todayMl, today: true }];
+  const todayDayMl = Math.round(days.find((d) => d.day === today)?.pump_ml ?? 0);
+  const s = pumpSummary(days, today, todayDayMl);
+  const bars = [...s.week.map((d) => ({ ...d, today: false })), { day: today, ml: todayDayMl, today: true }];
   const label = (day: string) => dateWords(new Date(`${day}T12:00:00Z`), { weekday: "short", timeZone: "UTC" });
   return (
     <>
@@ -45,7 +47,7 @@ export function PumpDashboard({ pumps, milk, target, days, today, hourOfDay }: {
             </div>
           ))}
         </div>
-        <p className="muted text-sm">{todayVersusUsual(todayMl, s.averageMl, hourOfDay)}</p>
+        <p className="muted text-sm">{todayVersusUsual(todayDayMl, s.averageMl, hourOfDay)}</p>
       </section>
     </>
   );

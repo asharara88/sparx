@@ -12,7 +12,7 @@ export function PumpTarget({ pumps, milk, target, canLog }: { pumps: EntryRow[];
     <section className="card flex flex-col gap-2" aria-labelledby="pump-h">
       <div className="flex items-baseline justify-between">
         <h2 id="pump-h" className="section-title">Pumped since last evening</h2>
-        <span className="muted text-sm">Goal {target} ml</span>
+        <span className="muted text-sm">Goal {min} to {target} ml</span>
       </div>
       <p className="text-3xl font-bold tabular-nums">
         {ml} ml <span className="muted text-base font-semibold">{done ? "✓ goal reached" : `${min - ml} ml to go`}</span>
