@@ -56,7 +56,7 @@ export default async function MilkPage() {
   }
   // Pumping since yesterday evening, against the day's target: it lived on Home until the
   // phone pass moved everything that is not "now" off it (DESIGN.md, "Home"); the row
-  // here opens the Pumping screen (today, the bottles at home, the usual day).
+  // here opens the dashboard (sleep today, pumping, the bottles at home, the usual day).
   const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
   const pumps = history.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
   const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
@@ -75,7 +75,7 @@ export default async function MilkPage() {
       </Fold>
       {showPump && (
         <nav className="card py-0" aria-label="Pumping">
-          <Link prefetch={false} href="/baby/milk/pumping" className="row row-link">
+          <Link prefetch={false} href="/baby/dashboard" className="row row-link">
             <span className="icon-disc tint-pump" style={{ width: 36, height: 36 }}>
               <Icon name="droplet" size={19} />
             </span>

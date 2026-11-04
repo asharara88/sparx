@@ -302,16 +302,21 @@ when under a day or past); tapping a bottle opens a sheet with Warmed (or Thaw),
 Bin. "Put a bottle away" is the bottom button and opens a sheet: fridge or freezer, the
 usual amounts, another amount, a photo of the label, and one line on how long milk keeps.
 The plan for the day shows only on a day someone is away; how long the fridge will last
-is a fold. Pumping is a row ("Pumping · 250 / 400 ml ›") that opens its own screen,
-`/baby/milk/pumping`: the goal card (pumped since last evening, the bar to the goal, how
-many pumps), the bottles at home as two tiles (fridge, freezer: bottles and ml), and "A
-usual day" (the average of the last seven days' pumping days, one small bar per day with
-today beside them, one line on how today compares); "Log a pump" is the bottom button.
-Dana asked for it on 3 November when the fold hid the day's total.
+is a fold. Pumping is a row ("Pumping · 250 / 400 ml ›") that opens the dashboard.
 
-### Sleep today (the child's Today tab)
+### The dashboard (`/baby/dashboard`)
 
-Under the day strip, a `SleepDay` card: "Woke up at 07:10 · awake 2 h 15 min" (after a nap,
+One screen Mido asked for (3 and 4 November), reached from Milk's Pumping row, a row on
+the child's Today tab and More: "Sleep today" first (the card below), then pumping: the
+goal card (pumped since last evening, the bar to the goal, how many pumps), the bottles at
+home as two tiles (fridge, freezer: bottles and ml), and "A usual day" (the average of the
+last seven days' pumping days, one small bar per day with today beside them, one line on
+how today compares); "Log a pump" is the bottom button. The pumping part shows to the
+member who breastfeeds and to admins.
+
+### Sleep today (the dashboard and the child's Today tab)
+
+At the top of the dashboard and under the Today tab's day strip, a `SleepDay` card: "Woke up at 07:10 · awake 2 h 15 min" (after a nap,
 "Up from a nap at 14:10"; asleep, "Nap since 13:00 · 45 min"), the day's sleep path as one bar
 from midnight to midnight with the night she woke from, each nap and a mark at now, then
 "up at 07:10 · 2 naps, 1 h 30 min · night 11 h 40 min". Home's state card says "up since
