@@ -67,7 +67,7 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
       <section aria-label="Right now" aria-live="polite" className="card tint-sleep flex flex-col gap-2">
         <p className="flex items-baseline justify-between gap-2">
           <span className="text-[0.95rem] font-bold">{nap.isBedtime ? "Bedtime" : "Next nap"}</span>
-          <span className="text-[0.95rem] opacity-80">awake {fmtDuration(awakeMin!)}</span>
+          <span className="text-[0.95rem] opacity-80">up since {fmtTime(woke!, timezone)}</span>
         </p>
         <p className="font-[family-name:var(--font-display)] text-[2.4rem] font-semibold leading-[1.05] tabular-nums">
           {fmtTime(new Date(w.from).toISOString(), timezone)} – {fmtTime(new Date(w.to).toISOString(), timezone)}
@@ -80,6 +80,6 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
       </section>
     );
   }
-  if (awakeKnown) return big("Awake for", fmtDuration(awakeMin!), "");
+  if (awakeKnown) return big("Awake for", fmtDuration(awakeMin!), "", `since ${fmtTime(woke!, timezone)}`);
   return <p className="muted text-lg">Tap a row below to log the first thing today.</p>;
 }

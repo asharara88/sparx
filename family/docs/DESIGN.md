@@ -309,6 +309,15 @@ usual day" (the average of the last seven days' pumping days, one small bar per 
 today beside them, one line on how today compares); "Log a pump" is the bottom button.
 Dana asked for it on 3 November when the fold hid the day's total.
 
+### Sleep today (the child's Today tab)
+
+Under the day strip, a `SleepDay` card: "Woke up at 07:10 · awake 2 h 15 min" (after a nap,
+"Up from a nap at 14:10"; asleep, "Nap since 13:00 · 45 min"), the day's sleep path as one bar
+from midnight to midnight with the night she woke from, each nap and a mark at now, then
+"up at 07:10 · 2 naps, 1 h 30 min · night 11 h 40 min". Home's state card says "up since
+07:10" beside the next-nap window and "since 07:10" under "Awake for", so the morning wake
+Dana taps is read back on both screens (Mido, 4 November).
+
 ## The parts to build with
 
 Use these; extend one before adding a new one, and add any new one here.
@@ -326,6 +335,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Week columns | `WeekColumns` | The shape of a week | Seven columns, midnight at the top; a column is one tap target. |
 | Edit sheet | `EntrySheet` from `EntryList` | Changing or deleting an entry | Time picker, end chips, field chips, Save, Delete with a second tap. |
 | Stat strip | `DayStrip` tiles | A day's sums | Four at most, a dash for none. |
+| Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |
 | Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. |
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
