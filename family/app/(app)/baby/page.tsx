@@ -14,6 +14,7 @@ import { SuggestionCards } from "@/components/SuggestionCards";
 import { Avatar } from "@/components/Avatar";
 import { DayStrip } from "@/components/DayStrip";
 import { SleepDay } from "@/components/SleepDay";
+import { nightWindow } from "@/lib/night";
 import { Icon, type IconName } from "@/components/Icon";
 import { LanaTabs, type LanaTab } from "@/components/LanaTabs";
 import { LogMenu } from "@/components/LogMenu";
@@ -110,7 +111,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
         </Link>
       </div>
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} />
-      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} bedtime={summary.subject.settings.night_from ?? "19:00"} />
+      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} />
       {checks > 0 && can(me, "lana", "edit") && (
         <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
           <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />

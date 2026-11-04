@@ -6,7 +6,7 @@ import { sleepDay } from "./sleep-day.ts";
 const DAY = Date.parse("2026-11-04T00:00:00Z");
 const h = (hh: number, mm = 0) => DAY + (hh * 60 + mm) * 60_000;
 const iso = (ms: number) => new Date(ms).toISOString();
-const opts = { bedtimeHour: 19, hourOf: (ms: number) => new Date(ms).getUTCHours() + new Date(ms).getUTCMinutes() / 60 };
+const opts = { bedtimeHour: 19, morningHour: 7, hourOf: (ms: number) => new Date(ms).getUTCHours() + new Date(ms).getUTCMinutes() / 60 };
 const sleep = (from: number, to: number | null) => ({ type_id: "lana.sleep", occurred_at: iso(from), ended_at: to == null ? null : iso(to) });
 
 test("the night she woke from, two naps, awake since the second one", () => {
@@ -30,6 +30,17 @@ test("asleep now: a nap clipped at now, and the morning wake stays known", () =>
   assert.equal(s.segments[1].to, h(13, 45));
   assert.equal(s.napMin, 45);
   assert.equal(s.wokeAt, h(7, 10));
+});
+
+test("a night split by a wake-up at 02:00 is still the night, and the morning wake is the later end", () => {
+  const s = sleepDay([sleep(h(-5), h(2)), sleep(h(3), h(7))], DAY, h(9), opts);
+  assert.deepEqual(s.segments.map((x) => x.kind), ["night", "night"]);
+  assert.equal(s.wokeAt, h(7));
+  assert.equal(s.naps, 0);
+  assert.equal(s.nightMin, 120 + 240);
+  assert.deepEqual(s.state, { kind: "awake", since: h(7), afterNap: false });
+  // Back to sleep at 03:00 after the wake-up: asleep for the night, not a nap.
+  assert.deepEqual(sleepDay([sleep(h(-5), h(2)), sleep(h(3), null)], DAY, h(5), opts).state, { kind: "asleep", since: h(3), sleep: "night" });
 });
 
 test("bedtime counts as night, a gap over twelve hours says nothing, a timer left on is ignored", () => {
