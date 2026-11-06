@@ -139,7 +139,8 @@ household*); nothing in the code is tied to these people.
   (`lib/assistant/allowance.ts`): the check and the booking are one step under a lock, so
   requests sent together cannot all take the last free slot. Each home has a daily limit of 40 calls and each
   member 20, in the home's own day; set `assistant_daily_home` or `assistant_daily_member` in
-  `household.settings` to change them (JSON null: no limit). The first home (the platform
+  `household.settings` to change them (JSON null: no limit; from the SQL editor or the service role,
+  since a home's admin cannot change them from the app). The first home (the platform
   home) has none unless set. Two switches on Vercel cover every home at once:
   `ASSISTANT_DAILY_TOTAL` caps all homes together per UTC day, and `ASSISTANT_OTHER_HOMES=off`
   turns the helper off for every home but the first. Past a limit the member sees a plain

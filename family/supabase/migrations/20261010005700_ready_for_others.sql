@@ -23,6 +23,23 @@
 -- ---------------------------------------------------------------------------
 alter table public.household add column if not exists settings jsonb not null default '{}'::jsonb;
 
+-- The limits are the platform's, not the home's: an admin may edit the home's row from
+-- the client (household_edit), but not its settings. Only the database's own roles
+-- (a migration, the SQL editor, the server's service role) change them.
+create or replace function private.household_settings_guard() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if current_user in ('authenticated', 'anon')
+     and new.settings is distinct from (case when tg_op = 'UPDATE' then old.settings else '{}'::jsonb end) then
+    raise exception 'household settings are set by the platform' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function private.household_settings_guard() from public, anon;
+drop trigger if exists household_settings_guard on public.household;
+create trigger household_settings_guard before insert or update of settings on public.household
+  for each row execute function private.household_settings_guard();
+
 -- One row per model call, written before the call is made. Home-scoped like every other
 -- table; nobody reads it from the client.
 create table if not exists public.agent_calls (

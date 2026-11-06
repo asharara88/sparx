@@ -987,6 +987,16 @@ select pg_temp.assert((select profile->>'emergency_ambulance' from public.care_s
   'a home made in London gets 999 as the child''s emergency number');
 select pg_temp.assert((select count(*) from public.assistant_skills where body ~ '\m998\M') = 0, 'the shared skills name no country''s number');
 select pg_temp.assert(not has_function_privilege('anon', 'public.assistant_reserve(integer)', 'execute'), 'anon cannot book a model call');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+do $$ begin
+  update public.household set settings = '{"assistant_daily_home": null, "assistant_daily_member": null}' where id = private.current_household_id();
+  raise exception 'ASSERT FAILED: a home''s admin cleared the helper''s limits from the client';
+exception when insufficient_privilege then raise notice 'ok  - a home''s admin cannot change the limits from the client';
+end $$;
+update public.household set notes = 'Shoes off at the door.' where id = private.current_household_id();
+select pg_temp.assert((select notes from public.household where id = private.current_household_id()) = 'Shoes off at the door.', 'the rest of the home''s row is still the admin''s to edit');
+reset role;
 select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where proname = 'assistant_reserve')) = 'app_rls', 'the booking runs as app_rls');
 select pg_temp.assert(not has_table_privilege('authenticated', 'public.agent_calls', 'select') and not has_table_privilege('authenticated', 'public.agent_calls', 'insert'),
   'the client can neither read nor write the call count directly');
