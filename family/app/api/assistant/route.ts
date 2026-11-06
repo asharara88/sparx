@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   if (body.stream !== true) {
     try {
       const reply = await askAssistant({ supabase, me, turns, question, screen, chat, signal: stop.signal });
-      return NextResponse.json(reply, { status: reply.ok ? 200 : reply.error === "not_allowed" ? 403 : reply.error === "cancelled" ? 499 : 503 });
+      return NextResponse.json(reply, { status: reply.ok ? 200 : reply.error === "not_allowed" ? 403 : reply.error === "cancelled" ? 499 : reply.error === "limit" ? 429 : 503 });
     } catch (e) {
       console.error("assistant:", e);
       const f = friendlyModelError(e);

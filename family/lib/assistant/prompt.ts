@@ -68,7 +68,9 @@ export function stableSystem(ctx: ToolContext): string {
     .map((s) => {
       const ts = ctx.types.filter((t) => t.module_id === s.module_id);
       const born = s.birth_date ? `, born ${s.birth_date}` : "";
-      return `- ${s.name} (the child${born}; module "${s.module_id}"). Entry types: ${ts.map((t) => `${t.id}=${t.label}`).join(", ")}.`;
+      // The number to give in an emergency is the family's own, never one assumed for their country.
+      const sos = s.ambulance ? ` Emergency (ambulance) number: ${s.ambulance}.` : ` No emergency number given: say "your local emergency number".`;
+      return `- ${s.name} (the child${born}; module "${s.module_id}"). Entry types: ${ts.map((t) => `${t.id}=${t.label}`).join(", ")}.${sos}`;
     })
     .join("\n");
   const hasChild = ctx.subjects.some((s) => s.kind === "child");

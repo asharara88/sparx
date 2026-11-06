@@ -6,6 +6,7 @@ import type { Me, MilkReading, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { todayYmd } from "@/lib/time";
 import { assistantConfigured, MODEL } from "@/lib/assistant/run";
+import { checkAllowance } from "@/lib/assistant/allowance";
 import { anthropicOptions } from "@/lib/server/anthropic";
 
 /**
@@ -34,6 +35,8 @@ export async function readMilkPhoto(supabase: SupabaseClient, me: Me, dataUrl: s
   const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!m) return { ok: false, error: "bad_request", message: "That is not a photo we can read." };
   if (m[2].length > 6_000_000) return { ok: false, error: "too_big", message: "That photo is too big. Try again." };
+  const allowed = await checkAllowance(supabase, me);
+  if (!allowed.ok) return allowed;
   const today = todayYmd(me.household.timezone);
   const t0 = Date.now();
   const res = await client().beta.messages.parse({

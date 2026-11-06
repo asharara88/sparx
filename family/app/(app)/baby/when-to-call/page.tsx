@@ -6,6 +6,7 @@ import { childPronouns, possessive } from "@/lib/names";
 import { PageHeader } from "@/components/PageHeader";
 import { TOPICS } from "@/lib/child-guide";
 import { meOnce } from "@/lib/server/me";
+import { ambulanceOf } from "@/lib/emergency";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +19,15 @@ export default async function WhenToCallPage() {
   const { data: sumData } = await supabase.rpc("home_summary");
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/");
-  const p = (summary.subject.profile ?? {}) as Record<string, unknown>;
-  const ambulance = typeof p.emergency_ambulance === "string" && p.emergency_ambulance.trim() ? p.emergency_ambulance.trim() : "998";
+  const number = ambulanceOf(summary.subject.profile);
+  const ambulance = number ?? "your local emergency number";
   const name = summary.subject.name;
   const pr = childPronouns(me);
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby" title="When to call the doctor" subtitle="Warning signs from NHS, AAP and NICE guidance." />
       <div className="rounded-3xl bg-[var(--danger)] p-4 text-white">
-        <p className="font-bold">Emergency? Call {ambulance} (ambulance) now.</p>
+        <p className="font-bold">Emergency? Call {ambulance}{number ? " (ambulance)" : ""} now.</p>
         <p className="text-sm opacity-90">Do not wait for the app. If you are unsure, call {pr.their} paediatrician.</p>
       </div>
       {TOPICS.map((t) => (

@@ -15,6 +15,9 @@ create table if not exists auth.users (
 );
 -- An older local database made the table before the column existed (migration 5300 reads it).
 alter table auth.users add column if not exists last_sign_in_at timestamptz;
+-- Supabase sets this when the e-mail is confirmed (at once while "Confirm email" is off).
+-- Here it defaults to now(), so a test account is confirmed unless a test says otherwise.
+alter table auth.users add column if not exists email_confirmed_at timestamptz default now();
 -- Same semantics as Supabase: the sub claim of the request JWT.
 create or replace function auth.uid() returns uuid
 language sql stable as $$

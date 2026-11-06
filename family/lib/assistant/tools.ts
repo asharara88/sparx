@@ -9,6 +9,7 @@ import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/child-in
 import { leapWeek } from "@/lib/leaps";
 import { tipsFor } from "@/lib/child-guide";
 import type { EntryRow } from "@/lib/types";
+import { ambulanceOf } from "@/lib/emergency";
 
 /**
  * The assistant's tools are thin wrappers over the RPCs the screens already use,
@@ -28,6 +29,8 @@ export interface SubjectInfo {
   sex?: string | null;
   /** Pets only, from the profile: "cat", "dog"… or null. */
   species?: string | null;
+  /** The ambulance number the family gave (profile.emergency_ambulance), or null. */
+  ambulance?: string | null;
 }
 
 export interface ToolContext {
@@ -782,6 +785,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     ...s,
     sex: typeof profile?.sex === "string" ? profile.sex : null,
     species: typeof profile?.species === "string" ? profile.species : null,
+    ambulance: ambulanceOf(profile),
   }));
   const people = ((members as MemberRow[] | null) ?? []).map((m) => ({ name: m.display_name, routine: m.routine, relationship: m.relationship, role: roleLabel(m.role_id, (roles as { id: string; label: string }[] | null) ?? []) }));
   // Names are noise when matching memories to a question: the household's subjects and members.
