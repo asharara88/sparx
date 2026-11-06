@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decideAllowance } from "./allowance-rule.ts";
+import { dailyTotal, decideAllowance } from "./allowance-rule.ts";
 
 const base = { home_calls: 0, member_calls: 0, home_limit: 40, member_limit: 20, total_calls: 0, platform: false };
 
@@ -28,4 +28,6 @@ test("the deployment switches: other homes off, and a total for all homes", () =
   assert.equal(decideAllowance({ ...base, total_calls: 300, platform: true }, { dailyTotal: "300" }).ok, false, "the total covers the platform home too");
   assert.deepEqual(decideAllowance({ ...base, total_calls: 10_000 }, { dailyTotal: "" }), { ok: true }, "blank is no total");
   assert.deepEqual(decideAllowance({ ...base, total_calls: 10_000 }, { dailyTotal: "lots" }), { ok: true }, "not a number is no total");
+  assert.equal(dailyTotal(" 300 "), 300);
+  assert.equal(dailyTotal("12.5"), null, "a whole number only, as the database is given");
 });

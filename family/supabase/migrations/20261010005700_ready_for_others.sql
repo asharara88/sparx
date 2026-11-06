@@ -2,12 +2,12 @@
 --
 --   1. A daily allowance for the helper's model calls. Every home's questions, briefs,
 --      chat reads, milk photos and week plans run on one Anthropic key; nothing capped
---      them. Each model call already writes one audit row (source 'agent'), so the
---      allowance counts those: per home (in the home's own day) and per member, with
---      limits from household.settings (assistant_daily_home, assistant_daily_member;
---      40 and 20 by default, none for the platform home), plus every home's total for
---      the day so the server can apply a deployment-wide cap (ASSISTANT_DAILY_TOTAL).
---      The server asks before each call (lib/assistant/allowance.ts).
+--      them. The server books a slot (assistant_reserve) before each model call, under
+--      one lock, so requests sent together cannot all slip past the last free slot: the
+--      booking is the count. Limits come from household.settings (assistant_daily_home,
+--      assistant_daily_member; 40 and 20 by default, none for the platform home), per
+--      home in the home's own day and per member, plus a deployment-wide cap per UTC day
+--      that the server passes in (ASSISTANT_DAILY_TOTAL). See lib/assistant/allowance.ts.
 --   2. A member row is linked to an account by e-mail only once that e-mail is
 --      confirmed. With Supabase's "Confirm email" off, every account is confirmed the
 --      moment it is made, so this rule only bites once that switch is on; it is the
@@ -22,20 +22,42 @@
 -- 1. The allowance
 -- ---------------------------------------------------------------------------
 alter table public.household add column if not exists settings jsonb not null default '{}'::jsonb;
-create index if not exists audit_log_agent_home_idx on public.audit_log (household_id, at desc) where source = 'agent';
+
+-- One row per model call, written before the call is made. Home-scoped like every other
+-- table; nobody reads it from the client.
+create table if not exists public.agent_calls (
+  id bigint generated always as identity primary key,
+  household_id uuid not null references public.household (id) on delete cascade,
+  member_id uuid not null,
+  at timestamptz not null default now(),
+  constraint agent_calls_member_id_home_fkey foreign key (household_id, member_id) references public.members (household_id, id) on delete cascade
+);
+create index if not exists agent_calls_home_at_idx on public.agent_calls (household_id, at desc);
+create index if not exists agent_calls_at_idx on public.agent_calls (at);
+alter table public.agent_calls enable row level security;
+revoke all on public.agent_calls from anon, authenticated;
+drop policy if exists agent_calls_app on public.agent_calls;
+create policy agent_calls_app on public.agent_calls for all to app_rls using (true) with check (true);
+drop policy if exists agent_calls_home on public.agent_calls;
+create policy agent_calls_home on public.agent_calls as restrictive for all to authenticated, app_rls
+  using (household_id = private.current_household_id()) with check (household_id = private.current_household_id());
 
 -- Every home's model calls since midnight UTC: one number, nothing else. Sees across
 -- homes, so it stays with postgres (on the suite's exception list).
 create or replace function private.agent_calls_total_today() returns integer
 language sql stable security definer set search_path = public as $$
-  select count(*)::integer from public.audit_log
-   where source = 'agent' and allowed and at >= date_trunc('day', now() at time zone 'UTC') at time zone 'UTC'
+  select count(*)::integer from public.agent_calls
+   where at >= date_trunc('day', now() at time zone 'UTC') at time zone 'UTC'
 $$;
 revoke execute on function private.agent_calls_total_today() from public, anon;
 grant execute on function private.agent_calls_total_today() to authenticated, service_role, app_rls;
 
-create or replace function public.assistant_allowance() returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+-- Books one model call for the caller if the day's limits allow it, and says what the
+-- counts were before booking. p_total is the deployment-wide cap (null: none); the
+-- server passes it from its environment. One lock for every home makes check-and-book
+-- one step, so the total holds too; it is held for a count and an insert, nothing more.
+create or replace function public.assistant_reserve(p_total integer default null) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
 declare
   v_me uuid := public.current_member_id();
   v_home uuid := private.current_household_id();
@@ -45,32 +67,45 @@ declare
   v_platform boolean;
   v_home_n integer;
   v_me_n integer;
+  v_total_n integer;
+  v_home_limit integer;
+  v_me_limit integer;
+  v_ok boolean;
 begin
   if v_me is null or v_home is null then return private.denied(); end if;
+  perform pg_advisory_xact_lock(hashtext('assistant_reserve'));
   select coalesce(timezone, 'UTC'), coalesce(settings, '{}'::jsonb) into v_tz, v_settings from public.household where id = v_home;
   v_start := ((now() at time zone v_tz)::date)::timestamp at time zone v_tz;
   v_platform := v_home = private.platform_home();
-  select count(*) into v_home_n from public.audit_log
-   where household_id = v_home and source = 'agent' and allowed and at >= v_start;
-  select count(*) into v_me_n from public.audit_log
-   where household_id = v_home and actor_member = v_me and source = 'agent' and allowed and at >= v_start;
+  -- A set value wins (a number, or JSON null for no limit); otherwise 40 and 20, none for the platform home.
+  v_home_limit := case when v_settings ? 'assistant_daily_home'
+                       then case when v_settings->>'assistant_daily_home' ~ '^\d+$' then (v_settings->>'assistant_daily_home')::integer end
+                       when v_platform then null else 40 end;
+  v_me_limit := case when v_settings ? 'assistant_daily_member'
+                     then case when v_settings->>'assistant_daily_member' ~ '^\d+$' then (v_settings->>'assistant_daily_member')::integer end
+                     when v_platform then null else 20 end;
+  select count(*) into v_home_n from public.agent_calls where household_id = v_home and at >= v_start;
+  select count(*) into v_me_n from public.agent_calls where household_id = v_home and member_id = v_me and at >= v_start;
+  v_total_n := private.agent_calls_total_today();
+  v_ok := (p_total is null or p_total < 0 or v_total_n < p_total)
+      and (v_home_limit is null or v_home_n < v_home_limit)
+      and (v_me_limit is null or v_me_n < v_me_limit);
+  if v_ok then
+    insert into public.agent_calls (household_id, member_id) values (v_home, v_me);
+  end if;
   return jsonb_build_object(
     'ok', true,
+    'reserved', v_ok,
     'platform', v_platform,
     'home_calls', v_home_n,
     'member_calls', v_me_n,
-    -- A set value wins (a number, or JSON null for no limit); otherwise 40 and 20, none for the platform home.
-    'home_limit', case when v_settings ? 'assistant_daily_home'
-                       then case when v_settings->>'assistant_daily_home' ~ '^\d+$' then (v_settings->>'assistant_daily_home')::integer end
-                       when v_platform then null else 40 end,
-    'member_limit', case when v_settings ? 'assistant_daily_member'
-                         then case when v_settings->>'assistant_daily_member' ~ '^\d+$' then (v_settings->>'assistant_daily_member')::integer end
-                         when v_platform then null else 20 end,
-    'total_calls', private.agent_calls_total_today());
+    'home_limit', v_home_limit,
+    'member_limit', v_me_limit,
+    'total_calls', v_total_n);
 end $$;
-alter function public.assistant_allowance() owner to app_rls;
-revoke execute on function public.assistant_allowance() from public, anon;
-grant execute on function public.assistant_allowance() to authenticated, service_role;
+alter function public.assistant_reserve(integer) owner to app_rls;
+revoke execute on function public.assistant_reserve(integer) from public, anon;
+grant execute on function public.assistant_reserve(integer) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 2. Link by e-mail only once it is confirmed

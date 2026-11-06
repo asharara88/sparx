@@ -32,12 +32,18 @@ export type AllowanceDecision = { ok: true } | { ok: false; error: "limit"; mess
 
 const off = (v: string | null | undefined) => ["off", "0", "false", "no"].includes((v ?? "").trim().toLowerCase());
 
+/** ASSISTANT_DAILY_TOTAL as a whole number of calls, or null for no cap. */
+export function dailyTotal(v: string | null | undefined): number | null {
+  const t = (v ?? "").trim();
+  return /^\d+$/.test(t) ? Number(t) : null;
+}
+
 export function decideAllowance(c: AllowanceCounts, s: AllowanceSwitches): AllowanceDecision {
   if (!c.platform && off(s.otherHomes)) {
     return { ok: false, error: "limit", message: "The helper is switched off for now. Everything else in the app works as usual." };
   }
-  const total = Number((s.dailyTotal ?? "").trim());
-  if ((s.dailyTotal ?? "").trim() && Number.isFinite(total) && total >= 0 && c.total_calls >= total) {
+  const total = dailyTotal(s.dailyTotal);
+  if (total != null && c.total_calls >= total) {
     return { ok: false, error: "limit", message: "The helper is resting until midnight. Everything else in the app works as usual." };
   }
   if (c.home_limit != null && c.home_calls >= c.home_limit) {

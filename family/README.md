@@ -134,9 +134,10 @@ household*); nothing in the code is tied to these people.
   today's counts, last night, the usual day lately, who is in the house), the earlier turns
   with what happened to each card (saved or not), a digest of a long chat's cut part, and the
   member's earlier chats' recaps (never the chat in progress).
-- **Spending limit:** every model call (a question, a brief or story, a chat read, a milk
-  photo, a week plan) writes one audit row, and the server asks `assistant_allowance()` before
-  each one (`lib/assistant/allowance.ts`). Each home has a daily limit of 40 calls and each
+- **Spending limit:** before every model call (a question, a brief or story, a chat read, a
+  milk photo, a week plan) the server books it with `assistant_reserve()`
+  (`lib/assistant/allowance.ts`): the check and the booking are one step under a lock, so
+  requests sent together cannot all take the last free slot. Each home has a daily limit of 40 calls and each
   member 20, in the home's own day; set `assistant_daily_home` or `assistant_daily_member` in
   `household.settings` to change them (JSON null: no limit). The first home (the platform
   home) has none unless set. Two switches on Vercel cover every home at once:

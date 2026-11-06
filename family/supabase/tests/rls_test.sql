@@ -986,32 +986,35 @@ reset role;
 select pg_temp.assert((select profile->>'emergency_ambulance' from public.care_subjects where household_id = ((select r from new_home)->>'household_id')::uuid) = '999',
   'a home made in London gets 999 as the child''s emergency number');
 select pg_temp.assert((select count(*) from public.assistant_skills where body ~ '\m998\M') = 0, 'the shared skills name no country''s number');
-select pg_temp.assert(not has_function_privilege('anon', 'public.assistant_allowance()', 'execute'), 'anon cannot ask for the allowance');
-select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where proname = 'assistant_allowance')) = 'app_rls', 'the allowance runs as app_rls');
+select pg_temp.assert(not has_function_privilege('anon', 'public.assistant_reserve(integer)', 'execute'), 'anon cannot book a model call');
+select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where proname = 'assistant_reserve')) = 'app_rls', 'the booking runs as app_rls');
+select pg_temp.assert(not has_table_privilege('authenticated', 'public.agent_calls', 'select') and not has_table_privilege('authenticated', 'public.agent_calls', 'insert'),
+  'the client can neither read nor write the call count directly');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
 set role authenticated;
-select pg_temp.assert((select a->>'ok' = 'true' and a->>'platform' = 'false' and (a->>'home_limit')::int = 40 and (a->>'member_limit')::int = 20 and (a->>'home_calls')::int = 0
-  from (select public.assistant_allowance() as a) x), 'a new home starts the day with 40 for the home and 20 a member, none used');
+select pg_temp.assert((select a->>'reserved' = 'true' and a->>'platform' = 'false' and (a->>'home_limit')::int = 40 and (a->>'member_limit')::int = 20 and (a->>'home_calls')::int = 0
+  from (select public.assistant_reserve() as a) x), 'a new home starts the day with 40 for the home and 20 a member; the first call is booked');
 reset role;
-insert into public.audit_log (household_id, actor_member, source, action, allowed, module_id)
-select ((select r from new_home)->>'household_id')::uuid, ((select r from new_home)->>'member_id')::uuid, 'agent', k, ok, 'assistant'
-  from (values ('ask', true), ('brief', true), ('ask', false)) v(k, ok);
-insert into public.audit_log (household_id, actor_member, source, action, allowed, module_id)
-values (private.platform_home(), :mido, 'agent', 'ask', true, 'assistant');
+update public.household set settings = settings || '{"assistant_daily_home": 2}' where id = ((select r from new_home)->>'household_id')::uuid;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
 set role authenticated;
-select pg_temp.assert((select (a->>'home_calls')::int = 2 and (a->>'member_calls')::int = 2 and (a->>'total_calls')::int >= 3
-  from (select public.assistant_allowance() as a) x), 'two model calls counted for the home and the member (a refused one is not), the total sees every home');
+select pg_temp.assert((select a->>'reserved' = 'true' and (a->>'home_calls')::int = 1 and (a->>'member_calls')::int = 1 from (select public.assistant_reserve() as a) x), 'the second call is booked');
+select pg_temp.assert((select a->>'reserved' = 'false' and (a->>'home_calls')::int = 2 and (a->>'home_limit')::int = 2 from (select public.assistant_reserve() as a) x),
+  'the third is refused at the home''s limit of 2, with the counts that say why');
 reset role;
-update public.household set settings = settings || '{"assistant_daily_home": 5, "assistant_daily_member": null}' where id = ((select r from new_home)->>'household_id')::uuid;
+select pg_temp.assert((select count(*) from public.agent_calls where household_id = ((select r from new_home)->>'household_id')::uuid) = 2, 'a refused call books nothing');
+update public.household set settings = settings || '{"assistant_daily_home": null, "assistant_daily_member": 2}' where id = ((select r from new_home)->>'household_id')::uuid;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
 set role authenticated;
-select pg_temp.assert((select (a->>'home_limit')::int = 5 and a->'member_limit' = 'null'::jsonb from (select public.assistant_allowance() as a) x), 'the home''s settings set its limits; null is no limit');
+select pg_temp.assert((select a->>'reserved' = 'false' and a->'home_limit' = 'null'::jsonb and (a->>'member_limit')::int = 2 from (select public.assistant_reserve() as a) x),
+  'null in the settings is no limit for the home; the member''s own limit still holds');
 reset role;
+update public.household set settings = settings - 'assistant_daily_member' where id = ((select r from new_home)->>'household_id')::uuid;
 select pg_temp.act_as(:mido);
 set role authenticated;
-select pg_temp.assert((select a->>'platform' = 'true' and a->'home_limit' = 'null'::jsonb and a->'member_limit' = 'null'::jsonb and (a->>'home_calls')::int >= 1
-  from (select public.assistant_allowance() as a) x), 'the platform home has no limit by default, and counts only its own calls');
+select pg_temp.assert((select a->>'reserved' = 'true' and a->>'platform' = 'true' and a->'home_limit' = 'null'::jsonb and a->'member_limit' = 'null'::jsonb and (a->>'home_calls')::int = 0
+  and (a->>'total_calls')::int >= 2 from (select public.assistant_reserve() as a) x), 'the platform home has no limit by default and counts only its own calls; the total sees every home');
+select pg_temp.assert((select a->>'reserved' = 'false' from (select public.assistant_reserve(1) as a) x), 'the deployment-wide cap the server passes in holds for the platform home too');
 reset role;
 
 -- An e-mail an admin listed joins that home at the first sign-in (making one of their own is a later, deliberate step: migration 4300, below).
