@@ -982,6 +982,53 @@ begin
 end $$;
 reset role;
 
+-- Migration 5700: the helper's daily allowance, the child's emergency number, no 998 in the skills.
+select pg_temp.assert((select profile->>'emergency_ambulance' from public.care_subjects where household_id = ((select r from new_home)->>'household_id')::uuid) = '999',
+  'a home made in London gets 999 as the child''s emergency number');
+select pg_temp.assert((select count(*) from public.assistant_skills where body ~ '\m998\M') = 0, 'the shared skills name no country''s number');
+select pg_temp.assert(not has_function_privilege('anon', 'public.assistant_reserve(integer)', 'execute'), 'anon cannot book a model call');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+do $$ begin
+  update public.household set settings = '{"assistant_daily_home": null, "assistant_daily_member": null}' where id = private.current_household_id();
+  raise exception 'ASSERT FAILED: a home''s admin cleared the helper''s limits from the client';
+exception when insufficient_privilege then raise notice 'ok  - a home''s admin cannot change the limits from the client';
+end $$;
+update public.household set notes = 'Shoes off at the door.' where id = private.current_household_id();
+select pg_temp.assert((select notes from public.household where id = private.current_household_id()) = 'Shoes off at the door.', 'the rest of the home''s row is still the admin''s to edit');
+reset role;
+select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where proname = 'assistant_reserve')) = 'app_rls', 'the booking runs as app_rls');
+select pg_temp.assert(not has_table_privilege('authenticated', 'public.agent_calls', 'select') and not has_table_privilege('authenticated', 'public.agent_calls', 'insert'),
+  'the client can neither read nor write the call count directly');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((select a->>'reserved' = 'true' and a->>'platform' = 'false' and (a->>'home_limit')::int = 40 and (a->>'member_limit')::int = 20 and (a->>'home_calls')::int = 0
+  from (select public.assistant_reserve() as a) x), 'a new home starts the day with 40 for the home and 20 a member; the first call is booked');
+reset role;
+update public.household set settings = settings || '{"assistant_daily_home": 2}' where id = ((select r from new_home)->>'household_id')::uuid;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((select a->>'reserved' = 'true' and (a->>'home_calls')::int = 1 and (a->>'member_calls')::int = 1 from (select public.assistant_reserve() as a) x), 'the second call is booked');
+select pg_temp.assert((select a->>'reserved' = 'false' and (a->>'home_calls')::int = 2 and (a->>'home_limit')::int = 2 from (select public.assistant_reserve() as a) x),
+  'the third is refused at the home''s limit of 2, with the counts that say why');
+reset role;
+select pg_temp.assert((select count(*) from public.agent_calls where household_id = ((select r from new_home)->>'household_id')::uuid) = 2, 'a refused call books nothing');
+select pg_temp.assert(not exists (select 1 from pg_constraint where conrelid = 'public.agent_calls'::regclass and contype = 'f'),
+  'the bookings outlive a deleted home or member, so the day''s total cannot be reset by deleting one');
+update public.household set settings = settings || '{"assistant_daily_home": null, "assistant_daily_member": 2}' where id = ((select r from new_home)->>'household_id')::uuid;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((select a->>'reserved' = 'false' and a->'home_limit' = 'null'::jsonb and (a->>'member_limit')::int = 2 from (select public.assistant_reserve() as a) x),
+  'null in the settings is no limit for the home; the member''s own limit still holds');
+reset role;
+update public.household set settings = settings - 'assistant_daily_member' where id = ((select r from new_home)->>'household_id')::uuid;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select a->>'reserved' = 'true' and a->>'platform' = 'true' and a->'home_limit' = 'null'::jsonb and a->'member_limit' = 'null'::jsonb and (a->>'home_calls')::int = 0
+  and (a->>'total_calls')::int >= 2 from (select public.assistant_reserve() as a) x), 'the platform home has no limit by default and counts only its own calls; the total sees every home');
+select pg_temp.assert((select a->>'reserved' = 'false' from (select public.assistant_reserve(1) as a) x), 'the deployment-wide cap the server passes in holds for the platform home too');
+reset role;
+
 -- An e-mail an admin listed joins that home at the first sign-in (making one of their own is a later, deliberate step: migration 4300, below).
 select pg_temp.act_as(:mido);
 set role authenticated;
@@ -992,6 +1039,25 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000
 set role authenticated;
 select pg_temp.assert((public.me())->'household'->>'id' <> :khan_home and (public.me())->'member'->>'display_name' = 'Cousin', 'the cousin lands in Mido''s home as the listed member');
 reset role;
+-- Migration 5700: an e-mail on the list joins only once that e-mail is confirmed.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.member_save(null, 'Neighbour', 'neighbour@test.local', 'family_carer', null, null, true, null))->>'ok' = 'true', 'Mido lists a neighbour by e-mail');
+reset role;
+insert into auth.users (id, email, email_confirmed_at) values ('00000000-0000-4000-8000-00000000c00a', 'neighbour@test.local', null) on conflict do nothing;
+select pg_temp.assert((select user_id from public.members where email = 'neighbour@test.local') is null, 'an unconfirmed account is not linked when it is made');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c00a","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.me())->>'error' = 'no_member', 'nor when it signs in');
+reset role;
+select pg_temp.assert((select user_id from public.members where email = 'neighbour@test.local') is null, 'the listed row stays free');
+update auth.users set email_confirmed_at = now() where id = '00000000-0000-4000-8000-00000000c00a';
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c00a","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.me())->'member'->>'display_name' = 'Neighbour', 'once confirmed, the first sign-in joins the listed member');
+reset role;
+delete from public.members where email = 'neighbour@test.local';
+delete from auth.users where id = '00000000-0000-4000-8000-00000000c00a';
 update public.care_entries set deleted_at = now() where note in ('khan test', 'cross-home test');
 
 -- Definer functions see one home too (migration 4000): rows made in Mido's home,
@@ -1054,7 +1120,7 @@ select pg_temp.assert(
     where n.nspname = 'private' and p.prosecdef and pg_get_userbyid(p.proowner) <> 'app_rls'
       and p.proname not in ('current_household_id', 'only_household_id', 'home_for_new_rows', 'platform_home', 'shared_locked', 'photo_in_my_home',
                             'audit_write', 'auth_user_id_by_email', 'handle_auth_user_created', 'care_custody_fill_module', 'care_entries_fill_module', 'seed_home',
-                            'preview_member_id', 'timers_close_forgotten', 'timers_close_overdue', 'user_signed_in')) = 0,
+                            'preview_member_id', 'timers_close_forgotten', 'timers_close_overdue', 'user_signed_in', 'agent_calls_total_today')) = 0,
   'and so does every data-reading helper in private');
 select pg_temp.assert(has_schema_privilege('app_rls', 'public', 'CREATE') and has_schema_privilege('app_rls', 'private', 'CREATE'), 'app_rls may own functions in both schemas (the transfer needs CREATE)');
 -- And none of them may reach into the auth schema: the token is read through public.current_member_id()

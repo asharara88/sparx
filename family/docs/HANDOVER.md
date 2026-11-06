@@ -161,10 +161,17 @@ Open:
   closes one left on since yesterday instead of handing it back.
 - **The assistant eval has never been run** against the deployed app. It costs
   real model calls: `EVAL_URL=… npm run eval:assistant` with `CRON_SECRET` set.
-- **Confirm e-mail.** The sign-up trigger links an auth user to a member row by
-  e-mail at the moment the auth row is created, before any confirmation. Keep
-  "Confirm email" on in Supabase Auth, or switch public sign-ups off and create
-  accounts with `setup-household.mjs --accounts`. Not yet confirmed in the dashboard.
+- **Confirm e-mail.** Since migration `…5700` a member row is linked to an account by
+  e-mail only once that e-mail is confirmed (`auth.users.email_confirmed_at`). On
+  6 November "Confirm email" was still OFF in Supabase Auth: every account is confirmed
+  the moment it is made, so anyone signing up with an address on a member list joins that
+  home. Turning it on closes that; the sign-up form already says "check your e-mail".
+  Invite links (migration 5300) work either way.
+- **Other families.** Anyone can sign up and start a home. The helper is capped per home and
+  per member each day (README, "Spending limit"); the child's emergency number is the
+  family's own (new homes get it from the time zone where certain, else they type it). Still
+  shared by every home and editable only from the first: roles and permissions, entry types,
+  the UAE vaccine schedule and the helper's skills.
 - **View-as** is read only everywhere since migration `…3600` (the own-row RPCs
   carry `private.read_only_preview()`), a preview token the database stops
   accepting ends the preview instead of looking like a sign-out, and the

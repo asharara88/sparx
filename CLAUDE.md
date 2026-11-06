@@ -100,12 +100,15 @@ Dependabot was added and removed on purpose: do not bring it back.
 - Google sign-in is built (`components/GoogleButton.tsx`) but the Google provider was
   still off in Supabase at the time of writing; the button says so in plain words until
   it is on. Never enable Supabase's "OAuth Server" for this: that is a different feature.
-- Open on Mido's side: the Google provider switch; Supabase "Confirm email" never checked
-  in the dashboard; the "often" cron needs Vercel Pro; the assistant eval has never run
-  against the live app; Codex automatic reviews still on. The helper suggests memories from
-  chats (migration 5600, on by default at Mido's ask; one small model call per chat read;
-  `ASSISTANT_REMEMBER=0` on Vercel turns it off). The Vercel connector cannot write env
-  vars (403): a person does that in the dashboard.
+- Open on Mido's side: the Google provider switch; Supabase "Confirm email" is OFF (checked
+  6 November: accounts are confirmed the moment they are made), so linking by e-mail is not
+  yet protected; the "often" cron needs Vercel Pro; the assistant eval has never run
+  against the live app; Codex automatic reviews still on; no monthly spend limit known on
+  the Anthropic key. The helper suggests memories from chats (migration 5600, on by default
+  at Mido's ask; one small model call per chat read; `ASSISTANT_REMEMBER=0` on Vercel turns
+  it off). Model calls are capped per home and per member each day (migration 5700; README,
+  "Spending limit"). The Vercel connector cannot write env vars (403): a person does that in
+  the dashboard.
 
 ## How to behave
 

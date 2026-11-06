@@ -8,6 +8,7 @@ import { storyMonth } from "@/lib/story";
 import { buildTools, loadContext } from "./tools";
 import { stableSystem, volatileSystem } from "./prompt";
 import { assistantConfigured, compose, MODEL } from "./run";
+import { checkAllowance } from "./allowance";
 
 export type BriefKind = "morning" | "evening" | "week" | "story";
 
@@ -45,6 +46,8 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
     if (got?.ok && got.brief) return { ok: true, brief: got.brief, fresh: false };
   }
   if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
+  const allowed = await checkAllowance(supabase, me);
+  if (!allowed.ok) return allowed;
 
   const ctx = await loadContext(supabase, me, now);
   const tools = new Map(buildTools(ctx).map((t) => [t.def.name, t]));
@@ -155,6 +158,8 @@ async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh
     if (got?.ok && got.brief && got.brief.created_at.slice(0, 10) === today) return { ok: true, brief: got.brief, fresh: false };
   }
   if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
+  const allowed = await checkAllowance(supabase, me);
+  if (!allowed.ok) return allowed;
 
   const tools = new Map(buildTools(ctx).map((t) => [t.def.name, t]));
   const run = async (name: string, input: Record<string, unknown>) => {

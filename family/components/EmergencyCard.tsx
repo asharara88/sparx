@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import type { Subject } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { possessive } from "@/lib/names";
+import { ambulanceOf } from "@/lib/emergency";
 import { Icon } from "./Icon";
 
 // {n} is the ambulance number from the profile; {child} the child's name in that language.
 const T = {
   call: { en: "Call {n} ambulance", ar: "اتصل بالإسعاف {n}", ru: "Скорая {n}" },
+  noNumber: { en: "Add the ambulance number", ar: "أضف رقم الإسعاف", ru: "Добавьте номер скорой" },
   doctor: { en: "{child's} doctor", ar: "دكتور {child}", ru: "Врач {child}" },
   hospital: { en: "Hospital", ar: "المستشفى", ru: "Больница" },
   papa: { en: "Papa", ar: "بابا", ru: "Папа" },
@@ -35,7 +37,8 @@ const tel = (n: string) => `tel:${n.replace(/[^\d+]/g, "")}`;
 export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; lang: Lang; canEdit: boolean }) {
   const router = useRouter();
   const p = (subject.profile ?? {}) as Record<string, string | undefined>;
-  const ambulance = p.emergency_ambulance || "998";
+  // No number assumed: a home that has not given one is asked for it, not told to dial 998.
+  const ambulance = ambulanceOf(subject.profile) ?? "";
   // The child's name in the member's language when the household gave one, else the main name.
   const childName = ((subject.profile?.names as Record<string, string> | undefined)?.[lang]) || subject.name;
   const t = (k: keyof typeof T) => T[k][lang].replace("{n}", ambulance).replace("{child's}", possessive(childName)).replace("{child}", childName);
@@ -77,9 +80,15 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
 
   return (
     <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-col gap-3">
-      <a href={tel(ambulance)} className="flex items-center justify-center gap-3 rounded-3xl bg-[var(--danger)] p-6 text-2xl font-bold text-white shadow-[var(--shadow)] active:scale-[0.98]">
-        <Icon name="phone" size={30} /> {t("call")}
-      </a>
+      {ambulance ? (
+        <a href={tel(ambulance)} className="flex items-center justify-center gap-3 rounded-3xl bg-[var(--danger)] p-6 text-2xl font-bold text-white shadow-[var(--shadow)] active:scale-[0.98]">
+          <Icon name="phone" size={30} /> {t("call")}
+        </a>
+      ) : (
+        <p className="flex items-center justify-center gap-3 rounded-3xl border-2 border-[var(--danger)] p-6 text-center text-xl font-bold text-[var(--danger)]">
+          <Icon name="phone" size={26} /> {t("noNumber")}
+        </p>
+      )}
       <CallRow label={t("doctor")} name={p.doctor_name} phone={p.doctor_tollfree || p.doctor_phone} />
       <CallRow label={t("papa")} phone={p.emergency_papa_phone} />
       <CallRow label={t("mama")} phone={p.emergency_mama_phone} />

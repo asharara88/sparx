@@ -5,6 +5,7 @@ import { can } from "@/lib/types";
 import { buildTools, loadContext, type AssistantTool, type ToolContext } from "./tools";
 import { systemBlocks } from "./prompt";
 import { chatDigest } from "./memory";
+import { checkAllowance } from "./allowance";
 import { loadSituation } from "./situation";
 import { anthropicOptions, modelConfigured } from "@/lib/server/anthropic";
 import { isAbort, withTimeout } from "./wait";
@@ -119,6 +120,9 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
   if (!assistantConfigured()) {
     return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
   }
+  // Today's allowance for this home and member (and the whole deployment): no model call past it.
+  const allowed = await checkAllowance(supabase, me);
+  if (!allowed.ok) return allowed;
 
   const usage = emptyUsage();
   const toolLog: { name: string; input: unknown; ok: boolean }[] = [];

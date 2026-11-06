@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Me } from "@/lib/types";
 import type { MemoryFact } from "./memory";
 import { client } from "./run";
+import { checkAllowance } from "./allowance";
 import { anthropicApiKey, federationConfigured } from "@/lib/server/anthropic";
 import { newCandidates, parseCandidates, rememberPrompt, shouldMine, type MemoryCandidate } from "./remember";
 
@@ -44,6 +45,9 @@ export async function rememberFromChat(supabase: SupabaseClient, me: Me, chatId:
   if (!row) return { ok: false, error: "not_found" };
   const { text, userTurns } = transcriptOf(row.messages);
   if (!shouldMine(userTurns, row.mined_turns ?? 0)) return { ok: true, read: false, added: 0, candidates: 0 };
+  // Past today's allowance the chat is simply not read; nobody is waiting on it.
+  const allowed = await checkAllowance(supabase, me);
+  if (!allowed.ok) return { ok: true, read: false, added: 0, candidates: 0 };
 
   const [{ data: memData }, { data: members }, { data: subjects }] = await Promise.all([
     supabase.rpc("memory_list"),
