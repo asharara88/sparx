@@ -41,13 +41,14 @@ create trigger household_settings_guard before insert or update of settings on p
   for each row execute function private.household_settings_guard();
 
 -- One row per model call, written before the call is made. Home-scoped like every other
--- table; nobody reads it from the client.
+-- table; nobody reads it from the client. No foreign keys on purpose: a deleted home or
+-- member must not take the day's spent calls with it (delete a home, make a new one, and
+-- the deployment-wide total would start again). A few bytes a call; nothing else reads it.
 create table if not exists public.agent_calls (
   id bigint generated always as identity primary key,
-  household_id uuid not null references public.household (id) on delete cascade,
+  household_id uuid not null,
   member_id uuid not null,
-  at timestamptz not null default now(),
-  constraint agent_calls_member_id_home_fkey foreign key (household_id, member_id) references public.members (household_id, id) on delete cascade
+  at timestamptz not null default now()
 );
 create index if not exists agent_calls_home_at_idx on public.agent_calls (household_id, at desc);
 create index if not exists agent_calls_at_idx on public.agent_calls (at);

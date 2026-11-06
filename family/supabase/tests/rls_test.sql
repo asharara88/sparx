@@ -1013,6 +1013,8 @@ select pg_temp.assert((select a->>'reserved' = 'false' and (a->>'home_calls')::i
   'the third is refused at the home''s limit of 2, with the counts that say why');
 reset role;
 select pg_temp.assert((select count(*) from public.agent_calls where household_id = ((select r from new_home)->>'household_id')::uuid) = 2, 'a refused call books nothing');
+select pg_temp.assert(not exists (select 1 from pg_constraint where conrelid = 'public.agent_calls'::regclass and contype = 'f'),
+  'the bookings outlive a deleted home or member, so the day''s total cannot be reset by deleting one');
 update public.household set settings = settings || '{"assistant_daily_home": null, "assistant_daily_member": 2}' where id = ((select r from new_home)->>'household_id')::uuid;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
 set role authenticated;
