@@ -578,7 +578,6 @@ type MealValue = { food: string; amount: string | null; isNew: boolean; allergen
 function MealForm({ types, value, onChange, onSave, disabled }: { types: EntryType; value: MealValue; onChange: (v: MealValue) => void; onSave: () => void; disabled: boolean }) {
   const opts = (k: string, dflt: string[]) => (types.fields.find((f) => f.key === k)?.options as string[] | undefined) ?? dflt;
   const set = (p: Partial<MealValue>) => onChange({ ...value, ...p });
-  const askReaction = value.isNew || value.allergen !== "None";
   return (
     <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (value.food.trim()) onSave(); }}>
       <input className="input" value={value.food} onChange={(e) => set({ food: e.target.value })} placeholder="What was eaten (avocado, porridge…)" aria-label="What was eaten" maxLength={80} autoFocus enterKeyHint="done" />
@@ -599,13 +598,12 @@ function MealForm({ types, value, onChange, onSave, disabled }: { types: EntryTy
           ))}
         </select>
       </div>
-      {askReaction && (
-        <select className="input" value={value.reaction} aria-label="Any reaction" disabled={disabled} onChange={(e) => set({ reaction: e.target.value })}>
-          {opts("reaction", ["None"]).map((r) => (
-            <option key={r} value={r}>{r === "None" ? "No reaction" : `Reaction: ${r.toLowerCase()}`}</option>
-          ))}
-        </select>
-      )}
+      {/* Always shown: a reaction to a familiar food matters as much as to a new one. */}
+      <select className="input" value={value.reaction} aria-label="Any reaction" disabled={disabled} onChange={(e) => set({ reaction: e.target.value })}>
+        {opts("reaction", ["None"]).map((r) => (
+          <option key={r} value={r}>{r === "None" ? "No reaction" : `Reaction: ${r.toLowerCase()}`}</option>
+        ))}
+      </select>
       <button type="submit" className="btn btn-primary btn-lg" disabled={disabled || !value.food.trim()}>
         Save the meal
       </button>

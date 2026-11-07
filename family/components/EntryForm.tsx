@@ -42,7 +42,8 @@ export function EntryForm(props: {
       for (const f of t.fields) {
         if (f.default !== undefined) keep[f.key] = f.default;
         const prev = initial.payload[f.key];
-        if (f.type === "choice" && prev != null && (!f.option_flags?.[String(prev)] || flags[f.option_flags[String(prev)]])) keep[f.key] = prev;
+        // A field marked fresh (a meal's first time, allergen, reaction) starts at its default every time.
+        if (f.type === "choice" && !f.fresh && prev != null && (!f.option_flags?.[String(prev)] || flags[f.option_flags[String(prev)]])) keep[f.key] = prev;
       }
       return keep;
     }

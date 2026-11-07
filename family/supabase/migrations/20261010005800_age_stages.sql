@@ -2,7 +2,8 @@
 --
 --   1. A meal entry. From about 6 months a baby eats; there was no way to log it. The type
 --      is shared like every other (one row for every home); the app offers it from 24 weeks
---      of age, and Home's fourth row becomes Meal from then.
+--      of age, and Home's fourth row becomes Meal from then. Its first-time, allergen and
+--      reaction answers are "fresh": a new meal never starts with the last one's.
 --   2. The gap before the next feed is due grows with age: 3 h under 6 months (as before),
 --      4 h to 12 months, 5 h after. home_summary is as in migration 5500 with that one change.
 
@@ -15,10 +16,10 @@ insert into public.care_entry_types (id, module_id, key, label, icon, color, sor
      {"key":"amount","label":"How much","type":"choice","options":["A taste","A few spoons","Half a bowl","A full bowl"],
       "labels":{"ar":{"A taste":"تذوّق","A few spoons":"بضع ملاعق","Half a bowl":"نصف وعاء","A full bowl":"وعاء كامل"},
                 "ru":{"A taste":"Попробовать","A few spoons":"Несколько ложек","Half a bowl":"Полмиски","A full bowl":"Полная миска"}}},
-     {"key":"new_food","label":"First time trying it","type":"choice","options":["No","Yes"],"default":"No",
+     {"key":"new_food","label":"First time trying it","type":"choice","options":["No","Yes"],"default":"No","fresh":true,
       "labels":{"ar":{"No":"لا","Yes":"نعم"},"ru":{"No":"Нет","Yes":"Да"}}},
-     {"key":"allergen","label":"Allergen in it","type":"choice","options":["None","Egg","Peanut","Milk","Wheat","Fish","Sesame","Tree nuts","Soy","Shellfish"],"default":"None"},
-     {"key":"reaction","label":"Any reaction","type":"choice","options":["None","Rash","Vomiting","Swelling","Other"],"default":"None"}]'::jsonb,
+     {"key":"allergen","label":"Allergen in it","type":"choice","options":["None","Egg","Peanut","Milk","Wheat","Fish","Sesame","Tree nuts","Soy","Shellfish"],"default":"None","fresh":true},
+     {"key":"reaction","label":"Any reaction","type":"choice","options":["None","Rash","Vomiting","Swelling","Other"],"default":"None","fresh":true}]'::jsonb,
    false, true)
 on conflict (id) do nothing;
 

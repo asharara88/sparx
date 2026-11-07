@@ -1031,6 +1031,8 @@ reset role;
 
 -- Migration 5800: the meal, and the feed gap by age.
 select pg_temp.assert((select is_active and module_id = 'lana' and not has_end from public.care_entry_types where id = 'lana.meal'), 'the meal type is there, shared like every other');
+select pg_temp.assert((select array_agg(f->>'key' order by f->>'key') from public.care_entry_types t, jsonb_array_elements(t.fields) f where t.id = 'lana.meal' and (f->>'fresh')::boolean)
+  = array['allergen', 'new_food', 'reaction'], 'a new meal never starts with the last one''s first time, allergen or reaction');
 select pg_temp.assert(private.feed_every_min(current_date - 100) = 180 and private.feed_every_min(current_date - 250) = 240
   and private.feed_every_min(current_date - 500) = 300 and private.feed_every_min(null) = 180, 'the feed gap grows with age: 3 h, then 4 h, then 5 h');
 select pg_temp.assert(not has_function_privilege('anon', 'private.feed_every_min(date)', 'execute'), 'anon cannot call the feed gap');
