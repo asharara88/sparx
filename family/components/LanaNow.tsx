@@ -70,6 +70,11 @@ export function LanaNow({
   const [undo, setUndo] = useState<{ ids: string[]; until: number } | null>(null);
   const logged = useRef<(string | null)[]>([]);
   const ended = useRef(false);
+  // A tap that also moved milk in or out of the stash cannot be undone by deleting its
+  // entry; and two taps in flight together would share these notes, so neither gets Undo.
+  const stash = useRef(false);
+  const flight = useRef(0);
+  const runSeq = useRef(0);
   // An entry opened from a sheet's Recent list, edited or deleted in place.
   const [editing, setEditing] = useState<EntryRow | null>(null);
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
@@ -162,6 +167,7 @@ export function LanaNow({
 
   // ---- actions
   async function rpc(name: string, args: Record<string, unknown>) {
+    if (name.startsWith("milk_")) stash.current = true;
     const { data, error } = await supabaseBrowser().rpc(name, args);
     const res = data as { ok: boolean; message?: string; id?: string } | null;
     if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
@@ -201,11 +207,17 @@ export function LanaNow({
     setMsg(null);
     setUndo(null);
     queuedRef.current = false;
+    // Alone: no other tap in flight when this one started or while it ran.
+    const alone = flight.current === 0;
+    flight.current += 1;
+    const seq = ++runSeq.current;
     logged.current = [];
     ended.current = false;
+    stash.current = false;
     try {
       await fn();
-      if (undoable && !ended.current && logged.current.length && logged.current.every((id) => id) && canDelete) setUndo({ ids: logged.current as string[], until: Date.now() + 30_000 });
+      if (undoable && alone && runSeq.current === seq && !ended.current && !stash.current && logged.current.length && logged.current.every((id) => id) && canDelete)
+        setUndo({ ids: logged.current as string[], until: Date.now() + 30_000 });
       const base = isEarlier(when) && sayTime ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
       setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
       if (isEarlier(when)) lastEarlier.current = { when: { kind: "at", local: toLocalInput(whenIso, timezone) }, at: Date.now() };
@@ -216,6 +228,7 @@ export function LanaNow({
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
+      flight.current -= 1;
       setInFlight((n) => n - 1);
     }
   }
