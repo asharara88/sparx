@@ -12,6 +12,8 @@ export function tintFor(key: string | null | undefined): Tint {
       return "diaper";
     case "pump":
       return "pump";
+    case "meal":
+      return "food";
     case "meds":
     case "medicine":
     case "medication":

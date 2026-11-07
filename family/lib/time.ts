@@ -175,7 +175,12 @@ export function fromLocalInput(local: string, tz: string): string {
 export function describePayload(payload: Record<string, unknown>): string {
   return Object.entries(payload)
     .filter(([, v]) => v !== null && v !== "" && v !== undefined)
+    // A meal's yes/no and "None" details say nothing unless they say something.
+    .filter(([k, v]) => !((k === "new_food" && v !== "Yes") || ((k === "allergen" || k === "reaction") && v === "None")))
     .map(([k, v]) => {
+      if (k === "new_food") return "first time";
+      if (k === "allergen") return `allergen: ${String(v).toLowerCase()}`;
+      if (k === "reaction") return `reaction: ${String(v).toLowerCase()}`;
       if (k === "amount_ml") return `${v} ml`;
       if (k === "duration_min") return `${v} min`;
       if (k === "weight_kg") return `${v} kg`;

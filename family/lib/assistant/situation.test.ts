@@ -75,3 +75,10 @@ test("who is in the house is one line, or nothing", () => {
   );
   assert.equal(formatHome([]), "");
 });
+
+test("today's meals are in the counts once the child eats, and not before", () => {
+  const base = { name: "Lana", nowLocal: "", ageDays: 220, asleepSince: null, lastFeedAt: null, lastFeedMl: null, lastFeedKind: null, nextFeedDue: null, feedsToday: 4, diapersToday: 3, whoHas: null, plan: null };
+  assert.match(formatSituation({ ...base, mealsToday: 2 }), /Today so far: 4 feeds, 3 nappies, 2 meals\./);
+  assert.match(formatSituation({ ...base, mealsToday: 1 }), /3 nappies, 1 meal\./);
+  assert.match(formatSituation({ ...base, ageDays: 120 }), /Today so far: 4 feeds, 3 nappies\./);
+});

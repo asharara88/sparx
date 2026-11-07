@@ -142,6 +142,8 @@ export interface FieldDef {
   /** What an option is called in another language: lang -> stored value -> label. The stored value stays the same. */
   labels?: Partial<Record<"ar" | "ru", Record<string, string>>>;
   default?: string | number;
+  /** Never carried over from the last entry: a new one always starts at the default (a meal's reaction). */
+  fresh?: boolean;
 }
 
 export interface EntryType {

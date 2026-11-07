@@ -105,7 +105,7 @@ export function forecast(entries: EntryRow[], opts: ForecastOptions = {}): Forec
     (away(t(feeds[i].occurred_at)) ? gapsAway : gapsHome).push(gap);
   }
   const base = (opts.feedIntervalMin ?? 180) * MIN;
-  const feedHome = clamp(median(gapsHome, base), 1.5 * H, 4 * H);
+  const feedHome = clamp(median(gapsHome, base), 1.5 * H, Math.max(4 * H, base));
   const feedAway = clamp(median(gapsAway, Math.min(base, 2.5 * H)), 1.5 * H, 4 * H);
 
   const diapers = asc.filter((e) => e.type_id === "lana.diaper");

@@ -17,6 +17,7 @@ import { fromLocalInput, toLocalInput } from "@/lib/time";
 import { bottleChoices, napLengths, overlappingSleep, runningTimers } from "@/lib/backlog";
 import { possessive } from "@/lib/names";
 import { isNightAt } from "@/lib/night";
+import { pumpingActive, stageFor } from "@/lib/stage";
 
 /**
  * Home's log (DESIGN.md, "Home"): one row per activity, Huckleberry-style. Each row says
@@ -40,6 +41,7 @@ export function LanaNow({
   clockIso,
   lastMilk,
   lastFeedMethod,
+  lastPumpAt = null,
 }: {
   subject: Subject;
   types: EntryType[];
@@ -51,6 +53,8 @@ export function LanaNow({
   lastMilk: string | null;
   /** How the last feed went ("Bottle", "Breast"), however long ago: the Feed sheet opens on it. */
   lastFeedMethod: string | null;
+  /** When the last pump was logged, however long ago: the Pump row fades two weeks after it. */
+  lastPumpAt?: string | null;
 }) {
   const me = useMe();
   const router = useRouter();
@@ -62,7 +66,9 @@ export function LanaNow({
   // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
   const [when, setWhen] = useState<When>(NOW);
   // The sheet a tile opened (feed, nappy, pump, or a sleep from earlier); closes when the tap saves.
-  const [sheet, setSheet] = useState<"feed" | "diaper" | "pump" | "sleep" | null>(null);
+  const [sheet, setSheet] = useState<"feed" | "diaper" | "pump" | "sleep" | "meal" | null>(null);
+  // The Meal sheet: what was eaten, how much, and whether it was new or held an allergen.
+  const [meal, setMeal] = useState<{ food: string; amount: string | null; isNew: boolean; allergen: string; reaction: string }>({ food: "", amount: null, isNew: false, allergen: "None", reaction: "None" });
   // The time last used for an entry from earlier: the next sheet opened within a minute
   // starts on it (a bottle and a nappy from the same moment). One-tap tiles never use it.
   const lastEarlier = useRef<{ when: When; at: number } | null>(null);
@@ -104,6 +110,7 @@ export function LanaNow({
   const wakeType = types.find((t) => t.key === "wake");
   const diaperType = types.find((t) => t.key === "diaper");
   const pumpType = types.find((t) => t.key === "pump");
+  const mealType = types.find((t) => t.key === "meal");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
   // The last bottle's amount is the usual one: marked on the sheet, and always a chip.
   const bottle = bottleChoices((feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[], Number(seen.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle")?.payload.amount_ml) || null);
@@ -283,6 +290,12 @@ export function LanaNow({
     : "Tap when she falls asleep";
   const lastNappy = lastOf(diaperType?.id);
   const nappySub = lastNappy && ago(diaperType?.id, "") !== "" ? `${ago(diaperType?.id, "")}${lastNappy.payload.kind ? ` · ${String(lastNappy.payload.kind).toLowerCase()}` : ""}` : "Wet or dirty";
+  // The fourth row grows with the child (DESIGN.md, "Home"): Meal once she eats (lib/stage),
+  // before that Pump for the parent who pumps while pumping goes on, else Medicine.
+  const stage = stageFor(subject.birth_date, clock);
+  const fourth: "meal" | "pump" | "meds" = stage.solids && mealType ? "meal" : breastfeeds && pumpType && pumpingActive(lastPumpAt, clock) ? "pump" : "meds";
+  const lastMeal = lastOf(mealType?.id);
+  const mealSub = lastMeal && ago(mealType?.id, "") !== "" ? `${ago(mealType?.id, "")}${lastMeal.payload.food ? ` · ${String(lastMeal.payload.food).toLowerCase()}` : ""}` : "What was eaten";
   const lastPump = lastOf(pumpType?.id);
   const pumpSub = lastPump && ago(pumpType?.id, "") !== "" ? `${ago(pumpType?.id, "")}${lastPump.payload.amount_ml ? ` · ${lastPump.payload.amount_ml} ml` : ""}` : "To the fridge";
   const feedEntry = state.kind === "feeding" ? state.entry : null;
@@ -302,7 +315,9 @@ export function LanaNow({
         <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
           action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
         <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
-        {breastfeeds && pumpType ? (
+        {fourth === "meal" ? (
+          <Row tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} action={{ kind: "plus", label: "Log a meal", onClick: () => openSheet("meal") }} />
+        ) : fourth === "pump" ? (
           <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
         ) : (
           <Row tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
@@ -393,6 +408,17 @@ export function LanaNow({
               </button>
             ))}
           </div>
+        </Sheet>
+      )}
+      {sheet === "meal" && mealType && (
+        <Sheet title="Meal" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+          <MealForm types={mealType} value={meal} onChange={setMeal} disabled={off}
+            onSave={() =>
+              run(`${meal.food.trim()} saved.`, async () => {
+                await start(mealType, { food: meal.food.trim(), ...(meal.amount ? { amount: meal.amount } : {}), new_food: meal.isNew ? "Yes" : "No", allergen: meal.allergen, reaction: meal.reaction }, nowIso);
+                setMeal({ food: "", amount: null, isNew: false, allergen: "None", reaction: "None" });
+              })
+            } />
         </Sheet>
       )}
       {sheet === "pump" && pumpType && (
@@ -544,5 +570,43 @@ function Sheet({ title, onClose, when, onWhen, timezone, busy, whenOpen = false,
       <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} defaultOpen={whenOpen} />
       {children}
     </BaseSheet>
+  );
+}
+
+/** The Meal sheet's form: food first (the keyboard opens on it), then one tap per detail. */
+type MealValue = { food: string; amount: string | null; isNew: boolean; allergen: string; reaction: string };
+function MealForm({ types, value, onChange, onSave, disabled }: { types: EntryType; value: MealValue; onChange: (v: MealValue) => void; onSave: () => void; disabled: boolean }) {
+  const opts = (k: string, dflt: string[]) => (types.fields.find((f) => f.key === k)?.options as string[] | undefined) ?? dflt;
+  const set = (p: Partial<MealValue>) => onChange({ ...value, ...p });
+  return (
+    <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (value.food.trim()) onSave(); }}>
+      <input className="input" value={value.food} onChange={(e) => set({ food: e.target.value })} placeholder="What was eaten (avocado, porridge…)" aria-label="What was eaten" maxLength={80} autoFocus enterKeyHint="done" />
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="How much">
+        {opts("amount", ["A taste", "A few spoons", "Half a bowl", "A full bowl"]).map((a) => (
+          <button key={a} type="button" className="chip min-h-[44px]" aria-pressed={value.amount === a} disabled={disabled} onClick={() => set({ amount: value.amount === a ? null : a })}>
+            {a}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className="chip min-h-[44px]" aria-pressed={value.isNew} disabled={disabled} onClick={() => set({ isNew: !value.isNew })}>
+          First time
+        </button>
+        <select className="input" value={value.allergen} aria-label="Allergen in it" disabled={disabled} onChange={(e) => set({ allergen: e.target.value })}>
+          {opts("allergen", ["None"]).map((a) => (
+            <option key={a} value={a}>{a === "None" ? "No allergen" : a}</option>
+          ))}
+        </select>
+      </div>
+      {/* Always shown: a reaction to a familiar food matters as much as to a new one. */}
+      <select className="input" value={value.reaction} aria-label="Any reaction" disabled={disabled} onChange={(e) => set({ reaction: e.target.value })}>
+        {opts("reaction", ["None"]).map((r) => (
+          <option key={r} value={r}>{r === "None" ? "No reaction" : `Reaction: ${r.toLowerCase()}`}</option>
+        ))}
+      </select>
+      <button type="submit" className="btn btn-primary btn-lg" disabled={disabled || !value.food.trim()}>
+        Save the meal
+      </button>
+    </form>
   );
 }

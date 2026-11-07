@@ -1,6 +1,6 @@
 import { Icon, type IconName } from "./Icon";
 
-export type Tint = "feed" | "sleep" | "diaper" | "meds" | "milk" | "pump" | "house" | "cal" | "notes" | "guide" | "danger";
+export type Tint = "feed" | "sleep" | "diaper" | "meds" | "milk" | "pump" | "food" | "house" | "cal" | "notes" | "guide" | "danger";
 
 /**
  * A section that opens and closes (a plain <details>, so it works server-rendered and

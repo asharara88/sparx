@@ -216,7 +216,9 @@ bottom bar as a grid of tiles.
    sleep in 12 hours, plain "Awake for", or nothing (rule 6).
 3. **Now**: one notice, the top of the order in rule 3, or nothing. "2 more ›" opens the rest.
    The nap is no longer a notice: the card says it.
-4. **Log**: four rows in one white group at the thumb (Feed, Sleep, Nappy, Pump or Medicine).
+4. **Log**: four rows in one white group at the thumb (Feed, Sleep, Nappy, and a fourth that
+   grows with the child: Meal once she eats, from 24 weeks; before that Pump while the parent
+   who pumps still does (a pump in the last two weeks), else Medicine). `lib/stage.ts` decides.
    Each row: the tinted icon, the name, and how long ago with the one detail ("40 min ago ·
    90 ml", "Asleep · since 13:10", "Feeding, left · 9 min"); on the right a round button.
    ▶ starts (Sleep: asleep now, one tap; Feed: opens its sheet), ■ stops (Woke up, Done
