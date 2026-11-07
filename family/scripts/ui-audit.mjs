@@ -18,9 +18,12 @@ const as = process.env.AUDIT_AS ?? "00000000-0000-4000-8000-000000000002";
 const out = process.env.AUDIT_OUT ?? "/tmp/ui-audit";
 const routes = process.argv.slice(2).length ? process.argv.slice(2) : ["/", "/baby", "/baby/milk", "/calendar", "/notes", "/members", "/me", "/chat"];
 
-// docs/DESIGN.md, "Budgets". Home is stricter than every other screen.
-const budget = (route) =>
-  route === "/" ? { blocks: 6, numbers: 15, words: 80, screens: 1 } : { blocks: 8, numbers: 12, words: 150, screens: 2.5 };
+// docs/DESIGN.md, "Budgets". Home's first screen (.screen-fill: now, the alert, the log rows)
+// is stricter than every other screen; the day's cards below it (#today) count as a screen of
+// their own.
+const HOME = { blocks: 6, numbers: 15, words: 80, screens: 1 };
+const OTHER = { blocks: 8, numbers: 12, words: 150, screens: 2.5 };
+const parts = (route) => (route === "/" ? [["/ first screen", ".screen-fill", HOME], ["/ below", "#today", OTHER]] : [[route, null, OTHER]]);
 
 mkdirSync(out, { recursive: true });
 const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -38,23 +41,27 @@ for (const theme of ["light", "night"]) {
     const name = route === "/" ? "home" : route.slice(1).replaceAll("/", "_");
     await page.screenshot({ path: `${out}/${name}-${theme}.png`, fullPage: true });
     if (theme !== "light") continue;
-    const m = await page.evaluate(() => {
+    const measure = (scope) => page.evaluate((scope) => {
       const main = document.querySelector("main") ?? document.body;
       const shown = (el) => {
         const s = getComputedStyle(el);
         return s.display !== "none" && s.visibility !== "hidden" && el.getBoundingClientRect().height > 0;
       };
-      const column = main.querySelector(":scope > div, :scope > section") ?? main;
-      const text = main.innerText;
+      const root = scope ? document.querySelector(scope) : null;
+      const column = root ?? main.querySelector(":scope > div, :scope > section") ?? main;
+      const box = root ?? main;
+      const text = box.innerText;
       return {
         blocks: [...column.children].filter((el) => shown(el) && !el.classList.contains("grow-space")).length, // a spacer is not a block
-        cards: [...main.querySelectorAll(".card, .tile, details, .action, .notice")].filter(shown).length,
-        taps: [...main.querySelectorAll("a, button, summary")].filter(shown).length,
+        cards: [...box.querySelectorAll(".card, .tile, details, .action, .notice")].filter(shown).length,
+        taps: [...box.querySelectorAll("a, button, summary")].filter(shown).length,
         numbers: (text.match(/\b\d+(?:[.:]\d+)?\b/g) ?? []).length,
         words: text.split(/\s+/).filter(Boolean).length,
-        screens: Math.round((document.documentElement.scrollHeight / innerHeight) * 10) / 10,
+        screens: Math.round(((root ? root.getBoundingClientRect().height : document.documentElement.scrollHeight) / innerHeight) * 10) / 10,
       };
-    });
+    }, scope);
+    const ms = [];
+    for (const [label, scope, b] of parts(route)) ms.push([label, await measure(scope), b]);
     // The phone checks look inside every fold, so open them all first.
     await page.evaluate(() => document.querySelectorAll("main details").forEach((d) => (d.open = true)));
     await page.waitForTimeout(150);
@@ -113,10 +120,11 @@ for (const theme of ["light", "night"]) {
     });
     const issues = Object.entries({ wide: phone.wide, sideways: phone.sideways, tables: phone.tables, "wrapped labels": phone.wrapped, "card in card": phone.nested, "small taps": phone.small, "tiny text": phone.tiny }).filter(([, n]) => n > 0);
     over += issues.length;
-    const b = budget(route);
-    const broken = Object.keys(b).filter((k) => m[k] > b[k]).map((k) => `${k} ${m[k]} > ${b[k]}`);
-    over += broken.length;
-    console.log(`${route.padEnd(14)} ${res.status()}  blocks ${m.blocks}  cards ${m.cards}  taps ${m.taps}  numbers ${m.numbers}  words ${m.words}  screens ${m.screens}${broken.length ? `   OVER: ${broken.join(", ")}` : "   ok"}`);
+    for (const [label, m, b] of ms) {
+      const broken = Object.keys(b).filter((k) => m[k] > b[k]).map((k) => `${k} ${m[k]} > ${b[k]}`);
+      over += broken.length;
+      console.log(`${label.padEnd(14)} ${res.status()}  blocks ${m.blocks}  cards ${m.cards}  taps ${m.taps}  numbers ${m.numbers}  words ${m.words}  screens ${m.screens}${broken.length ? `   OVER: ${broken.join(", ")}` : "   ok"}`);
+    }
     console.log(`${"".padEnd(18)}phone: ${issues.length ? issues.map(([k, n]) => `${k} ${n}`).join(", ") : "ok"}`);
     for (const [k, v] of Object.entries(phone.examples)) if (v.length) console.log(`${"".padEnd(18)}  ${k}: ${v.map((t) => JSON.stringify(t)).join(", ")}`);
   }

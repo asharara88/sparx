@@ -91,11 +91,11 @@ Done and live:
   Home's fourth row from 24 weeks, a food card on the dashboard, nap counts against what is
   usual, feed gaps and warnings by age, pumping that fades two weeks after it stops. Lana
   reaches 24 weeks on 20 November and 6 months on 5 December. README, "Age stages".
-- The dashboard (`/baby/dashboard`, 3 and 4 November, Mido's ask): sleep today (when she
-  woke, or up from a nap, or asleep since; the day's sleep path as one bar; the sums), then
-  pumping (today against the goal, the bottles at home by fridge and freezer, the usual day
-  from the last week with today beside it). Reached from Milk, the child's Today tab and
-  More. The sleep card also sits on the Today tab; Home's state card names the wake time.
+- Home is the dashboard (7 November, Mido's ask; the dashboard was 3 and 4 November). The
+  first screen: state card, a strip of the day's four numbers (woke, naps against usual,
+  feeds, nappies), one alert (the guide's top tip among the candidates) and the log rows.
+  Below the rows: sleep today, feeds today, food once she eats, pumping while it goes on.
+  `/baby/dashboard` sends to `/#today`; Milk's Pumping row goes there too.
 - Branding as elnunu, plum and ivory, self-hosted fonts, icons and manifest.
 - The full Lovable history, 5 June to 20 October, imported as real entries
   (migration `…3200` at the time; the data is in the project and its nightly

@@ -381,10 +381,10 @@ New kind of Lana entry (solids, teething…): insert a row in `care_entry_types`
 **Age stages** (`lib/stage.ts`, migration `…5800`): one table, from the birth date, of what is
 usual now: awake window, naps, the longest gap between milk feeds (3 h under 6 months, 4 h to
 12, 5 h after; `home_summary`'s next feed due uses the same), and meals. Home's fourth row is
-Meal from 24 weeks; the + menu offers Meal from then (or once one was logged); the dashboard
-shows "Food today" (meals, new foods this week, allergens tried, the last reaction) and "N of
+Meal from 24 weeks; the + menu offers Meal from then (or once one was logged); Home's day cards
+(below the log rows) show "Food today" (meals, new foods this week, allergens tried, the last reaction) and "N of
 M naps"; the guide's "last feed" warning moves with the stage; the helper is told the stage
-and today's meals. Pumping fades on its own: the Pump row and the dashboard's pumping part go
+and today's meals. Pumping fades on its own: the Pump row and Home's pumping cards go
 two weeks after the last pump (the part stays while bottles are in stock).
 
 ## 3a. Another family
