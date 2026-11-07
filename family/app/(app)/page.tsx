@@ -142,7 +142,7 @@ export default async function HomePage() {
   // The guide's most pressing tip (DESIGN.md, rule 3): a red one right after an overdue vaccine, a yellow one after "feed due".
   const tip = summary && summary.ok ? tipsFor(week, summary.subject.birth_date, now.getTime(), { timezone: tz, feedGapMin: summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? undefined, name: summary.subject.name, sex: child(me)?.sex ?? null }).find((t) => t.level !== "info") ?? null : null;
   const tipNotice = tip ? (
-    <Link prefetch={false} href="/baby/when-to-call" className={`notice ${tip.level === "red" ? "notice-danger" : tip.topic === "sleep" ? "tint-sleep" : tip.topic === "feeds" ? "tint-feed" : tip.topic === "nappies" || tip.topic === "poo" ? "tint-diaper" : "notice-warn"} flex items-center gap-2 no-underline`}>
+    <Link prefetch={false} href={tip.topic === "sleep" ? "/baby/sleep" : tip.topic === "feeds" ? "/baby/feed" : "/baby/when-to-call"} className={`notice ${tip.level === "red" ? "notice-danger" : tip.topic === "sleep" ? "tint-sleep" : tip.topic === "feeds" ? "tint-feed" : tip.topic === "nappies" || tip.topic === "poo" ? "tint-diaper" : "notice-warn"} flex items-center gap-2 no-underline`}>
       <span className="flex-1 font-semibold">{tip.title}</span> <Icon name="forward" size={18} />
     </Link>
   ) : null;
@@ -201,7 +201,7 @@ export default async function HomePage() {
         <div>{mamaAway ? alerts.countdown : null}</div>
         <div>
           {feedDue && !feeding && (
-            <DueNotice fromMs={Date.parse(feedDue)} className="notice tint-feed">
+            <DueNotice fromMs={Date.parse(feedDue)} className="notice tint-feed" href="/baby/feed">
               <b>Feed due now</b>
               {lastFeedAt ? ` · last ${fmtWhen(lastFeedAt, tz, now)}` : ""}
             </DueNotice>
@@ -252,8 +252,8 @@ export default async function HomePage() {
       <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} />
     </div>
     <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">
-      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} />
-      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} />
+      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} href="/baby/sleep" />
+      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} href="/baby/feed" />
       {showFood && stage && <FoodDay meals={meals} dayStartMs={dayStart} dayEndMs={dayEnd} stage={stage} timezone={tz} />}
       {showPump && <PumpDashboard pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} days={pumpDays} today={today} hourOfDay={hour} />}
     </section>

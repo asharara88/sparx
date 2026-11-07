@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 /**
  * A Now item that appears on its own once its time comes, with Home left open: the
@@ -7,7 +8,7 @@ import { useEffect, useState } from "react";
  * (every 30 s). Renders nothing before `fromMs`, so the Now slot moves on to the next
  * candidate until then (.now-queue in globals.css).
  */
-export function DueNotice({ fromMs, children, className = "notice notice-warn" }: { fromMs: number; children: React.ReactNode; className?: string }) {
+export function DueNotice({ fromMs, children, className = "notice notice-warn", href }: { fromMs: number; children: React.ReactNode; className?: string; /** Where tapping it goes (the Feeds section for "feed due"); nothing is rendered before its time either way. */ href?: string }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
@@ -15,5 +16,11 @@ export function DueNotice({ fromMs, children, className = "notice notice-warn" }
     return () => clearInterval(t);
   }, []);
   if (now == null || now < fromMs) return null;
-  return <p className={className}>{children}</p>;
+  return href ? (
+    <Link prefetch={false} href={href} className={`${className} block no-underline`}>
+      {children}
+    </Link>
+  ) : (
+    <p className={className}>{children}</p>
+  );
 }

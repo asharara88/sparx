@@ -112,7 +112,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
         </Link>
       </div>
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} />
-      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stageFor(summary.subject.birth_date).naps} />
+      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stageFor(summary.subject.birth_date).naps} href="/baby/sleep" />
       {checks > 0 && can(me, "lana", "edit") && (
         <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
           <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />

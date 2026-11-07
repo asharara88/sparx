@@ -344,6 +344,16 @@ days, one small bar per day with today beside them, one line on how today compar
 pumping part shows to the member who breastfeeds and to admins, and fades two weeks after
 the last pump unless bottles are in stock.
 
+### The Sleep and Feeds sections (`/baby/sleep`, `/baby/feed`)
+
+Mido, 7 November: tapping any sleep card lands in one place that gathers all sleep, and the
+same for feeds. Reached from Home's state card (feeding: Feeds; otherwise Sleep), "All sleep ›"
+and "All feeds ›" under Sleep today and Feeds today, "Feed due" and the guide's sleep or feed
+tip. Top to bottom: now (Sleep: the big Asleep / Woke up button with the time typed; Feeds:
+Breastfeed for the parent who does, Log a bottle), today's card, last night, every entry of
+the week (today open, each earlier day a fold; tapping one opens the edit sheet), and the
+week against what is usual at her age, folded. A list page: its numbers are the entries'.
+
 ### Sleep today (Home's day cards and the child's Today tab)
 
 First among Home's day cards and under the Today tab's day strip, a `SleepDay` card: "Woke up at 07:10 · awake 2 h 15 min" (after a nap,

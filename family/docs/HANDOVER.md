@@ -91,6 +91,10 @@ Done and live:
   Home's fourth row from 24 weeks, a food card on the dashboard, nap counts against what is
   usual, feed gaps and warnings by age, pumping that fades two weeks after it stops. Lana
   reaches 24 weeks on 20 November and 6 months on 5 December. README, "Age stages".
+- Sleep and Feeds sections (7 November): `/baby/sleep` and `/baby/feed` gather all of each
+  (now, today, last night, every entry of the week to fix, the week against her age); every
+  lilac or pink card leads there. Times can be typed anywhere ("2130"), and sleep is lilac,
+  feeds pink, everywhere.
 - Home is the dashboard (7 November, Mido's ask; the dashboard was 3 and 4 November). The
   first screen: state card, a strip of the day's four numbers (woke, naps against usual,
   feeds, nappies), one alert (the guide's top tip among the candidates) and the log rows.

@@ -14,11 +14,11 @@ export function lastedMin(e: Pick<EntryRow, "occurred_at" | "ended_at">): number
  * The day's entries as a timeline list (time, icon, what, who). Tapping one opens its edit
  * sheet in place (EntrySheet), never a separate page.
  */
-export function EntryList({ entries, types, timezone, canEdit, canDelete }: { entries: EntryRow[]; types: EntryType[]; timezone: string; canEdit: boolean; canDelete: boolean }) {
+export function EntryList({ entries, types, timezone, canEdit, canDelete, bare = false }: { entries: EntryRow[]; types: EntryType[]; timezone: string; canEdit: boolean; canDelete: boolean; /** Inside a fold: no card of its own (a card in a card). */ bare?: boolean }) {
   const [open, setOpen] = useState<EntryRow | null>(null);
   return (
     <>
-      <ul className="card flex flex-col p-0">
+      <ul className={`${bare ? "" : "card "}flex flex-col p-0`}>
         {entries.map((e) => {
           const len = lastedMin(e);
           return (
