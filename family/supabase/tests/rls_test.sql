@@ -1029,6 +1029,34 @@ select pg_temp.assert((select a->>'reserved' = 'true' and a->>'platform' = 'true
 select pg_temp.assert((select a->>'reserved' = 'false' from (select public.assistant_reserve(1) as a) x), 'the deployment-wide cap the server passes in holds for the platform home too');
 reset role;
 
+-- Migration 5800: the meal, and the feed gap by age.
+select pg_temp.assert((select is_active and module_id = 'lana' and not has_end from public.care_entry_types where id = 'lana.meal'), 'the meal type is there, shared like every other');
+select pg_temp.assert(private.feed_every_min(current_date - 100) = 180 and private.feed_every_min(current_date - 250) = 240
+  and private.feed_every_min(current_date - 500) = 300 and private.feed_every_min(null) = 180, 'the feed gap grows with age: 3 h, then 4 h, then 5 h');
+select pg_temp.assert(not has_function_privilege('anon', 'private.feed_every_min(date)', 'execute'), 'anon cannot call the feed gap');
+create temp table lana_birth as select birth_date from public.care_subjects where id = :lana;
+update public.care_subjects set birth_date = current_date - 100 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.meal', now() - interval '5 minutes', null, '{"food":"Avocado","amount":"A few spoons","new_food":"Yes","allergen":"None","reaction":"None"}', null, null))->>'ok' = 'true', 'Mido logs a meal');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '1 minute', null, '{"method":"Bottle","amount_ml":120}', null, null))->>'ok' = 'true', 'and a bottle');
+create temp table due_young as
+  select (s->'last'->'lana.feed'->>'next_due')::timestamptz - (s->'last'->'lana.feed'->>'occurred_at')::timestamptz as gap from (select public.home_summary(:lana) as s) x;
+reset role;
+update public.care_subjects set birth_date = current_date - 250 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table due_older as
+  select (s->'last'->'lana.feed'->>'next_due')::timestamptz - (s->'last'->'lana.feed'->>'occurred_at')::timestamptz as gap from (select public.home_summary(:lana) as s) x;
+reset role;
+select pg_temp.assert((select abs(extract(epoch from o.gap) / extract(epoch from y.gap) - 240.0 / 180) < 0.02 from due_young y, due_older o),
+  'the same bottle puts the next feed a third further off at 8 months than at 3 months');
+update public.care_subjects set birth_date = (select birth_date from lana_birth) where id = :lana;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c001","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((select count(*) from public.care_entries where type_id = 'lana.meal') = 0, 'another home does not see her meals');
+reset role;
+
 -- An e-mail an admin listed joins that home at the first sign-in (making one of their own is a later, deliberate step: migration 4300, below).
 select pg_temp.act_as(:mido);
 set role authenticated;

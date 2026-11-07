@@ -64,3 +64,9 @@ test("an impossible offset is refused, not thrown", () => {
   }
   assert.equal(parseHouseholdTime("2026-10-14T15:50:00+04:00", "Asia/Dubai"), "2026-10-14T11:50:00.000Z");
 });
+
+test("a meal reads plainly: no 'No' or 'None', the new food and an allergen named", async () => {
+  const { describePayload } = await import("./time.ts");
+  assert.equal(describePayload({ food: "Avocado", amount: "A few spoons", new_food: "No", allergen: "None", reaction: "None" }), "Avocado · A few spoons");
+  assert.equal(describePayload({ food: "Egg", new_food: "Yes", allergen: "Egg", reaction: "Rash" }), "Egg · first time · allergen: egg · reaction: rash");
+});

@@ -43,6 +43,7 @@
   --meds: #fff0c2; --meds-fg: #6e4300;
   --milk: #d9f2e6; --milk-fg: #1d5a40;
   --pump: #ffe4d1; --pump-fg: #86421a;
+  --food: #fdf0c4; --food-fg: #6b4c00;
   --house: #e8ede1; --house-fg: #3f5a2f;
   --cal: #dde8ff; --cal-fg: #2b4a8a;
   --notes: #f6ecd9; --notes-fg: #6b4a1a;
@@ -83,6 +84,7 @@
     --meds: #4a3a14; --meds-fg: #ffe4a3;
     --milk: #1f3d30; --milk-fg: #bfeeda;
     --pump: #4a2e1e; --pump-fg: #ffd0b3;
+    --food: #423711; --food-fg: #f6e2a0;
     --house: #34392e; --house-fg: #d2dcc5;
     --cal: #24324d; --cal-fg: #c5d4f5;
     --notes: #3d3324; --notes-fg: #f1e3c2;
@@ -118,6 +120,7 @@ html[data-theme="night"] {
   --meds: #2a2110; --meds-fg: #efd79b;
   --milk: #12241c; --milk-fg: #b3dfc9;
   --pump: #2a1a12; --pump-fg: #efc5a8;
+  --food: #29220c; --food-fg: #e9d699;
   --house: #1f231b; --house-fg: #c5cfb8;
   --cal: #161f30; --cal-fg: #b8c7e8;
   --notes: #241e15; --notes-fg: #e3d5b5;
@@ -371,6 +374,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tint-meds { --tint: var(--meds); --tint-fg: var(--meds-fg); }
 .tint-milk { --tint: var(--milk); --tint-fg: var(--milk-fg); }
 .tint-pump { --tint: var(--pump); --tint-fg: var(--pump-fg); }
+.tint-food { --tint: var(--food); --tint-fg: var(--food-fg); }
 .tint-house { --tint: var(--house); --tint-fg: var(--house-fg); }
 .tint-cal { --tint: var(--cal); --tint-fg: var(--cal-fg); }
 .tint-notes { --tint: var(--notes); --tint-fg: var(--notes-fg); }

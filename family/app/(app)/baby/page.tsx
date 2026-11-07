@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { feedGapFor, stageFor } from "@/lib/stage";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { awayParentOn } from "@/lib/handover";
@@ -92,7 +93,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
     isToday ? supabase.rpc("suggestions_refresh") : Promise.resolve({ data: null }),
   ]);
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
-  const feedInterval = summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180;
+  const feedInterval = feedGapFor(stageFor(summary.subject.birth_date), summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
   const stripEntries = ((stripData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const [fromMs, toMs] = [Date.parse(from), Date.parse(to)];
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
@@ -111,7 +112,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
         </Link>
       </div>
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} />
-      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} />
+      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stageFor(summary.subject.birth_date).naps} />
       {isToday && (
         <nav className="card py-0" aria-label="Dashboard">
           <Link prefetch={false} href="/baby/dashboard" className="row row-link">
@@ -136,7 +137,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
       ) : (
         <EntryList entries={entries} types={summary.types} timezone={tz} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} />
       )}
-      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} />
+      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} solids={stageFor(summary.subject.birth_date).solids} />
     </>
   );
 }
@@ -156,7 +157,7 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   const weekAgo = Date.now() - 7 * 86_400_000;
   const lastWeek = entries.filter((e) => Date.parse(e.occurred_at) >= weekAgo);
   const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
-  const feedInterval = summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180;
+  const feedInterval = feedGapFor(stageFor(summary.subject.birth_date), summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
   const mean = (k: "breast_count" | "bottle_count" | "bottle_ml" | "diapers_wet" | "diapers_dirty" | "sleep_min" | "night_sleep_min") => (full.length ? full.reduce((a, d) => a + Number(d[k] ?? 0), 0) / full.length : 0);
   // Was a parent away at this instant? Each day has its own away parent, so two parents
   // who work on different days each get their day's hours.

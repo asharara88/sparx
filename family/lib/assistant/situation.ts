@@ -1,3 +1,4 @@
+import { SOLIDS_FROM_DAYS } from "@/lib/stage";
 import type { ToolContext } from "./tools";
 import { local } from "./tools";
 import { ageOutlook } from "@/lib/child-insights";
@@ -76,6 +77,7 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
         lastDiaperKind: diaper?.payload?.kind ? String(diaper.payload.kind) : null,
         feedsToday: r.today_counts?.[`${s.module_id}.feed`] ?? 0,
         diapersToday: r.today_counts?.[`${s.module_id}.diaper`] ?? 0,
+        mealsToday: ageDays != null && ageDays >= SOLIDS_FROM_DAYS ? (r.today_counts?.[`${s.module_id}.meal`] ?? 0) : (r.today_counts?.[`${s.module_id}.meal`] ?? null),
         whoHas: r.custody?.name ?? null,
         plan: p ? { goal: p.goal, day: p.day, days: p.days, todayStep: p.today_step ?? null, doneToday: !!p.done_today } : null,
         lastNight,

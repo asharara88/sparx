@@ -3,12 +3,13 @@ import { normsForAge } from "@/lib/norms";
 import { nextFeedAt } from "@/lib/forecast";
 import { ageOutlook, growthSpurt } from "@/lib/child-insights";
 import { cap, possessive, pronouns } from "@/lib/names";
+import { feedGapFor, feedLateMin, stageOf } from "@/lib/stage";
 
 /**
  * The child's guide: the last 24 hours against what is usual for their age, as
  * short tips. Totals are only judged once the log covers most of the day, so a
  * quiet log does not look like a sick baby. Ranges come from lib/norms (NHS, AAP,
- * National Sleep Foundation); wake windows from common paediatric guidance.
+ * National Sleep Foundation); wake windows and feed gaps from lib/stage.
  */
 export type Tip = { level: "red" | "yellow" | "info"; title: string; body: string; topic: "nappies" | "poo" | "feeds" | "sleep" | "fever" };
 export type GuideOptions = {
@@ -24,20 +25,15 @@ const H = 3_600_000;
 const mins = (ms: number) => Math.round(ms / 60_000);
 export const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`);
 
-function wakeWindow(days: number): [number, number] {
-  const months = days / 30.4375;
-  if (months < 3) return [60, 90];
-  if (months < 6) return [90, 150];
-  if (months < 12) return [120, 210];
-  return [180, 300];
-}
-
 export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Date.now(), opts: GuideOptions = {}): Tip[] {
   const days = birthDate ? Math.floor((now - Date.parse(birthDate)) / 86_400_000) : 120;
   const name = opts.name?.trim() || "the baby";
   const pr = pronouns(opts.sex);
   const n = normsForAge(days);
-  const [wakeLo, wakeHi] = wakeWindow(days);
+  const stage = stageOf(days);
+  const [wakeLo, wakeHi] = stage.awake;
+  const gapMin = feedGapFor(stage, opts.feedGapMin);
+  const [lateYellow, lateRed] = feedLateMin(stage);
   const t = (e: EntryRow) => Date.parse(e.occurred_at);
   const sorted = [...entries].sort((a, b) => t(b) - t(a));
   const day = sorted.filter((e) => now - t(e) <= 24 * H);
@@ -49,7 +45,7 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const nappies = day.filter((e) => e.type_id === "lana.diaper");
   const wet = nappies.filter((e) => e.payload.kind !== "Dirty").length;
   const lastNappy = sorted.find((e) => e.type_id === "lana.diaper");
-  if (covered && wet <= 3) tips.push({ level: "red", title: `Only ${wet} wet diaper${wet === 1 ? "" : "s"} in 24 h`, body: `Were any changes missed? Babies this age usually have ${n.wet.low} or more wet diapers a day. If that is right, offer more milk. Call the doctor if ${name} seems drowsy, has a dry mouth or dark wee.`, topic: "nappies" });
+  if (covered && wet <= Math.max(1, n.wet.low - 3)) tips.push({ level: "red", title: `Only ${wet} wet diaper${wet === 1 ? "" : "s"} in 24 h`, body: `Were any changes missed? Babies this age usually have ${n.wet.low} or more wet diapers a day. If that is right, offer more milk. Call the doctor if ${name} seems drowsy, has a dry mouth or dark wee.`, topic: "nappies" });
   else if (covered && wet < n.wet.low) tips.push({ level: "yellow", title: `${wet} wet diapers in 24 h`, body: `A bit under the usual ${n.wet.low} or more. Check whether any were missed, and offer feeds a little more often today.`, topic: "nappies" });
   if (lastNappy && now - t(lastNappy) > 5 * H) tips.push({ level: "yellow", title: `No diaper for ${hm(mins(now - t(lastNappy)))}`, body: `Time to check ${pr.their} diaper. Was a change missed?`, topic: "nappies" });
   const lastDirty = sorted.find((e) => e.type_id === "lana.diaper" && (e.payload.kind === "Dirty" || e.payload.kind === "Both"));
@@ -59,10 +55,10 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const feeds = day.filter((e) => e.type_id === "lana.feed");
   const lastFeed = sorted.find((e) => e.type_id === "lana.feed");
   if (covered && feeds.length < n.feeds.low) tips.push({ level: feeds.length <= n.feeds.low - 2 ? "red" : "yellow", title: `${feeds.length} feeds in 24 h`, body: `Usual at this age: ${n.feeds.low} to ${n.feeds.high} feeds. Were any feeds missed in the log?`, topic: "feeds" });
-  if (lastFeed && now - t(lastFeed) > 4 * H) tips.push({ level: now - t(lastFeed) > 5 * H ? "red" : "yellow", title: `Last feed ${hm(mins(now - t(lastFeed)))} ago`, body: "Longer than usual between feeds. Offer a feed, or log one if it was missed.", topic: "feeds" });
+  if (lastFeed && now - t(lastFeed) > lateYellow * 60_000) tips.push({ level: now - t(lastFeed) > lateRed * 60_000 ? "red" : "yellow", title: `Last feed ${hm(mins(now - t(lastFeed)))} ago`, body: "Longer than usual between feeds. Offer a feed, or log one if it was missed.", topic: "feeds" });
   else {
     // Likely hungry soon: from how much the child took last time, not a fixed clock.
-    const nf = nextFeedAt(sorted, { gapMin: opts.feedGapMin ?? 180 });
+    const nf = nextFeedAt(sorted, { gapMin });
     if (nf) {
       const m = mins(nf.at - now);
       if (m <= 0 && m > -60) tips.push({ level: "info", title: "Likely hungry now", body: "Look for rooting, hands to the mouth or fussing. Offer a feed.", topic: "feeds" });

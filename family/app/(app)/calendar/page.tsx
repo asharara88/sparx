@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { feedGapFor, stageFor } from "@/lib/stage";
 import { createClient } from "@/lib/supabase/server";
 import type { CalendarData, DueItem, EntryRow, HomeSummary, Me, Member, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
@@ -39,7 +40,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     const { data: sumData } = await supabase.rpc("home_summary");
     const summary = sumData as HomeSummary | RpcError | null;
     if (summary && summary.ok) {
-      feedInterval = summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? 180;
+      feedInterval = feedGapFor(stageFor(summary.subject.birth_date), summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
       const { data: weekData } = await supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() });
       week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
     }

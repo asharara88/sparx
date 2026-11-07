@@ -2,6 +2,7 @@ import type { EntryRow } from "@/lib/types";
 import { sleepDay } from "@/lib/sleep-day";
 import { fmtTime, zonedMidnight } from "@/lib/time";
 import { SleepBar, SleepSince } from "@/components/SleepDayLive";
+import { napsLine } from "@/lib/stage";
 
 /**
  * Sleep today, on the child's Today tab: what she is doing now and since when
@@ -10,7 +11,7 @@ import { SleepBar, SleepSince } from "@/components/SleepDayLive";
  * and one line of sums. The times of each nap are in the list below, not here.
  * Server-rendered; the duration and the bar's "now" tick on the phone.
  */
-export function SleepDay({ entries, day, timezone, nowIso, night }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string } }) {
+export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null }) {
   const start = zonedMidnight(day, timezone).getTime();
   const end = start + 24 * 3600 * 1000;
   const now = nowIso ? Math.min(Date.parse(nowIso), end) : end;
@@ -41,7 +42,10 @@ export function SleepDay({ entries, day, timezone, nowIso, night }: { entries: E
   // The day's total sleep is on the strip above; here only what the bar does not say.
   const sums = [
     s.wokeAt && !(s.state.kind === "awake" && !s.state.afterNap) ? `up at ${at(s.wokeAt)}` : null,
-    s.naps ? `${s.naps} nap${s.naps === 1 ? "" : "s"}, ${Math.floor(s.napMin / 60) ? `${Math.floor(s.napMin / 60)} h ${s.napMin % 60 ? `${s.napMin % 60} min` : ""}`.trim() : `${s.napMin} min`}` : isToday ? "no nap yet" : "no nap",
+    // Today with a usual count: "2 of 2–3 naps" (each nap's length is on the bar); a past day keeps its nap total.
+    s.naps && !(isToday && usualNaps)
+      ? `${napsLine(s.naps, usualNaps, isToday)}, ${Math.floor(s.napMin / 60) ? `${Math.floor(s.napMin / 60)} h ${s.napMin % 60 ? `${s.napMin % 60} min` : ""}`.trim() : `${s.napMin} min`}`
+      : napsLine(s.naps, usualNaps, isToday),
   ].filter(Boolean);
   const label = `Sleep from midnight: ${s.segments.map((g) => `${g.kind} ${at(g.from)} to ${g.open ? "now" : at(g.to)}`).join(", ") || "none yet"}`;
   return (

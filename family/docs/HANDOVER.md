@@ -87,6 +87,10 @@ Done and live:
   one Haiku call per chat read); the situation block grew (awake since, last nappy, last night, the usual day,
   who is in the house); earlier turns carry each card's outcome and a long chat's cut
   part comes as a digest. README, "Memory" and "Context", has the detail.
+- Age stages (7 November, migration `…5800`): the app grows with the child. A Meal entry,
+  Home's fourth row from 24 weeks, a food card on the dashboard, nap counts against what is
+  usual, feed gaps and warnings by age, pumping that fades two weeks after it stops. Lana
+  reaches 24 weeks on 20 November and 6 months on 5 December. README, "Age stages".
 - The dashboard (`/baby/dashboard`, 3 and 4 November, Mido's ask): sleep today (when she
   woke, or up from a nap, or asleep since; the day's sleep path as one bar; the sums), then
   pumping (today against the goal, the bottles at home by fridge and freezer, the usual day

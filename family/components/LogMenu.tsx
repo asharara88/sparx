@@ -17,7 +17,7 @@ import { Icon } from "./Icon";
  * it from anywhere (it lands here with ?log=1); on a past day the page's own bottom button
  * opens "Add to this day". Home keeps the four most common as rows.
  */
-export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number }) {
+export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin, solids = true }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number; /** Meals are offered once the child eats (lib/stage), or once one was logged. */ solids?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const path = usePathname();
@@ -48,7 +48,7 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
           <MoodTap bare subjectId={subjectId} today={todayEntries} timezone={timezone} />
           <ul className="card flex flex-col p-0">
             {types
-              .filter((t) => t.key !== "mood")
+              .filter((t) => t.key !== "mood" && (t.key !== "meal" || solids || entries.some((e) => e.type_id === t.id)))
               .map((t) => (
                 <li key={t.id} className="row px-4">
                   <Link prefetch={false} href={`/baby/log/${t.key}`} className="row-link flex min-h-[44px] w-full items-center gap-3">

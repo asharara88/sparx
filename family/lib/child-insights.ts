@@ -1,4 +1,5 @@
 import type { EntryRow } from "@/lib/types";
+import { awakeWindow } from "./stage.ts";
 
 /**
  * What her own log says about her rhythm: a possible growth spurt, and a sleep
@@ -14,14 +15,8 @@ const median = (xs: number[]) => {
   return v.length ? v[Math.floor(v.length / 2)] : 0;
 };
 
-/** Typical awake window in minutes by age (common paediatric guidance). */
-export function awakeWindow(ageDays: number): [number, number] {
-  if (ageDays < 42) return [45, 60];
-  if (ageDays < 84) return [60, 90];
-  if (ageDays < 120) return [75, 120];
-  if (ageDays < 180) return [105, 150];
-  return [120, 180];
-}
+/** Typical awake window in minutes by age: one table for the whole app, in lib/stage. */
+export { awakeWindow } from "./stage.ts";
 
 export interface GrowthSpurt {
   recentPerDay: number;

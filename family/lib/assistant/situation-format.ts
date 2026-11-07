@@ -19,6 +19,8 @@ export interface SituationInput {
   lastDiaperKind?: string | null;
   feedsToday: number;
   diapersToday: number;
+  /** Meals today once the child eats (lib/stage); null before. */
+  mealsToday?: number | null;
   whoHas: string | null;
   plan: { goal: string; day: number; days: number; todayStep: string | null; doneToday: boolean } | null;
   /** Optional phase line, added by the caller that knows her age. */
@@ -54,7 +56,7 @@ export function formatSituation(s: SituationInput): string {
     lines.push(`Last feed ${s.lastFeedAt.slice(11)}${what ? ` (${what})` : ""}${s.nextFeedDue ? `, next due about ${s.nextFeedDue.slice(11)}` : ""}.`);
   } else lines.push("No feed logged yet today.");
   if (s.lastDiaperAt) lines.push(`Last nappy ${s.lastDiaperAt.slice(11)}${s.lastDiaperKind ? ` (${s.lastDiaperKind.toLowerCase()})` : ""}.`);
-  lines.push(`Today so far: ${s.feedsToday} feeds, ${s.diapersToday} nappies.${s.whoHas ? ` ${s.whoHas} has ${them}.` : ""}`);
+  lines.push(`Today so far: ${s.feedsToday} feeds, ${s.diapersToday} nappies${s.mealsToday != null ? `, ${s.mealsToday} meal${s.mealsToday === 1 ? "" : "s"}` : ""}.${s.whoHas ? ` ${s.whoHas} has ${them}.` : ""}`);
   if (s.lastNight) lines.push(`Last night: ${hm(s.lastNight.sleepMin)} of sleep, longest stretch ${hm(s.lastNight.longestMin)}, ${s.lastNight.wakes} wake-up${s.lastNight.wakes === 1 ? "" : "s"}, ${s.lastNight.feeds} night feed${s.lastNight.feeds === 1 ? "" : "s"}.`);
   if (s.week) lines.push(`Usual day lately (${s.week.days} days): about ${s.week.feeds} feeds${s.week.bottleMl ? ` and ${s.week.bottleMl} ml of bottles` : ""}, ${hm(s.week.sleepMin)} of sleep, ${hm(s.week.nightMin)} of it at night.`);
   if (s.phase) lines.push(s.phase);
