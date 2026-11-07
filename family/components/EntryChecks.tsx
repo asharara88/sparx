@@ -21,7 +21,7 @@ export function EntryChecks({ entries, timezone, limit, canDelete, compact = fal
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const all = checkEntries(entries).filter((f) => !hidden.has(f.id));
   const flags = limit ? all.slice(0, limit) : all;
-  if (flags.length === 0) return null;
+  if (flags.length === 0) return msg && !compact ? <p className="muted text-sm" role="status">{msg}</p> : null;
   // Home: one line, the decisions wait on the child's page where there is room for them.
   if (compact) {
     return (
@@ -42,6 +42,8 @@ export function EntryChecks({ entries, timezone, limit, canDelete, compact = fal
     setBusy(null);
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
     setHidden((h) => new Set(h).add(f.id));
+    // A wrong answer is not final: every entry can still be changed or deleted from the day list or its sheet.
+    setMsg(action === "delete" ? "Deleted." : action === "end" ? "Fixed. Tap it in the list below to change it again." : "Kept. Tap it in the list below if it needs fixing after all.");
     router.refresh();
   }
   const when = (iso: string) => (Date.now() - Date.parse(iso) < 20 * 3_600_000 ? fmtTime(iso, timezone) : fmtDateTime(iso, timezone));
@@ -62,11 +64,11 @@ export function EntryChecks({ entries, timezone, limit, canDelete, compact = fal
             )}
             {f.suggestDelete && canDelete && (
               <button type="button" className={`btn ${f.fix ? "" : "btn-primary"}`} disabled={busy === f.id} onClick={() => void act(f, "delete")}>
-                Remove it
+                {f.kind === "double" ? "Delete this one" : "Delete it"}
               </button>
             )}
             <button type="button" className="btn" disabled={busy === f.id} onClick={() => void act(f, "ok")}>
-              It was real
+              {f.kind === "double" ? "Both were real" : "It is right"}
             </button>
             {!f.fix && !f.suggestDelete && (
               <a href={`/entry/${f.entry.id}`} className="btn">
@@ -82,7 +84,7 @@ export function EntryChecks({ entries, timezone, limit, canDelete, compact = fal
         </a>
       )}
       {msg && (
-        <p className="text-sm text-[var(--danger)]" role="alert">
+        <p className={`text-sm ${/^(Deleted|Fixed|Kept)/.test(msg) ? "muted" : "text-[var(--danger)]"}`} role={/^(Deleted|Fixed|Kept)/.test(msg) ? "status" : "alert"}>
           {msg}
         </p>
       )}
