@@ -36,7 +36,7 @@ export function PatternBars({ entries, days, timezone, today }: { entries: Entry
   return (
     <section className="card">
       <h2 className="font-semibold">Patterns, last {days.length} days</h2>
-      <p className="muted text-sm">Dark is sleep, pale is awake in the night, ticks are feeds (lighter for bottles), dots are diapers. Midnight to midnight.</p>
+      <p className="muted text-sm">Purple is sleep, pale purple is awake in the night, pink ticks are feeds (lighter for bottles), dots are nappies. Midnight to midnight.</p>
       <div className="mt-3 flex flex-col gap-1">
         {rows.map((r) => (
           <div key={r.day} className="flex items-center gap-2">
@@ -47,13 +47,13 @@ export function PatternBars({ entries, days, timezone, today }: { entries: Entry
                 <line key={x} x1={x} x2={x} y1={0} y2={H} stroke="var(--line)" strokeWidth={2} />
               ))}
               {r.wakes.map(([a, b], i) => (
-                <rect key={`w${i}`} x={a} y={0} width={Math.max(4, b - a)} height={H} fill="var(--accent-soft)" />
+                <rect key={`w${i}`} x={a} y={0} width={Math.max(4, b - a)} height={H} fill="var(--sleep)" />
               ))}
               {r.sleeps.map(([a, b], i) => (
-                <rect key={`s${i}`} x={a} y={0} width={Math.max(4, b - a)} height={H} rx={2} fill="var(--accent)" />
+                <rect key={`s${i}`} x={a} y={0} width={Math.max(4, b - a)} height={H} rx={2} fill="var(--sleep-fg)" />
               ))}
               {r.feeds.map((f, i) => (
-                <rect key={`f${i}`} x={f.at - 3} y={0} width={6} height={H} fill={f.bottle ? "var(--warn)" : "var(--ok)"} />
+                <rect key={`f${i}`} x={f.at - 3} y={0} width={6} height={H} fill="var(--feed-fg)" opacity={f.bottle ? 0.6 : 1} />
               ))}
               {r.diapers.map((d, i) => (
                 <circle key={`d${i}`} cx={d} cy={H + 3} r={3} fill="var(--muted)" />

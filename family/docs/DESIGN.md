@@ -94,7 +94,11 @@ sources at the bottom.
 6. **Never show a wrong or stale fact.** If the log has a gap (nothing for 12 hours), say
    nothing rather than "awake 122 h". An open timer older than a day is not "running".
 7. **Colour says what, not how much.** Each feature has its tint (feed pink, sleep lilac,
-   nappy sky, medicine butter, milk mint, pumping peach…). Amber means *needs a look*,
+   nappy sky, medicine butter, milk mint, pumping peach, food yellow…). Every card, row
+   and notice about sleep is lilac and every one about feeds is pink, wherever it sits
+   (Mido, 7 November): Sleep today, sleep tips, the sleep bar and the pattern's sleep bands;
+   Feeds today, "feed due", feed tips and the pattern's feed ticks. A card about several
+   things (Coming up) takes none of theirs. Amber means *needs a look*,
    red means *act now*; neither is decoration. Green is not used to mean "fine": fine is
    the absence of colour.
 8. **Big targets, few of them.** Every tap target is at least 44 px tall. A card has at
@@ -246,7 +250,8 @@ left on, so it stops by itself at the usual length (a feed 20 min, a sleep 12 h)
 its note, and *To check* shows it. Home never shows a timer past its limit as running.
 
 **Edit an entry** (the child's page): tapping an entry opens a sheet, not a page: when it
-started (the phone's own picker), when it ended as clock-time chips, its choices and amounts
+started (typed, on the entry's day; *Yesterday* moves it back), when it ended as clock-time
+chips or typed (an end before the start is the next day's), its choices and amounts
 as chips, Save, and *Delete this sleep* (a second tap confirms). *All details ›* opens the
 full form for a note or a photo.
 
@@ -264,8 +269,11 @@ says how to change it later.
 Dana's second ask. The yardstick is Huckleberry's "Set time" and BabyLog's two or three taps:
 
 - **When** is one line on every log sheet: "When: now · earlier?". Earlier opens clock times
-  on a ten-minute grid for the last two hours (13:50, 13:40, …) and *At a time…* (the phone's
-  picker) for anything else. Clock times, never only "80 min ago". Picking one folds the line.
+  on a ten-minute grid for the last two hours (13:50, 13:40, …) and a box to **type the time**
+  (Mido, 7 November): "2130", "21:30", "930", "9pm", read back as "= yesterday 21:30". It is
+  the most recent such time; *Yesterday* moves it a day back; a time after now is refused in
+  words. Clock times, never only "80 min ago". Picking a chip folds the line. A sleep from
+  earlier takes its end the same way: the length chips, or "or woke at" typed.
 - **The time carries over for a minute.** After an entry from earlier, the next sheet opened
   within a minute starts on that time (a bottle and a nappy from the same moment). A round
   ▶ or ■ never uses it, so a direct tap is never quietly backdated.

@@ -46,13 +46,13 @@ export function SleepBar({ segments, dayStartMs, clockIso, live, label }: { segm
   const x = (ms: number) => Math.max(0, Math.min(W, (ms - dayStartMs) / 60_000));
   return (
     <svg viewBox={`0 0 ${W} ${H + 4}`} className="h-6 w-full" preserveAspectRatio="none" role="img" aria-label={label}>
-      <rect x={0} y={0} width={W} height={H} rx={4} fill="var(--card-2)" />
+      <rect x={0} y={0} width={W} height={H} rx={4} fill="var(--card)" />
       {[360, 720, 1080].map((t) => (
         <line key={t} x1={t} x2={t} y1={0} y2={H} stroke="var(--line)" strokeWidth={2} />
       ))}
       {segments.map((g, i) => {
         const to = g.open && live ? Math.max(g.to, nowClip) : g.to;
-        return <rect key={i} x={x(g.from)} y={0} width={Math.max(6, x(to) - x(g.from))} height={H} rx={3} fill="var(--accent)" opacity={g.kind === "night" ? 1 : 0.55} />;
+        return <rect key={i} x={x(g.from)} y={0} width={Math.max(6, x(to) - x(g.from))} height={H} rx={3} fill="var(--sleep-fg)" opacity={g.kind === "night" ? 1 : 0.55} />;
       })}
       {live && now < dayEnd && <rect x={x(now) - 2} y={0} width={4} height={H + 4} fill="var(--fg)" />}
     </svg>

@@ -8,6 +8,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { fmtDuration, fromLocalInput, toLocalInput } from "@/lib/time";
 import { NAP_LENGTHS } from "@/lib/backlog";
 import { Sheet } from "./Sheet";
+import { TimeBox } from "./TimeBox";
 
 const FEED_LENGTHS = [5, 10, 15, 20, 30] as const;
 
@@ -25,6 +26,9 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
   const [end, setEnd] = useState(entry.ended_at ? toLocalInput(entry.ended_at, timezone) : "");
   const [payload, setPayload] = useState<Record<string, unknown>>(entry.payload ?? {});
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // A typed time still being typed, or refused (later than now): Save waits for a real one.
+  const [badStart, setBadStart] = useState(false);
+  const [badEnd, setBadEnd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -82,21 +86,21 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
     <Sheet title={`${entry.type_label}${timed && lastedMin && lastedMin > 0 ? ` · ${fmtDuration(lastedMin)}` : ""}`} onClose={onClose}>
       <p className="muted -mt-2 text-sm">Logged by {entry.attributed_name ?? entry.logged_by_name ?? "someone"}</p>
       <div className="card flex flex-col p-0">
-        <label className="row px-4">
-          <span className="flex-1 font-semibold">{timed ? (entry.type_id === "lana.sleep" ? "Fell asleep" : "Started") : "At"}</span>
-          <input className="time-field" type="datetime-local" value={start} max={toLocalInput(new Date().toISOString(), timezone)} disabled={!canEdit} onChange={(e) => e.target.value && setStart(e.target.value)} />
-        </label>
+        {/* Typed (Mido, 7 November): on the entry's own day; "Yesterday" moves it a day back. */}
+        <div className="row px-4">
+          <TimeBox label={timed ? (entry.type_id === "lana.sleep" ? "Fell asleep" : "Started") : "At"} value={start} day={toLocalInput(entry.occurred_at, timezone).slice(0, 10)} timezone={timezone} disabled={!canEdit} onChange={(l) => { setBadStart(!l); if (l) setStart(l); }} />
+        </div>
         {timed && (
           <div className="row flex-col items-stretch px-4">
             <span className="font-semibold">{entry.type_id === "lana.sleep" ? "Woke up" : "Ended"}</span>
             <div className="grid grid-cols-4 gap-2" role="group" aria-label="Ended">
               {endChoices.map((l) => (
-                <button key={l} type="button" className="chip px-0 tabular-nums" aria-pressed={end === l} disabled={!canEdit} onClick={() => setEnd(l)}>
+                <button key={l} type="button" className="chip px-0 tabular-nums" aria-pressed={end === l} disabled={!canEdit} onClick={() => { setBadEnd(false); setEnd(l); }}>
                   {l.slice(11)}
                 </button>
               ))}
             </div>
-            <input className="time-field self-start" type="datetime-local" value={end} max={toLocalInput(new Date().toISOString(), timezone)} disabled={!canEdit} aria-label="Ended at" onChange={(e) => setEnd(e.target.value)} />
+            <TimeBox label="or at" value={end || null} day={start.slice(0, 10)} rollAfter={start} yesterday={false} timezone={timezone} disabled={!canEdit} onChange={(l) => { setBadEnd(!l); if (l) setEnd(l); }} />
           </div>
         )}
         {chipFields.map((f) => (
@@ -121,7 +125,7 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
       </div>
       {msg && <p className="text-sm text-[var(--danger)]">{msg}</p>}
       {canEdit && (
-        <button type="button" className="btn btn-primary btn-lg" disabled={busy} onClick={() => void save()}>
+        <button type="button" className="btn btn-primary btn-lg" disabled={busy || badStart || badEnd} onClick={() => void save()}>
           Save
         </button>
       )}

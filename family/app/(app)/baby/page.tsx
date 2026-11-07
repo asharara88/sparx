@@ -175,7 +175,7 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
           />
         </Fold>
       )}
-      <Fold title="Coming up" icon="clock" tint="sleep" hint="next 12 hours">
+      <Fold title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
         <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />
         <PlanCard plan={plan} />
       </Fold>
@@ -242,7 +242,7 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
   return (
     <>
       {s.birth_date && (
-        <Fold title="What this age brings" icon="star" tint="sleep">
+        <Fold title="What this age brings" icon="star" tint="guide">
           <PhaseCard ageDays={ageDays(s.birth_date, today)} name={s.name} />
         </Fold>
       )}

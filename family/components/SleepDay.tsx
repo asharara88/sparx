@@ -49,7 +49,7 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
   ].filter(Boolean);
   const label = `Sleep from midnight: ${s.segments.map((g) => `${g.kind} ${at(g.from)} to ${g.open ? "now" : at(g.to)}`).join(", ") || "none yet"}`;
   return (
-    <section className="card flex flex-col gap-2" aria-labelledby="sleep-day-h">
+    <section className="card tint-sleep flex flex-col gap-2" aria-labelledby="sleep-day-h">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="sleep-day-h" className="section-title">Sleep today</h2>
         {since && <SleepSince sinceIso={since.iso} clockIso={clockIso} prefix={since.prefix} />}
