@@ -7,8 +7,9 @@ import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
-export default async function LogPage({ params }: { params: Promise<{ type: string }> }) {
+export default async function LogPage({ params, searchParams }: { params: Promise<{ type: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { type } = await params;
+  const sp = await searchParams;
   const supabase = await createClient();
   const { data: meData } = await meOnce();
   const me = meData as Me;
@@ -20,16 +21,23 @@ export default async function LogPage({ params }: { params: Promise<{ type: stri
   ]);
   if (!subject || !entryType) redirect("/");
 
-  // Pre-fill from the most recent entry of this type (e.g. same bottle size).
-  const { data: lastRows } = await supabase
+  // A choice asked for in the link (?method=Bottle from the Feeds section's "Log a bottle"):
+  // only a choice field of this type and one of its own options.
+  const preset: Record<string, string> = {};
+  for (const f of (entryType as EntryType).fields) {
+    const v = sp[f.key];
+    if (f.type === "choice" && typeof v === "string" && (f.options ?? []).includes(v)) preset[f.key] = v;
+  }
+  // Pre-fill from the most recent entry of this type (e.g. same bottle size), of the asked-for choice when there is one.
+  let q = supabase
     .from("care_entries")
     .select("payload")
     .eq("subject_id", (subject as Subject).id)
     .eq("type_id", (entryType as EntryType).id)
-    .is("deleted_at", null)
-    .order("occurred_at", { ascending: false })
-    .limit(1);
-  const lastPayload = ((lastRows?.[0] as { payload?: Record<string, unknown> } | undefined)?.payload ?? {}) as Record<string, unknown>;
+    .is("deleted_at", null);
+  for (const [k, v] of Object.entries(preset)) q = q.eq(`payload->>${k}`, v);
+  const { data: lastRows } = await q.order("occurred_at", { ascending: false }).limit(1);
+  const lastPayload = { ...(((lastRows?.[0] as { payload?: Record<string, unknown> } | undefined)?.payload ?? {}) as Record<string, unknown>), ...preset };
 
   return (
     <EntryForm

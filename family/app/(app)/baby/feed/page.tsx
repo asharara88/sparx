@@ -56,7 +56,7 @@ export default async function FeedPage() {
               Breastfeed
             </Link>
           )}
-          <Link prefetch={false} href="/baby/log/feed" className={`btn btn-lg ${breastfeeds ? "" : "btn-primary"}`}>
+          <Link prefetch={false} href="/baby/log/feed?method=Bottle" className={`btn btn-lg ${breastfeeds ? "" : "btn-primary"}`}>
             Log a bottle
           </Link>
         </div>
