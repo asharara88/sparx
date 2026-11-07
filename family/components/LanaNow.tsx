@@ -265,6 +265,7 @@ export function LanaNow({
   const openSheet = (k: NonNullable<typeof sheet>) => {
     setWhen(recallWhen(lastEarlier.current, Date.now()));
     setClash(null);
+    setWhenBad(false);
     setSheet(k);
   };
   // Closing a sheet without saving drops a "when" picked inside it, so the next one-tap
@@ -274,8 +275,11 @@ export function LanaNow({
     setSheet(null);
     setClash(null);
     setWokeTyped(null);
+    setWhenBad(false);
   };
-  const off = busy || !canAdd;
+  // A time typed in When that is incomplete or refused holds every button that would save.
+  const [whenBad, setWhenBad] = useState(false);
+  const off = busy || !canAdd || whenBad;
   const startSleep = () =>
     run("Sleep started.", async () => {
       if (nightWake) await end(nightWake);
@@ -384,7 +388,7 @@ export function LanaNow({
       </ul>
 
       {sheet === "feed" && (
-        <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+        <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
           {breastfeeds && (
             <div className="segmented" role="group" aria-label="Breast or bottle">
               {(["breast", "bottle"] as const).map((t) => (
@@ -457,7 +461,7 @@ export function LanaNow({
         </Sheet>
       )}
       {sheet === "diaper" && (
-        <Sheet title="Nappy" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+        <Sheet title="Nappy" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
           <div className="grid grid-cols-3 gap-2">
             {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
               <button key={k} type="button" className="action action-col tint-diaper items-center text-center" disabled={off} onClick={() => run(`Nappy (${k.toLowerCase()}) saved.`, () => start(diaperType, { kind: k }, nowIso))}>
@@ -471,7 +475,7 @@ export function LanaNow({
         </Sheet>
       )}
       {sheet === "meal" && mealType && (
-        <Sheet title="Meal" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+        <Sheet title="Meal" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
           <MealForm types={mealType} value={meal} onChange={setMeal} disabled={off}
             onSave={() =>
               run(`${meal.food.trim()} saved.`, async () => {
@@ -482,7 +486,7 @@ export function LanaNow({
         </Sheet>
       )}
       {sheet === "pump" && pumpType && (
-        <Sheet title="Pump, to the fridge" onClose={closeSheet} when={when} onWhen={setWhen} timezone={timezone} busy={busy}>
+        <Sheet title="Pump, to the fridge" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
           <div className="grid grid-cols-4 gap-2">
             {[90, 120, 150, 180].map((ml) => (
               <button
@@ -521,7 +525,7 @@ export function LanaNow({
             </div>
           )}
           <p className="divider-label">{isEarlier(when) ? "It already happened" : "or it already happened"}</p>
-          <WhenChips label={sleepEntry ? "Woke up" : "Fell asleep"} value={when} onChange={(w) => { setWhen(w); setClash(null); }} timezone={timezone} disabled={busy} defaultOpen />
+          <WhenChips label={sleepEntry ? "Woke up" : "Fell asleep"} value={when} onChange={(w) => { setWhen(w); setClash(null); }} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} defaultOpen />
           {isEarlier(when) &&
             (sleepEntry ? (
               <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => wake(sleepEntry)}>
@@ -635,10 +639,10 @@ function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, act
 
 /** The bottom sheet a row opens: the shared sheet with the "when" chips on top. Defined
  *  at module level so the clock tick does not remount it (and lose a half-picked time). */
-function Sheet({ title, onClose, when, onWhen, timezone, busy, whenOpen = false, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; timezone: string; busy: boolean; whenOpen?: boolean; children: React.ReactNode }) {
+function Sheet({ title, onClose, when, onWhen, onWhenValid, timezone, busy, whenOpen = false, children }: { title: string; onClose: () => void; when: When; onWhen: (w: When) => void; onWhenValid?: (ok: boolean) => void; timezone: string; busy: boolean; whenOpen?: boolean; children: React.ReactNode }) {
   return (
     <BaseSheet title={title} onClose={onClose}>
-      <WhenChips value={when} onChange={onWhen} timezone={timezone} disabled={busy} defaultOpen={whenOpen} />
+      <WhenChips value={when} onChange={onWhen} onValid={onWhenValid} timezone={timezone} disabled={busy} defaultOpen={whenOpen} />
       {children}
     </BaseSheet>
   );

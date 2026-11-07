@@ -14,6 +14,7 @@ import { fromLocalInput } from "@/lib/time";
 export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }: { subjectId: string; typeId: string; asleep: OngoingEntry | null; timezone: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [whenBad, setWhenBad] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [when, setWhen] = useState<When>(NOW);
   // A sleep started with no signal is still on this phone; it counts as asleep.
@@ -46,11 +47,11 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
   }
   return (
     <div className="flex flex-col gap-3">
-      <button type="button" className={`btn ${asleep ? "" : "btn-primary"} flex-col gap-2`} style={{ minHeight: 160, fontSize: "1.5rem" }} disabled={busy} onClick={() => void go()}>
+      <button type="button" className={`btn ${asleep ? "" : "btn-primary"} flex-col gap-2`} style={{ minHeight: 160, fontSize: "1.5rem" }} disabled={busy || whenBad} onClick={() => void go()}>
         <Icon name={asleep ? "sun" : "zzz"} size={40} />
         {asleep ? `Woke up (asleep since ${fmtTime(asleep.occurred_at, timezone)})` : when.kind === "now" ? "Fell asleep now" : "Fell asleep earlier"}
       </button>
-      <WhenChips value={when} onChange={setWhen} timezone={timezone} disabled={busy} label={asleep ? "Woke up" : "Fell asleep"} />
+      <WhenChips value={when} onChange={setWhen} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} label={asleep ? "Woke up" : "Fell asleep"} />
       {msg && (
         <p role="status" className="notice notice-ok text-center font-semibold">
           {msg}

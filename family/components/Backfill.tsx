@@ -52,6 +52,8 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
   const [lasted, setLasted] = useState<number | null>(null);
   const [detail, setDetail] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
+  // A time typed in When that is incomplete or refused holds Save.
+  const [whenBad, setWhenBad] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   // A sleep that lands on one already logged: shown once, then "Save anyway" saves it.
   const [clash, setClash] = useState<EntryRow | null>(null);
@@ -149,7 +151,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
       {choice && (
         <>
           <p className="muted text-sm">{choice.lasted ? "Started" : "When"}</p>
-          <WhenChips value={when} onChange={(w) => { setWhen(w); setClash(null); }} timezone={timezone} marks={pastDay ? 0 : undefined} day={pastDay ? day : null} alwaysOpen />
+          <WhenChips value={when} onChange={(w) => { setWhen(w); setClash(null); }} timezone={timezone} marks={pastDay ? 0 : undefined} day={pastDay ? day : null} onValid={(ok) => setWhenBad(!ok)} alwaysOpen />
           {choice.lasted && (
             <>
               <p className="muted text-sm">Lasted{cap > 0 && cap < 180 ? ` (up to ${cap} min, until now)` : ""}</p>
@@ -219,13 +221,13 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
                 <Link prefetch={false} href={`/baby/entry/${clash.id}`} className="btn">
                   Change it
                 </Link>
-                <button type="button" className="btn" disabled={busy} onClick={() => void save(true)}>
+                <button type="button" className="btn" disabled={busy || whenBad} onClick={() => void save(true)}>
                   Save anyway
                 </button>
               </div>
             </div>
           ) : (
-            <button type="button" className="btn btn-primary min-h-[56px]" disabled={!ready || busy} onClick={() => void save()}>
+            <button type="button" className="btn btn-primary min-h-[56px]" disabled={!ready || busy || whenBad} onClick={() => void save()}>
               {ready ? `Save ${choice.label.toLowerCase()} at ${fmtTime(startIso, timezone)}` : missing}
             </button>
           )}

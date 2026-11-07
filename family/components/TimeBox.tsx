@@ -25,8 +25,8 @@ export function TimeBox({
 }: {
   /** Local "YYYY-MM-DDTHH:MM", or null for none yet. */
   value: string | null;
-  /** The resolved local time, or null while what is typed is not a usable time. */
-  onChange: (local: string | null) => void;
+  /** The resolved local time, or null while what is typed is not a usable time (`text` says whether anything is typed). */
+  onChange: (local: string | null, text: string) => void;
   timezone: string;
   label: string;
   day?: string | null;
@@ -65,7 +65,7 @@ export function TimeBox({
     setText(t);
     setBack(y);
     const r = resolve(t, y);
-    onChange(r && r <= limit.slice(0, 16) && !(min && r < min.slice(0, 16)) ? r : null);
+    onChange(r && r <= limit.slice(0, 16) && !(min && r < min.slice(0, 16)) ? r : null, t);
   };
 
   return (

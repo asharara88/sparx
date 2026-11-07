@@ -10,7 +10,7 @@ import { TimeBox } from "./TimeBox";
  * Clock times, not "80 min ago", so it matches the clock on the wall. Collapsed to one line
  * until tapped, so the one-tap screen stays one tap; picking a chip folds it back.
  */
-export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null }) {
+export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null, onValid }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null; /** False while a typed time is incomplete or refused: the sheet holds its buttons. */ onValid?: (ok: boolean) => void }) {
   const [open, setOpen] = useState(alwaysOpen || defaultOpen);
   // The time came from the box (a typed time that happens to match a chip is still typed).
   const [typed, setTyped] = useState(false);
@@ -24,6 +24,7 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
   }
   const pick = (w: When) => {
     setTyped(false);
+    onValid?.(true);
     onChange(w);
     if (!alwaysOpen) setOpen(false);
   };
@@ -49,7 +50,8 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
         yesterday={!onDay}
         timezone={timezone}
         disabled={disabled}
-        onChange={(local) => {
+        onChange={(local, text) => {
+          onValid?.(!text || !!local);
           if (!local) return;
           setTyped(true);
           onChange({ kind: "at", local });
