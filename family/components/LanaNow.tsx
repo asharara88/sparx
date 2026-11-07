@@ -7,7 +7,8 @@ import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, mergeRecent, newClientId, onQueueChange, QUEUED_ID_PREFIX, readQueueFor, releaseConfirmed, sendOrQueue, type QueuedOp, type RecentEntry } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, mergeRecent, newClientId, onQueueChange, QUEUED_ID_PREFIX, readQueueFor, releaseConfirmed, sendOrQueue, unqueue, type QueuedOp, type RecentEntry } from "@/lib/offline";
+import { EntrySheet } from "./EntrySheet";
 import { Boobs } from "./Boobs";
 import { Sheet as BaseSheet } from "./Sheet";
 import { Icon, type IconName } from "@/components/Icon";
@@ -62,6 +63,14 @@ export function LanaNow({
   const [inFlight, setInFlight] = useState(0);
   const busy = inFlight > 0;
   const [msg, setMsg] = useState<string | null>(null);
+  // Undo for the last tap (Mido, 7 November: a bottle logged twice): what that tap logged,
+  // for half a minute. A tap that also ended something (a side switch) has no undo; the
+  // Recent list in its sheet fixes those.
+  const [undo, setUndo] = useState<{ items: { id: string | null; client_id: string }[]; until: number } | null>(null);
+  const logged = useRef<{ id: string | null; client_id: string }[]>([]);
+  const ended = useRef(false);
+  // An entry opened from a sheet's Recent list, edited or deleted in place.
+  const [editing, setEditing] = useState<EntryRow | null>(null);
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
   // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
   const [when, setWhen] = useState<When>(NOW);
@@ -104,6 +113,8 @@ export function LanaNow({
   const queuedRef = useRef(false);
 
   const canAdd = can(me, "lana", "add");
+  const canEdit = can(me, "lana", "edit");
+  const canDelete = can(me, "lana", "delete");
   const flags = me.member as unknown as Record<string, boolean>;
   const feedType = types.find((t) => t.key === "feed");
   const sleepType = types.find((t) => t.key === "sleep");
@@ -159,8 +170,9 @@ export function LanaNow({
   // phone and sent later, and the screen shows the timer as running meanwhile.
   async function start(type: EntryType | undefined, payload: Record<string, unknown> = {}, endedAt: string | null = null) {
     if (!type) throw new Error("That kind of entry is switched off.");
+    const clientId = newClientId();
     const r = await sendOrQueue(supabaseBrowser(), {
-      client_id: newClientId(),
+      client_id: clientId,
       subject_id: subject.id,
       type_id: type.id,
       occurred_at: nowIso,
@@ -170,23 +182,29 @@ export function LanaNow({
     });
     if (r.status === "error") throw new Error(r.message);
     if (r.status === "queued") queuedRef.current = true;
+    logged.current.push({ id: r.status === "saved" ? r.id : null, client_id: clientId });
     return r;
   }
   async function end(entry: OngoingEntry) {
     if (Date.parse(whenIso) < Date.parse(entry.occurred_at)) {
       throw new Error(`That is before it started at ${fmtTime(entry.occurred_at, timezone)}. Pick a later time.`);
     }
+    ended.current = true;
     const r = await endOrQueue(supabaseBrowser(), entry.id, whenIso);
     if (r.status === "error") throw new Error(r.message);
     if (r.status === "queued") queuedRef.current = true;
     return r;
   }
-  async function run(label: string, fn: () => Promise<unknown>, sayTime = true) {
+  async function run(label: string, fn: () => Promise<unknown>, sayTime = true, undoable = true) {
     setInFlight((n) => n + 1);
     setMsg(null);
+    setUndo(null);
     queuedRef.current = false;
+    logged.current = [];
+    ended.current = false;
     try {
       await fn();
+      if (undoable && !ended.current && logged.current.length && canDelete) setUndo({ items: logged.current, until: Date.now() + 30_000 });
       const base = isEarlier(when) && sayTime ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
       setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
       if (isEarlier(when)) lastEarlier.current = { when: { kind: "at", local: toLocalInput(whenIso, timezone) }, at: Date.now() };
@@ -200,6 +218,20 @@ export function LanaNow({
       setInFlight((n) => n - 1);
     }
   }
+
+  // Undo: what this phone still holds is dropped; what reached the server is deleted.
+  const undoLast = (u: NonNullable<typeof undo>) =>
+    run("Undone.", async () => {
+      for (const it of u.items) {
+        if (unqueue(it.client_id)) continue;
+        if (it.id) await rpc("care_entry_delete", { p_id: it.id });
+      }
+    }, false, false);
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), Math.max(0, undo.until - Date.now()));
+    return () => clearTimeout(t);
+  }, [undo]);
 
   const realNowIso = new Date(clock).toISOString();
 
@@ -298,15 +330,27 @@ export function LanaNow({
   const mealSub = lastMeal && ago(mealType?.id, "") !== "" ? `${ago(mealType?.id, "")}${lastMeal.payload.food ? ` · ${String(lastMeal.payload.food).toLowerCase()}` : ""}` : "What was eaten";
   const lastPump = lastOf(pumpType?.id);
   const pumpSub = lastPump && ago(pumpType?.id, "") !== "" ? `${ago(pumpType?.id, "")}${lastPump.payload.amount_ml ? ` · ${lastPump.payload.amount_ml} ml` : ""}` : "To the fridge";
+  // A sheet's Recent list: the last few of its kind the server has (one still on this phone
+  // cannot be edited yet), newest first. Tapping one opens it to change or delete.
+  const recentOf = (typeId: string | undefined): EntryRow[] =>
+    !typeId || !(canEdit || canDelete) ? [] : (seen.filter((e) => e.type_id === typeId && !e.id.startsWith(QUEUED_ID_PREFIX) && "note" in e) as EntryRow[]).slice(0, 4);
+  const feedWords = (e: EntryRow) =>
+    e.payload.method === "Bottle" ? `Bottle${e.payload.amount_ml ? ` ${e.payload.amount_ml} ml` : ""}` : `Breast${e.payload.side ? `, ${String(e.payload.side).toLowerCase()}` : ""}${e.ended_at ? ` · ${fmtDuration(minutesBetween(e.occurred_at, e.ended_at))}` : " · running"}`;
+  const sleepWords = (e: EntryRow) => (e.ended_at ? `to ${fmtTime(e.ended_at, timezone)} · ${fmtDuration(minutesBetween(e.occurred_at, e.ended_at))}` : "still asleep");
   const feedEntry = state.kind === "feeding" ? state.entry : null;
   const feedSide = state.kind === "feeding" && (state.side === "Left" || state.side === "Right") ? state.side : null;
 
   return (
     <section className="flex flex-col gap-3" aria-live="polite">
       {msg && (
-        <p role="status" className="notice notice-ok text-sm">
-          {msg}
-        </p>
+        <div role="status" className="notice notice-ok flex items-center gap-3 text-sm">
+          <span className="flex-1">{msg}</span>
+          {undo && (
+            <button type="button" className="btn min-h-[44px]" disabled={busy} onClick={() => undoLast(undo)}>
+              Undo
+            </button>
+          )}
+        </div>
       )}
 
       <ul className="card flex flex-col p-0" aria-label="Log">
@@ -394,6 +438,7 @@ export function LanaNow({
               </div>
             </div>
           )}
+          <RecentList title="Recent feeds" items={recentOf(feedType?.id)} timezone={timezone} describe={feedWords} onOpen={(e) => { closeSheet(); setEditing(e); }} />
         </Sheet>
       )}
       {sheet === "diaper" && (
@@ -434,7 +479,7 @@ export function LanaNow({
                   run(`Pumped ${ml} ml, in the fridge.`, async () => {
                     const saved = await start(pumpType, { amount_ml: ml }, nowIso);
                     if (saved.status === "saved") await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
-                  })
+                  }, true, false)
                 }
               >
                 {ml} ml
@@ -501,7 +546,11 @@ export function LanaNow({
                 </div>
               </>
             ))}
+          <RecentList title="Recent sleeps" items={recentOf(sleepType?.id)} timezone={timezone} describe={sleepWords} onOpen={(e) => { closeSheet(); setEditing(e); }} />
         </BaseSheet>
+      )}
+      {editing && (
+        <EntrySheet key={editing.id} entry={editing} type={types.find((t) => t.id === editing.type_id)} timezone={timezone} canEdit={canEdit} canDelete={canDelete} onClose={() => { setEditing(null); startRefresh(() => router.refresh()); }} />
       )}
 
       {!canAdd && <p className="muted text-sm">You can see {possessive(subject.name)} day but not log it.</p>}
@@ -608,5 +657,26 @@ function MealForm({ types, value, onChange, onSave, disabled }: { types: EntryTy
         Save the meal
       </button>
     </form>
+  );
+}
+
+/** The last few entries of a sheet's kind, each one tap from being changed or deleted. */
+function RecentList({ title, items, timezone, describe, onOpen }: { title: string; items: EntryRow[]; timezone: string; describe: (e: EntryRow) => string; onOpen: (e: EntryRow) => void }) {
+  if (!items.length) return null;
+  return (
+    <section className="flex flex-col gap-1" aria-label={title}>
+      <p className="divider-label">{title}: tap one to fix or delete it</p>
+      <ul className="flex flex-col">
+        {items.map((e) => (
+          <li key={e.id}>
+            <button type="button" className="row-link flex min-h-[44px] w-full items-center gap-3 text-left" onClick={() => onOpen(e)}>
+              <span className="w-14 font-semibold tabular-nums">{fmtTime(e.occurred_at, timezone)}</span>
+              <span className="muted flex-1">{describe(e)}</span>
+              <Icon name="forward" size={18} className="muted" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

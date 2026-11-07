@@ -115,6 +115,15 @@ export function enqueue(e: QueuedOp): boolean {
   return writeQueue([...readQueue().filter((x) => x.client_id !== e.client_id), e]);
 }
 
+/** Take back an operation still waiting on this phone (an undo before it was ever sent); true when it was there. */
+export function unqueue(clientId: string): boolean {
+  const q = readQueue();
+  if (!q.some((x) => x.client_id === clientId)) return false;
+  writeQueue(q.filter((x) => x.client_id !== clientId));
+  announce();
+  return true;
+}
+
 // ---- In flight (DESIGN.md, rule 9): the screen changes the instant a tap is made, while
 // the request is out, and keeps the change until the refreshed page carries it. Memory
 // only: a reload asks the server anyway. A refused request leaves the screen as it was.
