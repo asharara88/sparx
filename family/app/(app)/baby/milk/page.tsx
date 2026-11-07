@@ -75,7 +75,7 @@ export default async function MilkPage() {
       </Fold>
       {showPump && (
         <nav className="card py-0" aria-label="Pumping">
-          <Link prefetch={false} href="/baby/dashboard" className="row row-link">
+          <Link prefetch={false} href="/#today" className="row row-link">
             <span className="icon-disc tint-pump" style={{ width: 36, height: 36 }}>
               <Icon name="droplet" size={19} />
             </span>

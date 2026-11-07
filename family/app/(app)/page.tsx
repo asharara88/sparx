@@ -21,15 +21,27 @@ import { HomeState } from "@/components/HomeState";
 import { DueNotice } from "@/components/DueNotice";
 import { nextNap } from "@/lib/child-insights";
 import { checkEntries } from "@/lib/entry-checks";
+import { TodayStrip } from "@/components/TodayStrip";
+import { SleepDay } from "@/components/SleepDay";
+import { FeedDay } from "@/components/FeedDay";
+import { FoodDay } from "@/components/FoodDay";
+import { PumpDashboard } from "@/components/PumpDashboard";
+import type { PumpDay } from "@/lib/pumping";
+import { nightWindow } from "@/lib/night";
+import { pumpingActive, stageFor } from "@/lib/stage";
+import { tipsFor } from "@/lib/child-guide";
+import { child } from "@/lib/names";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Home answers "what does she need now, and what do I tap?" on one phone screen without
- * scrolling (DESIGN.md, "Home"): the header (photo, name, age, who has her, Say it,
- * Emergency); a card with her state, awake as the next-nap window; one Now notice, the first
- * that applies, with "N more ›"; and a row per activity at the bottom, each saying when it
- * last happened with its one-tap button. Everything else lives on the child's page, Milk or More.
+ * Home answers "what does she need now, and what do I tap?" on its first phone screen
+ * (DESIGN.md, "Home"): the header (photo, name, age, who has her, Say it, Emergency); a card
+ * with her state, awake as the next-nap window; the day in four numbers; one Now notice, the
+ * first that applies (the guide's top tip among them), with "N more ›"; and a row per
+ * activity at the thumb, each saying when it last happened with its one-tap button.
+ * Below the rows, the day's picture (Mido, 7 November: Home and the dashboard are one):
+ * sleep today, feeds today, food once she eats, pumping while it goes on.
  */
 export default async function HomePage() {
   const supabase = await createClient();
@@ -115,6 +127,26 @@ export default async function HomePage() {
   const thawOpts = { awayTomorrow, awayMinutes: (Math.floor(tTo / 100) * 60 + (tTo % 100)) - (Math.floor(tFrom / 100) * 60 + (tFrom % 100)), intervalMin: bottleGapMin, hour };
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
 
+  // ---- below the rows: the day's picture (what /baby/dashboard showed until 7 November).
+  const stage = summary && summary.ok ? stageFor(summary.subject.birth_date) : null;
+  const showFood = !!stage && !!summary && summary.ok && (stage.solids || !!summary.last["lana.meal"]);
+  const inStock = !!milkOk && milkOk.fridge_count + milkOk.freezer_count > 0;
+  const showPump = !!summary && summary.ok && (!!me.member.breastfeeds || me.role.id === "admin") && (pumpingActive(summary.last["lana.pump"]?.occurred_at ?? null) || inStock);
+  const { data: statsData } = showPump && summary && summary.ok ? await supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: addDays(today, -7), p_to: today }) : { data: null };
+  const pumpDays = (((statsData as { ok?: boolean; days?: PumpDay[] } | null)?.days ?? []) as PumpDay[]).map((d) => ({ day: d.day, pump_ml: Number(d.pump_ml) || 0 }));
+  // Since yesterday evening, like the Milk screen's goal: a night pump counts for the day it feeds.
+  const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
+  const pumps = week.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
+  const meals = week.filter((e) => e.type_id === "lana.meal");
+  const dayEnd = Date.parse(dayRange(today, tz).to);
+  // The guide's most pressing tip (DESIGN.md, rule 3): a red one right after an overdue vaccine, a yellow one after "feed due".
+  const tip = summary && summary.ok ? tipsFor(week, summary.subject.birth_date, now.getTime(), { timezone: tz, feedGapMin: summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? undefined, name: summary.subject.name, sex: child(me)?.sex ?? null }).find((t) => t.level !== "info") ?? null : null;
+  const tipNotice = tip ? (
+    <Link prefetch={false} href="/baby/when-to-call" className={`notice ${tip.level === "red" ? "notice-danger" : "notice-warn"} flex items-center gap-2 no-underline`}>
+      <span className="flex-1 font-semibold">{tip.title}</span> <Icon name="forward" size={18} />
+    </Link>
+  ) : null;
+
   // The alerts of this hour, in order. Each is one line or a small card; they are never folded.
   const alerts: Record<string, React.ReactNode> =
     summary && summary.ok
@@ -149,12 +181,14 @@ export default async function HomePage() {
   const nap = summary && summary.ok && summary.subject.birth_date ? nextNap(week, ageDays(summary.subject.birth_date, today), now.getTime(), hourOf) : null;
   const napWatch = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= 12 * 60;
   const checks = summary && summary.ok && can(me, "lana", "edit") ? checkEntries(week).length : 0;
-  const known = [vaccine?.overdue, mamaAway && !!milkOk, feedIsDue, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
+  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk, feedIsDue, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
 
   return summary && summary.ok ? (
+    <div className="flex flex-col gap-4">
     <div className="screen-fill">
       <HomeHeader summary={summary} me={me} today={today} />
       <HomeState summary={summary} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
+      <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} />
       <div className="now-queue">
         <div>
           {vaccine?.overdue && (
@@ -163,6 +197,7 @@ export default async function HomePage() {
             </Link>
           )}
         </div>
+        <div>{tip?.level === "red" ? tipNotice : null}</div>
         <div>{mamaAway ? alerts.countdown : null}</div>
         <div>
           {feedDue && !feeding && (
@@ -172,6 +207,7 @@ export default async function HomePage() {
             </DueNotice>
           )}
         </div>
+        <div>{tip?.level === "yellow" ? tipNotice : null}</div>
         <div>{order.includes("plan") ? alerts.plan : null}</div>
         <div>{order.includes("handover") ? alerts.handover : null}</div>
         <div>{order.includes("thaw") ? alerts.thaw : null}</div>
@@ -214,6 +250,13 @@ export default async function HomePage() {
       )}
       <div className="grow-space" />
       <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} />
+    </div>
+    <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">
+      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} />
+      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} />
+      {showFood && stage && <FoodDay meals={meals} dayStartMs={dayStart} dayEndMs={dayEnd} stage={stage} timezone={tz} />}
+      {showPump && <PumpDashboard pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} days={pumpDays} today={today} hourOfDay={hour} />}
+    </section>
     </div>
   ) : (
     <div className="flex flex-col gap-4">

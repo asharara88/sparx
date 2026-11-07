@@ -11,7 +11,7 @@ import { napsLine } from "@/lib/stage";
  * and one line of sums. The times of each nap are in the list below, not here.
  * Server-rendered; the duration and the bar's "now" tick on the phone.
  */
-export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null }) {
+export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** Off on Home, where the strip at the top already says when she woke and the naps. */ sums?: boolean }) {
   const start = zonedMidnight(day, timezone).getTime();
   const end = start + 24 * 3600 * 1000;
   const now = nowIso ? Math.min(Date.parse(nowIso), end) : end;
@@ -61,7 +61,7 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
         <span>noon</span>
         <span>midnight</span>
       </div>
-      <p className="muted text-sm">{sums.join(" · ")}</p>
+      {showSums && <p className="muted text-sm">{sums.join(" · ")}</p>}
     </section>
   );
 }

@@ -113,18 +113,6 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
       </div>
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} />
       <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stageFor(summary.subject.birth_date).naps} />
-      {isToday && (
-        <nav className="card py-0" aria-label="Dashboard">
-          <Link prefetch={false} href="/baby/dashboard" className="row row-link">
-            <span className="icon-disc tint-sleep" style={{ width: 36, height: 36 }}>
-              <Icon name="grid" size={19} />
-            </span>
-            <span className="flex-1 font-semibold">Dashboard</span>
-            <span className="muted text-sm">sleep and pumping</span>
-            <Icon name="forward" size={18} className="muted" />
-          </Link>
-        </nav>
-      )}
       {checks > 0 && can(me, "lana", "edit") && (
         <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
           <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />
