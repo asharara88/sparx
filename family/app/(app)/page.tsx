@@ -187,10 +187,7 @@ export default async function HomePage() {
     <div className="flex flex-col gap-4">
     <div className="screen-fill">
       <HomeHeader summary={summary} me={me} today={today} />
-      {/* The state card opens its section: feeding, the Feeds; otherwise the Sleep. */}
-      <Link prefetch={false} href={summary.ongoing.some((e) => e.type_id === "lana.feed") ? "/baby/feed" : "/baby/sleep"} className="no-underline" aria-label="Open the section">
-        <HomeState summary={summary} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
-      </Link>
+      <HomeState summary={summary} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} />
       <div className="now-queue">
         <div>

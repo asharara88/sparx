@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type { HomeSummary } from "@/lib/types";
 import { fmtDuration, fmtTime } from "@/lib/time";
 import { useMe } from "@/lib/me-context";
@@ -48,6 +49,13 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
   const awakeMin = !feeding && !asleep && woke ? mins(woke) : null;
   const awakeKnown = awakeMin != null && awakeMin <= H12;
 
+  // The card opens its section (Mido, 7 November), chosen from the state it shows: feeding,
+  // the Feeds; otherwise the Sleep. Taps still on this phone count, as on the card itself.
+  const wrap = (node: React.ReactNode) => (
+    <Link prefetch={false} href={feeding ? "/baby/feed" : "/baby/sleep"} className="block no-underline">
+      {node}
+    </Link>
+  );
   const big = (label: string, value: string, tint: string, sub?: string) => (
     <section aria-label="Right now" aria-live="polite" className={`card ${tint} flex flex-col gap-1`}>
       <p className="text-[0.95rem] font-semibold">{label}</p>
@@ -56,14 +64,14 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
     </section>
   );
 
-  if (feeding) return big("Feeding", fmtDuration(mins(feeding.occurred_at)), "tint-feed");
-  if (asleep) return big("Asleep", fmtDuration(mins(asleep.occurred_at)), "tint-sleep", `since ${fmtTime(asleep.occurred_at, timezone)}`);
+  if (feeding) return wrap(big("Feeding", fmtDuration(mins(feeding.occurred_at)), "tint-feed"));
+  if (asleep) return wrap(big("Asleep", fmtDuration(mins(asleep.occurred_at)), "tint-sleep", `since ${fmtTime(asleep.occurred_at, timezone)}`));
   const w = awakeKnown && nap && woke ? napWindow(Date.parse(woke), nap.at, now) : null;
   // Over an hour past the window, a nap was most likely not logged: say when she woke, not "late by 5 h".
-  if (w && w.late > 60) return big("Last woke", fmtTime(woke!, timezone), "", "If she napped since, log it below.");
+  if (w && w.late > 60) return wrap(big("Last woke", fmtTime(woke!, timezone), "", "If she napped since, log it below."));
   if (w && nap) {
     const say = w.late > 0 ? `Past the window by ${fmtDuration(w.late)}.` : w.untilMin > 0 ? `In ${fmtDuration(w.untilMin)}. Start winding down.` : "Now. Start winding down.";
-    return (
+    return wrap(
       <section aria-label="Right now" aria-live="polite" className="card tint-sleep flex flex-col gap-2">
         <p className="flex items-baseline justify-between gap-2">
           <span className="text-[0.95rem] font-bold">{nap.isBedtime ? "Bedtime" : "Next nap"}</span>
@@ -80,6 +88,6 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
       </section>
     );
   }
-  if (awakeKnown) return big("Awake for", fmtDuration(awakeMin!), "", `since ${fmtTime(woke!, timezone)}`);
+  if (awakeKnown) return wrap(big("Awake for", fmtDuration(awakeMin!), "", `since ${fmtTime(woke!, timezone)}`));
   return <p className="muted text-lg">Tap a row below to log the first thing today.</p>;
 }
