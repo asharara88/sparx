@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EntryRow, HomeSummary } from "@/lib/types";
 import { fmtTime } from "@/lib/time";
 import { ageDays, normsForAge } from "@/lib/norms";
@@ -7,7 +8,7 @@ import { ageDays, normsForAge } from "@/lib/norms";
  * is due, what went in today (bottles in ml, breastfeeds by count), and what is usual at her
  * age. The count of feeds is on the strip at the top, so it is not repeated. Server-rendered.
  */
-export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowIso, today }: { summary: HomeSummary; entries: EntryRow[]; dayStartMs: number; dayEndMs: number; timezone: string; nowIso: string; today: string }) {
+export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowIso, today, href = null }: { summary: HomeSummary; entries: EntryRow[]; dayStartMs: number; dayEndMs: number; timezone: string; nowIso: string; today: string; /** The Feeds section, linked at the foot of the card. */ href?: string | null }) {
   const now = Date.parse(nowIso);
   const feeds = entries.filter((e) => e.type_id === "lana.feed" && Date.parse(e.occurred_at) >= dayStartMs && Date.parse(e.occurred_at) < dayEndMs);
   const bottles = feeds.filter((e) => e.payload.method === "Bottle");
@@ -24,6 +25,11 @@ export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowI
       <p className="text-2xl font-bold">{headline}</p>
       <p className="text-sm">{parts.length ? parts.join(" · ") : "Nothing yet today."}</p>
       {norms && <p className="muted text-sm">Usual at this age: {norms.feeds.low} to {norms.feeds.high} feeds a day.</p>}
+      {href && (
+        <Link prefetch={false} href={href} className="row-link -mb-2 flex min-h-[44px] items-center justify-end font-semibold no-underline">
+          All feeds ›
+        </Link>
+      )}
     </section>
   );
 }

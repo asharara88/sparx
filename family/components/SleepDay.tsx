@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EntryRow } from "@/lib/types";
 import { sleepDay } from "@/lib/sleep-day";
 import { fmtTime, zonedMidnight } from "@/lib/time";
@@ -11,7 +12,7 @@ import { napsLine } from "@/lib/stage";
  * and one line of sums. The times of each nap are in the list below, not here.
  * Server-rendered; the duration and the bar's "now" tick on the phone.
  */
-export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** Off on Home, where the strip at the top already says when she woke and the naps. */ sums?: boolean }) {
+export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true, href = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** Off on Home, where the strip at the top already says when she woke and the naps. */ sums?: boolean; /** The Sleep section, linked at the foot of the card. */ href?: string | null }) {
   const start = zonedMidnight(day, timezone).getTime();
   const end = start + 24 * 3600 * 1000;
   const now = nowIso ? Math.min(Date.parse(nowIso), end) : end;
@@ -62,6 +63,11 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
         <span>midnight</span>
       </div>
       {showSums && <p className="muted text-sm">{sums.join(" · ")}</p>}
+      {href && (
+        <Link prefetch={false} href={href} className="row-link -mb-2 flex min-h-[44px] items-center justify-end font-semibold no-underline">
+          All sleep ›
+        </Link>
+      )}
     </section>
   );
 }
