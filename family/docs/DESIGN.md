@@ -241,7 +241,8 @@ full form for a note or a photo.
 
 **Fix it from Home** (Mido, 7 November: a bottle logged twice, a sleep ended at the wrong
 time). Every tap that logs something says so with **Undo** beside it for half a minute; Undo
-deletes what that tap logged (or drops it from the phone if it has not been sent). The Feed
+deletes what that tap logged, once the server has it (a tap kept on the phone with no signal
+has none: it is fixed from Recent once it lands). The Feed
 and Sleep sheets end with **Recent feeds / Recent sleeps**: the last four, each one tap from
 the same edit sheet, so a wrong time or a double is fixed without leaving Home. The checks'
 buttons say what they do ("Delete this one", "Both were real"), and after a decision the card

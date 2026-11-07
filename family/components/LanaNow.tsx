@@ -7,7 +7,7 @@ import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, mergeRecent, newClientId, onQueueChange, QUEUED_ID_PREFIX, readQueueFor, releaseConfirmed, sendOrQueue, unqueue, type QueuedOp, type RecentEntry } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, mergeRecent, newClientId, onQueueChange, QUEUED_ID_PREFIX, readQueueFor, releaseConfirmed, sendOrQueue, type QueuedOp, type RecentEntry } from "@/lib/offline";
 import { EntrySheet } from "./EntrySheet";
 import { Boobs } from "./Boobs";
 import { Sheet as BaseSheet } from "./Sheet";
@@ -64,10 +64,11 @@ export function LanaNow({
   const busy = inFlight > 0;
   const [msg, setMsg] = useState<string | null>(null);
   // Undo for the last tap (Mido, 7 November: a bottle logged twice): what that tap logged,
-  // for half a minute. A tap that also ended something (a side switch) has no undo; the
-  // Recent list in its sheet fixes those.
-  const [undo, setUndo] = useState<{ items: { id: string | null; client_id: string }[]; until: number } | null>(null);
-  const logged = useRef<{ id: string | null; client_id: string }[]>([]);
+  // for half a minute, once the server has it. A tap kept on the phone (no signal) has no
+  // undo: it could be sent while Undo is pressed, so it is fixed from the Recent list once
+  // it lands. A tap that also ended something (a side switch) has none either.
+  const [undo, setUndo] = useState<{ ids: string[]; until: number } | null>(null);
+  const logged = useRef<(string | null)[]>([]);
   const ended = useRef(false);
   // An entry opened from a sheet's Recent list, edited or deleted in place.
   const [editing, setEditing] = useState<EntryRow | null>(null);
@@ -182,7 +183,7 @@ export function LanaNow({
     });
     if (r.status === "error") throw new Error(r.message);
     if (r.status === "queued") queuedRef.current = true;
-    logged.current.push({ id: r.status === "saved" ? r.id : null, client_id: clientId });
+    logged.current.push(r.status === "saved" ? r.id : null);
     return r;
   }
   async function end(entry: OngoingEntry) {
@@ -204,7 +205,7 @@ export function LanaNow({
     ended.current = false;
     try {
       await fn();
-      if (undoable && !ended.current && logged.current.length && canDelete) setUndo({ items: logged.current, until: Date.now() + 30_000 });
+      if (undoable && !ended.current && logged.current.length && logged.current.every((id) => id) && canDelete) setUndo({ ids: logged.current as string[], until: Date.now() + 30_000 });
       const base = isEarlier(when) && sayTime ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
       setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
       if (isEarlier(when)) lastEarlier.current = { when: { kind: "at", local: toLocalInput(whenIso, timezone) }, at: Date.now() };
@@ -219,13 +220,10 @@ export function LanaNow({
     }
   }
 
-  // Undo: what this phone still holds is dropped; what reached the server is deleted.
+  // Undo: delete what the last tap logged (all of it reached the server, or Undo is not shown).
   const undoLast = (u: NonNullable<typeof undo>) =>
     run("Undone.", async () => {
-      for (const it of u.items) {
-        if (unqueue(it.client_id)) continue;
-        if (it.id) await rpc("care_entry_delete", { p_id: it.id });
-      }
+      for (const id of u.ids) await rpc("care_entry_delete", { p_id: id });
     }, false, false);
   useEffect(() => {
     if (!undo) return;
