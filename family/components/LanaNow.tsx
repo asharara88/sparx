@@ -13,6 +13,7 @@ import { Boobs } from "./Boobs";
 import { Sheet as BaseSheet } from "./Sheet";
 import { Icon, type IconName } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
+import { TimeBox } from "@/components/TimeBox";
 import { NOW, type When, whenToIso, isEarlier, recallWhen } from "@/lib/when";
 import { fromLocalInput, toLocalInput } from "@/lib/time";
 import { bottleChoices, napLengths, overlappingSleep, runningTimers } from "@/lib/backlog";
@@ -77,6 +78,8 @@ export function LanaNow({
   const runSeq = useRef(0);
   // An entry opened from a sheet's Recent list, edited or deleted in place.
   const [editing, setEditing] = useState<EntryRow | null>(null);
+  // A sleep from earlier: when she woke, typed ("Woke up at 21:30"), as well as the length chips.
+  const [wokeTyped, setWokeTyped] = useState<string | null>(null);
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
   // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
   const [when, setWhen] = useState<When>(NOW);
@@ -555,6 +558,12 @@ export function LanaNow({
                     );
                   })}
                 </div>
+                <TimeBox key={whenIso} label="or woke at" value={null} timezone={timezone} min={toLocalInput(whenIso, timezone)} minWord="she fell asleep" yesterday={false} day={null} disabled={off} onChange={setWokeTyped} />
+                {wokeTyped && (
+                  <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => logSleep(Math.round((Date.parse(fromLocalInput(wokeTyped, timezone)) - Date.parse(whenIso)) / 60_000))}>
+                    Slept {fmtTime(whenIso, timezone)} to {wokeTyped.slice(11, 16)}
+                  </button>
+                )}
               </>
             ))}
           <RecentList title="Recent sleeps" items={recentOf(sleepType?.id)} timezone={timezone} describe={sleepWords} onOpen={(e) => { closeSheet(); setEditing(e); }} />
