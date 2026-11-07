@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { AGO_PRESETS, agoLabel, clockMarks, MARK_COUNT, NOW, type When } from "@/lib/when";
-import { addDays, toLocalInput } from "@/lib/time";
+import { toLocalInput } from "@/lib/time";
 import { TimeBox } from "./TimeBox";
 
 /**
@@ -10,8 +10,10 @@ import { TimeBox } from "./TimeBox";
  * Clock times, not "80 min ago", so it matches the clock on the wall. Collapsed to one line
  * until tapped, so the one-tap screen stays one tap; picking a chip folds it back.
  */
-export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean }) {
+export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null }) {
   const [open, setOpen] = useState(alwaysOpen || defaultOpen);
+  // The time came from the box (a typed time that happens to match a chip is still typed).
+  const [typed, setTyped] = useState(false);
   const summary = value.kind === "now" ? "now" : value.kind === "ago" ? agoLabel(value.min) : `at ${value.local.slice(11)}${value.local.slice(0, 10) !== toLocalInput(new Date().toISOString(), timezone).slice(0, 10) ? ` on ${value.local.slice(5, 10)}` : ""}`;
   if (!open) {
     return (
@@ -21,14 +23,12 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
     );
   }
   const pick = (w: When) => {
+    setTyped(false);
     onChange(w);
     if (!alwaysOpen) setOpen(false);
   };
   const times = clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), marks);
-  const today = toLocalInput(new Date().toISOString(), timezone).slice(0, 10);
-  // A time on a past day (the day being filled in) is typed on that day; otherwise the most recent.
-  const held = value.kind === "at" ? value.local.slice(0, 10) : null;
-  const onDay = held && held < addDays(today, -1) ? held : null;
+  const onDay = day;
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={label}>
       <div className="grid grid-cols-4 gap-2">
@@ -44,12 +44,16 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
       <TimeBox
         key={onDay ?? "recent"}
         label="or type it"
-        value={value.kind === "at" && !times.includes(value.local) ? value.local : null}
+        value={value.kind === "at" && (typed || !times.includes(value.local)) ? value.local : null}
         day={onDay}
         yesterday={!onDay}
         timezone={timezone}
         disabled={disabled}
-        onChange={(local) => local && onChange({ kind: "at", local })}
+        onChange={(local) => {
+          if (!local) return;
+          setTyped(true);
+          onChange({ kind: "at", local });
+        }}
       />
     </div>
   );

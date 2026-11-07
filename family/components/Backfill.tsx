@@ -149,7 +149,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
       {choice && (
         <>
           <p className="muted text-sm">{choice.lasted ? "Started" : "When"}</p>
-          <WhenChips value={when} onChange={(w) => { setWhen(w); setClash(null); }} timezone={timezone} marks={pastDay ? 0 : undefined} alwaysOpen />
+          <WhenChips value={when} onChange={(w) => { setWhen(w); setClash(null); }} timezone={timezone} marks={pastDay ? 0 : undefined} day={pastDay ? day : null} alwaysOpen />
           {choice.lasted && (
             <>
               <p className="muted text-sm">Lasted{cap > 0 && cap < 180 ? ` (up to ${cap} min, until now)` : ""}</p>
