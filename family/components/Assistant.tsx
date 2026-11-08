@@ -368,7 +368,13 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   }
 
   // ---- proposals: the one tap that writes
-  async function confirm(p: AssistantProposal) {
+  // Cards being saved or saved: a second tap, or Confirm all reaching a card already tapped, does nothing.
+  const claimedRef = useRef(new Set<string>());
+  async function confirm(p: AssistantProposal, reserved = false) {
+    if (!reserved) {
+      if (claimedRef.current.has(p.id)) return;
+      claimedRef.current.add(p.id);
+    }
     setPstate((s) => ({ ...s, [p.id]: { status: "saving" } }));
     const supabase = supabaseBrowser();
     // What is said (and shown) after the tap, in the member's language.
@@ -419,6 +425,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       router.refresh();
     } catch (e) {
       const message = e instanceof Error ? e.message : t(lang, "couldNotSave");
+      claimedRef.current.delete(p.id);
       setPstate((s) => ({ ...s, [p.id]: { status: "error", message } }));
       if (aloud || talkRef.current) say(message);
     }
@@ -551,7 +558,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
             )}
             {(m.proposals?.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length ?? 0) > 1 && (
               <button type="button" className="btn btn-primary mt-2 min-h-[56px] w-full text-lg" onClick={() => void (async () => {
-                for (const p of m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending")) await confirm(p);
+                // The whole batch is claimed and shown as saving first, so no card in it can be tapped or dropped meanwhile.
+                const batch = m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending" && !claimedRef.current.has(x.id));
+                for (const p of batch) claimedRef.current.add(p.id);
+                setPstate((s) => ({ ...s, ...Object.fromEntries(batch.map((p) => [p.id, { status: "saving" } as ProposalState])) }));
+                for (const p of batch) await confirm(p, true);
               })()}>
                 Confirm all {m.proposals!.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length}
               </button>

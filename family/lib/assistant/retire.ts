@@ -33,14 +33,15 @@ const aboutOf = (p: AssistantProposal) => p.care_entry?.type_id ?? p.end_timer?.
 
 /**
  * A corrected card ("make it 90") takes the place of the latest earlier card about the same
- * thing that is still waiting for Confirm; that one is marked replaced so it cannot be
- * confirmed too. Cards already saved, dropped or replaced are left alone.
+ * thing that is not saved yet (waiting for Confirm, or its save failed and Try again is
+ * showing); that one is marked replaced so it cannot be confirmed too. Cards saved, being
+ * saved, dropped or replaced are left alone.
  */
 export function replacedBy(msgs: { proposals?: AssistantProposal[] }[], fresh: AssistantProposal[], states: Record<string, ProposalState>): string[] {
   const out: string[] = [];
   const earlier = msgs.flatMap((m) => m.proposals ?? []);
   for (const p of fresh.filter((x) => x.replaces)) {
-    const target = [...earlier].reverse().find((q) => aboutOf(q) === aboutOf(p) && (states[q.id]?.status ?? "pending") === "pending" && !out.includes(q.id));
+    const target = [...earlier].reverse().find((q) => aboutOf(q) === aboutOf(p) && ["pending", "error"].includes(states[q.id]?.status ?? "pending") && !out.includes(q.id));
     if (target) out.push(target.id);
   }
   return out;

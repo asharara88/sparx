@@ -35,4 +35,6 @@ test("replacedBy: a correction replaces the latest waiting card about the same t
   assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "saved", note: "Saved." } }), ["a"], "a saved card is never replaced");
   assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed")], {}), [], "no replaces flag, nothing replaced");
   assert.deepEqual(replacedBy(msgs, [card("d", "lana.sleep", { replaces: true })], {}), [], "nothing about sleep to replace");
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "error", message: "offline" } }), ["c"], "a card whose save failed is replaced, so Try again cannot save it too");
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "saving" } }), ["a"], "a card being saved is left alone");
 });
