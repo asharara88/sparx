@@ -148,7 +148,7 @@ export function withOutcomes(msgs: { role: "user" | "assistant"; text: string; p
     .map((m) => {
       const lines = (m.proposals ?? []).map((p) => {
         const s = states[p.id]?.status;
-        return `[${s === "saved" ? "Confirmed and saved" : s === "dropped" || s === "error" ? "Not saved" : "Not confirmed yet"}: ${p.summary}]`;
+        return `[${s === "saved" ? "Confirmed and saved" : s === "replaced" ? "Replaced by a corrected card" : s === "dropped" || s === "error" ? "Not saved" : "Not confirmed yet"}: ${p.summary}]`;
       });
       return { role: m.role, text: lines.length ? `${m.text}\n${lines.join("\n")}`.trim() : m.text };
     });

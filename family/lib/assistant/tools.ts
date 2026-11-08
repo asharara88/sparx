@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssistantProposal, AssistantRef, AssistantSkill, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
+import type { AssistantChoice, AssistantProposal, AssistantRef, AssistantSkill, EntryType, EventKind, FieldDef, Me } from "@/lib/types";
 import { selectSkills, skillText, type Selection } from "./skills";
 import { MAX_FACTS, selectMemories, type ChatRecap, type MemoryFact } from "./memory";
 import { EVENT_KINDS, can } from "@/lib/types";
@@ -56,6 +56,8 @@ export interface ToolContext {
   refs: Record<string, AssistantRef>;
   /** Writes the assistant asked for. The member confirms them in the UI. */
   proposals: AssistantProposal[];
+  /** A question the member answers with one tap (ask_choice); at most one per answer. */
+  choice: AssistantChoice | null;
   /** Every active skill (for the index and load_skill). */
   skills: AssistantSkill[];
   /** What the router picked for this question. */
@@ -383,6 +385,7 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
           ended_at: { type: "string", description: "When it ended, for sleeps and feeds with a known end. Omit if unknown or still going." },
           payload: { type: "object", description: "The type's fields as key → value, e.g. {\"method\":\"Bottle\",\"amount_ml\":120,\"milk\":\"Formula\"}." },
           note: { type: "string", description: "A short free-text note if the member said something worth keeping." },
+          replaces_previous: { type: "boolean", description: "True when the member is correcting a card you showed that is not confirmed yet (\"make it 90\", \"no, it was dirty\"): this card takes its place." },
         },
         ["subject", "type_id", "payload"],
       ),
@@ -393,8 +396,17 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
       const t = ctx.types.find((x) => x.id === input.type_id && x.module_id === s.module_id);
       if (!t) return { error: "bad_type", known: ctx.types.filter((x) => x.module_id === s.module_id).map((x) => x.id) };
       const payload = (input.payload && typeof input.payload === "object" ? input.payload : {}) as Record<string, unknown>;
-      const missing = t.fields.filter((f) => f.required && (payload[f.key] === undefined || payload[f.key] === "")).map((f) => f.key);
-      if (missing.length) return { error: "missing_fields", missing, message: "Ask the member for these before proposing." };
+      const missingFields = t.fields.filter((f) => f.required && (payload[f.key] === undefined || payload[f.key] === ""));
+      if (missingFields.length) {
+        const f = missingFields[0];
+        const offer = f.options?.length ? f.options : f.quick?.length ? f.quick.map((n) => `${n}${f.key.endsWith("_ml") ? " ml" : f.key.endsWith("_g") ? " g" : ""}`) : null;
+        return {
+          error: "missing_fields",
+          missing: missingFields.map((x) => x.key),
+          ask: { field: f.key, label: f.label, options: offer },
+          message: offer ? "Ask with ask_choice, these options as the answers (one short question), then propose once answered." : "Ask the member for this in one short question, then propose.",
+        };
+      }
       const bad = t.fields.filter((f) => f.options?.length && payload[f.key] !== undefined && !f.options.includes(String(payload[f.key]))).map((f) => ({ field: f.key, options: f.options }));
       if (bad.length) return { error: "bad_option", bad };
       const o = whenGiven(input.occurred_at, ctx);
@@ -416,9 +428,39 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
         kind: "care_entry",
         summary: `${t.icon ?? ""} ${t.label}${details ? ` · ${details}` : ""} · ${s.name} · ${local(occurred, ctx.tz)}${ended ? ` → ${local(ended, ctx.tz)?.slice(11)}` : ""}`.trim(),
         care_entry: { subject_id: s.id, subject_name: s.name, module_id: s.module_id, type_id: t.id, type_label: t.label, occurred_at: occurred, ended_at: ended, payload, note: (input.note as string) || null },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT saved yet." };
+    },
+  };
+}
+
+/**
+ * One question with its answers as buttons (Mido, 8 November: "was it a wet nappy?" with a
+ * tap, not typing). The member's tap comes back as their next message.
+ */
+function askChoice(): AssistantTool {
+  return {
+    def: {
+      name: "ask_choice",
+      description: "Ask the member one short question whose answer is one of a few options, shown as buttons they tap: which kind of nappy (Wet | Dirty | Both), which breast side (Left | Right), a bottle size (60 ml | 90 ml | 120 ml | 150 ml), whether a time was when she fell asleep or woke up. Use it instead of a typed question whenever the answer is one of 2 to 6 short options; write the same question as your answer, in one line. One per answer.",
+      input_schema: obj(
+        {
+          question: { type: "string", description: "The question, short, e.g. \"Wet, dirty or both?\"" },
+          options: { type: "array", items: { type: "string" }, description: "2 to 6 answers, each a few words, in the member's language." },
+        },
+        ["question", "options"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const question = String(input.question ?? "").trim().slice(0, 140);
+      const options = (Array.isArray(input.options) ? input.options : []).map((o) => String(o).trim().slice(0, 30)).filter(Boolean);
+      const unique = [...new Set(options)];
+      if (!question || unique.length < 2 || unique.length > 6) return { error: "bad_choice", message: "Give one question and 2 to 6 short options." };
+      if (ctx.choice) return { error: "one_question", message: "One question per answer: ask the other after this one is answered." };
+      ctx.choice = { question, options: unique };
+      return { ok: true, next: "Write the question as your answer, one short line. Do not propose anything until it is answered." };
     },
   };
 }
@@ -435,6 +477,7 @@ function proposeEndTimer(ctx0: ToolContext): AssistantTool {
           subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}.` },
           type_id: { type: "string", description: "Which timer, e.g. lana.sleep. Omit to end whatever is running when only one thing is." },
           ended_at: { type: "string", description: "When it ended, 'YYYY-MM-DD HH:MM' household time. Omit for now." },
+          replaces_previous: { type: "boolean", description: "True when the member is correcting an end card you showed that is not confirmed yet (\"no, she woke at 6:40\")." },
         },
         ["subject"],
       ),
@@ -461,6 +504,7 @@ function proposeEndTimer(ctx0: ToolContext): AssistantTool {
         kind: "end_timer",
         summary: `${t?.icon ?? ""} ${label} ended · ${s.name} · ${local(o.occurred_at, ctx.tz)} → ${local(e.at, ctx.tz)?.slice(11)}`.trim(),
         end_timer: { entry_id: o.id, subject_name: s.name, type_id: o.type_id, type_label: label, since: o.occurred_at, ended_at: e.at },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT ended yet." };
@@ -740,7 +784,7 @@ function loadSkill(): AssistantTool {
 
 export function buildTools(ctx: ToolContext): AssistantTool[] {
   const me = ctx.me;
-  const list: AssistantTool[] = [whoIsHome()];
+  const list: AssistantTool[] = [whoIsHome(), askChoice()];
   if (can(me, "assistant", "view")) {
     list.push(remember());
     if (ctx.facts.length) list.push(forgetMemory());
@@ -816,5 +860,6 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     memories,
     refs: {},
     proposals: [],
+    choice: null,
   };
 }

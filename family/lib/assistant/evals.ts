@@ -31,6 +31,10 @@ export interface EvalExpect {
    * kind may be proposed and the answer must say so.
    */
   end_timer?: { within_min: number; type_id?: string };
+  /** A tap-to-answer question must be asked; each regex must match one of its options. */
+  choice?: string[];
+  /** At least this many care_entry proposals ("a bottle and a nappy": two cards). */
+  entries_min?: number;
   /** Answer must be under this many words. */
   max_words?: number;
   /** The answer must be (mostly) in this script. */
@@ -74,6 +78,11 @@ export const CASES: EvalCase[] = [
   { id: "woke_up", member: "Dana", question: "She just woke up", expect: { tools_any: ["propose_end_timer"], tools_none: ["propose_care_entry"], avoid: ["\\bsaved\\b"], end_timer: { within_min: 5, type_id: "lana.sleep" } } },
   { id: "bad_time", member: "Dana", question: "Log a 100 ml bottle at half past", expect: { propose: "none", mention: ["(when|what time|which|half past)"], max_words: 40 } },
   { id: "log_breast_missing_side", member: "Dana", question: "Log a breastfeed", expect: { propose: "none", mention: ["(left|right|which)"] , max_words: 40 } },
+  // Logging by talking (Mido, 8 November): a missing detail is asked with buttons, an unclear time is asked, several things make several cards.
+  { id: "nappy_ask_kind", member: "Dana", question: "Just changed a nappy", expect: { propose: "none", choice: ["wet", "dirty", "both"], max_words: 30 } },
+  { id: "napped_ago_ask", member: "Dana", question: "She napped 19 mins ago", expect: { propose: "none", choice: ["(fell asleep|asleep|went down)", "(woke|up)"], max_words: 40 } },
+  { id: "fell_asleep_ago", member: "Dana", question: "She fell asleep 20 minutes ago", expect: { propose: "care_entry", entry: { type_id: "lana.sleep" }, tools_none: ["propose_end_timer"] } },
+  { id: "two_in_one", member: "Dana", question: "120 ml bottle of formula and a wet nappy just now", expect: { propose: "care_entry", entries_min: 2, entry: { type_id: "lana.diaper", payload: { kind: "Wet" } } } },
   { id: "remember", member: "Dana", question: "Remember that white noise helps her settle", expect: { propose: "memory" } },
   { id: "forget", member: "Dana", question: "Forget what I said about white noise, it does not help any more", expect: { propose: "forget", avoid: ["\\bforgotten\\b.*\\bdone\\b"] } },
   { id: "sitter_no_write", member: "Lilly", question: "Put a note on the family board that we are out of nappies", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"] } },
@@ -99,6 +108,8 @@ export interface EvalRun {
   open_timers?: { id: string; type_id: string }[];
   /** When the question was asked (ISO), for "ends now" checks. */
   asked_at?: string;
+  /** The tap-to-answer question asked, if any. */
+  choice?: { question: string; options: string[] } | null;
 }
 
 export function grade(c: EvalCase, r: EvalRun): { pass: boolean; failures: string[] } {
@@ -111,6 +122,11 @@ export function grade(c: EvalCase, r: EvalRun): { pass: boolean; failures: strin
   for (const m of e.mention ?? []) if (!new RegExp(m, "i").test(r.answer)) f.push(`missing /${m}/`);
   for (const a of e.avoid ?? []) if (new RegExp(a, "i").test(r.answer)) f.push(`must not say /${a}/`);
   if (e.propose === "none" && r.proposals.length) f.push(`proposed ${r.proposals.join(",")}; expected none`);
+  if (e.choice) {
+    if (!r.choice) f.push("expected a tap-to-answer question (ask_choice), got none");
+    else for (const o of e.choice) if (!r.choice.options.some((x) => new RegExp(o, "i").test(x))) f.push(`no option matching /${o}/ (got ${r.choice.options.join(" | ")})`);
+  }
+  if (e.entries_min && (r.care_entries ?? []).length < e.entries_min) f.push(`expected at least ${e.entries_min} entry cards (got ${(r.care_entries ?? []).length})`);
   if (e.propose && e.propose !== "none" && !r.proposals.includes(e.propose)) f.push(`expected a ${e.propose} proposal (got ${r.proposals.join(",") || "none"})`);
   if (e.entry) {
     const want = e.entry;

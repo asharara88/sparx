@@ -423,6 +423,8 @@ export interface AssistantProposal {
   id: string;
   kind: ProposalKind;
   summary: string;
+  /** The member corrected a card not yet confirmed ("make it 90"): this one takes its place. */
+  replaces?: boolean;
   care_entry?: CareEntryProposal;
   end_timer?: EndTimerProposal;
   calendar_event?: CalendarEventProposal;
@@ -455,10 +457,18 @@ export interface AssistantUsage {
   tool_calls: number;
 }
 
+/** A question the helper asks with its answers as buttons ("Wet · Dirty · Both"). */
+export interface AssistantChoice {
+  question: string;
+  options: string[];
+}
+
 export interface AssistantReply {
   ok: true;
   answer: string;
   proposals: AssistantProposal[];
+  /** A question to answer with one tap, when the helper needs one detail before it can prepare a card. */
+  choice?: AssistantChoice | null;
   refs: Record<string, AssistantRef>;
   usage: AssistantUsage;
   /** The skills the answer drew on (routed or loaded), for the "Used:" line. */

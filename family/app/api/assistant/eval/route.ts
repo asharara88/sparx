@@ -76,6 +76,7 @@ export async function POST(req: Request) {
         skills: reply.skills.map((s) => s.id),
         tools: reply.tools,
         proposals: reply.proposals.map((p) => p.kind),
+        choice: reply.choice ?? null,
         care_entries: reply.proposals.filter((p) => p.care_entry).map((p) => ({ type_id: p.care_entry!.type_id, payload: p.care_entry!.payload, at: toLocalInput(p.care_entry!.occurred_at, tz).slice(11) })),
         end_timers: reply.proposals.filter((p) => p.end_timer).map((p) => ({ entry_id: p.end_timer!.entry_id, type_id: p.end_timer!.type_id, ended_at: p.end_timer!.ended_at })),
         open_timers,

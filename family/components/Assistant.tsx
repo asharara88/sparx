@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
+import type { AssistantChoice, AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
 import { setManualNight } from "@/lib/theme";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
@@ -13,7 +13,7 @@ import { Icon } from "@/components/Icon";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
 import { primeVoices } from "@/lib/voice";
 import { speak as sayAloud, stopSpeaking, unlockAudio } from "@/lib/speak";
-import { retireProposals, type ProposalState } from "@/lib/assistant/retire";
+import { replacedBy, retireProposals, type ProposalState } from "@/lib/assistant/retire";
 import { recapOf, withOutcomes } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
 
@@ -30,6 +30,8 @@ interface Msg {
   text: string;
   refs?: Record<string, AssistantRef>;
   proposals?: AssistantProposal[];
+  /** A question to answer with one tap ("Wet · Dirty · Both"); the tap is sent as the member's answer. */
+  choice?: AssistantChoice | null;
   /** The skills the answer drew on. */
   skills?: { id: string; title: string }[];
   error?: boolean;
@@ -70,6 +72,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   const STORE = storeKey(me.member.id);
   const lang = (me.member.lang ?? "en") as Lang;
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  // The chat as it stands, for matching a corrected card to the one it replaces when a reply lands.
+  const msgsRef = useRef<Msg[]>([]);
+  useEffect(() => {
+    msgsRef.current = msgs;
+  }, [msgs]);
   const [chatId, setChatId] = useState<string | null>(initial?.id ?? null);
   const [showChats, setShowChats] = useState(false);
   const [aloud, setAloud] = useState(false);
@@ -218,6 +225,15 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       setMsgs((m) => [...m, { role: "user", text: q }, { role: "assistant", text: "", streaming: true, status: "Thinking…" }]);
       const patch = (f: (last: Msg) => Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), f(m[m.length - 1])] : m));
       const finish = (msg: Msg) => setMsgs((m) => (m.length && m[m.length - 1].streaming ? [...m.slice(0, -1), msg] : [...m, msg]));
+      // A reply lands: its cards wait for Confirm, and a corrected card takes the place of the one it corrects.
+      const land = (r: AssistantReply) => {
+        finish({ role: "assistant", text: r.answer, refs: r.refs, proposals: r.proposals, choice: r.choice ?? null, skills: r.skills });
+        if (!r.proposals.length) return;
+        setPstate((s) => {
+          const gone = replacedBy(msgsRef.current, r.proposals, s);
+          return { ...s, ...Object.fromEntries(gone.map((id) => [id, { status: "replaced" } as ProposalState])), ...Object.fromEntries(r.proposals.map((p) => [p.id, { status: "pending" } as ProposalState])) };
+        });
+      };
       const controller = new AbortController();
       abortRef.current = controller;
       try {
@@ -225,8 +241,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").includes("ndjson")) {
           const data = (await res.json().catch(() => null)) as AssistantReply | RpcError | null;
           if (data && data.ok) {
-            finish({ role: "assistant", text: data.answer, refs: data.refs, proposals: data.proposals, skills: data.skills });
-            if (data.proposals.length) setPstate((s) => ({ ...s, ...Object.fromEntries(data.proposals.map((p) => [p.id, { status: "pending" } as ProposalState])) }));
+            land(data);
           } else finish({ role: "assistant", text: (data as RpcError | null)?.message ?? "Something went wrong.", error: true });
           return;
         }
@@ -240,8 +255,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
           else if (e.type === "status") patch((l) => ({ ...l, status: e.text }));
           else if (e.type === "done") {
             done = true;
-            finish({ role: "assistant", text: e.reply.answer, refs: e.reply.refs, proposals: e.reply.proposals, skills: e.reply.skills });
-            if (e.reply.proposals.length) setPstate((s) => ({ ...s, ...Object.fromEntries(e.reply.proposals.map((p) => [p.id, { status: "pending" } as ProposalState])) }));
+            land(e.reply);
           } else if (e.type === "error") {
             done = true;
             finish({ role: "assistant", text: e.message, error: true });
@@ -526,6 +540,22 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                 Used: {m.skills.map((k) => k.title).join(" · ")}
               </p>
             )}
+            {m.role === "assistant" && m.choice && i === msgs.length - 1 && !busy && (
+              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={m.choice.question}>
+                {m.choice.options.map((o) => (
+                  <button key={o} type="button" className="chip min-h-[48px] text-base" onClick={() => void ask(o)}>
+                    {o}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(m.proposals?.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length ?? 0) > 1 && (
+              <button type="button" className="btn btn-primary mt-2 min-h-[56px] w-full text-lg" onClick={() => void (async () => {
+                for (const p of m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending")) await confirm(p);
+              })()}>
+                Confirm all {m.proposals!.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length}
+              </button>
+            )}
             {m.proposals?.map((p) => {
               const st = pstate[p.id] ?? { status: "pending" };
               return (
@@ -562,6 +592,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                     </p>
                   )}
                   {st.status === "dropped" && <p className="muted mt-1">Not saved.</p>}
+                  {st.status === "replaced" && <p className="muted mt-1">Replaced by the card below.</p>}
                   {st.status === "error" && (
                     <p className="mt-1 text-[var(--danger)]" role="alert">
                       {st.message}{" "}
