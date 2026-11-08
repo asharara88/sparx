@@ -26,3 +26,15 @@ test("retireProposals: a card with no saved state counts as pending and is dropp
   assert.deepEqual(out.shop1, { status: "dropped" });
   assert.deepEqual(out.feed, { status: "saved", note: "Saved." });
 });
+
+test("replacedBy: a correction replaces the latest waiting card about the same thing, and only that", async () => {
+  const { replacedBy } = await import("./retire.ts");
+  const card = (id: string, type_id: string, extra: object = {}) => ({ id, kind: "care_entry" as const, summary: id, care_entry: { type_id } as never, ...extra });
+  const msgs = [{ proposals: [card("a", "lana.feed"), card("b", "lana.diaper")] }, { proposals: [card("c", "lana.feed")] }];
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], {}), ["c"]);
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "saved", note: "Saved." } }), ["a"], "a saved card is never replaced");
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed")], {}), [], "no replaces flag, nothing replaced");
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.sleep", { replaces: true })], {}), [], "nothing about sleep to replace");
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "error", message: "offline" } }), ["c"], "a card whose save failed is replaced, so Try again cannot save it too");
+  assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "saving" } }), ["a"], "a card being saved is left alone");
+});

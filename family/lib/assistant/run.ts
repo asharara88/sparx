@@ -236,7 +236,7 @@ export async function askAssistant({ supabase, me, turns, question, screen = nul
     p_proposals: ctx.proposals.map((p) => ({ id: p.id, kind: p.kind, summary: p.summary })),
     p_usage: usage,
   });
-  const reply: AssistantReply = { ok: true, answer, proposals: ctx.proposals, refs: ctx.refs, usage, skills, tools: toolLog.map((t) => t.name) };
+  const reply: AssistantReply = { ok: true, answer, proposals: ctx.proposals, choice: ctx.choice, refs: ctx.refs, usage, skills, tools: toolLog.map((t) => t.name) };
   emit({ type: "done", reply });
   return reply;
 }

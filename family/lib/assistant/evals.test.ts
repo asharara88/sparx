@@ -84,3 +84,12 @@ test("grade: the end-timer case checks the entry it ends and when, against what 
   const feedInstead = grade(c, { answer: "No sleep is running; I prepared the end of the feed.", skills: [], tools: ["propose_end_timer"], proposals: ["end_timer"], open_timers: [feed], end_timers: [{ entry_id: "feed-9", type_id: "lana.feed", ended_at: asked_at }], asked_at });
   assert.equal(feedInstead.pass, false, "ending the feed instead is not a pass");
 });
+
+test("grade: a tap-to-answer question and several cards", async () => {
+  const { grade } = await import("./evals.ts");
+  const c = { id: "x", member: "Dana", question: "Just changed a nappy", expect: { propose: "none" as const, choice: ["wet", "dirty", "both"] } };
+  assert.equal(grade(c, { answer: "Wet, dirty or both?", skills: [], tools: ["ask_choice"], proposals: [], choice: { question: "Wet, dirty or both?", options: ["Wet", "Dirty", "Both"] } }).pass, true);
+  assert.equal(grade(c, { answer: "Was it wet?", skills: [], tools: [], proposals: [] }).pass, false, "a typed question is not enough");
+  const two = { id: "y", member: "Dana", question: "bottle and nappy", expect: { entries_min: 2 } };
+  assert.equal(grade(two, { answer: "", skills: [], tools: [], proposals: ["care_entry"], care_entries: [{ type_id: "lana.feed", payload: {}, at: "09:00" }] }).pass, false);
+});

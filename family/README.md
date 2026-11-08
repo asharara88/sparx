@@ -114,6 +114,11 @@ household*); nothing in the code is tied to these people.
 - **Logging by chat and voice, one tap to confirm.** "Log a 120 ml formula bottle" prepares a
   card; nothing is written until you tap **Confirm**, and then it goes through the normal
   entry path (offline queue included). Also calendar entries and running-low items.
+  When a detail the entry needs is missing ("just changed a nappy") the helper asks once, with
+  the answers as buttons (Wet / Dirty / Both). It asks only what the entry needs. "Napped 19 min
+  ago" gets asked: fell asleep, or woke? Several things in one message ("120 ml bottle and a wet
+  nappy") give one card each and a **Confirm all**. A correction ("no, 90 ml") replaces the
+  earlier card instead of adding a second one.
 - **Morning brief / evening digest** on the home screen: written once per member per day the
   first time the screen is opened (from 06:00, and from 17:00 for "today, in short"), then kept.
 - **Night** button on Ask: a dark screen for 3 am.
