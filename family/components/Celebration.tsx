@@ -85,7 +85,13 @@ export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
 
   const close = () => {
     setOpen(false);
-    void supabaseBrowser().rpc("achievements_seen", { p_ids: fresh.map((f) => f.id) });
+    // A Supabase query only runs once it is awaited or then-ed: "void" alone would never send it.
+    supabaseBrowser()
+      .rpc("achievements_seen", { p_ids: fresh.map((f) => f.id) })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   };
 
   return createPortal(
