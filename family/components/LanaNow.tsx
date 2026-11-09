@@ -424,6 +424,13 @@ export function LanaNow({
               )}
             </>
           )}
+          {/* A feed running and this member not on the breast tab (or not breastfeeding at all): the tile lost its
+              stop button, so the sheet must offer it. */}
+          {feedEntry && !(breastfeeds && feedTab === "breast") && (
+            <button type="button" className="btn btn-primary btn-lg" onClick={() => finishFeed(feedEntry)} disabled={off}>
+              <Icon name="check" size={20} /> Done feeding · {elapsed(feedEntry.occurred_at)}
+            </button>
+          )}
           {(!breastfeeds || feedTab === "bottle") && (
             <div className="flex flex-col gap-2">
               {milkOptions.length > 0 && (

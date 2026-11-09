@@ -404,6 +404,20 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     [busy, msgs, pstate, chatId, screen, quick, aloud],
   );
 
+  // Leaving (Home's Tell me sheet closed): a recognition still open, an answer being fetched
+  // or speech under way belongs to no one, so nothing heard after this is sent or saved.
+  useEffect(
+    () => () => {
+      talkRef.current = false;
+      sessionRef.current += 1;
+      recRef.current?.abort?.();
+      recRef.current = null;
+      abortRef.current?.abort();
+      stopSpeaking();
+    },
+    [],
+  );
+
   // Said on Home ("Say it to log"): send it straight away, once.
   const autoRef = useRef(false);
   useEffect(() => {
