@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { AskChat, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childName } from "@/lib/names";
-import { Assistant, type QuickContext } from "@/components/Assistant";
+import { Assistant } from "@/components/Assistant";
+import { quickContextOf } from "@/lib/assistant/quick-context";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,6 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
     c && /^[0-9a-f-]{36}$/.test(c) ? supabase.from("ask_chats").select("*").eq("id", c).maybeSingle() : Promise.resolve({ data: null }),
     quickOn ? supabase.rpc("home_summary") : Promise.resolve({ data: null }),
   ]);
-  const summary = sumData as HomeSummary | RpcError | null;
-  const quick: QuickContext | null =
-    summary && summary.ok
-      ? { subjectId: summary.subject.id, subjectName: summary.subject.name, types: summary.types.filter((t) => ["feed", "diaper", "sleep"].includes(t.key)), ongoing: summary.ongoing, canDelete: can(me, "lana", "delete") }
-      : null;
+  const quick = quickContextOf(sumData as HomeSummary | RpcError | null, me);
   return <Assistant key={c ?? say ?? "new"} suggestions={s} chats={(chatRows as Pick<AskChat, "id" | "title" | "updated_at">[] | null) ?? []} initial={(current as AskChat | null) ?? null} autoAsk={say?.trim().slice(0, 300) || null} screen={from?.trim().slice(0, 20) || null} quick={quick} />;
 }

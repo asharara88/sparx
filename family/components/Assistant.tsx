@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AssistantChoice, AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, EntryType, OngoingEntry, RpcError } from "@/lib/types";
+import type { AssistantChoice, AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, EntryType, RpcError } from "@/lib/types";
 import { setManualNight } from "@/lib/theme";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
@@ -17,15 +17,7 @@ import { replacedBy, retireProposals, type ProposalState } from "@/lib/assistant
 import { recapOf, withOutcomes } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
 import { readDiaperAnswer, readQuick, type QuickLog, type QuickWhen } from "@/lib/assistant/quick-log";
-
-/** What the Ask screen needs to save plain logs itself ("120 ml bottle"): the one child, her feed, nappy and sleep types, any running sleep. */
-export interface QuickContext {
-  subjectId: string;
-  subjectName: string;
-  types: EntryType[];
-  ongoing: OngoingEntry[];
-  canDelete: boolean;
-}
+import type { QuickContext } from "@/lib/assistant/quick-context";
 
 /**
  * The Ask screen. Type or speak a question; the answer cites the log. If you ask
@@ -78,7 +70,11 @@ function recognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null }) {
+/**
+ * `embedded`: inside Home's "Tell me" sheet. No page header, no earlier chats, a fresh chat each
+ * time it opens (the Ask screen's own chat in this tab is left alone), the box focused.
+ */
+export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null, embedded = false }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null; embedded?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const STORE = storeKey(me.member.id);
@@ -148,7 +144,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       for (const m of ms) for (const [k, v] of Object.entries(m.states ?? {})) st[k] = v.status === "saving" ? { status: "pending" } : v;
       // A card of a kind the app no longer has (an older chat) is not offered for confirming.
       setPstate(retireProposals(ms, st));
-    } else {
+    } else if (!embedded) {
       try {
         const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "null") as { msgs: Msg[]; pstate: Record<string, ProposalState>; chatId?: string | null } | null;
         if (saved?.msgs) {
@@ -177,7 +173,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   }, [night]);
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORE, JSON.stringify({ msgs, pstate, chatId }));
+      if (!embedded) sessionStorage.setItem(STORE, JSON.stringify({ msgs, pstate, chatId }));
     } catch {
       /* ignore */
     }
@@ -408,6 +404,20 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     [busy, msgs, pstate, chatId, screen, quick, aloud],
   );
 
+  // Leaving (Home's Tell me sheet closed): a recognition still open, an answer being fetched
+  // or speech under way belongs to no one, so nothing heard after this is sent or saved.
+  useEffect(
+    () => () => {
+      talkRef.current = false;
+      sessionRef.current += 1;
+      recRef.current?.abort?.();
+      recRef.current = null;
+      abortRef.current?.abort();
+      stopSpeaking();
+    },
+    [],
+  );
+
   // Said on Home ("Say it to log"): send it straight away, once.
   const autoRef = useRef(false);
   useEffect(() => {
@@ -598,8 +608,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   const writer = can(me, "assistant", "add");
 
   return (
-    <div className="ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3">
-      <header className="page-header flex items-center justify-between gap-2">
+    <div className={embedded ? "ask flex flex-col gap-3" : "ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3"}>
+      {!embedded && <header className="page-header flex items-center justify-between gap-2">
         <h1 className="page-title">Ask</h1>
         <div className="flex gap-1">
           {canTalk && (
@@ -622,8 +632,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
             </button>
           )}
         </div>
-      </header>
-      {showChats && (
+      </header>}
+      {!embedded && showChats && (
         <div className="card">
           <p className="section-title mb-1">Earlier chats</p>
           {chats.length === 0 ? (
@@ -646,7 +656,10 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         </div>
       )}
 
-      {msgs.length === 0 && (
+      {msgs.length === 0 && embedded && (
+        <p className="muted text-sm">Say or type what happened: “120 ml bottle”, “wet nappy”, “fell asleep 10 min ago”, “woke up”. Or ask anything.</p>
+      )}
+      {msgs.length === 0 && !embedded && (
         <div className="card">
           <p className="font-semibold">Ask anything about the house, in your own words.</p>
           <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {quick ? "Say “120 ml bottle”, “wet nappy”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
@@ -766,7 +779,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
             {listening ? <span className="dot dot-danger" /> : <Icon name="mic" />}
           </button>
         )}
-        <input className="input flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? (talk ? "Listening… say something, or tap End" : "Listening…") : talk && busy ? "Thinking…" : "Ask or tell me something"} aria-label="Your question" autoComplete="off" enterKeyHint="send" />
+        <input className="input flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? (talk ? "Listening… say something, or tap End" : "Listening…") : talk && busy ? "Thinking…" : "Ask or tell me something"} aria-label="Your question" autoComplete="off" enterKeyHint="send" autoFocus={embedded && !autoAsk} />
         <button type="submit" className="btn btn-primary" disabled={busy || !input.trim()} aria-label="Send">
           <Icon name="send" />
         </button>

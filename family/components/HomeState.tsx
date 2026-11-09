@@ -89,5 +89,5 @@ export function HomeState({ summary, timezone, clockIso, nap }: { summary: HomeS
     );
   }
   if (awakeKnown) return wrap(big("Awake for", fmtDuration(awakeMin!), "", `since ${fmtTime(woke!, timezone)}`));
-  return <p className="muted text-lg">Tap a row below to log the first thing today.</p>;
+  return <p className="muted text-lg">Tap below, or tell me what happened.</p>;
 }

@@ -25,7 +25,8 @@ function recognitionCtor(): (new () => Recognition) | null {
  * One mic on Home: say "drank 90 ml" or "wet nappy" and it goes to Ask,
  * which prepares the entry for a one-tap Confirm. Nothing is saved from here.
  */
-export function SayIt({ compact = false, icon = false }: { compact?: boolean; icon?: boolean }) {
+/** `onHeard`: what was heard goes there (Home's "Tell me" sheet) instead of to the Ask screen. */
+export function SayIt({ compact = false, icon = false, onHeard }: { compact?: boolean; icon?: boolean; onHeard?: (text: string) => void }) {
   const me = useMe();
   const router = useRouter();
   const [can, setCan] = useState(false);
@@ -57,7 +58,10 @@ export function SayIt({ compact = false, icon = false }: { compact?: boolean; ic
       setListening(false);
       recRef.current = null;
       const q = text.trim();
-      if (q) router.push(`/ask?from=home&say=${encodeURIComponent(q)}`);
+      if (q) {
+        if (onHeard) onHeard(q);
+        else router.push(`/ask?from=home&say=${encodeURIComponent(q)}`);
+      }
     };
     recRef.current = rec;
     setHeard("");

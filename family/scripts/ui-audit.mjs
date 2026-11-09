@@ -94,7 +94,8 @@ for (const theme of ["light", "night"]) {
         return true;
       });
       const sideways = all("*").filter((el) => /(auto|scroll)/.test(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 4);
-      const wrapped = all("button, .pill, .chip, th, dt, [role=tab], summary, .tile span, .action-label, .action-sub").filter((el) => {
+      // Home's log tiles stack on purpose (icon, name, two short lines): their name is checked, not the tile.
+      const wrapped = all("button:not(.log-tile), .pill, .chip, th, dt, [role=tab], summary, .tile span, .action-label, .action-sub").filter((el) => {
         const t = label(el);
         return t.length > 0 && t.length <= 24 && !el.querySelector("button, .pill, .chip") && breaks(el);
       });

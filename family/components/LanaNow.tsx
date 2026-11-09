@@ -44,6 +44,7 @@ export function LanaNow({
   lastMilk,
   lastFeedMethod,
   lastPumpAt = null,
+  tell = null,
 }: {
   subject: Subject;
   types: EntryType[];
@@ -57,6 +58,8 @@ export function LanaNow({
   lastFeedMethod: string | null;
   /** When the last pump was logged, however long ago: the Pump row fades two weeks after it. */
   lastPumpAt?: string | null;
+  /** Home's "Tell me" bar, at the bottom of the log card. */
+  tell?: React.ReactNode;
 }) {
   const me = useMe();
   const router = useRouter();
@@ -338,7 +341,7 @@ export function LanaNow({
     sleepEntry ? `Asleep · since ${fmtTime(sleepEntry.occurred_at, timezone)}`
     : nightWake ? `Awake since ${fmtTime(nightWake.occurred_at, timezone)}`
     : lastSleep?.ended_at && minutesBetween(lastSleep.ended_at, realNowIso) <= 12 * 60 && napLen > 0 ? `Last sleep ${fmtDuration(napLen)}`
-    : "Tap when she falls asleep";
+    : "None yet today";
   const lastNappy = lastOf(diaperType?.id);
   const nappySub = lastNappy && ago(diaperType?.id, "") !== "" ? `${ago(diaperType?.id, "")}${lastNappy.payload.kind ? ` · ${String(lastNappy.payload.kind).toLowerCase()}` : ""}` : "Wet or dirty";
   // The fourth row grows with the child (DESIGN.md, "Home"): Meal once she eats (lib/stage),
@@ -372,20 +375,21 @@ export function LanaNow({
         </div>
       )}
 
-      <ul className="card flex flex-col p-0" aria-label="Log">
-        <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")}
-          action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "play", label: "Start a feed", onClick: () => openSheet("feed") }} />
-        <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
-          action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
-        <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
-        {fourth === "meal" ? (
-          <Row tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} action={{ kind: "plus", label: "Log a meal", onClick: () => openSheet("meal") }} />
-        ) : fourth === "pump" ? (
-          <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
-        ) : (
-          <Row tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
-        )}
-      </ul>
+      <div className="card flex flex-col gap-3 p-3">
+        <ul className="log-tiles" aria-label="Log">
+          <Tile tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")} />
+          <Tile tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")} />
+          <Tile tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} />
+          {fourth === "meal" ? (
+            <Tile tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} />
+          ) : fourth === "pump" ? (
+            <Tile tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} />
+          ) : (
+            <Tile tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" />
+          )}
+        </ul>
+        {tell}
+      </div>
 
       {sheet === "feed" && (
         <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
@@ -419,6 +423,13 @@ export function LanaNow({
                 </button>
               )}
             </>
+          )}
+          {/* A feed running and this member not on the breast tab (or not breastfeeding at all): the tile lost its
+              stop button, so the sheet must offer it. */}
+          {feedEntry && !(breastfeeds && feedTab === "breast") && (
+            <button type="button" className="btn btn-primary btn-lg" onClick={() => finishFeed(feedEntry)} disabled={off}>
+              <Icon name="check" size={20} /> Done feeding · {elapsed(feedEntry.occurred_at)}
+            </button>
           )}
           {(!breastfeeds || feedTab === "bottle") && (
             <div className="flex flex-col gap-2">
@@ -584,53 +595,36 @@ export function LanaNow({
   );
 }
 
-type RowAction = { kind: "play" | "stop" | "plus"; label: string; onClick?: () => void; href?: string };
 
 /**
  * One activity on Home: the feature's icon, what and when it last happened, and a round
  * button on the right for the one-tap action. The row itself opens the activity's sheet.
  * The two are siblings, never one inside the other.
  */
-function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, action }: { tint: string; icon: IconName; label: string; sub: string; live?: boolean; disabled: boolean; onOpen?: () => void; href?: string; action: RowAction }) {
+/**
+ * One of the four log tiles (Mido, 9 November: the helper is the main way to log, so the four
+ * rows became one row of tiles under it, Home does not grow). The tinted icon, the name, how
+ * long ago in two short lines; tapping opens the sheet (start, stop, or log one).
+ */
+function Tile({ tint, icon, label, sub, live = false, disabled, onOpen, href }: { tint: string; icon: IconName; label: string; sub: string; live?: boolean; disabled: boolean; onOpen?: () => void; href?: string }) {
   const body = (
     <>
       <span className={`icon-disc tint-${tint}`} style={{ width: 40, height: 40 }}>
         <Icon name={icon} size={21} />
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="action-label">{label}</span>
-        <span className={`block truncate text-[0.95rem] ${live ? "font-semibold" : "muted"}`}>{sub}</span>
-      </span>
+      <span className="action-label text-base leading-tight">{label}</span>
+      <span className={`log-tile-sub ${live ? "font-semibold" : "muted"}`}>{sub}</span>
     </>
   );
-  const glyph =
-    action.kind === "play" ? <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" />
-    : action.kind === "stop" ? <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" />
-    : <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" />;
-  const btnCls = `round-go ${action.kind === "stop" ? "round-go-stop" : ""}`;
-  const svg = (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-      {glyph}
-    </svg>
-  );
   return (
-    <li className="log-row">
+    <li>
       {href ? (
-        <Link prefetch={false} href={href} className="log-row-body">
+        <Link prefetch={false} href={href} className={`log-tile ${live ? `log-tile-live tint-${tint}` : ""}`}>
           {body}
         </Link>
       ) : (
-        <button type="button" className="log-row-body" onClick={onOpen} disabled={disabled}>
+        <button type="button" className={`log-tile ${live ? `log-tile-live tint-${tint}` : ""}`} onClick={onOpen} disabled={disabled} aria-label={`${label}: ${sub}`}>
           {body}
-        </button>
-      )}
-      {action.href ? (
-        <Link prefetch={false} href={action.href} className={btnCls} aria-label={action.label}>
-          {svg}
-        </Link>
-      ) : (
-        <button type="button" className={btnCls} aria-label={action.label} onClick={action.onClick} disabled={disabled}>
-          {svg}
         </button>
       )}
     </li>

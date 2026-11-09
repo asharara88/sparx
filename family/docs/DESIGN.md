@@ -37,7 +37,7 @@ Emergency) lives high.
 
 **Home's first screen holds what is needed now, without scrolling**: her state, the day in
 four numbers, one alert and the log rows at the thumb. The day's picture (what the dashboard
-held until 7 November) sits below the rows, for whoever scrolls. Every other screen should
+held until 7 November) sits below the log card, for whoever scrolls. Every other screen should
 fit in two; a reference page that is longer is split into rows that open their own screen.
 
 ### The patterns we use
@@ -212,8 +212,8 @@ bottom bar as a grid of tiles.
 
 ### Home
 
-1. **Header**: the child's initial, name, age and who has her; on the right, two round
-   buttons: *Say it* (microphone, rose) and *Emergency* (phone, red).
+1. **Header**: the child's initial, name, age and who has her; on the right, the round
+   *Emergency* button (phone, red). The microphone moved down into *Tell me* (item 5).
 2. **Her state**, one card in big type. Awake: the **next-nap window** (Huckleberry's
    SweetSpot): "Next nap" or "Bedtime", how long she has been awake, the window as
    "11:20 – 11:50" (the forecast ± 15 minutes, on five-minute marks), a bar filling towards
@@ -222,20 +222,24 @@ bottom bar as a grid of tiles.
    woke instead. Asleep: "Asleep 42 min, since 13:10". Feeding: "Feeding 9 min". With no
    sleep in 12 hours, plain "Awake for", or nothing (rule 6).
 3. **Today strip**: four numbers in one white bar (woke 06:10 · naps 1 of 3–4 · feeds 5 ·
-   nappies 4); tapping it scrolls to the day's cards below the rows. The last of each is on
-   the rows, so the strip gives the day's totals instead.
+   nappies 4); tapping it scrolls to the day's cards below the log card. The last of each is on
+   the tiles, so the strip gives the day's totals instead.
 4. **Now**: one notice, the top of the order in rule 3, or nothing. "2 more ›" opens the rest.
    The guide's most pressing tip is a candidate: a red one right after an overdue vaccine, a
    yellow one after "feed due". The nap is no longer a notice: the card says it.
-5. **Log**: four rows in one white group at the thumb (Feed, Sleep, Nappy, and a fourth that
-   grows with the child: Meal once she eats, from 24 weeks; before that Pump while the parent
-   who pumps still does (a pump in the last two weeks), else Medicine). `lib/stage.ts` decides.
-   Each row: the tinted icon, the name, and how long ago with the one detail ("40 min ago ·
-   90 ml", "Asleep · since 13:10", "Feeding, left · 9 min"); on the right a round button.
-   ▶ starts (Sleep: asleep now, one tap; Feed: opens its sheet), ■ stops (Woke up, Done
-   feeding), ＋ opens the sheet. Tapping the row itself opens the sheet. At night while she
-   sleeps, *Up for the day* is in the sleep sheet.
-6. **Below the rows** (`#today`, Mido, 7 November: Home and the dashboard are one): Sleep
+5. **Log**, one white card at the thumb (Mido, 9 November: the helper is becoming the main
+   way to log). On top, four tiles in a row (Feed, Sleep, Nappy, and a fourth that grows with
+   the child: Meal once she eats, from 24 weeks; before that Pump while the parent who pumps
+   still does (a pump in the last two weeks), else Medicine; `lib/stage.ts` decides). Each
+   tile: the tinted icon, the name, and how long ago with the one detail in two short lines
+   ("40 min ago · 90 ml", "Asleep · since 13:10"); a running timer tints its tile. Tapping a
+   tile opens its sheet (start, stop, or log one). Under the tiles, **Tell me**: a box and a
+   microphone. Typing or saying "120 ml bottle", "wet nappy", "fell asleep 10 min ago" or
+   "woke up" saves it at once on the phone, with Undo (`lib/assistant/quick-log.ts`, no model
+   call, works offline); "changed a nappy" asks Wet / Dirty / Both as buttons; anything else
+   goes to the helper. It all opens in a sheet over Home, never a new screen; *Open the full
+   chat* goes to Ask. At night while she sleeps, *Up for the day* is in the sleep sheet.
+6. **Below the log card** (`#today`, Mido, 7 November: Home and the dashboard are one): Sleep
    today (the bar from midnight, without its sums line, which the strip already says), Feeds
    today (when the next is due, what went in, what is usual at her age), Food today once she
    eats, and pumping for the member who breastfeeds and admins while it goes on.
@@ -334,7 +338,7 @@ usual amounts, another amount, a photo of the label, and one line on how long mi
 The plan for the day shows only on a day someone is away; how long the fridge will last
 is a fold. Pumping is a row ("Pumping · 250 / 400 ml ›") that opens Home's day cards.
 
-### The day's cards (Home, below the rows; `/baby/dashboard` goes there)
+### The day's cards (Home, below the log card; `/baby/dashboard` goes there)
 
 The dashboard Mido asked for (3 and 4 November) is Home's lower half since 7 November:
 Sleep today, Feeds today, Food today, then pumping: the goal card (pumped since last

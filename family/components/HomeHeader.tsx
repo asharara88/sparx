@@ -4,13 +4,13 @@ import { can } from "@/lib/types";
 import { ageDays, ageLabel } from "@/lib/norms";
 import { Avatar } from "./Avatar";
 import { CustodyToggle } from "./CustodyToggle";
-import { SayIt } from "./SayIt";
 import { Icon } from "./Icon";
 
 /**
  * The top of Home: the child's photo, name, age and who has her on the left; on the right
- * two round buttons, Say it and Emergency. They sit high, out of the thumb's easy reach,
- * on purpose: always there, never tapped by accident (DESIGN.md, "Home").
+ * the round Emergency button. It sits high, out of the thumb's easy reach, on purpose:
+ * always there, never tapped by accident (DESIGN.md, "Home"). The mic moved down into the
+ * "Tell me" bar at the thumb (9 November).
  */
 export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: Me; today: string }) {
   const s = summary.subject;
@@ -27,7 +27,6 @@ export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: M
           <CustodyToggle inline subjectId={s.id} custody={summary.custody} />
         </div>
       </div>
-      {can(me, "assistant", "add") && can(me, "lana", "add") && <SayIt icon />}
       <Link prefetch={false} href="/baby/emergency" className="round-btn tint-danger" aria-label="Emergency">
         <Icon name="phone" size={21} />
       </Link>
