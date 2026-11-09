@@ -7,7 +7,7 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { dateWords, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, mergeOngoing, newClientId, sendOrQueue } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, readQueueFor, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
@@ -234,8 +234,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     return () => clearTimeout(timer);
   }, [undo]);
   /** A card for what was said, a question to ask first (the nappy's kind), or null for the helper. */
-  function readLocal(q: string): { proposal: AssistantProposal } | { choice: AssistantChoice } | null {
+  async function readLocal(q: string): Promise<{ proposal: AssistantProposal } | { choice: AssistantChoice } | null> {
     if (!quick) return null;
+    // An answer to the helper's own question ("How much?" → "120 ml") goes back to the helper with the
+    // conversation, so what was said before (the milk, the time) is not lost.
+    const last = msgsRef.current[msgsRef.current.length - 1];
+    if (!pendingDiaperRef.current && last?.role === "assistant" && !last.quick && !last.error && (last.choice || /\?\s*$/.test(last.text))) return null;
     const now = Date.now();
     const nowLocal = toLocalInput(new Date(now).toISOString(), tz);
     const type = (key: string) => quick.types.find((x) => x.key === key && x.is_active !== false);
@@ -257,7 +261,9 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     const kind = pending && diaper ? readDiaperAnswer(q, options(diaper, "kind")) : null;
     const r: QuickLog | null = kind && pending ? { kind: "diaper", diaper: kind, when: { local: toLocalInput(pending.at, tz) } } : readQuick(q, nowLocal, { name: name.split(" ")[0], diaperKinds: options(diaper, "kind"), milks: options(feed, "milk") });
     if (!r) return null;
-    const asleep = sleep ? (mergeOngoing(quick.ongoing, quick.subjectId, undefined, null, quick.types).find((e) => e.type_id === sleep.id) ?? null) : null;
+    // Queued and just-sent starts count, so "woke up" right after "fell asleep" finds that sleep before the page refreshes.
+    const ops = sleep && (r.kind === "wake" || r.kind === "sleep_start" || r.kind === "sleep") ? await readQueueFor(supabaseBrowser()).catch(() => undefined) : undefined;
+    const asleep = sleep ? (mergeOngoing(quick.ongoing, quick.subjectId, ops, null, quick.types).find((e) => e.type_id === sleep.id) ?? null) : null;
     if (r.kind === "bottle" && feed && options(feed, "method").includes("Bottle")) {
       const at = iso(r.when);
       return { proposal: card(feed, at, null, { method: "Bottle", amount_ml: r.amount_ml, ...(r.milk ? { milk: r.milk } : {}) }, ["Bottle", `${r.amount_ml} ml`, r.milk].filter(Boolean).join(", ")) };
@@ -309,7 +315,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     async (question: string) => {
       const q = question.trim();
       if (!q || busy) return;
-      const local = readLocal(q);
+      const local = await readLocal(q);
       if (local) {
         setInput("");
         setUndo(null);
