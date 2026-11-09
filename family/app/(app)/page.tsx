@@ -18,6 +18,8 @@ import { Icon } from "@/components/Icon";
 import { meOnce } from "@/lib/server/me";
 import { HomeHeader } from "@/components/HomeHeader";
 import { TellBar } from "@/components/TellBar";
+import { Celebration, type FreshBadge } from "@/components/Celebration";
+import { keepRun, type BadgeNumbers } from "@/lib/achievements";
 import { quickContextOf } from "@/lib/assistant/quick-context";
 import { HomeState } from "@/components/HomeState";
 import { DueNotice } from "@/components/DueNotice";
@@ -135,6 +137,12 @@ export default async function HomePage() {
   const inStock = !!milkOk && milkOk.fridge_count + milkOk.freezer_count > 0;
   const showPump = !!summary && summary.ok && (!!me.member.breastfeeds || me.role.id === "admin") && (pumpingActive(summary.last["lana.pump"]?.occurred_at ?? null) || inStock);
   const { data: statsData } = showPump && summary && summary.ok ? await supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: addDays(today, -7), p_to: today }) : { data: null };
+  // Badges (migration 5900): anything the log has just earned, shown once; and for whoever pumps,
+  // a nudge to keep a run going when nothing more pressing is waiting.
+  const { data: achData } = summary && summary.ok && can(me, "lana", "view") ? await supabase.rpc("achievements_check") : { data: null };
+  const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers } | null;
+  const fresh = ach?.ok ? (ach.new ?? []) : [];
+  const keep = me.member.breastfeeds && ach?.numbers ? keepRun(ach.numbers) : null;
   const pumpDays = (((statsData as { ok?: boolean; days?: PumpDay[] } | null)?.days ?? []) as PumpDay[]).map((d) => ({ day: d.day, pump_ml: Number(d.pump_ml) || 0 }));
   // Since yesterday evening, like the Milk screen's goal: a night pump counts for the day it feeds.
   const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
@@ -183,11 +191,13 @@ export default async function HomePage() {
   const nap = summary && summary.ok && summary.subject.birth_date ? nextNap(week, ageDays(summary.subject.birth_date, today), now.getTime(), hourOf) : null;
   const napWatch = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= 12 * 60;
   const checks = summary && summary.ok && can(me, "lana", "edit") ? checkEntries(week).length : 0;
-  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk, feedIsDue, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl].filter(Boolean).length;
+  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk, feedIsDue, checks > 0, vaccine && !vaccine.overdue, !!milkOk && milkOk.fridge_ml < lastBottleMl, !!keep].filter(Boolean).length;
 
   return summary && summary.ok ? (
     <div className="flex flex-col gap-4">
     <div className="screen-fill">
+      {/* Keyed by what is new: a badge won while Home is open (a pump logged, the page refreshed) pops too. */}
+      <Celebration key={fresh.map((f) => f.id).join(",")} fresh={fresh} />
       <HomeHeader summary={summary} me={me} today={today} />
       <HomeState summary={summary} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} />
@@ -241,6 +251,13 @@ export default async function HomePage() {
           {sitter && (
             <Link prefetch={false} href="/baby/handover" className="notice flex items-center gap-2 no-underline">
               <span className="flex-1 font-semibold">The handover</span> <Icon name="forward" size={18} />
+            </Link>
+          )}
+        </div>
+        <div>
+          {keep && (
+            <Link prefetch={false} href="/achievements" className="notice tint-pump flex items-center gap-2 no-underline">
+              <Icon name="star" size={20} /> <span className="flex-1 font-semibold">{keep}</span> <Icon name="forward" size={18} />
             </Link>
           )}
         </div>

@@ -1592,6 +1592,40 @@ select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true' and (publ
 reset role;
 select pg_temp.assert((select count(*) from auth.users where email = 'luda@test.local') = 0, 'Luda''s placeholder account is gone too');
 
+-- Badges (migration 5900): won from the log, once, by whoever did it; nobody hands themselves one.
+select household_id as fam_home from public.members where id = :dana \gset
+insert into public.care_entries (subject_id, module_id, type_id, occurred_at, payload, household_id)
+select :lana, 'lana', 'lana.pump', ((now() at time zone h.timezone)::date - d)::timestamp at time zone h.timezone + interval '10 hours',
+       jsonb_build_object('amount_ml', ceil(h.milk_target_ml * 1.2)), h.id
+  from public.household h, generate_series(1, 3) d
+ where h.id = :'fam_home';
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_check())->'new') x where x->>'badge' = 'pump_goal' and x->>'tier' = '2' and x->>'mine' = 'true'), 'Dana wins three days on her pumping goal');
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_check())->'new') x where x->>'badge' = 'pump_beat' and x->>'tier' = '1'), 'and beating it by a tenth');
+select pg_temp.assert(((public.achievements_list())->'numbers'->>'best_run')::int >= 3, 'the shelf has her best run');
+select pg_temp.assert(((public.achievements_seen((select array_agg((x->>'id')::uuid) from jsonb_array_elements((public.achievements_check())->'new') x)))->>'seen')::int >= 2, 'she has seen them');
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'new') = 0, 'so they do not show again');
+select pg_temp.assert((select count(*) from public.achievements where badge = 'pump_goal' and tier = 2) = 1, 'checking again wins nothing twice');
+select pg_temp.assert(pg_temp.fails($q$insert into public.achievements (household_id, member_id, badge, tier) values (private.current_household_id(), public.current_member_id(), 'pump_goal', 5)$q$), 'nobody writes a badge for themselves');
+select pg_temp.assert(pg_temp.fails($q$update public.achievements set tier = 5$q$) or (select count(*) from public.achievements where tier = 5) = 0, 'nor raises one');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.achievements_check())->'new') x where x->>'badge' like 'pump%'), 'Mido is not handed Dana''s pumping badges');
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_list())->'earned') x where x->>'badge' = 'pump_goal' and x->>'member_name' = 'Dana'), 'but sees them on the family shelf');
+select pg_temp.assert(((public.achievements_seen(array[(select id from public.achievements where badge = 'pump_goal' and tier = 2)]))->>'seen')::int = 0, 'and cannot mark Dana''s as seen');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true', 'Haitham is back in the Khans'' home');
+select pg_temp.assert((select count(*) from public.achievements) = 0, 'where the family''s badges are not his to see');
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.achievements_check())->'new') x where x->>'badge' like 'pump%'), 'nor won by his home');
+reset role;
+set role anon;
+select pg_temp.assert(pg_temp.fails('select public.achievements_check()'), 'signed out, no badges');
+reset role;
+
 -- The rows every home shares name no family (migration 5400): a new home reads its own names only.
 do $$
 declare t record; v_n bigint;

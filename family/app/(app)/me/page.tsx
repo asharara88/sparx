@@ -37,6 +37,7 @@ export default async function MePage() {
     {
       title: "Family",
       rows: [
+        { href: "/achievements", icon: "star", label: "Achievements", tint: "pump", show: can(me, "lana", "view") },
         { href: "/chat", icon: "chat", label: "Chat", tint: "guide", show: can(me, "chat", "view") },
         { href: "/members", icon: "users", label: "Members", tint: "house", show: can(me, "members", "edit") },
         { href: "/calendar", icon: "calendar", label: "Calendar", tint: "cal", show: can(me, "calendar", "view") },

@@ -119,6 +119,11 @@ household*); nothing in the code is tied to these people.
   ago" gets asked: fell asleep, or woke? Several things in one message ("120 ml bottle and a wet
   nappy") give one card each and a **Confirm all**. A correction ("no, 90 ml") replaces the
   earlier card instead of adding a second one.
+- **Achievements** (`/achievements`, More → Family; migration 5900): badges for the grown-ups,
+  never for the baby's numbers. Pumping on goal N days in a row (1, 3, 7, 14, 30), days well
+  over the goal (1, 5, 15), the freezer stash (500 ml, 1 l, 2 l). Awarded in the database
+  from the log (`achievements_check`, called by Home and the shelf); shown once per person
+  with confetti and a medal; a nudge on Home keeps a pumping run going. No model calls.
 - **Plain logs need no model call.** "120 ml bottle", "wet nappy", "fell asleep 10 min ago",
   "woke up at 6:40" and "slept 1 to 2:15" are read on the phone (`lib/assistant/quick-log.ts`)
   and saved at once, with **Undo** for a minute; "changed a nappy" asks Wet / Dirty / Both

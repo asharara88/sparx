@@ -68,6 +68,8 @@ Plain, warm, short. Second person. Say what happened and what to do next; never 
 "Next nap around 11:40." "Nothing fed since 10:20. Missed one?" "Woke up, saved."
 No exclamation marks, no baby-talk, no emoji in sentences. The helper speaks the same way,
 in English, Arabic or Russian.
+The one exception is a badge won (Mido, 9 November): its title may end with one ("Gold!"),
+because that moment is meant to feel like a win. Only the title, only there.
 
 ## Where it shows
 
