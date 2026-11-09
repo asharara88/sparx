@@ -102,12 +102,13 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           Inactive: {(inactive as { id: string; display_name: string }[]).map((m) => <Link prefetch={false} key={m.id} href={`/members/${m.id}`} className="underline">{m.display_name}</Link>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}
         </p>
       ) : null}
+      {/* Entry types (/members/types) is a builder's screen, raw field lists: off this list since
+          9 November (Dana found it). The page still works for whoever goes to it on purpose. */}
       <nav aria-label="Home settings" className="card flex flex-col p-0">
         {(
           [
             { href: "/members/home", icon: "house", label: "Home settings", hint: me.household.name },
             { href: "/members/roles", icon: "lock", label: "Roles and permissions", hint: null },
-            { href: "/members/types", icon: "list", label: "Entry types", hint: null },
           ] as const
         ).map((r) => (
           <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">

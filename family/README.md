@@ -200,8 +200,9 @@ household*); nothing in the code is tied to these people.
 - **Large text** (Me): on by default for carers and staff, now a switch for everyone.
 - **The bag** (Lana → Handover): a checklist that is ticked as it is packed and emptied for
   the next outing. Admins edit the list.
-- **Entry types** (Members → Entry types): admins add, rename, switch off and reorder what
-  the logs record, set "due again after N minutes", and edit each type's fields.
+- **Entry types** (`/members/types`, no longer listed on Members since 9 November: raw field
+  lists are a builder's tool): admins add, rename, switch off and reorder what the logs
+  record, set "due again after N minutes", and edit each type's fields.
 - **Due on the calendar**: vaccinations with a date show on their day.
 - **Audit log** downloads as CSV.
 - **Member photos** (Me → tap the photo): stored in the private photos bucket; shown on
@@ -434,7 +435,7 @@ when two families must never share a database at all:
 
 `.env.local` and `household.json` are per family and never committed. The vaccine
 schedule shipped is the Abu Dhabi one; a family elsewhere edits it in the app
-(Members → Entry types is not it; the vaccine book has its own admin rows in
+(`/members/types` is not it; the vaccine book has its own admin rows in
 `vaccine_schedule`).
 
 ## 4. Where things are
