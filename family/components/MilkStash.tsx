@@ -94,7 +94,9 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
   // Fridge, freezer and what is past its time: one card each that opens to its bottles (Mido,
   // 9 November: a long list of bottle cards was a mess to the eye). The closed card says
   // how many and how much; past its time opens by itself, it needs doing.
-  const Group = ({ title, bottles, empty, firstFlag, tint, icon, open = false }: { title: string; bottles: MilkBottle[]; empty: string; firstFlag?: boolean; tint: Tint; icon: IconName; open?: boolean }) => {
+  // Called as a function, not mounted as <Group>: a component defined in here is a new type on
+  // every render, so tapping a bottle (a state change) would remount the fold and close it.
+  const group = ({ title, bottles, empty, firstFlag, tint, icon, open = false }: { title: string; bottles: MilkBottle[]; empty: string; firstFlag?: boolean; tint: Tint; icon: IconName; open?: boolean }) => {
     const ml = bottles.reduce((n, b) => n + b.amount_ml, 0);
     const hint = bottles.length ? `${bottles.length} ${bottles.length === 1 ? "bottle" : "bottles"} · ${ml} ml` : "empty";
     return (
@@ -125,9 +127,9 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
 
   return (
     <>
-      {gone.length > 0 && <Group title="Past its time" bottles={gone} empty="" tint="danger" icon="clock" open />}
-      <Group title="Fridge" bottles={fridge} empty="Nothing in the fridge." firstFlag tint="milk" icon="droplet" />
-      <Group title="Freezer" bottles={freezer} empty="Nothing frozen." tint="diaper" icon="inbox" />
+      {gone.length > 0 && group({ title: "Past its time", bottles: gone, empty: "", tint: "danger", icon: "clock", open: true })}
+      {group({ title: "Fridge", bottles: fridge, empty: "Nothing in the fridge.", firstFlag: true, tint: "milk", icon: "droplet" })}
+      {group({ title: "Freezer", bottles: freezer, empty: "Nothing frozen.", tint: "diaper", icon: "inbox" })}
 
       {open && (
         <Sheet title={`${open.amount_ml} ml`} onClose={close}>
