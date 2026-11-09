@@ -103,7 +103,8 @@ grant execute on function private.achievement_tiers() to authenticated, app_rls;
 -- Awards what the log has earned (once), then returns the badges the caller has not seen
 -- yet: their own and the family's, best first. Home calls it on every load; it is a few
 -- small queries. Pumping badges go to each active member who breastfeeds; with none, to
--- the family.
+-- the family. "View as" is read only: an admin previewing someone sees their unseen badges
+-- but awards nothing.
 create or replace function public.achievements_check() returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
 declare
@@ -120,6 +121,7 @@ begin
     from public.members where household_id = v_home and breastfeeds and coalesce(is_active, true);
   if cardinality(v_pumpers) = 0 then v_pumpers := array[null::uuid]; end if;
 
+  if not private.read_only_preview() then
   insert into public.achievements (household_id, member_id, badge, tier, detail)
   select v_home, p.m, t.badge, t.tier, jsonb_build_object('need', t.need)
     from private.achievement_tiers() t
@@ -133,6 +135,7 @@ begin
     from private.achievement_tiers() t
    where t.badge = 'stash' and (v_n->>'freezer_ml')::integer >= t.need
   on conflict do nothing;
+  end if;
 
   select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'badge', a.badge, 'tier', a.tier, 'need', a.detail->'need',
            'mine', a.member_id is not distinct from v_me, 'earned_at', a.earned_at) order by a.tier desc, a.earned_at desc), '[]'::jsonb)
@@ -147,7 +150,8 @@ alter function public.achievements_check() owner to app_rls;
 revoke execute on function public.achievements_check() from public, anon;
 grant execute on function public.achievements_check() to authenticated, service_role;
 
--- The moment was shown: these badges are seen by the caller, on every phone.
+-- The moment was shown: these badges are seen by the caller, on every phone. Not while an
+-- admin views as someone else: that would take the member's own moment from them.
 create or replace function public.achievements_seen(p_ids uuid[]) returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
 declare
@@ -156,6 +160,7 @@ declare
   v_n integer;
 begin
   if v_me is null or v_home is null then return private.denied(); end if;
+  if private.read_only_preview() then return private.denied('Read only while viewing as someone else.'); end if;
   update public.achievements
      set seen_by = array_append(seen_by, v_me)
    where household_id = v_home and id = any (coalesce(p_ids, '{}')) and not (v_me = any (seen_by))

@@ -1616,6 +1616,13 @@ select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.ach
 select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_list())->'earned') x where x->>'badge' = 'pump_goal' and x->>'member_name' = 'Dana'), 'but sees them on the family shelf');
 select pg_temp.assert(((public.achievements_seen(array[(select id from public.achievements where badge = 'pump_goal' and tier = 2)]))->>'seen')::int = 0, 'and cannot mark Dana''s as seen');
 reset role;
+update public.achievements set seen_by = '{}' where badge = 'pump_goal' and tier = 2;
+select pg_temp.preview_as(:mido, :dana);
+set role authenticated;
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_check())->'new') x where x->>'badge' = 'pump_goal' and x->>'tier' = '2'), 'viewing as Dana, Mido sees what she has not seen yet');
+select pg_temp.assert((public.achievements_seen(array[(select id from public.achievements where badge = 'pump_goal' and tier = 2)]))->>'ok' = 'false', 'but cannot take her moment by closing it');
+reset role;
+select pg_temp.assert((select not (:dana = any (seen_by)) from public.achievements where badge = 'pump_goal' and tier = 2), 'so it still waits for Dana');
 select pg_temp.act_as(:haitham);
 set role authenticated;
 select pg_temp.assert((public.home_switch(:khan_home))->>'ok' = 'true', 'Haitham is back in the Khans'' home');
