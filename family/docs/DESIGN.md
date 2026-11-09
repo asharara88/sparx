@@ -108,7 +108,8 @@ sources at the bottom.
    Home, on the child's page, in the day list and in a push. Reuse the parts below; do not
    invent a new card for one screen.
 10. **Plain words, the family's words.** "Nappy", "Pumped today 08:00", "3 days left".
-    No jargon, no percentages, no "entries", no exclamation marks (see `BRAND.md`, Voice).
+    No jargon, no percentages, no "entries", no exclamation marks (see `BRAND.md`, Voice; a
+    badge's title is the one exception).
 
 9. **A tap answers at once.** The screen changes the instant a tap is made (the row's
    button, the card, "40 min ago" becomes "just now") and the server catches up behind
@@ -368,6 +369,25 @@ from midnight to midnight with the night she woke from, each nap and a mark at n
 "up at 07:10 · 2 naps, 1 h 30 min · night 11 h 40 min". Home's state card says "up since
 07:10" beside the next-nap window and "since 07:10" under "Awake for", so the morning wake
 Dana taps is read back on both screens (Mido, 4 November).
+
+### Achievements (`/achievements`, More → Family)
+
+Badges for what the grown-ups do, never for the baby's own numbers (Mido, 9 November: "mainly
+designed to motivate Dana and the rest, not Lana"; how much she drinks or sleeps is hers to set).
+Pumping on goal for N days in a row (first, bronze 3, silver 7, gold 14, diamond 30), days well
+over the goal (110% or more: 1, 5, 15), and the freezer stash (500 ml, 1 l, 2 l, the family's).
+The database awards them from the log (migration 5900); the client never writes one.
+
+- **The moment**: the first time a person opens the app after winning, the screen dims,
+  confetti bursts, the medal spins in, the phone buzzes; the title says the tier ("Silver!"),
+  one line says what it took, "and 3 more on your shelf" counts the rest. Lovely closes it;
+  See the shelf opens the shelf. Once per person per badge, on every phone. No motion for
+  someone who asked for less.
+- **Home** gains no block. While a pumping run is going and today is short of the goal, the
+  pumping parent's one notice slot may say "190 ml more today keeps your 4-day run", last in
+  rule 3's order, so anything that matters more wins.
+- **The shelf**: one card per kind, every medal in a row (won in its metal, the rest a grey
+  outline to aim for), what the next needs with a bar, and the latest won.
 
 ## The parts to build with
 
