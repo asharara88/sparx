@@ -1,13 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AssistantChoice, AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, RpcError } from "@/lib/types";
+import type { AssistantChoice, AssistantEvent, AssistantProposal, AssistantRef, AssistantReply, AssistantTurn, EntryType, OngoingEntry, RpcError } from "@/lib/types";
 import { setManualNight } from "@/lib/theme";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
-import { dateWords } from "@/lib/time";
+import { dateWords, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
-import { endOrQueue, newClientId, sendOrQueue } from "@/lib/offline";
+import { endOrQueue, mergeOngoing, newClientId, readQueueFor, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
@@ -16,6 +16,16 @@ import { speak as sayAloud, stopSpeaking, unlockAudio } from "@/lib/speak";
 import { replacedBy, retireProposals, type ProposalState } from "@/lib/assistant/retire";
 import { recapOf, withOutcomes } from "@/lib/assistant/memory";
 import type { AskChat } from "@/lib/types";
+import { readDiaperAnswer, readQuick, type QuickLog, type QuickWhen } from "@/lib/assistant/quick-log";
+
+/** What the Ask screen needs to save plain logs itself ("120 ml bottle"): the one child, her feed, nappy and sleep types, any running sleep. */
+export interface QuickContext {
+  subjectId: string;
+  subjectName: string;
+  types: EntryType[];
+  ongoing: OngoingEntry[];
+  canDelete: boolean;
+}
 
 /**
  * The Ask screen. Type or speak a question; the answer cites the log. If you ask
@@ -41,6 +51,8 @@ interface Msg {
   status?: string;
   /** Saved with the chat: what happened to each proposal. */
   states?: Record<string, ProposalState>;
+  /** Read and saved on the phone ("120 ml bottle"): no model saw it. */
+  quick?: boolean;
 }
 export type ChatSummary = Pick<AskChat, "id" | "title" | "updated_at">;
 
@@ -66,7 +78,7 @@ function recognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null }) {
+export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null }) {
   const me = useMe();
   const router = useRouter();
   const STORE = storeKey(me.member.id);
@@ -186,7 +198,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const res = data as { ok: boolean; id?: string } | null;
       if (res?.ok && res.id && res.id !== chatId) setChatId(res.id);
       // Two questions in, the server may read the chat for things worth remembering (off until it is switched on there).
-      if (res?.ok && res.id && msgs.filter((m) => m.role === "user").length >= 2) void apiFetch("/api/assistant/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat: res.id }) }).catch(() => undefined);
+      // Plain logs saved on the phone do not count: they are not worth a model call.
+      if (res?.ok && res.id && msgs.filter((m) => m.role === "user" && !m.quick).length >= 2) void apiFetch("/api/assistant/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat: res.id }) }).catch(() => undefined);
     }, 800);
     return () => {
       if (saveRef.current) clearTimeout(saveRef.current);
@@ -212,10 +225,116 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [msgs, aloud, talk, lang]);
 
+  // ---- plain logs, read on the phone: saved at once with Undo, no model call, works offline
+  const pendingDiaperRef = useRef<{ at: string } | null>(null);
+  const [undo, setUndo] = useState<{ pid: string; entryId: string; until: number } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), Math.max(0, undo.until - Date.now()));
+    return () => clearTimeout(timer);
+  }, [undo]);
+  /** A card for what was said, a question to ask first (the nappy's kind), or null for the helper. */
+  async function readLocal(q: string): Promise<{ proposal: AssistantProposal } | { choice: AssistantChoice } | null> {
+    if (!quick) return null;
+    // An answer to the helper's own question ("How much?" → "120 ml") goes back to the helper with the
+    // conversation, so what was said before (the milk, the time) is not lost.
+    const last = msgsRef.current[msgsRef.current.length - 1];
+    if (!pendingDiaperRef.current && last?.role === "assistant" && !last.quick && !last.error && (last.choice || /\?\s*$/.test(last.text))) return null;
+    const now = Date.now();
+    const nowLocal = toLocalInput(new Date(now).toISOString(), tz);
+    const type = (key: string) => quick.types.find((x) => x.key === key && x.is_active !== false);
+    const options = (x: EntryType | undefined, key: string) => x?.fields.find((f) => f.key === key)?.options ?? [];
+    const feed = type("feed");
+    const diaper = type("diaper");
+    const sleep = type("sleep");
+    const iso = (w: QuickWhen) => ("agoMin" in w ? new Date(now - w.agoMin * 60_000).toISOString() : fromLocalInput(w.local, tz));
+    const name = quick.subjectName;
+    const card = (x: EntryType, occurred_at: string, ended_at: string | null, payload: Record<string, unknown>, what: string): AssistantProposal => ({
+      id: `quick-${newClientId()}`,
+      kind: "care_entry",
+      summary: `${x.icon ?? ""} ${x.label} · ${what ? `${what} · ` : ""}${name} · ${ended_at ? `${fmtTime(occurred_at, tz)} to ${fmtTime(ended_at, tz)}` : fmtTime(occurred_at, tz)}`.trim(),
+      care_entry: { subject_id: quick.subjectId, subject_name: name, module_id: x.module_id, type_id: x.id, type_label: x.label, occurred_at, ended_at, payload, note: null },
+    });
+    // The answer to "Wet, dirty or both?" asked just before.
+    const pending = pendingDiaperRef.current;
+    pendingDiaperRef.current = null;
+    const kind = pending && diaper ? readDiaperAnswer(q, options(diaper, "kind")) : null;
+    const r: QuickLog | null = kind && pending ? { kind: "diaper", diaper: kind, when: { local: toLocalInput(pending.at, tz) } } : readQuick(q, nowLocal, { name: name.split(" ")[0], diaperKinds: options(diaper, "kind"), milks: options(feed, "milk") });
+    if (!r) return null;
+    // Queued and just-sent starts count, so "woke up" right after "fell asleep" finds that sleep before the page refreshes.
+    const ops = sleep && (r.kind === "wake" || r.kind === "sleep_start" || r.kind === "sleep") ? await readQueueFor(supabaseBrowser()).catch(() => undefined) : undefined;
+    const asleep = sleep ? (mergeOngoing(quick.ongoing, quick.subjectId, ops, null, quick.types).find((e) => e.type_id === sleep.id) ?? null) : null;
+    if (r.kind === "bottle" && feed && options(feed, "method").includes("Bottle")) {
+      const at = iso(r.when);
+      return { proposal: card(feed, at, null, { method: "Bottle", amount_ml: r.amount_ml, ...(r.milk ? { milk: r.milk } : {}) }, ["Bottle", `${r.amount_ml} ml`, r.milk].filter(Boolean).join(", ")) };
+    }
+    if (r.kind === "diaper" && diaper) {
+      const at = pending && kind ? pending.at : iso(r.when);
+      if (!r.diaper) {
+        pendingDiaperRef.current = { at };
+        const opts = options(diaper, "kind");
+        return opts.length ? { choice: { question: `${opts.slice(0, -1).join(", ")} or ${opts[opts.length - 1]}?`.replace(/^(.)/, (c) => c.toUpperCase()), options: opts } } : null;
+      }
+      return { proposal: card(diaper, at, null, { kind: r.diaper }, r.diaper) };
+    }
+    if (r.kind === "sleep_start" && sleep && !asleep) return { proposal: card(sleep, iso(r.when), null, {}, "asleep") };
+    if (r.kind === "sleep" && sleep) {
+      const from = fromLocalInput(r.from, tz);
+      const to = fromLocalInput(r.to, tz);
+      // A sleep that runs into the one going now is the helper's to sort out.
+      if (asleep && Date.parse(to) > Date.parse(asleep.occurred_at)) return null;
+      return { proposal: card(sleep, from, to, {}, "") };
+    }
+    if (r.kind === "wake" && sleep && asleep) {
+      const at = iso(r.when);
+      if (Date.parse(at) < Date.parse(asleep.occurred_at)) return null;
+      return {
+        proposal: {
+          id: `quick-${newClientId()}`,
+          kind: "end_timer",
+          summary: `☀️ Woke up · ${name} · ${fmtTime(at, tz)} (asleep since ${fmtTime(asleep.occurred_at, tz)})`,
+          end_timer: { entry_id: asleep.id, subject_name: name, type_id: sleep.id, type_label: sleep.label, since: asleep.occurred_at, ended_at: at },
+        },
+      };
+    }
+    return null;
+  }
+  async function undoQuick(u: { pid: string; entryId: string }) {
+    setUndo(null);
+    const { data, error } = await supabaseBrowser().rpc("care_entry_delete", { p_id: u.entryId });
+    const res = data as { ok?: boolean; message?: string } | null;
+    if (error || res?.ok === false) {
+      setPstate((s) => ({ ...s, [u.pid]: { status: "saved", href: `/entry/${u.entryId}`, note: `Could not undo: ${res?.message ?? error?.message ?? "try again"}. Open it to delete.` } }));
+      return;
+    }
+    setPstate((s) => ({ ...s, [u.pid]: { status: "dropped" } }));
+    router.refresh();
+  }
+
   const ask = useCallback(
     async (question: string) => {
       const q = question.trim();
       if (!q || busy) return;
+      const local = await readLocal(q);
+      if (local) {
+        setInput("");
+        setUndo(null);
+        if ("choice" in local) {
+          spokeRef.current = false; // the question is said aloud, then it listens for the answer
+          setMsgs((m) => [...m, { role: "user", text: q, quick: true }, { role: "assistant", text: local.choice.question, choice: local.choice, quick: true }]);
+          return;
+        }
+        spokeRef.current = true; // the save says what it saved
+        const p = local.proposal;
+        setMsgs((m) => [...m, { role: "user", text: q, quick: true }, { role: "assistant", text: "", proposals: [p], quick: true }]);
+        setPstate((s) => ({ ...s, [p.id]: { status: "pending" } }));
+        setBusy(true);
+        const id = await confirm(p, false, true);
+        setBusy(false);
+        if (id && quick?.canDelete && p.kind === "care_entry") setUndo({ pid: p.id, entryId: id, until: Date.now() + 60_000 });
+        return;
+      }
+      pendingDiaperRef.current = null;
       setInput("");
       setBusy(true);
       spokeRef.current = false;
@@ -285,7 +404,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         setBusy(false);
       }
     },
-    [busy, msgs, pstate, chatId, screen],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [busy, msgs, pstate, chatId, screen, quick, aloud],
   );
 
   // Said on Home ("Say it to log"): send it straight away, once.
@@ -370,9 +490,10 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   // ---- proposals: the one tap that writes
   // Cards being saved or saved: a second tap, or Confirm all reaching a card already tapped, does nothing.
   const claimedRef = useRef(new Set<string>());
-  async function confirm(p: AssistantProposal, reserved = false) {
+  /** Saves a card; the new entry's id when it reached the server (for Undo), else null. `sayWhat` reads the card out before the result. */
+  async function confirm(p: AssistantProposal, reserved = false, sayWhat = false): Promise<string | null> {
     if (!reserved) {
-      if (claimedRef.current.has(p.id)) return;
+      if (claimedRef.current.has(p.id)) return null;
       claimedRef.current.add(p.id);
     }
     setPstate((s) => ({ ...s, [p.id]: { status: "saving" } }));
@@ -380,6 +501,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     // What is said (and shown) after the tap, in the member's language.
     const savedWord = `${t(lang, "saved")}.`;
     let result = savedWord;
+    let savedId: string | null = null;
     const saved = (href: string | undefined, note: string) => {
       result = note;
       setPstate((s) => ({ ...s, [p.id]: { status: "saved", href, note } }));
@@ -390,7 +512,9 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const c = p.care_entry;
         const r = await sendOrQueue(supabase, { client_id: newClientId(), subject_id: c.subject_id, type_id: c.type_id, occurred_at: c.occurred_at, ended_at: c.ended_at, payload: c.payload, note: c.note });
         if (r.status === "error") throw new Error(r.message);
-        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? savedWord : offline);
+        // A timer already running (someone else started it) is not this card's to undo.
+        if (r.status === "saved" && !r.open) savedId = r.id;
+        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? (r.open ? "That was already running." : savedWord) : offline);
       } else if (p.kind === "end_timer" && p.end_timer) {
         const c = p.end_timer;
         const r = await endOrQueue(supabase, c.entry_id, c.ended_at);
@@ -421,13 +545,15 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         throw new Error("I do not know how to save that.");
       }
       // Out loud, the result; in talk mode the floor comes back once it is said.
-      if (aloud || talkRef.current) say(result, () => talkRef.current && startListeningRef.current());
+      if (aloud || talkRef.current) say(sayWhat ? `${spoken(p)} ${result}` : result, () => talkRef.current && startListeningRef.current());
       router.refresh();
+      return savedId;
     } catch (e) {
       const message = e instanceof Error ? e.message : t(lang, "couldNotSave");
       claimedRef.current.delete(p.id);
       setPstate((s) => ({ ...s, [p.id]: { status: "error", message } }));
       if (aloud || talkRef.current) say(message);
+      return null;
     }
   }
 
@@ -523,7 +649,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       {msgs.length === 0 && (
         <div className="card">
           <p className="font-semibold">Ask anything about the house, in your own words.</p>
-          <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
+          <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {quick ? "Say “120 ml bottle”, “wet nappy”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
           {canTalk && <p className="muted mt-1 text-sm">Tap Talk for hands-free: it listens, answers out loud, then listens again. Say “remember that…” to teach it something.</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {suggestions.map((s) => (
@@ -538,10 +664,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       <ol className="flex flex-1 flex-col gap-3" aria-live="polite">
         {msgs.map((m, i) => (
           <li key={i} className={m.role === "user" ? "self-end" : "self-start"} style={{ maxWidth: "92%" }}>
-            <div className={m.role === "user" ? "bubble bubble-me" : `bubble ${m.error ? "bubble-err" : ""}`}>
-              {m.role === "user" ? <p>{m.text}</p> : m.streaming && !m.text ? <p className="muted">{m.status ?? "Thinking…"}</p> : <Cited text={m.text} refs={m.refs} />}
-              {m.streaming && m.text && <span className="muted"> ▍</span>}
-            </div>
+            {(m.role === "user" || m.text || m.streaming || !m.proposals?.length) && (
+              <div className={m.role === "user" ? "bubble bubble-me" : `bubble ${m.error ? "bubble-err" : ""}`}>
+                {m.role === "user" ? <p>{m.text}</p> : m.streaming && !m.text ? <p className="muted">{m.status ?? "Thinking…"}</p> : <Cited text={m.text} refs={m.refs} />}
+                {m.streaming && m.text && <span className="muted"> ▍</span>}
+              </div>
+            )}
             {m.role === "assistant" && !m.streaming && !!m.skills?.length && (
               <p className="muted mt-1 px-1 text-xs" aria-label="Skills used">
                 Used: {m.skills.map((k) => k.title).join(" · ")}
@@ -602,7 +730,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                       )}
                     </p>
                   )}
-                  {st.status === "dropped" && <p className="muted mt-1">Not saved.</p>}
+                  {st.status === "saved" && undo?.pid === p.id && (
+                    <button type="button" className="btn mt-2 min-h-[48px] w-full" disabled={busy} onClick={() => void undoQuick(undo)}>
+                      Undo
+                    </button>
+                  )}
+                  {st.status === "dropped" && <p className="muted mt-1">{p.id.startsWith("quick-") ? "Undone." : "Not saved."}</p>}
                   {st.status === "replaced" && <p className="muted mt-1">Replaced by the card below.</p>}
                   {st.status === "error" && (
                     <p className="mt-1 text-[var(--danger)]" role="alert">
