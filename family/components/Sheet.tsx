@@ -32,5 +32,7 @@ export function Sheet({ title, onClose, children, fill = false }: { title: strin
       </div>
     </div>
   );
-  return host ? createPortal(node, host) : node;
+  // Nothing until the page is there to hold it: mounting inline first and then in the portal
+  // would mount the children twice (a spoken log in Tell me would be saved twice).
+  return host ? createPortal(node, host) : null;
 }

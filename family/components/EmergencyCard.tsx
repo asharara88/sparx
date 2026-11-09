@@ -83,7 +83,7 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
     !(p.doctor_name || p.doctor_tollfree || p.doctor_phone) && t("doctor"),
     !p.emergency_papa_phone && t("papa"),
     !p.emergency_mama_phone && t("mama"),
-    !(p.emergency_hospital || p.doctor_hospital) && t("hospital"),
+    !(p.emergency_hospital || p.doctor_hospital || p.emergency_hospital_map || p.doctor_address) && t("hospital"),
     !p.blood_group && t("blood"),
     !p.allergies && t("allergies"),
   ].filter(Boolean) as string[];
@@ -103,10 +103,10 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
       {(p.doctor_name || p.doctor_tollfree || p.doctor_phone) && <CallRow label={t("doctor")} name={p.doctor_name} phone={p.doctor_tollfree || p.doctor_phone} />}
       {p.emergency_papa_phone && <CallRow label={t("papa")} phone={p.emergency_papa_phone} />}
       {p.emergency_mama_phone && <CallRow label={t("mama")} phone={p.emergency_mama_phone} />}
-      {(p.emergency_hospital || p.doctor_hospital) && (
+      {(p.emergency_hospital || p.doctor_hospital || p.emergency_hospital_map || p.doctor_address) && (
         <div className="card flex flex-col gap-1">
           <p className="muted text-sm font-semibold">{t("hospital")}</p>
-          <p className="text-xl font-bold">{p.emergency_hospital || p.doctor_hospital}</p>
+          {(p.emergency_hospital || p.doctor_hospital) && <p className="text-xl font-bold">{p.emergency_hospital || p.doctor_hospital}</p>}
           {(p.emergency_hospital_map || p.doctor_address) && (
             <a href={p.emergency_hospital_map || `https://maps.google.com/?q=${encodeURIComponent(p.doctor_address ?? "")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] underline">
               <Icon name="pin" size={16} /> {t("map")}

@@ -149,7 +149,13 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const span = c.ended_at ? `${when(c.occurred_at)} to ${fmtTime(c.ended_at, tz)}` : when(c.occurred_at);
       return [`${icon} ${c.type_label}`.trim(), details, span].filter(Boolean).join(" · ");
     }
-    if (p.kind === "end_timer" && p.end_timer) return `${icon || "☀️"} Woke up · ${when(p.end_timer.ended_at)} (asleep since ${fmtTime(p.end_timer.since, tz)})`;
+    if (p.kind === "end_timer" && p.end_timer) {
+      const e = p.end_timer;
+      // Only a sleep ends in "woke up"; a breastfeed or a night wake keeps its own name.
+      return e.type_id.endsWith(".sleep")
+        ? `${icon || "☀️"} Woke up · ${when(e.ended_at)} (asleep since ${fmtTime(e.since, tz)})`
+        : `${icon} ${e.type_label} ended · ${when(e.ended_at)} (since ${fmtTime(e.since, tz)})`.trim();
+    }
     return p.summary;
   }
 
