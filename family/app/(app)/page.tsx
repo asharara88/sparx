@@ -17,6 +17,8 @@ import { nextFeedAt } from "@/lib/forecast";
 import { Icon } from "@/components/Icon";
 import { meOnce } from "@/lib/server/me";
 import { HomeHeader } from "@/components/HomeHeader";
+import { TellBar } from "@/components/TellBar";
+import { quickContextOf } from "@/lib/assistant/quick-context";
 import { HomeState } from "@/components/HomeState";
 import { DueNotice } from "@/components/DueNotice";
 import { nextNap } from "@/lib/child-insights";
@@ -249,7 +251,7 @@ export default async function HomePage() {
         </Link>
       )}
       <div className="grow-space" />
-      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} />
+      <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} tell={can(me, "assistant", "add") && can(me, "lana", "add") ? <TellBar quick={quickContextOf(summary, me)} /> : null} />
     </div>
     <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">
       <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} href="/baby/sleep" />
