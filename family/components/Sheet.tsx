@@ -1,22 +1,28 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 
 /**
  * A sheet that slides up from the bottom (DESIGN.md, "The patterns we use"): a title and a
- * close button on top, whatever it holds below. Tapping outside or Escape closes it.
+ * close button on top, whatever it holds below. Tapping outside or Escape closes it. It is
+ * drawn at the top of the page (a portal to <body>), never inside whatever opened it: a sheet
+ * opened from inside a card was flattened by ".card .card" and lost its own cards and chips.
  */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+/** `fill`: a tall sheet whose own content scrolls inside it (a chat), so the title and Close stay put. */
+export function Sheet({ title, onClose, children, fill = false }: { title: string; onClose: () => void; children: React.ReactNode; fill?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  return (
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
+  const node = (
     <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div className={fill ? "sheet sheet-fill" : "sheet"} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
-        <div className="flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between">
           <p className="action-label">{title}</p>
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
             <Icon name="x" size={22} />
@@ -26,4 +32,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
       </div>
     </div>
   );
+  // Nothing until the page is there to hold it: mounting inline first and then in the portal
+  // would mount the children twice (a spoken log in Tell me would be saved twice).
+  return host ? createPortal(node, host) : null;
 }

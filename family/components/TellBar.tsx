@@ -24,9 +24,9 @@ export function TellBar({ quick }: { quick: QuickContext | null }) {
         <SayIt icon onHeard={(t) => show(t)} />
       </div>
       {open && (
-        <Sheet title="Tell me" onClose={() => setOpen(null)}>
+        <Sheet title="Tell me" fill onClose={() => setOpen(null)}>
           <Assistant key={open.n} embedded suggestions={[]} quick={quick} autoAsk={open.said} screen="home" />
-          <Link prefetch={false} href="/ask" className="muted self-end text-sm font-semibold">
+          <Link prefetch={false} href="/ask" className="muted shrink-0 self-end text-sm font-semibold">
             Open the full chat ›
           </Link>
         </Sheet>

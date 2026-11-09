@@ -9,6 +9,8 @@ import { fmtWhen } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/Sheet";
 import { MilkScan } from "@/components/MilkScan";
+import { Fold, type Tint } from "@/components/Fold";
+import type { IconName } from "@/components/Icon";
 
 const QUICK = [60, 90, 120, 150, 180];
 
@@ -68,12 +70,12 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
             <span className="text-lg font-bold">{b.amount_ml} ml</span>
             {first && <span className="pill pill-accent">use first</span>}
           </span>
-          <span className="muted block truncate text-sm">
+          <span className="muted line-clamp-2 block text-sm">
             {state ?? (b.location === "freezer" ? "Frozen" : "Pumped")} {fmtWhen(b.warmed_at ?? b.thawed_at ?? b.pumped_at, timezone, now)}
             {b.note ? ` · ${b.note}` : ""}
           </span>
         </span>
-        <span className={b.expired ? "pill pill-danger" : hoursLeft < 24 ? "pill pill-warn" : "muted shrink-0 text-sm font-semibold"}>{left(b.expires_at, now)}</span>
+        <span className={b.expired ? "pill pill-danger" : hoursLeft < 24 ? "pill pill-warn" : "muted shrink-0 whitespace-nowrap text-sm font-semibold"}>{left(b.expires_at, now)}</span>
       </>
     );
     return (
@@ -89,20 +91,28 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
     );
   };
 
-  const Group = ({ title, bottles, empty, firstFlag, danger }: { title: string; bottles: MilkBottle[]; empty: string; firstFlag?: boolean; danger?: boolean }) => (
-    <section className="flex flex-col gap-2">
-      <h2 className={`section-title ${danger ? "text-[var(--danger)]" : ""}`}>{title}</h2>
-      {bottles.length === 0 ? (
-        <p className="muted px-1 text-sm">{empty}</p>
-      ) : (
-        <ul className="card flex flex-col p-0">
-          {bottles.map((b, i) => (
-            <Row key={b.id} b={b} first={firstFlag && i === 0 && bottles.length > 1} />
-          ))}
-        </ul>
-      )}
-    </section>
-  );
+  // Fridge, freezer and what is past its time: one card each that opens to its bottles (Mido,
+  // 9 November: a long list of bottle cards was a mess to the eye). The closed card says
+  // how many and how much; past its time opens by itself, it needs doing.
+  // Called as a function, not mounted as <Group>: a component defined in here is a new type on
+  // every render, so tapping a bottle (a state change) would remount the fold and close it.
+  const group = ({ title, bottles, empty, firstFlag, tint, icon, open = false }: { title: string; bottles: MilkBottle[]; empty: string; firstFlag?: boolean; tint: Tint; icon: IconName; open?: boolean }) => {
+    const ml = bottles.reduce((n, b) => n + b.amount_ml, 0);
+    const hint = bottles.length ? `${bottles.length} ${bottles.length === 1 ? "bottle" : "bottles"} · ${ml} ml` : "empty";
+    return (
+      <Fold title={title} hint={hint} icon={icon} tint={tint} open={open}>
+        {bottles.length === 0 ? (
+          <p className="muted px-1 text-sm">{empty}</p>
+        ) : (
+          <ul className="flex flex-col p-0">
+            {bottles.map((b, i) => (
+              <Row key={b.id} b={b} first={firstFlag && i === 0 && bottles.length > 1} />
+            ))}
+          </ul>
+        )}
+      </Fold>
+    );
+  };
 
   const actions: { label: string; action: string; primary?: boolean }[] = !open
     ? []
@@ -117,19 +127,9 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
 
   return (
     <>
-      <section className="grid grid-cols-2 gap-3">
-        <div className="tile tint-milk">
-          <span className="block text-2xl font-bold">{data.fridge_ml} ml</span>
-          <span className="text-sm">in the fridge</span>
-        </div>
-        <div className="tile tint-diaper">
-          <span className="block text-2xl font-bold">{data.freezer_ml} ml</span>
-          <span className="text-sm">in the freezer</span>
-        </div>
-      </section>
-      <Group title="Fridge" bottles={fridge} empty="Nothing in the fridge." firstFlag />
-      <Group title="Freezer" bottles={freezer} empty="Nothing frozen." />
-      {gone.length > 0 && <Group title="Past its time" bottles={gone} empty="" danger />}
+      {gone.length > 0 && group({ title: "Past its time", bottles: gone, empty: "", tint: "danger", icon: "clock", open: true })}
+      {group({ title: "Fridge", bottles: fridge, empty: "Nothing in the fridge.", firstFlag: true, tint: "milk", icon: "droplet" })}
+      {group({ title: "Freezer", bottles: freezer, empty: "Nothing frozen.", tint: "diaper", icon: "inbox" })}
 
       {open && (
         <Sheet title={`${open.amount_ml} ml`} onClose={close}>

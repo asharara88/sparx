@@ -19,7 +19,8 @@ const T = {
   allergies: { en: "Allergies", ar: "حساسية", ru: "Аллергия" },
   notes: { en: "Medical notes", ar: "ملاحظات طبية", ru: "Заметки" },
   file: { en: "Hospital file", ar: "رقم الملف", ru: "Номер карты" },
-  empty: { en: "Not filled in yet", ar: "لسه مش مكتوب", ru: "Ещё не заполнено" },
+  empty: { en: "Not added yet", ar: "لسه مش مضاف", ru: "Ещё не добавлено" },
+  missing: { en: "Not added yet:", ar: "لسه مش مضاف:", ru: "Ещё не добавлено:" },
   map: { en: "Map", ar: "الخريطة", ru: "Карта" },
 };
 type Lang = keyof typeof T.call;
@@ -63,7 +64,7 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
     <div className="card flex items-center gap-3">
       <div className="min-w-0 flex-1">
         <p className="muted text-sm font-semibold">{label}</p>
-        <p className="truncate text-xl font-bold">{name || phone || t("empty")}</p>
+        {name || phone ? <p className="truncate text-xl font-bold">{name || phone}</p> : <p className="muted">{t("empty")}</p>}
         {name && phone && (
           <p className="muted" dir="ltr">
             {phone}
@@ -78,6 +79,14 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
     </div>
   );
 
+  const missing = [
+    !(p.doctor_name || p.doctor_tollfree || p.doctor_phone) && t("doctor"),
+    !p.emergency_papa_phone && t("papa"),
+    !p.emergency_mama_phone && t("mama"),
+    !(p.emergency_hospital || p.doctor_hospital || p.emergency_hospital_map || p.doctor_address) && t("hospital"),
+    !p.blood_group && t("blood"),
+    !p.allergies && t("allergies"),
+  ].filter(Boolean) as string[];
   return (
     <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-col gap-3">
       {ambulance ? (
@@ -89,24 +98,35 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
           <Icon name="phone" size={26} /> {t("noNumber")}
         </p>
       )}
-      <CallRow label={t("doctor")} name={p.doctor_name} phone={p.doctor_tollfree || p.doctor_phone} />
-      <CallRow label={t("papa")} phone={p.emergency_papa_phone} />
-      <CallRow label={t("mama")} phone={p.emergency_mama_phone} />
-      <div className="card flex flex-col gap-1">
-        <p className="muted text-sm font-semibold">{t("hospital")}</p>
-        <p className="text-xl font-bold">{p.emergency_hospital || p.doctor_hospital || t("empty")}</p>
-        {(p.emergency_hospital_map || p.doctor_address) && (
-          <a href={p.emergency_hospital_map || `https://maps.google.com/?q=${encodeURIComponent(p.doctor_address ?? "")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] underline">
-            <Icon name="pin" size={16} /> {t("map")}
-          </a>
-        )}
-      </div>
-      <div className="card grid gap-3">
-        <Info label={t("blood")} v={p.blood_group} empty={t("empty")} />
-        <Info label={t("allergies")} v={p.allergies} empty={t("empty")} />
-        <Info label={t("file")} v={p.hospital_number} empty={t("empty")} />
-        <Info label={t("notes")} v={p.emergency_notes} empty={t("empty")} />
-      </div>
+      {/* Only what is filled in gets a box; what is missing is one quiet line (Mido, 9 November:
+          a stack of "Not filled in yet" boxes in bold read as data). */}
+      {(p.doctor_name || p.doctor_tollfree || p.doctor_phone) && <CallRow label={t("doctor")} name={p.doctor_name} phone={p.doctor_tollfree || p.doctor_phone} />}
+      {p.emergency_papa_phone && <CallRow label={t("papa")} phone={p.emergency_papa_phone} />}
+      {p.emergency_mama_phone && <CallRow label={t("mama")} phone={p.emergency_mama_phone} />}
+      {(p.emergency_hospital || p.doctor_hospital || p.emergency_hospital_map || p.doctor_address) && (
+        <div className="card flex flex-col gap-1">
+          <p className="muted text-sm font-semibold">{t("hospital")}</p>
+          {(p.emergency_hospital || p.doctor_hospital) && <p className="text-xl font-bold">{p.emergency_hospital || p.doctor_hospital}</p>}
+          {(p.emergency_hospital_map || p.doctor_address) && (
+            <a href={p.emergency_hospital_map || `https://maps.google.com/?q=${encodeURIComponent(p.doctor_address ?? "")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] underline">
+              <Icon name="pin" size={16} /> {t("map")}
+            </a>
+          )}
+        </div>
+      )}
+      {(p.blood_group || p.allergies || p.hospital_number || p.emergency_notes) && (
+        <div className="card grid gap-3">
+          {p.blood_group && <Info label={t("blood")} v={p.blood_group} />}
+          {p.allergies && <Info label={t("allergies")} v={p.allergies} />}
+          {p.hospital_number && <Info label={t("file")} v={p.hospital_number} />}
+          {p.emergency_notes && <Info label={t("notes")} v={p.emergency_notes} />}
+        </div>
+      )}
+      {missing.length > 0 && (
+        <p className="muted px-1 text-sm">
+          {t("missing")} {missing.join(", ")}.
+        </p>
+      )}
       {canEdit &&
         (edit ? (
           <form onSubmit={save} className="card flex flex-col gap-3">
@@ -138,11 +158,11 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
     </div>
   );
 }
-function Info({ label, v, empty }: { label: string; v?: string; empty: string }) {
+function Info({ label, v }: { label: string; v?: string }) {
   return (
     <div>
       <p className="muted text-sm font-semibold">{label}</p>
-      <p className="whitespace-pre-wrap text-lg font-bold">{v || empty}</p>
+      <p className="whitespace-pre-wrap text-lg font-bold">{v}</p>
     </div>
   );
 }
