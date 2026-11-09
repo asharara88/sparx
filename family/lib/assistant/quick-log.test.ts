@@ -41,7 +41,7 @@ test("readQuick: asleep, awake, and a finished sleep", async () => {
 
 test("readQuick: anything else is the helper's", async () => {
   const { readQuick } = await import("./quick-log.ts");
-  for (const s of ["When did she last feed?", "How did she sleep last night?", "remember that she likes the blue blanket", "log a breastfeed on the left", "fell asleep 10 min ago and woke now"]) assert.equal(readQuick(s, NOW, V), null, s);
+  for (const s of ["Is she asleep?", "is she asleep", "Was she fed 120ml?", "did she do a poo", "has she had 120 ml", "When did she last feed?", "How did she sleep last night?", "remember that she likes the blue blanket", "log a breastfeed on the left", "fell asleep 10 min ago and woke now"]) assert.equal(readQuick(s, NOW, V), null, s);
 });
 
 test("resolveBare: the most recent meaning of a clock said in words", async () => {

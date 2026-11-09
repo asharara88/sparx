@@ -37,6 +37,7 @@ const AGO = [
   { re: /\b(\d{1,3})\s?(?:m|min|mins|minutes?)\s?ago\b/, min: (m: RegExpMatchArray) => Number(m[1]) },
 ];
 
+const QUESTION = /^(is|was|are|were|did|does|do|has|have|had|when|how|what|why|who|where|which|should|can|could|will|would|shall)\b/i;
 const COMMON = new Set(["log", "logged", "add", "she", "shes", "he", "hes", "the", "a", "her", "him", "just", "has", "had", "is", "was", "baby", "we", "i"]);
 const BOTTLE = new Set(["bottle", "of", "fed", "feed", "drank", "drunk", "gave", "took", "finished", "ml", "milk"]);
 const DIAPER = new Set(["nappy", "diaper", "changed", "change", "did", "wet", "dirty", "poo", "poop", "poopy", "pooey", "soiled", "both", "and"]);
@@ -49,6 +50,8 @@ const SLEPT = new Set(["slept", "napped", "nap", "from", "to", "until", "till", 
  * `nowLocal` is the household's local "YYYY-MM-DDTHH:MM" now.
  */
 export function readQuick(message: string, nowLocal: string, vocab: QuickVocab): QuickLog | null {
+  // A question ("Is she asleep?", "Was she fed 120 ml?") is never a log.
+  if (/\?/.test(message) || QUESTION.test(message.trim())) return null;
   let t = ` ${message.toLowerCase().replace(/[’']/g, "").replace(/[!?,;]+/g, " ").replace(/\.(?!\d)/g, " ").replace(/\s+/g, " ").trim()} `;
   if (t.length > 80) return null;
   if (vocab.name) t = t.replace(new RegExp(`\\b${vocab.name.toLowerCase().replace(/[^a-z]/g, "")}s?\\b`, "g"), " ");

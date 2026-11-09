@@ -51,6 +51,8 @@ interface Msg {
   status?: string;
   /** Saved with the chat: what happened to each proposal. */
   states?: Record<string, ProposalState>;
+  /** Read and saved on the phone ("120 ml bottle"): no model saw it. */
+  quick?: boolean;
 }
 export type ChatSummary = Pick<AskChat, "id" | "title" | "updated_at">;
 
@@ -196,7 +198,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const res = data as { ok: boolean; id?: string } | null;
       if (res?.ok && res.id && res.id !== chatId) setChatId(res.id);
       // Two questions in, the server may read the chat for things worth remembering (off until it is switched on there).
-      if (res?.ok && res.id && msgs.filter((m) => m.role === "user").length >= 2) void apiFetch("/api/assistant/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat: res.id }) }).catch(() => undefined);
+      // Plain logs saved on the phone do not count: they are not worth a model call.
+      if (res?.ok && res.id && msgs.filter((m) => m.role === "user" && !m.quick).length >= 2) void apiFetch("/api/assistant/remember", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat: res.id }) }).catch(() => undefined);
     }, 800);
     return () => {
       if (saveRef.current) clearTimeout(saveRef.current);
@@ -312,12 +315,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         setUndo(null);
         if ("choice" in local) {
           spokeRef.current = false; // the question is said aloud, then it listens for the answer
-          setMsgs((m) => [...m, { role: "user", text: q }, { role: "assistant", text: local.choice.question, choice: local.choice }]);
+          setMsgs((m) => [...m, { role: "user", text: q, quick: true }, { role: "assistant", text: local.choice.question, choice: local.choice, quick: true }]);
           return;
         }
         spokeRef.current = true; // the save says what it saved
         const p = local.proposal;
-        setMsgs((m) => [...m, { role: "user", text: q }, { role: "assistant", text: "", proposals: [p] }]);
+        setMsgs((m) => [...m, { role: "user", text: q, quick: true }, { role: "assistant", text: "", proposals: [p], quick: true }]);
         setPstate((s) => ({ ...s, [p.id]: { status: "pending" } }));
         setBusy(true);
         const id = await confirm(p, false, true);
@@ -503,8 +506,9 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const c = p.care_entry;
         const r = await sendOrQueue(supabase, { client_id: newClientId(), subject_id: c.subject_id, type_id: c.type_id, occurred_at: c.occurred_at, ended_at: c.ended_at, payload: c.payload, note: c.note });
         if (r.status === "error") throw new Error(r.message);
-        if (r.status === "saved") savedId = r.id;
-        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? savedWord : offline);
+        // A timer already running (someone else started it) is not this card's to undo.
+        if (r.status === "saved" && !r.open) savedId = r.id;
+        saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? (r.open ? "That was already running." : savedWord) : offline);
       } else if (p.kind === "end_timer" && p.end_timer) {
         const c = p.end_timer;
         const r = await endOrQueue(supabase, c.entry_id, c.ended_at);
