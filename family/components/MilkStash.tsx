@@ -68,12 +68,12 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
             <span className="text-lg font-bold">{b.amount_ml} ml</span>
             {first && <span className="pill pill-accent">use first</span>}
           </span>
-          <span className="muted block truncate text-sm">
+          <span className="muted line-clamp-2 block text-sm">
             {state ?? (b.location === "freezer" ? "Frozen" : "Pumped")} {fmtWhen(b.warmed_at ?? b.thawed_at ?? b.pumped_at, timezone, now)}
             {b.note ? ` · ${b.note}` : ""}
           </span>
         </span>
-        <span className={b.expired ? "pill pill-danger" : hoursLeft < 24 ? "pill pill-warn" : "muted shrink-0 text-sm font-semibold"}>{left(b.expires_at, now)}</span>
+        <span className={b.expired ? "pill pill-danger" : hoursLeft < 24 ? "pill pill-warn" : "muted shrink-0 whitespace-nowrap text-sm font-semibold"}>{left(b.expires_at, now)}</span>
       </>
     );
     return (

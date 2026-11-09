@@ -6,6 +6,7 @@ import { setManualNight } from "@/lib/theme";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { dateWords, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
+import { dayWord } from "@/lib/typed-time";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, readQueueFor, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
@@ -133,6 +134,23 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       return `${c.type_label} ${c.subject_name}, ${spokenWhen(c.since, tz, lang)} ${t(lang, "to")} ${spokenWhen(c.ended_at, tz, lang)}.`;
     }
     return p.summary.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\s+·\s+/g, ", ").trim();
+  }
+  /** A card's line as people read it: "🍼 Feed · Bottle, 120 ml · today 14:00", never "2026-11-09 14:00". */
+  function cardTitle(p: AssistantProposal): string {
+    const icon = p.summary.match(/^\p{Extended_Pictographic}\uFE0F?/u)?.[0] ?? "";
+    const nowLocal = toLocalInput(new Date().toISOString(), tz);
+    const when = (iso: string) => dayWord(toLocalInput(iso, tz), nowLocal);
+    if (p.kind === "care_entry" && p.care_entry) {
+      const c = p.care_entry;
+      const details = Object.entries(c.payload)
+        .filter(([, v]) => v !== null && v !== "" && v !== undefined)
+        .map(([k, v]) => (k === "amount_ml" ? `${v} ml` : k === "amount_g" ? `${v} g` : k === "duration_min" ? `${v} min` : String(v)))
+        .join(", ");
+      const span = c.ended_at ? `${when(c.occurred_at)} to ${fmtTime(c.ended_at, tz)}` : when(c.occurred_at);
+      return [`${icon} ${c.type_label}`.trim(), details, span].filter(Boolean).join(" · ");
+    }
+    if (p.kind === "end_timer" && p.end_timer) return `${icon || "☀️"} Woke up · ${when(p.end_timer.ended_at)} (asleep since ${fmtTime(p.end_timer.since, tz)})`;
+    return p.summary;
   }
 
   useEffect(() => {
@@ -608,7 +626,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   const writer = can(me, "assistant", "add");
 
   return (
-    <div className={embedded ? "ask flex flex-col gap-3" : "ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3"}>
+    <div className={embedded ? "ask flex min-h-0 flex-1 flex-col gap-3" : "ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3"}>
       {!embedded && <header className="page-header flex items-center justify-between gap-2">
         <h1 className="page-title">Ask</h1>
         <div className="flex gap-1">
@@ -674,7 +692,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         </div>
       )}
 
-      <ol className="flex flex-1 flex-col gap-3" aria-live="polite">
+      <ol className={`flex flex-1 flex-col gap-3 ${embedded ? "min-h-0 overflow-y-auto overscroll-contain" : ""}`} aria-live="polite">
         {msgs.map((m, i) => (
           <li key={i} className={m.role === "user" ? "self-end" : "self-start"} style={{ maxWidth: "92%" }}>
             {(m.role === "user" || m.text || m.streaming || !m.proposals?.length) && (
@@ -683,7 +701,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                 {m.streaming && m.text && <span className="muted"> ▍</span>}
               </div>
             )}
-            {m.role === "assistant" && !m.streaming && !!m.skills?.length && (
+            {m.role === "assistant" && !m.streaming && !embedded && !!m.skills?.length && (
               <p className="muted mt-1 px-1 text-xs" aria-label="Skills used">
                 Used: {m.skills.map((k) => k.title).join(" · ")}
               </p>
@@ -691,7 +709,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
             {m.role === "assistant" && m.choice && i === msgs.length - 1 && !busy && (
               <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={m.choice.question}>
                 {m.choice.options.map((o) => (
-                  <button key={o} type="button" className="chip min-h-[48px] text-base" onClick={() => void ask(o)}>
+                  <button key={o} type="button" className="chip min-h-[48px] text-base" style={{ background: "var(--card)", borderColor: "var(--accent)", color: "var(--accent)" }} onClick={() => void ask(o)}>
                     {o}
                   </button>
                 ))}
@@ -712,7 +730,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
               const st = pstate[p.id] ?? { status: "pending" };
               return (
                 <div key={p.id} className="card mt-2 ring-2 ring-[var(--accent)]">
-                  <p className="font-semibold">{p.summary}</p>
+                  <p className="font-semibold">{cardTitle(p)}</p>
                   {p.plan && (
                     <ol className="mt-1 flex flex-col gap-1 text-sm">
                       {p.plan.steps.map((s) => (
@@ -767,7 +785,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       </ol>
 
       <form
-        className="sticky bottom-[calc(64px+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"
+        className={embedded ? "flex shrink-0 gap-2 border-t border-[var(--line)] bg-[var(--bg)] pt-3" : "sticky bottom-[calc(64px+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"}
         onSubmit={(e) => {
           e.preventDefault();
           if (aloud || talk) unlockAudio();
