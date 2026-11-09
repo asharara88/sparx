@@ -119,6 +119,13 @@ household*); nothing in the code is tied to these people.
   ago" gets asked: fell asleep, or woke? Several things in one message ("120 ml bottle and a wet
   nappy") give one card each and a **Confirm all**. A correction ("no, 90 ml") replaces the
   earlier card instead of adding a second one.
+- **Plain logs need no model call.** "120 ml bottle", "wet nappy", "fell asleep 10 min ago",
+  "woke up at 6:40" and "slept 1 to 2:15" are read on the phone (`lib/assistant/quick-log.ts`)
+  and saved at once, with **Undo** for a minute; "changed a nappy" asks Wet / Dirty / Both
+  there too. No model call, nothing off the daily allowance, and it works offline (the entry
+  waits on the phone). The reader is strict: a word it does not know, two things at once, or
+  a running sleep in the way, and the message goes to the helper as before. English only;
+  other languages go to the helper. One child per home; with more, the helper asks whose.
 - **Morning brief / evening digest** on the home screen: written once per member per day the
   first time the screen is opened (from 06:00, and from 17:00 for "today, in short"), then kept.
 - **Night** button on Ask: a dark screen for 3 am.
