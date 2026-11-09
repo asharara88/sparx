@@ -203,7 +203,7 @@ Three levels, no more.
 |---|---|---|
 | **Now** | Home | Her state (the next-nap window while awake, the running time while asleep or feeding); the one thing that matters now; the four log rows. |
 | **Today** | The child's page | Today / Week / About her. Today: the totals strip and every entry as a list, "+ Log" at the bottom for anything less common than the four. |
-| **Deeper** | Milk, More | Milk: the fridge and freezer as lists. More: one grouped list: Family (chat, members and who's here, calendar, notes, audit log), The helper (ask, what it remembers: suggestions to keep or drop first, then one line to teach it, then the list; what it can do), You (settings). Health and growth live under About her on the child's page. |
+| **Deeper** | Milk, More | Milk: the fridge and freezer as two cards that open to their bottles. More: one grouped list: Family (chat, members and who's here, calendar, notes, audit log), The helper (ask, what it remembers: suggestions to keep or drop first, then one line to teach it, then the list; what it can do), You (settings). Health and growth live under About her on the child's page. |
 
 The bottom bar has Home, the child, a round **＋** in the middle, Milk and More (Huckleberry's
 centre button). ＋ opens the child's log sheet (every kind of entry, *From earlier*) from any
@@ -330,9 +330,11 @@ tabs go to Week, that screen and Ask.
 
 ### Milk
 
-The two totals (fridge, freezer) as two tinted blocks; then FRIDGE and FREEZER as list
-rows ("90 ml · use first", "Pumped today 08:00", "3 days left" on the right; a pill only
-when under a day or past); tapping a bottle opens a sheet with Warmed (or Thaw), Used and
+Fridge and Freezer are one card each, closed, saying how many and how much ("2 bottles ·
+270 ml"); tapping one opens its bottles in place (Mido, 9 November: a long list of bottle
+cards was a mess to the eye). What is past its time is a third card, open by itself. Each
+bottle is a row ("90 ml · use first", "Pumped today 08:00", "3 days left" on the right; a
+pill only when under a day or past); tapping a bottle opens a sheet with Warmed (or Thaw), Used and
 Bin. "Put a bottle away" is the bottom button and opens a sheet: fridge or freezer, the
 usual amounts, another amount, a photo of the label, and one line on how long milk keeps.
 The plan for the day shows only on a day someone is away; how long the fridge will last
