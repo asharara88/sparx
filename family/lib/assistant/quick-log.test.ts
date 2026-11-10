@@ -12,7 +12,9 @@ test("readQuick: bottles in ml, with formula named, and when", async () => {
   assert.deepEqual(readQuick("Log a 120 ml bottle now", NOW, V), { kind: "bottle", amount_ml: 120, milk: null, when: { agoMin: 0 } });
   assert.deepEqual(readQuick("150 ml at 1330", NOW, V), { kind: "bottle", amount_ml: 150, milk: null, when: { local: "2026-11-09T13:30" } });
   assert.equal(readQuick("pumped 120 ml", NOW, V), null, "a pump is not a feed");
-  assert.equal(readQuick("120 ml from the freezer", NOW, V), null, "more than this reader knows goes to the helper");
+  assert.deepEqual(readQuick("120 ml from the freezer", NOW, V), { kind: "bottle", amount_ml: 120, milk: "Freezer", when: { agoMin: 0 } });
+  assert.deepEqual(readQuick("gave her 90 ml of frozen milk", NOW, V), { kind: "bottle", amount_ml: 90, milk: "Freezer", when: { agoMin: 0 } });
+  assert.equal(readQuick("120 ml from the pharmacy", NOW, V), null, "more than this reader knows goes to the helper");
   assert.equal(readQuick("5 ml", NOW, V), null);
 });
 

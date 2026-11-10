@@ -39,7 +39,7 @@ const AGO = [
 
 const QUESTION = /^(is|was|are|were|did|does|do|has|have|had|when|how|what|why|who|where|which|should|can|could|will|would|shall)\b/i;
 const COMMON = new Set(["log", "logged", "add", "she", "shes", "he", "hes", "the", "a", "her", "him", "just", "has", "had", "is", "was", "baby", "we", "i"]);
-const BOTTLE = new Set(["bottle", "of", "fed", "feed", "drank", "drunk", "gave", "took", "finished", "ml", "milk"]);
+const BOTTLE = new Set(["bottle", "of", "fed", "feed", "drank", "drunk", "gave", "took", "finished", "ml", "milk", "from"]);
 const DIAPER = new Set(["nappy", "diaper", "changed", "change", "did", "wet", "dirty", "poo", "poop", "poopy", "pooey", "soiled", "both", "and"]);
 const ASLEEP = new Set(["fell", "asleep", "went", "down", "sleeping", "for", "nap", "napping", "to", "sleep", "started", "now"]);
 const AWAKE = new Set(["woke", "up", "awake", "woken", "got", "wakes", "now"]);
@@ -97,8 +97,11 @@ export function readQuick(message: string, nowLocal: string, vocab: QuickVocab):
     const amount = Number(ml[1]);
     if (amount < 10 || amount > 400) return null;
     const rest = words(t.replace(ml[0], " ml "));
-    const milk = vocab.milks.find((o) => rest.includes(o.toLowerCase()) && !o.includes(" ")) ?? null;
-    if (!rest.every((w) => BOTTLE.has(w) || COMMON.has(w) || (milk && w === milk.toLowerCase()))) return null;
+    // "Formula", "Freezer" by name; "frozen" and "the freezer" mean the freezer's milk too.
+    const freezer = vocab.milks.find((o) => /freez/i.test(o)) ?? null;
+    const named = vocab.milks.find((o) => rest.includes(o.toLowerCase()) && !o.includes(" ")) ?? null;
+    const milk = named ?? (freezer && rest.includes("frozen") ? freezer : null);
+    if (!rest.every((w) => BOTTLE.has(w) || COMMON.has(w) || (milk && (w === milk.toLowerCase() || w === "frozen")))) return null;
     return { kind: "bottle", amount_ml: amount, milk, when };
   }
 

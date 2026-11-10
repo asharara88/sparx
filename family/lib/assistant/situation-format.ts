@@ -81,3 +81,10 @@ export function formatHome(members: HomeNow[]): string {
   const parts = [here.length ? `In the house: ${here.join(", ")}.` : "", away.length ? `Away: ${away.join(", ")}.` : "", working.length ? `Working today: ${working.join(", ")}.` : ""].filter(Boolean);
   return parts.length ? `Household now: ${parts.join(" ")}` : "";
 }
+
+/** "Milk at home: fridge 270 ml in 2 bottles, freezer 360 ml in 2 bags." (the stash, for the helper). */
+export function formatMilk(m: { fridge_ml: number; fridge_count: number; freezer_ml: number; freezer_count: number } | null): string | null {
+  if (!m) return null;
+  const part = (where: string, ml: number, n: number, unit: string) => (n > 0 ? `${where} ${ml} ml in ${n} ${unit}${n === 1 ? "" : "s"}` : `${where} empty`);
+  return `Milk at home: ${part("fridge", m.fridge_ml, m.fridge_count, "bottle")}, ${part("freezer", m.freezer_ml, m.freezer_count, "bag")}.`;
+}

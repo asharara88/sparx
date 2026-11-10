@@ -338,7 +338,11 @@ bottle is a row ("90 ml · use first", "Pumped today 08:00", "3 days left" on th
 pill only when under a day or past); tapping a bottle opens a sheet with Warmed (or Thaw), Used and
 Bin. "Put a bottle away" is the bottom button and opens a sheet: fridge or freezer, the
 usual amounts, another amount, a photo of the label, and one line on how long milk keeps.
-The plan for the day shows only on a day someone is away; how long the fridge will last
+A bottle given takes its milk out of the stash, however it was logged (Home's sheet, the
+helper, Tell me; `lib/milk-take.ts`, Mido, 10 November): "Freezer" milk takes the oldest bag
+out of the freezer, a pumped milk comes out of the fridge, formula or no milk named takes
+nothing. Such a bottle has no Undo (deleting it would not put the milk back); it is fixed
+from its entry. The plan for the day shows only on a day someone is away; how long the fridge will last
 is a fold. Pumping is a row ("Pumping · 250 / 400 ml ›") that opens Home's day cards.
 
 ### The day's cards (Home, below the log card; `/baby/dashboard` goes there)
