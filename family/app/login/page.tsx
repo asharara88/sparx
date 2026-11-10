@@ -29,6 +29,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="tagline mt-1 text-2xl">Care, together.</p>
           <p className="muted mt-1">A shared view of your baby&apos;s day.</p>
           <WelcomeBack />
+          <a href="/welcome" className="inline-flex min-h-[44px] items-center font-semibold text-[var(--accent)]">
+            What is elnunu?
+          </a>
         </div>
       </div>
       <div className="card">

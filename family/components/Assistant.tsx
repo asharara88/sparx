@@ -712,7 +712,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       )}
       {msgs.length === 0 && !embedded && (
         <div className="card">
-          <p className="font-semibold">Ask anything about the house, in your own words.</p>
+          <p className="font-semibold">Ask anything about the family’s day, in your own words.</p>
           <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {quick ? "Say “120 ml bottle”, “wet nappy”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
           {canTalk && <p className="muted mt-1 text-sm">Tap Talk for hands-free: it listens, answers out loud, then listens again. Say “remember that…” to teach it something.</p>}
           <div className="mt-3 flex flex-wrap gap-2">

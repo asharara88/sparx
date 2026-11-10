@@ -73,7 +73,7 @@ because that moment is meant to feel like a win. Only the title, only there.
 
 ## Where it shows
 
-Sign-in screen (mark, both wordmarks, line). Home: the mark beside the date, small; the
+Sign-in screen (mark, both wordmarks, line). The landing page at `/welcome` (mark, wordmark, line, and the second line in its footer). Home: the mark beside the date, small; the
 screen belongs to the child. Me page: a wordmark footer in both scripts. Installed app:
 icon, name, splash colours, push notification title. Everywhere else the brand is the
 colour and the type, not a logo.
