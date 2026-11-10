@@ -870,3 +870,81 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
 @keyframes celebrate-in { from { opacity: 0; } }
 @keyframes celebrate-pop { from { transform: scale(0.6) translateY(40px); opacity: 0; } }
 @keyframes celebrate-spin { 0% { transform: scale(0.2) rotateY(540deg); } 70% { transform: scale(1.12) rotateY(0); } 100% { transform: scale(1); } }
+
+/* ------------------------------------------------------------------------------------------
+   The landing page (/welcome): one column on a phone, copy beside a phone picture on a wide
+   screen. Tokens only, so the dark theme comes for free. */
+.welcome { min-height: 100dvh; background: var(--bg); color: var(--fg); overflow-x: clip; }
+.welcome-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: max(10px, env(safe-area-inset-top)) 20px 10px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.welcome main { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+.welcome-hero, .welcome-feature { display: grid; gap: 28px; align-items: center; padding: 40px 0; }
+.welcome-hero { padding-top: 32px; }
+.welcome-copy { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.welcome-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 7vw, 3.25rem); line-height: 1.08; }
+.welcome-lead { font-size: 1.15rem; line-height: 1.55; }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+.welcome-actions .btn { flex: 1 1 220px; }
+.welcome-h2 { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.6rem, 5vw, 2.25rem); line-height: 1.15; }
+.welcome-kicker { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.welcome-kicker-tint {
+  align-self: flex-start; padding: 4px 12px; border-radius: 999px;
+  background: var(--tint); color: var(--tint-fg);
+}
+.welcome-body { display: flex; flex-direction: column; gap: 10px; font-size: 1.05rem; line-height: 1.6; }
+.welcome-visual { display: flex; justify-content: center; }
+.welcome-feature { border-top: 1px solid var(--line); }
+.welcome-section { padding: 40px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.welcome-section > p:not(.welcome-kicker) { font-size: 1.05rem; line-height: 1.6; max-width: 46rem; }
+
+.phone { margin: 0; width: min(78vw, 300px); }
+.phone img {
+  display: block; width: 100%; height: auto;
+  border-radius: 34px; border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -24px color-mix(in srgb, var(--fg) 45%, transparent), 0 2px 8px color-mix(in srgb, var(--fg) 10%, transparent);
+  background: var(--card);
+}
+
+.chat-demo {
+  width: min(86vw, 360px); display: flex; flex-direction: column; gap: 10px;
+  padding: 20px; border-radius: 28px; background: var(--card); border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -28px color-mix(in srgb, var(--fg) 40%, transparent);
+}
+.bubble { max-width: 85%; padding: 10px 14px; border-radius: 18px; line-height: 1.4; }
+.bubble-me { align-self: flex-end; background: var(--accent); color: var(--accent-fg); border-bottom-right-radius: 6px; }
+.bubble-them { align-self: flex-start; background: var(--guide); color: var(--guide-fg); border-bottom-left-radius: 6px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.chip-demo { display: inline-flex; align-items: center; min-height: 32px; padding: 0 14px; border-radius: 999px; background: var(--card); color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+
+.welcome-roles { display: grid; gap: 12px; }
+.welcome-role { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: 20px; background: var(--tint); color: var(--tint-fg); }
+.welcome-role-who { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; }
+.welcome-role-what { line-height: 1.5; }
+.welcome-list { display: grid; gap: 10px; }
+.welcome-list li { display: flex; gap: 12px; align-items: baseline; font-size: 1.05rem; line-height: 1.5; }
+.welcome-list li::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 999px; background: var(--apricot); transform: translateY(-1px); }
+
+.welcome-cta {
+  margin: 24px 0 48px; padding: 40px 24px; border-radius: 32px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  background: var(--card-2); border: 1px solid var(--line);
+}
+.welcome-cta .welcome-actions { width: 100%; max-width: 520px; }
+.welcome-footer {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 28px 20px max(28px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line);
+}
+
+@media (min-width: 840px) {
+  .welcome-hero, .welcome-feature { grid-template-columns: 1.15fr 0.85fr; gap: 56px; padding: 64px 0; }
+  .welcome-flip .welcome-copy { order: 2; }
+  .welcome-flip .welcome-visual { order: 1; }
+  .welcome-roles { grid-template-columns: repeat(3, 1fr); }
+  .welcome-list { grid-template-columns: 1fr 1fr; column-gap: 32px; }
+  .phone { width: 300px; }
+}

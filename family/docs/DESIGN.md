@@ -393,6 +393,20 @@ The database awards them from the log (migration 5900); the client never writes 
 - **The shelf**: one card per kind, every medal in a row (won in its metal, the rest a grey
   outline to aim for), what the next needs with a bar, and the latest won.
 
+### The landing page (`/welcome`)
+
+What someone who is not in a home sees at elnunu.com (signed out, `/` goes there; deeper links
+still go to sign-in). It is the one page that is not a phone screen of the app: it explains,
+so it may scroll and run long, but it keeps the app's voice and tokens. One column on a phone,
+copy beside a phone picture from 840 px. Each feature block is: a tinted label, a title that
+says the benefit, at most two short paragraphs, one real screen. Two buttons only, the same
+two everywhere: "Start your family's home" and "Sign in".
+
+The pictures are real screens taken in screenshot mode on a made-up family (Mia, Sara, Omar),
+never the live family. Retake them when a screen they show changes: rename the demo family in
+a copy of the database, shift the demo day so it ends mid-afternoon, and match the server and
+browser clocks (`scripts/fake-clock.cjs`, Playwright's `clock.install`).
+
 ## The parts to build with
 
 Use these; extend one before adding a new one, and add any new one here.
