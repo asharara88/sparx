@@ -101,16 +101,30 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     setMsg(null);
     const payload = { ...choice.payload, ...detail, ...(choice.key === "breast" && lasted != null ? { duration_min: lasted } : {}) };
     const r = await sendOrQueue(supabaseBrowser(), { client_id: newClientId(), subject_id: subjectId, type_id: choice.type.id, occurred_at: startIso, ended_at: endIso, payload, note: null });
-    if (r.status === "saved" && choice.key === "pump" && detail.amount_ml) await supabaseBrowser().rpc("milk_add", { p_amount_ml: detail.amount_ml, p_location: "fridge", p_pumped_at: startIso, p_note: null });
+    // A pump's bottle goes in the fridge only with the server; otherwise say the count was not updated.
+    let fridge = "";
+    if (choice.key === "pump" && detail.amount_ml && r.status !== "error") {
+      let added = false;
+      if (r.status === "saved") {
+        try {
+          const { data, error } = await supabaseBrowser().rpc("milk_add", { p_amount_ml: detail.amount_ml, p_location: "fridge", p_pumped_at: startIso, p_note: null });
+          added = !error && !!(data as { ok?: boolean } | null)?.ok;
+        } catch {
+          added = false;
+        }
+      }
+      if (!added) fridge = " The fridge count was not updated: add the bottle on Milk.";
+    }
     setBusy(false);
     if (r.status === "error") return setMsg(r.message);
-    setMsg(`${choice.label} saved for ${fmtTime(startIso, timezone)}${endIso ? ` to ${fmtTime(endIso, timezone)}` : ""}${r.status === "queued" ? " (will send when back online)" : ""}.`);
+    setMsg(`${choice.label} saved for ${fmtTime(startIso, timezone)}${endIso ? ` to ${fmtTime(endIso, timezone)}` : ""}${r.status === "queued" ? " (will send when back online)" : ""}.${fridge}`);
     setWhat(null);
     setLasted(null);
     setDetail({});
     setWhen(startWhen());
     router.refresh();
-    if (r.status === "saved") onSaved?.();
+    // Closing the sheet would hide a fridge warning: it stays open to be read.
+    if (r.status === "saved" && !fridge) onSaved?.();
   }
 
   if (!can(me, "lana", "add") || choices.length === 0) return null;

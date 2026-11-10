@@ -57,6 +57,8 @@ export function EntryForm(props: {
   const [note, setNote] = useState(initial.note);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // The entry was saved but its photo was not: Save would make a second entry, so only Done is offered.
+  const [savedAway, setSavedAway] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoText, setPhotoText] = useState("");
   const home = subject.module_id === "lana" ? "/" : `/${subject.module_id}`;
@@ -70,6 +72,7 @@ export function EntryForm(props: {
   }
 
   async function save(extra: Record<string, unknown> = {}) {
+    if (savedAway) return; // Enter in a field after the save must not log it twice
     const finalPayload = cleanPayload({ ...payload, ...extra }, visible);
     const occurredIso = fromLocalInput(occurred, tz);
     const endedIso = endApplies && !stillGoing && ended ? fromLocalInput(ended, tz) : null;
@@ -94,17 +97,27 @@ export function EntryForm(props: {
         setBusy(false);
         return setMsg(r.message);
       }
+      // The entry is saved either way; a photo that did not go with it is said on this
+      // screen (leaving straight away would hide the message), and Done then goes home.
+      let photoMsg: string | null = null;
       if (photo && r.status === "saved") {
         try {
           const path = await uploadPhoto(photo, "entries");
-          await supabase.rpc("attachment_add", { p_module: subject.module_id, p_table: "care_entries", p_entity_id: r.id, p_path: path, p_caption: null, p_ocr_text: photoText || null });
+          const { data, error } = await supabase.rpc("attachment_add", { p_module: subject.module_id, p_table: "care_entries", p_entity_id: r.id, p_path: path, p_caption: null, p_ocr_text: photoText || null });
+          const res = data as { ok?: boolean; message?: string } | null;
+          if (error || !res?.ok) photoMsg = `Saved, but the photo was not added${res?.message ? `: ${res.message}` : "."} Open the entry to try again.`;
         } catch {
-          setMsg("Saved, but the photo did not upload. Open the entry to add it again.");
+          photoMsg = "Saved, but the photo did not upload. Open the entry to add it again.";
         }
       } else if (photo && r.status === "queued") {
-        setMsg("Saved on this phone; the photo can be added once you are back online.");
+        photoMsg = "Saved on this phone; the photo can be added once you are back online.";
       }
       setBusy(false);
+      if (photoMsg) {
+        setMsg(photoMsg);
+        setSavedAway(true);
+        return;
+      }
       router.push(home);
       router.refresh();
       return;
@@ -294,10 +307,23 @@ export function EntryForm(props: {
         </p>
       )}
 
-      {!readOnly && (
-        <button type="submit" className="btn btn-primary min-h-[64px] text-xl" disabled={busy}>
-          {busy ? "Saving…" : "Save"}
+      {savedAway ? (
+        <button
+          type="button"
+          className="btn btn-primary min-h-[64px] text-xl"
+          onClick={() => {
+            router.push(home);
+            router.refresh();
+          }}
+        >
+          Done
         </button>
+      ) : (
+        !readOnly && (
+          <button type="submit" className="btn btn-primary min-h-[64px] text-xl" disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+        )
       )}
       {mode === "edit" && props.canDelete && (
         <button type="button" className="btn btn-danger" onClick={remove} disabled={busy}>

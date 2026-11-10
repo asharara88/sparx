@@ -124,6 +124,8 @@ export function LanaNow({
   // What the rows say happened last, with this phone's taps counted before the server answers.
   const seen = mergeRecent(recent, subject.id, queue);
   const queuedRef = useRef(false);
+  // A line a tap adds after its label ("In the fridge."), said before the offline note.
+  const afterRef = useRef<string | null>(null);
 
   const canAdd = can(me, "lana", "add");
   const canEdit = can(me, "lana", "edit");
@@ -214,6 +216,7 @@ export function LanaNow({
     setMsg(null);
     setUndo(null);
     queuedRef.current = false;
+    afterRef.current = null;
     // Alone: no other tap in flight when this one started or while it ran.
     const alone = flight.current === 0;
     flight.current += 1;
@@ -226,7 +229,8 @@ export function LanaNow({
       if (undoable && alone && runSeq.current === seq && !ended.current && !stash.current && logged.current.length && logged.current.every((id) => id) && canDelete)
         setUndo({ ids: logged.current as string[], until: Date.now() + 30_000 });
       const base = isEarlier(when) && sayTime ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
-      setMsg(queuedRef.current ? `${base} Saved on this phone; it will send when back online.` : base);
+      const said = afterRef.current ? `${base} ${afterRef.current}` : base;
+      setMsg(queuedRef.current ? `${said} Saved on this phone; it will send when back online.` : said);
       if (isEarlier(when)) lastEarlier.current = { when: { kind: "at", local: toLocalInput(whenIso, timezone) }, at: Date.now() };
       setWhen(NOW);
       setSheet(null);
@@ -509,9 +513,20 @@ export function LanaNow({
                 className="chip min-h-[60px] text-xl"
                 disabled={off}
                 onClick={() =>
-                  run(`Pumped ${ml} ml, in the fridge.`, async () => {
+                  run(`Pumped ${ml} ml.`, async () => {
                     const saved = await start(pumpType, { amount_ml: ml }, nowIso);
-                    if (saved.status === "saved") await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
+                    // The bottle goes in the fridge only with the server; a pump kept on this
+                    // phone, or a failed add, says so rather than leave the count short unseen.
+                    if (saved.status !== "saved") {
+                      afterRef.current = "The fridge count was not updated: add the bottle on Milk once back online.";
+                      return;
+                    }
+                    try {
+                      await rpc("milk_add", { p_amount_ml: ml, p_location: "fridge", p_pumped_at: nowIso, p_note: null });
+                      afterRef.current = "In the fridge.";
+                    } catch {
+                      afterRef.current = "The fridge count was not updated: add the bottle on Milk.";
+                    }
                   }, true, false)
                 }
               >

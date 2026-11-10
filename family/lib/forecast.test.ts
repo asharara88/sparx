@@ -63,6 +63,9 @@ test("feed fullness: side, minutes and bottle size", () => {
   const usual = [150, 150, 150].map((n, i) => feedRow(NOW - (i + 1) * H, { method: "Bottle", amount_ml: n }));
   assert.equal(feedFullness(feedRow(NOW, { method: "Bottle", amount_ml: 75 }), usual), 0.5);
   assert.equal(feedFullness(feedRow(NOW, { method: "Bottle", amount_ml: 40 })), 40 / 120);
+  // An even count: the mean of the middle two (80, 100, 140, 150 → 120), as the database does.
+  const four = [80, 100, 140, 150].map((n, i) => feedRow(NOW - (i + 1) * H, { method: "Bottle", amount_ml: n }));
+  assert.equal(feedFullness(feedRow(NOW, { method: "Bottle", amount_ml: 60 }), four), 0.5);
 });
 
 test("next feed comes sooner after a small feed, never under an hour", () => {

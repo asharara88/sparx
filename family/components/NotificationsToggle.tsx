@@ -49,7 +49,12 @@ export function NotificationsToggle() {
       const json = sub.toJSON();
       const { data, error } = await supabaseBrowser().rpc("push_subscribe", { p_endpoint: sub.endpoint, p_p256dh: json.keys?.p256dh, p_auth: json.keys?.auth, p_user_agent: navigator.userAgent });
       const res = data as { ok: boolean; message?: string } | null;
-      if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not save.");
+      if (error || !res?.ok) {
+        // Not on the server, so nothing would ever arrive: drop the phone's half too, or the
+        // next load would read the phone's subscription and show "on".
+        await sub.unsubscribe().catch(() => false);
+        throw new Error(res?.message ?? error?.message ?? "Could not save.");
+      }
       setHere("on");
       await load();
     } catch (e) {
