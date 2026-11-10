@@ -549,14 +549,27 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         if (r.status === "error") throw new Error(r.message);
         // A bottle given comes out of the stash, as from Home's bottle sheet (lib/milk-take.ts).
         const from = r.status === "saved" && !r.open ? milkSource(c.payload) : null;
+        let moved = false;
         if (from) {
-          const { data } = await supabase.rpc("milk_consume", { p_ml: Number(c.payload.amount_ml), p_note: null, p_location: from });
-          const short = shortLine(from, Number((data as { short_ml?: number } | null)?.short_ml ?? 0));
-          if (short) savedWord = `${savedWord} ${short}`;
+          // When the stash cannot be updated (no signal, a refusal), the card says so: the
+          // bottle is saved, the milk is still counted, and Undo stays (nothing moved).
+          let res: { data: unknown; error: unknown } = { data: null, error: "offline" };
+          try {
+            res = await supabase.rpc("milk_consume", { p_ml: Number(c.payload.amount_ml), p_note: null, p_location: from });
+          } catch {
+            /* no signal: said on the card below */
+          }
+          const out = res.data as { ok?: boolean; short_ml?: number } | null;
+          if (res.error || !out?.ok) savedWord = `${savedWord} The ${from} count was not updated: mark the bottle used on Milk.`;
+          else {
+            moved = true;
+            const short = shortLine(from, Number(out.short_ml ?? 0));
+            if (short) savedWord = `${savedWord} ${short}`;
+          }
         }
         // A timer already running (someone else started it) is not this card's to undo.
         // Nor one that took milk out of the stash: deleting the entry would not put the milk back.
-        if (r.status === "saved" && !r.open && !from) savedId = r.id;
+        if (r.status === "saved" && !r.open && !moved) savedId = r.id;
         saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? (r.open ? "That was already running." : savedWord) : offline);
       } else if (p.kind === "end_timer" && p.end_timer) {
         const c = p.end_timer;
