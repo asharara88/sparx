@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { milkSource, shortLine } from "@/lib/milk-take";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EntryRow, EntryType, OngoingEntry, Subject } from "@/lib/types";
@@ -453,11 +454,13 @@ export function LanaNow({
                     onClick={() =>
                       run(`Bottle ${ml} ml saved.`, async () => {
                         const saved = await start(feedType, { method: "Bottle", milk, amount_ml: ml }, nowIso);
-                        // The fridge count is best effort: it is skipped while the feed waits on the phone.
-                        if (saved.status === "saved" && !/formula/i.test(milk)) {
-                          const r = await rpc("milk_consume", { p_ml: ml, p_note: null });
-                          const short = Number((r as { short_ml?: number }).short_ml ?? 0);
-                          if (short > 0) setMsg(`Bottle ${ml} ml saved. The fridge was ${short} ml short.`);
+                        // The stash is best effort: it is skipped while the feed waits on the phone. Freezer
+                        // milk comes out of the freezer, pumped milk out of the fridge (lib/milk-take.ts).
+                        const from = milkSource({ method: "Bottle", milk, amount_ml: ml });
+                        if (saved.status === "saved" && from) {
+                          const r = await rpc("milk_consume", { p_ml: ml, p_note: null, p_location: from });
+                          const short = shortLine(from, Number((r as { short_ml?: number }).short_ml ?? 0));
+                          if (short) setMsg(`Bottle ${ml} ml saved. ${short}`);
                         }
                       })
                     }

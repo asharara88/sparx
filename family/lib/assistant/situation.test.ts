@@ -82,3 +82,10 @@ test("today's meals are in the counts once the child eats, and not before", () =
   assert.match(formatSituation({ ...base, mealsToday: 1 }), /3 nappies, 1 meal\./);
   assert.match(formatSituation({ ...base, ageDays: 120 }), /Today so far: 4 feeds, 3 nappies\./);
 });
+
+test("formatMilk: the stash in one line for the helper", async () => {
+  const { formatMilk } = await import("./situation-format.ts");
+  assert.equal(formatMilk({ fridge_ml: 270, fridge_count: 2, freezer_ml: 120, freezer_count: 1 }), "Milk at home: fridge 270 ml in 2 bottles, freezer 120 ml in 1 bag.");
+  assert.equal(formatMilk({ fridge_ml: 0, fridge_count: 0, freezer_ml: 0, freezer_count: 0 }), "Milk at home: fridge empty, freezer empty.");
+  assert.equal(formatMilk(null), null);
+});

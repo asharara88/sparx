@@ -535,6 +535,14 @@ select pg_temp.assert((select private.milk_expires_at(b) from public.milk_bottle
 select pg_temp.assert((select sum((x->>'ml')::int) from consumed, jsonb_array_elements(r->'used') x) = 120, 'exactly 120 ml came out');
 select pg_temp.assert((select count(*) from public.milk_bottles where note = 'newer' and used_at is null) = 1, 'the newest bottle is still open');
 select pg_temp.assert((public.milk_consume(500))->>'short_ml' <> '0', 'a huge bottle reports a shortfall');
+-- Migration 6000: a freezer bottle comes out of the freezer, oldest bag first; the fridge is left alone.
+select pg_temp.assert((public.milk_add(150, 'freezer', now() - interval '20 days', 'old bag'))->>'ok' = 'true', 'Dana freezes an older bag');
+select pg_temp.assert((public.milk_add(150, 'freezer', now() - interval '2 days', 'new bag'))->>'ok' = 'true', 'and a newer one');
+create temp table fridge_before as select coalesce(sum(amount_ml), 0) as ml from public.milk_bottles where location = 'fridge' and used_at is null and deleted_at is null;
+select pg_temp.assert((public.milk_consume(150, null, 'freezer'))->>'location' = 'freezer', 'a 150 ml freezer bottle is taken from the freezer');
+select pg_temp.assert((select used_at is not null from public.milk_bottles where note = 'old bag') and (select used_at is null from public.milk_bottles where note = 'new bag'), 'the oldest bag went first');
+select pg_temp.assert((select coalesce(sum(amount_ml), 0) from public.milk_bottles where location = 'fridge' and used_at is null and deleted_at is null) = (select ml from fridge_before), 'and the fridge was not touched');
+select pg_temp.assert((public.milk_consume(60, null, 'cupboard'))->>'error' = 'bad_location', 'there is no cupboard');
 reset role;
 select pg_temp.act_as(:lilly);
 set role authenticated;

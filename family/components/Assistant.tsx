@@ -7,6 +7,7 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { dateWords, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { dayWord } from "@/lib/typed-time";
+import { milkSource, shortLine } from "@/lib/milk-take";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, readQueueFor, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
@@ -533,7 +534,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     setPstate((s) => ({ ...s, [p.id]: { status: "saving" } }));
     const supabase = supabaseBrowser();
     // What is said (and shown) after the tap, in the member's language.
-    const savedWord = `${t(lang, "saved")}.`;
+    let savedWord = `${t(lang, "saved")}.`;
     let result = savedWord;
     let savedId: string | null = null;
     const saved = (href: string | undefined, note: string) => {
@@ -546,8 +547,16 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const c = p.care_entry;
         const r = await sendOrQueue(supabase, { client_id: newClientId(), subject_id: c.subject_id, type_id: c.type_id, occurred_at: c.occurred_at, ended_at: c.ended_at, payload: c.payload, note: c.note });
         if (r.status === "error") throw new Error(r.message);
+        // A bottle given comes out of the stash, as from Home's bottle sheet (lib/milk-take.ts).
+        const from = r.status === "saved" && !r.open ? milkSource(c.payload) : null;
+        if (from) {
+          const { data } = await supabase.rpc("milk_consume", { p_ml: Number(c.payload.amount_ml), p_note: null, p_location: from });
+          const short = shortLine(from, Number((data as { short_ml?: number } | null)?.short_ml ?? 0));
+          if (short) savedWord = `${savedWord} ${short}`;
+        }
         // A timer already running (someone else started it) is not this card's to undo.
-        if (r.status === "saved" && !r.open) savedId = r.id;
+        // Nor one that took milk out of the stash: deleting the entry would not put the milk back.
+        if (r.status === "saved" && !r.open && !from) savedId = r.id;
         saved(r.status === "saved" ? `/entry/${r.id}` : undefined, r.status === "saved" ? (r.open ? "That was already running." : savedWord) : offline);
       } else if (p.kind === "end_timer" && p.end_timer) {
         const c = p.end_timer;

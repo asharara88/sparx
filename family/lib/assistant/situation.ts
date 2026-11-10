@@ -5,7 +5,7 @@ import { ageOutlook } from "@/lib/child-insights";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { pronouns } from "@/lib/names";
-import { formatHome, formatSituation, type HomeNow } from "./situation-format";
+import { formatHome, formatMilk, formatSituation, type HomeNow } from "./situation-format";
 
 /**
  * The situation snapshot: a few lines the model gets before it says anything,
@@ -38,6 +38,7 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
   const today = todayYmd(ctx.tz, ctx.now);
   const parts: string[] = [];
   const homeP = can(ctx.me, "members", "view") ? ctx.supabase.rpc("household_today") : null;
+  const milkP = kids.length ? ctx.supabase.rpc("milk_list") : null;
   for (const s of kids) {
     const [{ data: sum }, { data: planData }, { data: histData }, { data: statsData }] = await Promise.all([
       ctx.supabase.rpc("home_summary", { p_subject_id: s.id }),
@@ -84,6 +85,12 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
         week: weekAverages(rows, today),
       }) + (lastLine ? `\n${lastLine}` : ""),
     );
+  }
+  if (milkP) {
+    const { data } = await milkP;
+    const m = data as { ok?: boolean; fridge_ml: number; fridge_count: number; freezer_ml: number; freezer_count: number } | null;
+    const line = m?.ok ? formatMilk(m) : null;
+    if (line) parts.push(line);
   }
   if (homeP) {
     const { data } = await homeP;
