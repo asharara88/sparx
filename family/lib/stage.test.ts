@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awakeWindow, feedGapFor, feedLateMin, range, stageFor, stageOf, SOLIDS_FROM_DAYS } from "./stage.ts";
+import { ageInDays, awakeWindow, feedGapFor, feedLateMin, range, stageFor, stageOf, SOLIDS_FROM_DAYS } from "./stage.ts";
 
 test("under 6 months nothing moves: the awake windows, the 3 h feed gap and the 4 h / 5 h late feed are as before", () => {
   assert.deepEqual([41, 42, 83, 84, 119, 120, 154, 179].map(awakeWindow), [[45, 60], [60, 90], [60, 90], [75, 120], [75, 120], [105, 150], [105, 150], [105, 150]]);
@@ -50,4 +50,16 @@ test("the nap count says where the day is against what is usual, never an alarm"
   assert.equal(napsLine(0, [2, 3], true), "no nap yet, usually 2–3");
   assert.equal(napsLine(1, [2, 3], false), "1 nap", "a past day: just the count");
   assert.equal(napsLine(0, [0, 1], true), "no nap yet");
+});
+
+test("age goes up at the home's midnight, not at UTC midnight", () => {
+  // 02:30 on 10 Nov in Dubai is still 9 Nov in UTC.
+  const at = Date.parse("2026-11-09T22:30:00Z");
+  assert.equal(ageInDays("2026-05-26", at, "Asia/Dubai"), 168);
+  assert.equal(ageInDays("2026-05-26", at, "UTC"), 167);
+  assert.equal(ageInDays("2026-05-26", at), 167, "no zone given: UTC, as before");
+  // The day she turns 24 weeks, solids start at midnight at home.
+  assert.equal(stageFor("2026-05-26", at, "Asia/Dubai").solids, true);
+  assert.equal(ageInDays(null, at, "Asia/Dubai"), null);
+  assert.equal(ageInDays("2026-05-26T00:00:00Z", at, "Asia/Dubai"), 168, "a timestamp birth date reads as its day");
 });

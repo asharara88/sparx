@@ -132,7 +132,7 @@ export default async function HomePage() {
   const lastBottleMl = Number(recent.find((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle")?.payload.amount_ml) || 120;
 
   // ---- below the rows: the day's picture (what /baby/dashboard showed until 7 November).
-  const stage = summary && summary.ok ? stageFor(summary.subject.birth_date) : null;
+  const stage = summary && summary.ok ? stageFor(summary.subject.birth_date, Date.now(), tz) : null;
   const showFood = !!stage && !!summary && summary.ok && (stage.solids || !!summary.last["lana.meal"]);
   const inStock = !!milkOk && milkOk.fridge_count + milkOk.freezer_count > 0;
   const showPump = !!summary && summary.ok && (!!me.member.breastfeeds || me.role.id === "admin") && (pumpingActive(summary.last["lana.pump"]?.occurred_at ?? null) || inStock);

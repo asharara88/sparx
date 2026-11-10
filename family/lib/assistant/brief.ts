@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Brief, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, todayYmd, ymdInZone } from "@/lib/time";
+import { ageInDays } from "@/lib/stage";
 import { ageOutlook } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
 import { storyMonth } from "@/lib/story";
@@ -65,7 +66,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
     const kids = ctx.subjects.filter((s) => s.kind === "child" && can(me, s.module_id, "view"));
     const wk: Record<string, unknown> = {};
     for (const s of kids) {
-      const ageDays = s.birth_date ? Math.floor((now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : null;
+      const ageDays = ageInDays(s.birth_date, now.getTime(), tz);
       wk[`${s.name}_age`] = ageDays != null ? ageOutlook(ageDays) : null;
       const lw = ageDays != null ? leapWeek(ageDays) : null;
       wk[`${s.name}_week`] = lw ? { week: lw.week, stretch: lw.band.title, expect: lw.band.expect, often_harder: lw.band.tough, tip: lw.band.tip, next: lw.next?.title ?? null, weeks_to_next: lw.weeksToNext } : null;

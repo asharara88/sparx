@@ -42,7 +42,7 @@ export default async function SleepPage() {
   const sleeps = entries.filter((e) => e.type_id === sleepType.id || e.type_id === "lana.wake").filter((e) => Date.parse(e.occurred_at) >= Date.parse(dayRange(addDays(today, -6), tz).from));
   const days = (((statsData as { days?: DayStats[] } | null)?.days ?? []) as DayStats[]).filter((d) => d.day < today);
   const lastNight = days.find((d) => d.day === addDays(today, -1));
-  const stage = stageFor(summary.subject.birth_date);
+  const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
   const asleep = summary.ongoing.find((e) => e.type_id === sleepType.id) ?? null;
   const name = summary.subject.name;
 

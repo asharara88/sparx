@@ -6,7 +6,7 @@ import { fmtDate } from "@/lib/time";
 import { childName, possessive } from "@/lib/names";
 import { coreBlock, routedBlock, skillIndex } from "./skills";
 import { memoriesBlock, recapsBlock } from "./memory";
-import { range, stageOf } from "@/lib/stage";
+import { ageInDays, range, stageOf } from "@/lib/stage";
 
 /**
  * The system prompt has three blocks, longest-lived first so the cache works:
@@ -125,7 +125,7 @@ export function volatileSystem(ctx: ToolContext): string {
   const ages = ctx.subjects
     .filter((s) => s.kind === "child" && s.birth_date)
     .map((s) => {
-      const days = Math.floor((ctx.now.getTime() - Date.parse(s.birth_date!)) / 86_400_000);
+      const days = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz) ?? 0;
       const st = stageOf(days);
       const usual = `usual now (${st.label}): ${range(st.naps)} naps, awake ${st.awake[0]} to ${st.awake[1]} min between sleeps, milk feeds up to about every ${st.feedEveryMin / 60} h${st.meals ? `, ${range(st.meals)} meals a day` : ""}`;
       return `${s.name} is ${days} days old (${Math.floor(days / 7)} weeks, about ${(days / 30.44).toFixed(1)} months); ${usual}.`;

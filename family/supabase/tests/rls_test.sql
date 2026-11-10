@@ -1641,6 +1641,19 @@ set role anon;
 select pg_temp.assert(pg_temp.fails('select public.achievements_check()'), 'signed out, no badges');
 reset role;
 
+-- Migration 6100: the feed gap counts her age on the home's calendar, not the server's (UTC).
+-- At UTC+14 the home's date is ahead of UTC for most of the day, so a check on the home's
+-- date tells the two apart: 183 days at home is past 6 months (4 h), 182 is not (3 h).
+create temp table mido_tz as select h.id, h.timezone from public.household h join public.members m on m.household_id = h.id where m.id = :mido;
+update public.household set timezone = 'Pacific/Kiritimati' where id = (select id from mido_tz);
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(private.feed_every_min((now() at time zone 'Pacific/Kiritimati')::date - 183) = 240
+  and private.feed_every_min((now() at time zone 'Pacific/Kiritimati')::date - 182) = 180, 'the feed gap changes at the home''s midnight');
+reset role;
+update public.household h set timezone = t.timezone from mido_tz t where h.id = t.id;
+select pg_temp.assert(not has_function_privilege('anon', 'private.feed_every_min(date)', 'execute'), 'anon still cannot call the feed gap');
+
 -- The rows every home shares name no family (migration 5400): a new home reads its own names only.
 do $$
 declare t record; v_n bigint;

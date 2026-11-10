@@ -7,6 +7,7 @@ import { EVENT_KINDS, can } from "@/lib/types";
 import { addDays, dayRange, parseHouseholdTime, todayYmd, toLocalInput } from "@/lib/time";
 import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
+import { ageInDays } from "@/lib/stage";
 import { tipsFor } from "@/lib/child-guide";
 import type { EntryRow } from "@/lib/types";
 import { ambulanceOf } from "@/lib/emergency";
@@ -588,7 +589,7 @@ function sleepRhythm(ctx0: ToolContext): AssistantTool {
       const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - 14 * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
       if (!r.ok) return r;
       const entries = ((r.entries as EntryRow[]) ?? []).filter((e) => e.type_id.endsWith(".sleep"));
-      const ageDays = s.birth_date ? Math.floor((ctx.now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : 120;
+      const ageDays = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz) ?? 120;
       const hourOf = (iso: string) => {
         const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ctx.tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
         return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
@@ -601,7 +602,7 @@ function sleepRhythm(ctx0: ToolContext): AssistantTool {
 }
 
 function ageDaysOf(ctx: ToolContext, s: SubjectInfo): number {
-  return s.birth_date ? Math.floor((ctx.now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : 120;
+  return ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz) ?? 120;
 }
 
 function ageOutlookTool(ctx0: ToolContext): AssistantTool {
@@ -844,7 +845,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
   const recaps = ((recapData as { ok?: boolean; items?: ChatRecap[] } | null)?.items ?? []) as ChatRecap[];
   const skills = (((skillData as { ok?: boolean; items?: AssistantSkill[] } | null)?.items ?? []) as AssistantSkill[]).map((s) => ({ ...s, triggers: Array.isArray(s.triggers) ? s.triggers : [] }));
   const child = subs.find((s) => s.kind === "child" && s.birth_date);
-  const ageDays = child?.birth_date ? Math.floor((now.getTime() - Date.parse(child.birth_date)) / 86_400_000) : null;
+  const ageDays = ageInDays(child?.birth_date, now.getTime(), me.household.timezone);
   const selection = selectSkills(opts.question ?? "", skills, { ageDays, history: opts.history });
   return {
     skills,
