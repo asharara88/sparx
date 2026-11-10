@@ -54,7 +54,10 @@ export function feedFullness(e: Pick<EntryRow, "payload" | "occurred_at" | "ende
   if (p.method === "Bottle" || (ml > 0 && p.method !== "Breast")) {
     if (!(ml > 0)) return 1;
     const mls = entries.filter((x) => x.type_id === "lana.feed" && x.payload.method === "Bottle").map((x) => Number(x.payload.amount_ml)).filter((n) => n > 20).sort((a, b) => a - b);
-    const usual = mls.length >= 3 ? mls[Math.floor(mls.length / 2)] : 120;
+    // The middle bottle; with an even count the mean of the middle two, as percentile_cont(0.5)
+    // does in private.usual_bottle_ml, so this screen and home_summary give the same feed time.
+    const mid = Math.floor(mls.length / 2);
+    const usual = mls.length >= 3 ? (mls.length % 2 ? mls[mid] : (mls[mid - 1] + mls[mid]) / 2) : 120;
     return clamp(ml / Math.max(usual, 30), 0, 1);
   }
   const mins = Number(p.duration_min) || (e.ended_at ? (t(e.ended_at) - t(e.occurred_at)) / MIN : 0);

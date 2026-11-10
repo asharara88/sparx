@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MilkReading, RpcError } from "@/lib/types";
 import { downscale } from "@/lib/photos";
+import { fromLocalInput } from "@/lib/time";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
 
@@ -61,10 +62,8 @@ export function MilkScan({ timezone, bare = false }: { timezone: string; bare?: 
     // Pumped at: the label's date at 07:00 (morning) or 22:00 (night) in the household's clock; else now.
     let pumpedAt: string | null = null;
     if (date) {
-      const hour = source === "night" ? 22 : 7;
-      const probe = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00Z`);
-      const local = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(probe);
-      pumpedAt = new Date(probe.getTime() + (hour - Number(local)) * 3_600_000).toISOString();
+      // The label's own day: "night, 9 Nov" is 22:00 on 9 Nov at home (it was read as 10 Nov east of UTC).
+      pumpedAt = fromLocalInput(`${date}T${source === "night" ? "22" : "07"}:00`, timezone);
     }
     const note = [reading?.kind === "bag" ? "bag" : null, source || null].filter(Boolean).join(" · ") || null;
     const { data, error } = await supabaseBrowser().rpc("milk_add", { p_amount_ml: Number(ml), p_location: where, p_pumped_at: pumpedAt ?? new Date().toISOString(), p_note: note });

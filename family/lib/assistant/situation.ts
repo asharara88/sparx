@@ -5,6 +5,7 @@ import { ageOutlook } from "@/lib/child-insights";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { pronouns } from "@/lib/names";
+import { hhmmIn } from "@/lib/night";
 import { formatHome, formatMilk, formatSituation, type HomeNow } from "./situation-format";
 
 /**
@@ -58,8 +59,14 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
     const ageDays = s.birth_date ? Math.floor((ctx.now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : null;
     const o = ageDays != null ? ageOutlook(ageDays) : null;
     const phase = o ? `Phase: ${o.now.length ? o.now.map((w) => w.split(":")[0]).join("; ") : "a quiet stretch"}${o.next[0] ? `; next: ${o.next[0].what.split(":")[0].toLowerCase()} in about ${o.next[0].inAboutDays} days` : ""}. Usual awake window ${o.awakeWindowMin[0]} to ${o.awakeWindowMin[1]} min.` : null;
-    const rows = ((statsData as { ok?: boolean; days?: DayRow[] } | null)?.days ?? []) as DayRow[];
-    const night = rows.find((d) => d.day === addDays(today, -1));
+    const stats = statsData as { ok?: boolean; days?: DayRow[]; night_to?: string } | null;
+    const rows = (stats?.days ?? []) as DayRow[];
+    // A day's row holds the night that starts that evening. Yesterday's is last night once the
+    // night is over; before then (03:00) it is the night still going, so the last full night
+    // is the row before.
+    const nightTo = /^\d{2}:\d{2}/.test(stats?.night_to ?? "") ? stats!.night_to!.slice(0, 5) : "07:00";
+    const nightOver = hhmmIn(ctx.now, ctx.tz) >= nightTo;
+    const night = rows.find((d) => d.day === addDays(today, nightOver ? -1 : -2));
     const lastNight = night && ((night.night_sleep_min ?? 0) > 0 || (night.night_wakes ?? 0) > 0 || (night.night_feeds ?? 0) > 0) ? { sleepMin: night.night_sleep_min ?? 0, wakes: night.night_wakes ?? 0, feeds: night.night_feeds ?? 0, longestMin: night.longest_stretch_min ?? 0 } : null;
     parts.push(
       formatSituation({

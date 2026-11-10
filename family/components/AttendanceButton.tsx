@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AttendanceOpen } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -12,7 +12,11 @@ import { Icon } from "@/components/Icon";
  */
 export function AttendanceButton({ open, memberId, name, timezone, small = false }: { open: AttendanceOpen | null; memberId?: string; name?: string; timezone: string; small?: boolean }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // The button flips the state on the server, and its label comes from the page: it stays
+  // off until the refreshed page arrives, or a second tap would check straight back out.
+  const [refreshing, startRefresh] = useTransition();
+  const busy = saving || refreshing;
   const [msg, setMsg] = useState<string | null>(null);
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -20,13 +24,19 @@ export function AttendanceButton({ open, memberId, name, timezone, small = false
     return () => clearInterval(t);
   }, []);
   async function toggle() {
-    setBusy(true);
+    if (busy) return;
+    setSaving(true);
     setMsg(null);
     const { data, error } = await supabaseBrowser().rpc("attendance_toggle", { p_member_id: memberId ?? null });
-    setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
-    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
-    router.refresh();
+    if (error || !res?.ok) {
+      setSaving(false);
+      return setMsg(res?.message ?? error?.message ?? "Could not save.");
+    }
+    startRefresh(() => {
+      setSaving(false);
+      router.refresh();
+    });
   }
   if (small) {
     return (

@@ -336,8 +336,13 @@ function dueSoon(): AssistantTool {
     run: async (input, ctx) => {
       const r = await rpc(ctx, "care_due_list", { p_days_ahead: Number(input.days_ahead ?? 30) || 30 });
       if (!r.ok) return r;
+      // A feed's "interval" row is the last start plus the type's fixed gap; it ignores how
+      // long and how full the feed was and the gap for her age, so it would contradict Home.
+      // The next feed comes from home_summary, already in the snapshot ("Next feed due").
+      const items = ((r.items as Record<string, unknown>[]) ?? []).filter((d) => !(d.kind === "interval" && String(d.type_id ?? "").endsWith(".feed")));
       return {
-        items: ((r.items as Record<string, unknown>[]) ?? []).map((d) => {
+        note: "The next feed is not listed here: use 'Next feed due' from the snapshot.",
+        items: items.map((d) => {
           if (d.entry_id) ctx.refs[d.entry_id as string] = { href: `/${d.module_id}/entry/${d.entry_id}`, label: `${d.label}` };
           return { subject: d.subject, what: d.label, due: local(d.due_at as string, ctx.tz), overdue: d.overdue, entry_id: d.entry_id ?? undefined };
         }),

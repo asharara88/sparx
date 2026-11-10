@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
-import { fmtDate } from "@/lib/time";
+import { dayRange, fmtDate } from "@/lib/time";
 import { ageDays, ageLabel } from "@/lib/norms";
 import { Photo } from "@/components/Photo";
 import { PageHeader } from "@/components/PageHeader";
@@ -23,7 +23,7 @@ export default async function MilestonesPage() {
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/baby");
   const s = summary.subject;
-  const from = s.birth_date ? `${s.birth_date}T00:00:00Z` : "2000-01-01T00:00:00Z";
+  const from = s.birth_date ? dayRange(s.birth_date, tz).from : "2000-01-01T00:00:00Z";
   const { data: listData } = await supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: from, p_to: new Date(Date.now() + 86_400_000).toISOString() });
   const entries = (((listData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[]).filter((e) => e.type_id === "lana.milestone");
   const ids = entries.map((e) => e.id);

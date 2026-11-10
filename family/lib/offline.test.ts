@@ -427,3 +427,14 @@ test("in flight: a confirmed end keeps hiding the sleep while the screen's list 
     store.clear();
   }
 });
+
+test("two flushes at once send each queued item once", async () => {
+  store.clear();
+  enqueue({ ...start("twice-1", "user-1") });
+  const { client, calls } = fakeSupabase("user-1", () => ({ ok: true, id: "srv-t" }));
+  const [a, b] = await Promise.all([flushQueue(client), flushQueue(client)]);
+  assert.deepEqual(calls.map((c) => c.args.p_client_id), ["twice-1"]);
+  assert.deepEqual(a, { sent: 1, failed: 0 });
+  assert.deepEqual(b, a);
+  assert.deepEqual(readQueue(), []);
+});

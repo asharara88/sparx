@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { childPronouns } from "@/lib/names";
 import type { DailyStats, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
-import { fmtDate, todayYmd } from "@/lib/time";
+import { dayRange, fmtDate, todayYmd } from "@/lib/time";
 import { ageLabel } from "@/lib/norms";
 import { currentMonth, storyMonth } from "@/lib/story";
 import { getBrief } from "@/lib/assistant/brief";
@@ -41,7 +41,7 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
 
   const [{ data: statsData }, { data: listData }, story] = await Promise.all([
     supabase.rpc("care_daily_stats", { p_subject_id: s.id, p_from: span.from, p_to: span.to }),
-    supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: `${span.from}T00:00:00Z`, p_to: `${span.to}T23:59:59Z` }),
+    supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: dayRange(span.from, tz).from, p_to: dayRange(span.to, tz).to }),
     can(me, "assistant", "view") ? getBrief(supabase, me, "story", false, { month }).catch(() => null) : Promise.resolve(null),
   ]);
   const stats = statsData as DailyStats | RpcError | null;

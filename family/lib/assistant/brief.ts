@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Brief, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
-import { addDays, todayYmd } from "@/lib/time";
+import { addDays, todayYmd, ymdInZone } from "@/lib/time";
 import { ageOutlook } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
 import { storyMonth } from "@/lib/story";
@@ -36,7 +36,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
   const tz = me.household.timezone;
   const now = new Date();
   const today = todayYmd(tz, now);
-  if (kind === "story") return getStory(supabase, me, opts.month ?? 0, refresh, today);
+  if (kind === "story") return getStory(supabase, me, opts.month ?? 0, refresh, today, tz);
   // The weekly note is keyed by its week's Sunday, so it is written once a week.
   const day = kind === "week" ? addDays(today, -new Date(`${today}T12:00:00Z`).getUTCDay()) : today;
 
@@ -140,7 +140,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
  * Keyed by the monthly birthday that closes the month. A month still running
  * is written as "so far" and rewritten on request.
  */
-async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh: boolean, today: string): Promise<{ ok: true; brief: Brief; fresh: boolean } | RpcError> {
+async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh: boolean, today: string, tz: string): Promise<{ ok: true; brief: Brief; fresh: boolean } | RpcError> {
   const ctx = await loadContext(supabase, me, new Date());
   const kid = ctx.subjects.find((s) => s.kind === "child" && s.birth_date && can(me, s.module_id, "view"));
   if (!kid || !kid.birth_date) return { ok: false, error: "no_subject", message: "No child with a birth date to write about." };
@@ -154,8 +154,9 @@ async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh
   } else if (!refresh) {
     const { data } = await supabase.rpc("assistant_brief_get", { p_day: day, p_kind: "story" });
     const got = data as { ok: boolean; brief: Brief | null } | null;
-    // A running month is rewritten at most once a day.
-    if (got?.ok && got.brief && got.brief.created_at.slice(0, 10) === today) return { ok: true, brief: got.brief, fresh: false };
+    // A running month is rewritten at most once a day: the home's day, not the server's (UTC)
+    // one, or between midnight and 04:00 in the Gulf every view would pay for a new story.
+    if (got?.ok && got.brief && ymdInZone(new Date(got.brief.created_at), tz) === today) return { ok: true, brief: got.brief, fresh: false };
   }
   if (!assistantConfigured()) return { ok: false, error: "not_configured", message: "The assistant is not set up yet (no ANTHROPIC_API_SECRET_KEY on the server)." };
   const allowed = await checkAllowance(supabase, me);

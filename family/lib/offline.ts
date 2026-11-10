@@ -402,7 +402,17 @@ async function endOp(supabase: SupabaseClient, e: QueuedEnd): Promise<SendResult
  * Each operation goes to the home it was made in (its request names it), so a phone
  * that has since switched homes still writes the entry where it belongs.
  */
-export async function flushQueue(supabase: SupabaseClient): Promise<{ sent: number; failed: number }> {
+let flushing: Promise<{ sent: number; failed: number }> | null = null;
+
+export function flushQueue(supabase: SupabaseClient): Promise<{ sent: number; failed: number }> {
+  // One flush at a time: the sign-in check, the "online" event and the 30 s timer can all
+  // fire while a slow send is still out, and a second pass would send the same end again
+  // and report the server's "already ended" as a failure.
+  if (!flushing) flushing = flushOnce(supabase).finally(() => { flushing = null; });
+  return flushing;
+}
+
+async function flushOnce(supabase: SupabaseClient): Promise<{ sent: number; failed: number }> {
   const owner = await currentOwner(supabase);
   if (!owner) return { sent: 0, failed: 0 };
   let sent = 0;
