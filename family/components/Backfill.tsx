@@ -123,7 +123,8 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     setDetail({});
     setWhen(startWhen());
     router.refresh();
-    if (r.status === "saved") onSaved?.();
+    // Closing the sheet would hide a fridge warning: it stays open to be read.
+    if (r.status === "saved" && !fridge) onSaved?.();
   }
 
   if (!can(me, "lana", "add") || choices.length === 0) return null;
