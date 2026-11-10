@@ -1,4 +1,4 @@
-import { SOLIDS_FROM_DAYS } from "@/lib/stage";
+import { ageInDays, SOLIDS_FROM_DAYS } from "@/lib/stage";
 import type { ToolContext } from "./tools";
 import { local } from "./tools";
 import { ageOutlook } from "@/lib/child-insights";
@@ -56,7 +56,7 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
     const p = (planData as { ok?: boolean; plan?: { goal: string; day: number; days: number; today_step?: string | null; done_today?: boolean } | null } | null)?.plan ?? null;
     const last = ((histData as { ok?: boolean; plans?: { goal: string; status: string; done: number; days?: number; to?: string; notes?: string[] }[] } | null)?.plans ?? [])[0];
     const lastLine = !p && last && last.status !== "active" ? `Last plan "${last.goal}" ended ${last.to ?? ""} (${last.status}, ${last.done} days ticked${last.notes?.length ? `; notes: ${last.notes.slice(0, 2).join("; ")}` : ""}).` : null;
-    const ageDays = s.birth_date ? Math.floor((ctx.now.getTime() - Date.parse(s.birth_date)) / 86_400_000) : null;
+    const ageDays = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz);
     const o = ageDays != null ? ageOutlook(ageDays) : null;
     const phase = o ? `Phase: ${o.now.length ? o.now.map((w) => w.split(":")[0]).join("; ") : "a quiet stretch"}${o.next[0] ? `; next: ${o.next[0].what.split(":")[0].toLowerCase()} in about ${o.next[0].inAboutDays} days` : ""}. Usual awake window ${o.awakeWindowMin[0]} to ${o.awakeWindowMin[1]} min.` : null;
     const stats = statsData as { ok?: boolean; days?: DayRow[]; night_to?: string } | null;

@@ -637,7 +637,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     }
   }
   async function removeChat(id: string) {
-    await supabaseBrowser().rpc("ask_chat_remove", { p_id: id });
+    const { data, error } = await supabaseBrowser().rpc("ask_chat_remove", { p_id: id });
+    const res = data as { ok: boolean; message?: string } | null;
+    if (error || !res?.ok) {
+      window.alert(res?.message ?? error?.message ?? "Could not remove that chat. Try again.");
+      return;
+    }
     if (id === chatId) clear();
     router.refresh();
   }

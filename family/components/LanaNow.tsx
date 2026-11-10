@@ -351,7 +351,7 @@ export function LanaNow({
   const nappySub = lastNappy && ago(diaperType?.id, "") !== "" ? `${ago(diaperType?.id, "")}${lastNappy.payload.kind ? ` · ${String(lastNappy.payload.kind).toLowerCase()}` : ""}` : "Wet or dirty";
   // The fourth row grows with the child (DESIGN.md, "Home"): Meal once she eats (lib/stage),
   // before that Pump for the parent who pumps while pumping goes on, else Medicine.
-  const stage = stageFor(subject.birth_date, clock);
+  const stage = stageFor(subject.birth_date, clock, timezone);
   const fourth: "meal" | "pump" | "meds" = stage.solids && mealType ? "meal" : breastfeeds && pumpType && pumpingActive(lastPumpAt, clock) ? "pump" : "meds";
   const lastMeal = lastOf(mealType?.id);
   const mealSub = lastMeal && ago(mealType?.id, "") !== "" ? `${ago(mealType?.id, "")}${lastMeal.payload.food ? ` · ${String(lastMeal.payload.food).toLowerCase()}` : ""}` : "What was eaten";

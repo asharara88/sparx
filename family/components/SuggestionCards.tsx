@@ -23,7 +23,8 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
   const [msg, setMsg] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<Record<string, Set<number>>>({});
   const list = suggestions.filter((s) => SHOWN.has(s.kind) && !gone.has(s.id));
-  if (list.length === 0) return null;
+  // The last card approved: its "put on the calendar" line still shows once the cards are gone.
+  if (list.length === 0) return msg.done ? <p className="notice notice-ok font-semibold">{msg.done}</p> : null;
 
   async function decide(s: Suggestion, decision: "approve" | "dismiss") {
     setBusy(s.id);

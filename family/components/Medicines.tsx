@@ -57,8 +57,11 @@ export function Medicines({ subjectId, items, timezone, compact = false }: { sub
   async function remove(m: Medicine) {
     if (!window.confirm(`Remove ${m.name} from the list? Doses already logged stay in the log.`)) return;
     setBusy(m.id);
-    await supabaseBrowser().rpc("medicine_remove", { p_id: m.id });
+    setMsg(null);
+    const { data, error } = await supabaseBrowser().rpc("medicine_remove", { p_id: m.id });
     setBusy(null);
+    const res = data as { ok: boolean; message?: string } | null;
+    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? `Could not remove ${m.name}.`);
     router.refresh();
   }
 

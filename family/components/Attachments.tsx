@@ -60,7 +60,10 @@ export function Attachments({
   }
   async function remove(id: string) {
     if (!confirm("Remove this photo?")) return;
-    await supabaseBrowser().rpc("attachment_remove", { p_id: id });
+    setMsg(null);
+    const { data, error } = await supabaseBrowser().rpc("attachment_remove", { p_id: id });
+    const res = data as { ok: boolean; message?: string } | null;
+    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not remove the photo.");
     await load();
   }
 
@@ -95,8 +98,13 @@ export function Attachments({
               {busy ? "Saving…" : "Save photo"}
             </button>
           )}
-          {msg && <p className="text-sm text-[var(--danger)]">{msg}</p>}
         </div>
+      )}
+      {/* Outside the add form: a failed remove is said to someone who cannot add, too. */}
+      {msg && (
+        <p role="alert" className="mt-2 text-sm text-[var(--danger)]">
+          {msg}
+        </p>
       )}
     </section>
   );

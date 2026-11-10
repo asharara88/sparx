@@ -3,7 +3,7 @@ import { normsForAge } from "@/lib/norms";
 import { nextFeedAt } from "@/lib/forecast";
 import { ageOutlook, growthSpurt } from "@/lib/child-insights";
 import { cap, possessive, pronouns } from "@/lib/names";
-import { feedGapFor, feedLateMin, stageOf } from "@/lib/stage";
+import { ageInDays, feedGapFor, feedLateMin, stageOf } from "@/lib/stage";
 
 /**
  * The child's guide: the last 24 hours against what is usual for their age, as
@@ -26,7 +26,7 @@ const mins = (ms: number) => Math.round(ms / 60_000);
 export const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`);
 
 export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Date.now(), opts: GuideOptions = {}): Tip[] {
-  const days = birthDate ? Math.floor((now - Date.parse(birthDate)) / 86_400_000) : 120;
+  const days = ageInDays(birthDate, now, opts.timezone ?? "UTC") ?? 120;
   const name = opts.name?.trim() || "the baby";
   const pr = pronouns(opts.sex);
   const n = normsForAge(days);

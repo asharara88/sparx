@@ -16,6 +16,8 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
   const canTick = can(me, "lana", "add");
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  // A tick that did not save, said under its own row.
+  const [failed, setFailed] = useState<{ id: string; message: string } | null>(null);
   const now = items.filter((a) => a.band === "now");
   const coming = items.filter((a) => a.band === "coming");
   // Three a day, rotating through what the child has not tried yet so the same three do not sit there for a month.
@@ -25,8 +27,11 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
 
   async function tick(a: Activity) {
     setBusy(a.id);
-    await supabaseBrowser().rpc("activity_tick", { p_subject_id: subjectId, p_activity_id: a.id, p_done: !a.done_on, p_note: null });
+    setFailed(null);
+    const { data, error } = await supabaseBrowser().rpc("activity_tick", { p_subject_id: subjectId, p_activity_id: a.id, p_done: !a.done_on, p_note: null });
     setBusy(null);
+    const res = data as { ok: boolean; message?: string } | null;
+    if (error || !res?.ok) return setFailed({ id: a.id, message: res?.message ?? error?.message ?? "Could not save that tick. Try again." });
     router.refresh();
   }
 
@@ -45,6 +50,11 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
           <span className="muted block text-sm">{a.how}</span>
         </button>
       </div>
+      {failed?.id === a.id && (
+        <p role="alert" className="mt-1 pl-[52px] text-sm text-[var(--danger)]">
+          {failed.message}
+        </p>
+      )}
       {open === a.id && (
         <div className="muted mt-2 pl-[52px] text-sm">
           <p>{a.why}</p>

@@ -22,7 +22,7 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso }: { summar
   };
   const night = nightWindow(summary.subject.settings);
   const s = sleepDay(entries, start, now, { bedtimeHour: hours(night.from, 19), morningHour: hours(night.to, 7), hourOf });
-  const usual = stageFor(summary.subject.birth_date, now).naps;
+  const usual = stageFor(summary.subject.birth_date, now, timezone).naps;
   const feeds = summary.today_counts?.["lana.feed"] ?? 0;
   const nappies = summary.today_counts?.["lana.diaper"] ?? 0;
   const cells = [

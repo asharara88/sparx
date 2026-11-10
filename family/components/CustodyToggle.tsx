@@ -23,6 +23,7 @@ export function CustodyToggle({
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState<{ id: string; display_name: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   const allowed = can(me, "lana", "add");
 
   useEffect(() => {
@@ -37,10 +38,14 @@ export function CustodyToggle({
 
   async function choose(memberId: string) {
     setBusy(true);
-    const { data } = await supabaseBrowser().rpc("custody_set", { p_subject_id: subjectId, p_member_id: memberId });
+    setMsg(null);
+    const { data, error } = await supabaseBrowser().rpc("custody_set", { p_subject_id: subjectId, p_member_id: memberId });
     setBusy(false);
+    const res = data as { ok: boolean; message?: string } | null;
+    // On failure the menu stays open and says why, rather than closing as if it worked.
+    if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not change that. Try again.");
     setOpen(false);
-    if ((data as { ok: boolean })?.ok) router.refresh();
+    router.refresh();
   }
 
   const name = childName(me);
@@ -56,6 +61,11 @@ export function CustodyToggle({
       {open && (
         <div className={`${inline ? "fixed inset-x-4 top-[calc(env(safe-area-inset-top)+5.5rem)] z-40" : "absolute right-0 z-10 mt-2 w-64"} rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg`}>
           <p className="muted px-2 py-1 text-sm">Who has {name} now?</p>
+          {msg && (
+            <p role="alert" className="notice notice-danger my-1 text-sm">
+              {msg}
+            </p>
+          )}
           {members.length === 0 && <p className="px-2 py-2">Loading…</p>}
           {members.map((m) => (
             <button

@@ -54,16 +54,22 @@ export function stageOf(ageDays: number): Stage {
   return s("24+", "2 years and over", [0, 1], 300, [3, 3]);
 }
 
-/** Age in whole days on a given instant (birth date as YYYY-MM-DD). */
-export function ageInDays(birthDate: string | null | undefined, now = Date.now()): number | null {
+/**
+ * Age in whole days at an instant (birth date as YYYY-MM-DD), counted on the home's
+ * calendar: it goes up at local midnight. Counted from the instant instead, it went up at
+ * 04:00 in the Gulf (UTC midnight), so a stage (solids, the feed gap) changed 4 h late.
+ */
+export function ageInDays(birthDate: string | null | undefined, now = Date.now(), tz = "UTC"): number | null {
   if (!birthDate) return null;
-  const b = Date.parse(birthDate);
-  return Number.isFinite(b) ? Math.floor((now - b) / 86_400_000) : null;
+  const b = Date.parse(birthDate.slice(0, 10));
+  if (!Number.isFinite(b)) return null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return Math.round((Date.parse(today) - b) / 86_400_000);
 }
 
 /** The stage for a child, or the newborn-ish default (120 days) the app has always assumed when no birth date is known. */
-export function stageFor(birthDate: string | null | undefined, now = Date.now()): Stage {
-  return stageOf(ageInDays(birthDate, now) ?? 120);
+export function stageFor(birthDate: string | null | undefined, now = Date.now(), tz = "UTC"): Stage {
+  return stageOf(ageInDays(birthDate, now, tz) ?? 120);
 }
 
 /** "2–3", "2". */

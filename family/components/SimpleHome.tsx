@@ -13,6 +13,7 @@ import { child, childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
 import { ListenButton } from "@/components/ListenButton";
 import { awakeWindow } from "@/lib/child-insights";
+import { ageInDays } from "@/lib/stage";
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 function recognitionCtor(): (new () => Recognition) | null {
@@ -87,7 +88,7 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   }
   if (!openSleep && lastSleep?.ended_at && subject.birth_date) {
     const awake = minutesSince(lastSleep.ended_at);
-    const [lo, hi] = awakeWindow(Math.floor((now - Date.parse(subject.birth_date)) / 86_400_000));
+    const [lo, hi] = awakeWindow(ageInDays(subject.birth_date, now, timezone) ?? 120);
     if (awake >= lo && awake <= 360) hints.push(L("sleepyNow"));
     else if (awake >= lo - 30 && awake < lo) hints.push(L("sleepySoon"));
     void hi;
@@ -265,16 +266,27 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
 
 function FullScreenLink({ label }: { label: string }) {
   const router = useRouter();
+  const [msg, setMsg] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      className="btn-ghost text-sm"
-      onClick={async () => {
-        await supabaseBrowser().rpc("me_prefs_save", { p_simple_mode: false });
-        router.refresh();
-      }}
-    >
-      {label}
-    </button>
+    <>
+      <button
+        type="button"
+        className="btn-ghost text-sm"
+        onClick={async () => {
+          setMsg(null);
+          const { data, error } = await supabaseBrowser().rpc("me_prefs_save", { p_simple_mode: false });
+          const res = data as { ok: boolean; message?: string } | null;
+          if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not switch. Try again.");
+          router.refresh();
+        }}
+      >
+        {label}
+      </button>
+      {msg && (
+        <p role="alert" className="text-sm text-[var(--danger)]">
+          {msg}
+        </p>
+      )}
+    </>
   );
 }
