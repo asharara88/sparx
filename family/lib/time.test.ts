@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dateWords, fmtDate, fmtDateTime, fmtTime, fmtWhen, fromLocalInput, ISO_IN_TEXT, parseHouseholdTime, toLocalInput } from "./time.ts";
+import { dateWords, dayRange, fmtDate, fmtDateTime, fmtTime, fmtWhen, fromLocalInput, ISO_IN_TEXT, parseHouseholdTime, toLocalInput } from "./time.ts";
 
 const at = "2026-10-14T15:50:00Z"; // Wed 14 Oct 2026, 19:50 in Dubai
 
@@ -69,4 +69,12 @@ test("a meal reads plainly: no 'No' or 'None', the new food and an allergen name
   const { describePayload } = await import("./time.ts");
   assert.equal(describePayload({ food: "Avocado", amount: "A few spoons", new_food: "No", allergen: "None", reaction: "None" }), "Avocado · A few spoons");
   assert.equal(describePayload({ food: "Egg", new_food: "Yes", allergen: "Egg", reaction: "Rash" }), "Egg · first time · allergen: egg · reaction: rash");
+});
+
+test("dayRange runs midnight to midnight, also on a clock-change day", () => {
+  assert.deepEqual(dayRange("2026-11-10", "Asia/Dubai"), { from: "2026-11-09T20:00:00.000Z", to: "2026-11-10T20:00:00.000Z" });
+  // London falls back on 25 Oct 2026: a 25-hour day, 23:30 local is 23:30Z and still that day.
+  assert.deepEqual(dayRange("2026-10-25", "Europe/London"), { from: "2026-10-24T23:00:00.000Z", to: "2026-10-26T00:00:00.000Z" });
+  // and springs forward on 29 Mar 2026: a 23-hour day.
+  assert.deepEqual(dayRange("2026-03-29", "Europe/London"), { from: "2026-03-29T00:00:00.000Z", to: "2026-03-29T23:00:00.000Z" });
 });

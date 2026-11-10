@@ -71,9 +71,8 @@ export function fmtDuration(min: number): string {
 
 /** Local day boundaries (as ISO) for a YYYY-MM-DD date in the given timezone. */
 export function dayRange(dateYmd: string, tz: string): { from: string; to: string } {
-  const start = zonedMidnight(dateYmd, tz);
-  const end = new Date(start.getTime() + 24 * 3600 * 1000);
-  return { from: start.toISOString(), to: end.toISOString() };
+  // To the next local midnight, not start + 24 h: a clock-change day is 23 or 25 hours long.
+  return { from: zonedMidnight(dateYmd, tz).toISOString(), to: zonedMidnight(addDays(dateYmd, 1), tz).toISOString() };
 }
 
 /** The Date for 00:00 of a calendar day in a timezone. */
