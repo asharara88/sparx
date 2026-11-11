@@ -9,6 +9,7 @@ interface AvatarOption { id: string; label: string }
 // Default selectable HeyGen avatars. Override by setting HEYGEN_AVATARS in .env to a
 // JSON array like [{"id":"...","label":"..."}] — no code change needed to add/rename.
 const DEFAULT_AVATARS: AvatarOption[] = [
+  { id: '616dbc1cbc584b91966c7d6d5d907632', label: 'Default' },
   { id: 'f5f59b95a7db4fc68db96e98a76cd955', label: 'Avatar 1' },
   { id: '6c6da497880347ab856a5a8a415cbee2', label: 'Avatar 2' },
   { id: '0344ecb550dd46dda9e9b35b63664a52', label: 'Ahmed Sharara' },
