@@ -818,7 +818,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       </ol>
 
       <form
-        className={embedded ? "flex shrink-0 gap-2 border-t border-[var(--line)] bg-[var(--bg)] pt-3" : "sticky bottom-[calc(64px+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"}
+        className={embedded ? "flex shrink-0 gap-2 border-t border-[var(--line)] bg-[var(--bg)] pt-3" : "ask-composer sticky bottom-[calc(64px+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"}
         onSubmit={(e) => {
           e.preventDefault();
           if (aloud || talk) unlockAudio();

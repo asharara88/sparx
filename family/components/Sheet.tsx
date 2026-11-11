@@ -18,6 +18,21 @@ export function Sheet({ title, onClose, children, fill = false }: { title: strin
   }, [onClose]);
   const [host, setHost] = useState<HTMLElement | null>(null);
   useEffect(() => setHost(document.body), []);
+  // The page behind stays still while a sheet is open: on an iPhone a drag inside the sheet
+  // otherwise scrolls the page under it. Counted, so a sheet over a sheet keeps the lock.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.sheets = String(Number(root.dataset.sheets ?? 0) + 1);
+    root.classList.add("sheet-open");
+    return () => {
+      const left = Number(root.dataset.sheets ?? 1) - 1;
+      if (left > 0) root.dataset.sheets = String(left);
+      else {
+        delete root.dataset.sheets;
+        root.classList.remove("sheet-open");
+      }
+    };
+  }, []);
   const node = (
     <div className="sheet-backdrop" onClick={onClose} role="presentation">
       <div className={fill ? "sheet sheet-fill" : "sheet"} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
