@@ -7,21 +7,45 @@ import { PipelineError } from '../errors.js';
 import { createStore, type StateStore } from '../state/store.js';
 import * as budget from './budget.js';
 
+// Gate decisions (Build-Spec §3.2): a bare boolean is still accepted for
+// back-compat (true=approve, false=hold). 'revise' returns control to the
+// gate's upstream working state with the creator's notes attached; 'reject'
+// fails the episode.
+export type GateDecision =
+  | { action: 'approve' }
+  | { action: 'hold' }
+  | { action: 'revise'; notes: string }
+  | { action: 'reject'; notes?: string };
+
 export interface ProducerOpts {
   autoApproveGates?: boolean;   // dev: auto-pass A/B/C so the skeleton runs end to end
   store?: StateStore;
-  onGate?: (gate: 'A' | 'B' | 'C', state: EpisodeState) => Promise<boolean>; // return true=approve
+  onGate?: (gate: 'A' | 'B' | 'C', state: EpisodeState) => Promise<boolean | GateDecision>;
   maxRetries?: number;
+  maxRevisionsPerGate?: number; // safety valve on revise loops (default 3)
   log?: (msg: string) => void;
 }
 
 const RETRYABLE_STATES: EpisodeStatus[] = ['generating'];
+
+// Where a gate's "revise" sends the episode back to.
+const REVISE_TARGET: Record<'A' | 'B' | 'C', EpisodeStatus> = {
+  A: 'researching',
+  B: 'scripting',
+  C: 'assembling',
+};
+
+function asDecision(d: boolean | GateDecision): GateDecision {
+  if (typeof d === 'boolean') return d ? { action: 'approve' } : { action: 'hold' };
+  return d;
+}
 
 export class Producer {
   private store: StateStore;
   private autoApprove: boolean;
   private onGate?: ProducerOpts['onGate'];
   private maxRetries: number;
+  private maxRevisionsPerGate: number;
   private log: (m: string) => void;
 
   constructor(opts: ProducerOpts = {}) {
@@ -29,6 +53,7 @@ export class Producer {
     this.autoApprove = opts.autoApproveGates ?? (process.env.AUTO_APPROVE_GATES === 'true');
     this.onGate = opts.onGate;
     this.maxRetries = opts.maxRetries ?? 2;
+    this.maxRevisionsPerGate = opts.maxRevisionsPerGate ?? 3;
     this.log = opts.log ?? (() => {});
     // Fail fast on wiring mistakes: machine ↔ registry mismatch, unknown skill declarations.
     const problems = [...validateMachine(AGENTS), ...validateAgents(AGENTS)];
@@ -49,22 +74,50 @@ export class Producer {
       const def = MACHINE[state.status];
       if (def === null) { this.log(`■ terminal: ${state.status}`); return state; }
 
-      // Gate states: pause for human approval.
+      // Gate states: pause for a human decision (approve / hold / revise / reject).
       if (def.gate) {
-        const approved = this.autoApprove
-          ? true
-          : this.onGate ? await this.onGate(def.gate, state) : false;
-        await this.pushHistory(state, 'producer', `gate_${def.gate}_${approved ? 'approved' : 'held'}`);
-        if (!approved) {
-          this.log(`▌ holding at GATE ${def.gate} (${state.status}) — awaiting human approval`);
-          await this.store.save(state);
-          return state;
+        const gate = def.gate;
+        let decision = asDecision(this.autoApprove ? true : this.onGate ? await this.onGate(gate, state) : false);
+
+        // Safety valve: unbounded revise loops burn money forever. Past the cap,
+        // the episode holds at the gate for a human to approve or reject.
+        if (decision.action === 'revise' && state.revisions.filter((r) => r.gate === gate).length >= this.maxRevisionsPerGate) {
+          this.log(`▌ GATE ${gate}: revision cap (${this.maxRevisionsPerGate}) reached — holding instead`);
+          await this.pushHistory(state, 'producer', `gate_${gate}_revision_cap_reached`);
+          decision = { action: 'hold' };
         }
-        this.applyGateApproval(state, def.gate);
-        state.status = def.next;
-        await this.store.save(state);
-        this.log(`✓ GATE ${def.gate} approved → ${state.status}`);
-        continue;
+
+        switch (decision.action) {
+          case 'approve': {
+            await this.pushHistory(state, 'producer', `gate_${gate}_approved`);
+            this.applyGateApproval(state, gate);
+            state.status = def.next;
+            await this.store.save(state);
+            this.log(`✓ GATE ${gate} approved → ${state.status}`);
+            continue;
+          }
+          case 'revise': {
+            state.revisions.push({ gate, notes: decision.notes, at: new Date().toISOString(), resolved: false });
+            await this.pushHistory(state, 'producer', `gate_${gate}_revise:${decision.notes.slice(0, 160)}`);
+            state.status = REVISE_TARGET[gate];
+            await this.store.save(state);
+            this.log(`↩ GATE ${gate} revise → ${state.status} (notes: ${decision.notes.slice(0, 80)})`);
+            continue;
+          }
+          case 'reject': {
+            await this.pushHistory(state, 'producer', `gate_${gate}_rejected${decision.notes ? ':' + decision.notes.slice(0, 160) : ''}`);
+            state.status = 'failed';
+            await this.store.save(state);
+            this.log(`✗ GATE ${gate} rejected — episode failed`);
+            return state;
+          }
+          case 'hold': {
+            await this.pushHistory(state, 'producer', `gate_${gate}_held`);
+            this.log(`▌ holding at GATE ${gate} (${state.status}) — awaiting human decision`);
+            await this.store.save(state);
+            return state;
+          }
+        }
       }
 
       // Guard before entering a (already-current) working state's transition.
@@ -94,10 +147,16 @@ export class Producer {
   }
 
   private async runState(state: EpisodeState, stages: string[][]): Promise<boolean> {
+    // A pending revision targeting THIS working state carries the creator's notes
+    // to every agent in it (via params), and is marked resolved once the state's
+    // stages complete — the next gate then reviews the revised output.
+    const revision = state.revisions.find((r) => !r.resolved && REVISE_TARGET[r.gate] === state.status);
+    const params = revision ? { revision_notes: revision.notes, revision_gate: revision.gate } : undefined;
+
     for (const stage of stages) {
       if (stage.length === 0) continue;
 
-      const results = await Promise.all(stage.map((name) => this.invokeWithRetry(state, name)));
+      const results = await Promise.all(stage.map((name) => this.invokeWithRetry(state, name, params)));
 
       // Merge each stage's writes before the next stage runs, so dependent
       // agents (e.g. visual_director, music) see upstream outputs.
@@ -120,10 +179,14 @@ export class Producer {
         return false;
       }
     }
+    if (revision) {
+      revision.resolved = true;
+      await this.pushHistory(state, 'producer', `revision_${revision.gate}_applied`);
+    }
     return true;
   }
 
-  private async invokeWithRetry(state: EpisodeState, name: string): Promise<AgentResult> {
+  private async invokeWithRetry(state: EpisodeState, name: string, params?: Record<string, unknown>): Promise<AgentResult> {
     const agent = AGENTS[name];
     if (!agent) return { episode_id: state.episode_id, agent: name, status: 'failed', writes: {}, cost_usd: 0, notes: 'unknown agent' };
 
@@ -140,6 +203,7 @@ export class Producer {
           episode_id: state.episode_id,
           agent: name,
           state,
+          params,
           budget_remaining_usd: budget.remaining(state),
         });
       } catch (err) {

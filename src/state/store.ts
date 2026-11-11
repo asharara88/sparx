@@ -1,6 +1,9 @@
 import type { EpisodeState } from '../types/episode.js';
 import { normalizeEpisodeState } from '../types/episode.js';
 import { getSupabase } from './supabase.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger({ mod: 'store' });
 
 // Persistence for the Episode State. Uses Supabase when configured;
 // otherwise an in-memory map so the pipeline is runnable in dev/CI.
@@ -39,11 +42,15 @@ class SupabaseStore implements StateStore {
     // Rows saved by older code lack newer state fields — normalize before agents touch them.
     return normalizeEpisodeState(data.state as Partial<EpisodeState> & { episode_id: string });
   }
+  // Audit writes must not sink the pipeline, but silently dropping them left the
+  // event log and ledger arbitrarily incomplete with zero signal — warn instead.
   async logEvent(episodeId: string, agent: string | null, event: string, detail?: unknown) {
-    await this.client.from('pipeline_events').insert({ episode_id: episodeId, agent, event, detail: detail ?? null });
+    const { error } = await this.client.from('pipeline_events').insert({ episode_id: episodeId, agent, event, detail: detail ?? null });
+    if (error) log.warn('pipeline_events insert failed', { episode: episodeId, event, err: error.message });
   }
   async recordCost(episodeId: string, agent: string, costUsd: number, note?: string) {
-    await this.client.from('budget_ledger').insert({ episode_id: episodeId, agent, cost_usd: costUsd, note: note ?? null });
+    const { error } = await this.client.from('budget_ledger').insert({ episode_id: episodeId, agent, cost_usd: costUsd, note: note ?? null });
+    if (error) log.warn('budget_ledger insert failed', { episode: episodeId, agent, costUsd, err: error.message });
   }
 }
 
