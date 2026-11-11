@@ -7,12 +7,12 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Care, together. A shared view of your baby's day.",
     start_url: "/",
     display: "standalone",
-    background_color: "#fff9f0",
+    background_color: "#fff4f6",
     theme_color: "#4b203f",
     shortcuts: [
       { name: "Sleep timer", short_name: "Sleep", url: "/baby/quick/sleep", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Feed", short_name: "Feed", url: "/baby/quick/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Log a diaper", short_name: "Diaper", url: "/baby/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Log a nappy", short_name: "Nappy", url: "/baby/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Ask the helper", short_name: "Ask", url: "/ask", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
     icons: [

@@ -148,6 +148,9 @@ html[data-theme="night"] {
 html {
   font-size: 17px; /* iOS body size; large mode for the grandmothers */
   -webkit-text-size-adjust: 100%;
+  /* iPhone: the page colour behind a bounce, and no double-tap zoom (pinch still zooms). */
+  background: var(--bg);
+  touch-action: manipulation;
 }
 html[data-size="large"],
 [data-size="large"] {
@@ -434,6 +437,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sheet-backdrop {
   position: fixed;
   inset: 0;
+  /* The part of the screen really visible (components/ViewportVars): with the keyboard up on
+     an iPhone the sheet sits on top of it, Save included, instead of behind it. */
+  top: var(--vv-top, 0px);
+  bottom: auto;
+  height: var(--vv-h, 100dvh);
+  overscroll-behavior: contain;
   z-index: 40;
   display: flex;
   align-items: flex-end;
@@ -443,8 +452,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sheet {
   width: 100%;
   max-width: 42rem;
-  max-height: 85dvh;
+  max-height: min(85dvh, calc(var(--vv-h, 100dvh) - 16px));
   overflow: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -454,7 +464,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: var(--fg);
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.25);
 }
-.sheet-fill { height: 88dvh; overflow: hidden; }
+.sheet-fill { height: min(88dvh, calc(var(--vv-h, 100dvh) - 16px)); overflow: hidden; }
 .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: var(--line); margin: 0 auto; }
 
 /* ---- loading placeholder (app/(app)/loading.tsx) -------------------------- */
@@ -545,7 +555,7 @@ body::before {
   z-index: 35;
   pointer-events: none;
 }
-main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px); }
+main { padding: 0 max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px) max(16px, env(safe-area-inset-left)); }
 
 /* ---- the Ask screen (components/Assistant.tsx) */
 .bubble {
@@ -948,3 +958,25 @@ main { padding: 0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
   .welcome-list { grid-template-columns: 1fr 1fr; column-gap: 32px; }
   .phone { width: 300px; }
 }
+
+/* ------------------------------------------------------------------------------------------
+   iPhone. Safari zooms into any field whose text is under 16 px: never let one be. */
+@supports (-webkit-touch-callout: none) {
+  input, textarea, select { font-size: max(16px, 1em); }
+}
+/* A long press on a tab or a button is a press, not a link preview or a text selection. */
+.tab, .btn, .chip, .round-go, .log-row, .icon-btn { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* A sheet is open: the page behind it does not scroll (components/Sheet). */
+html.sheet-open, html.sheet-open body { overflow: hidden; }
+/* Typing (components/ViewportVars): the keyboard takes the bottom of the screen, so the tab
+   bar steps aside, a sheet needs no room for the home bar, and the helper's box sits on the keyboard. */
+html.kb-open .tabbar { display: none; }
+html.kb-open .sheet { padding-bottom: 12px; }
+html.kb-open .ask-composer { bottom: 0; padding-bottom: 8px; }
+/* A form group never pushes past the screen (a fieldset is as wide as its widest child by
+   default), and iPhone's date and time boxes take the width given, with the value on the left
+   like every other field instead of centred. */
+fieldset { min-width: 0; }
+.input { min-width: 0; max-width: 100%; }
+input[type="date"], input[type="time"], input[type="datetime-local"] { -webkit-appearance: none; appearance: none; display: block; }
+input::-webkit-date-and-time-value { text-align: start; }
