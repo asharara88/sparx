@@ -10,8 +10,11 @@ import { Assistant } from "./Assistant";
 import { Icon } from "./Icon";
 import { Sheet } from "./Sheet";
 
-/** The helper's own screens, and Home (its "Tell me" is already in the log card), carry no button. */
-const NOT_HERE = [/^\/$/, /^\/ask(\/|$)/, /^\/chat(\/|$)/];
+/**
+ * The helper's own screens, Home (its "Tell me" is already in the log card) and More (its
+ * first rows are the helper's) carry no button.
+ */
+const NOT_HERE = [/^\/$/, /^\/ask(\/|$)/, /^\/chat(\/|$)/, /^\/me$/];
 
 /** Which screen the question came from, as the helper's prompt knows them (app/api/assistant). */
 function screenOf(path: string): string | null {
