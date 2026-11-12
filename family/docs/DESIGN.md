@@ -224,17 +224,22 @@ bottom bar as a grid of tiles.
    sleep in 12 hours, plain "Awake for", or nothing (rule 6).
 3. **Today strip**: four numbers in one white bar (woke 06:10 · naps 1 of 3–4 · feeds 5 ·
    nappies 4); tapping it scrolls to the day's cards below the log card. The last of each is on
-   the tiles, so the strip gives the day's totals instead.
-4. **Now**: one notice, the top of the order in rule 3, or nothing. "2 more ›" opens the rest.
+   the rows, so the strip gives the day's totals instead. Each number stays on one line, a size
+   smaller on a 320 px screen.
+4. **Now**: one notice on one slim line (48 px, words cut with … rather than wrapping), the top
+   of the order in rule 3, or nothing. Beside it, a small "+2" opens the rest; never a link on a
+   line of its own.
    The guide's most pressing tip is a candidate: a red one right after an overdue vaccine, a
    yellow one after "feed due". The nap is no longer a notice: the card says it.
 5. **Log**, one white card at the thumb (Mido, 9 November: the helper is becoming the main
-   way to log). On top, four tiles in a row (Feed, Sleep, Nappy, and a fourth that grows with
+   way to log). On top, four **rows** (Feed, Sleep, Nappy, and a fourth that grows with
    the child: Meal once she eats, from 24 weeks; before that Pump while the parent who pumps
    still does (a pump in the last two weeks), else Medicine; `lib/stage.ts` decides). Each
-   tile: the tinted icon, the name, and how long ago with the one detail in two short lines
-   ("40 min ago · 90 ml", "Asleep · since 13:10"); a running timer tints its tile. Tapping a
-   tile opens its sheet (start, stop, or log one). Under the tiles, **Tell me**: a box and a
+   row: the tinted icon, the name, one line under it ("40 min ago · 90 ml", "since 13:10"),
+   and the round one-tap button on the right (▶ start, ■ stop, ＋ log); a running timer tints
+   its row. Tapping the row opens its sheet. Rows, not a grid of four tiles: the tiles (9 to
+   12 November) cut every line to "2 h 41 min ago · 13…" and read as clutter (Mido, 12
+   November: "too messy and text heavy"). Under the rows, a hairline, then **Tell me**: a box and a
    microphone. Typing or saying "120 ml bottle", "wet nappy", "fell asleep 10 min ago" or
    "woke up" saves it at once on the phone, with Undo (`lib/assistant/quick-log.ts`, no model
    call, works offline); "changed a nappy" asks Wet / Dirty / Both as buttons; anything else

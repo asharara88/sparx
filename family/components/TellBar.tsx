@@ -19,7 +19,7 @@ export function TellBar({ quick }: { quick: QuickContext | null }) {
     <>
       <div className="tell-bar">
         <button type="button" className="tell-box" onClick={() => show(null)}>
-          Tell me: “120 ml bottle”, “wet nappy”…
+          Tell me what happened…
         </button>
         <SayIt icon onHeard={(t) => show(t)} />
       </div>

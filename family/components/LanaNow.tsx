@@ -343,7 +343,7 @@ export function LanaNow({
         : breastfeeds ? "Breast or bottle" : "Bottle";
   const napLen = lastSleep?.ended_at ? Math.round((Date.parse(lastSleep.ended_at) - Date.parse(lastSleep.occurred_at)) / 60_000) : 0;
   const sleepSub =
-    sleepEntry ? `Asleep · since ${fmtTime(sleepEntry.occurred_at, timezone)}`
+    sleepEntry ? `since ${fmtTime(sleepEntry.occurred_at, timezone)}` // the card above already says "Asleep"
     : nightWake ? `Awake since ${fmtTime(nightWake.occurred_at, timezone)}`
     : lastSleep?.ended_at && minutesBetween(lastSleep.ended_at, realNowIso) <= 12 * 60 && napLen > 0 ? `Last sleep ${fmtDuration(napLen)}`
     : "None yet today";
@@ -380,20 +380,25 @@ export function LanaNow({
         </div>
       )}
 
-      <div className="card flex flex-col gap-3 p-3">
-        <ul className="log-tiles" aria-label="Log">
-          <Tile tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")} />
-          <Tile tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")} />
-          <Tile tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} />
+      {/* One row per activity (DESIGN.md, "Log row"; the agreed mockup): the row opens its
+          sheet, the round button is the one tap (start, stop, add). Full-width rows, so the
+          line under each name fits instead of being cut to "2 h 41 min ago · 13…". */}
+      <div className="card log-card">
+        <ul aria-label="Log">
+          <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")}
+            action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "play", label: "Start a feed", onClick: () => openSheet("feed") }} />
+          <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
+            action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
+          <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
           {fourth === "meal" ? (
-            <Tile tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} />
+            <Row tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} action={{ kind: "plus", label: "Log a meal", onClick: () => openSheet("meal") }} />
           ) : fourth === "pump" ? (
-            <Tile tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} />
+            <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
           ) : (
-            <Tile tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" />
+            <Row tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
           )}
         </ul>
-        {tell}
+        {tell && <div className="log-card-tell">{tell}</div>}
       </div>
 
       {sheet === "feed" && (
@@ -624,25 +629,49 @@ export function LanaNow({
  * rows became one row of tiles under it, Home does not grow). The tinted icon, the name, how
  * long ago in two short lines; tapping opens the sheet (start, stop, or log one).
  */
-function Tile({ tint, icon, label, sub, live = false, disabled, onOpen, href }: { tint: string; icon: IconName; label: string; sub: string; live?: boolean; disabled: boolean; onOpen?: () => void; href?: string }) {
+type RowAction = { kind: "play" | "stop" | "plus"; label: string; onClick?: () => void; href?: string };
+
+/** A log row: icon, name, one line under it, the round one-tap button on the right. */
+function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, action }: { tint: string; icon: IconName; label: string; sub: string; live?: boolean; disabled: boolean; onOpen?: () => void; href?: string; action: RowAction }) {
   const body = (
     <>
       <span className={`icon-disc tint-${tint}`} style={{ width: 40, height: 40 }}>
         <Icon name={icon} size={21} />
       </span>
-      <span className="action-label text-base leading-tight">{label}</span>
-      <span className={`log-tile-sub ${live ? "font-semibold" : "muted"}`}>{sub}</span>
+      <span className="min-w-0 flex-1">
+        <span className="log-row-name">{label}</span>
+        <span className={`log-row-sub ${live ? "log-row-live" : "muted"}`}>{sub}</span>
+      </span>
     </>
   );
+  const glyph =
+    action.kind === "play" ? <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" />
+    : action.kind === "stop" ? <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" />
+    : <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" />;
+  const btnCls = `round-go ${action.kind === "stop" ? "round-go-stop" : ""}`;
+  const svg = (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      {glyph}
+    </svg>
+  );
   return (
-    <li>
+    <li className={`log-row ${live ? `tint-${tint}` : ""}`}>
       {href ? (
-        <Link prefetch={false} href={href} className={`log-tile ${live ? `log-tile-live tint-${tint}` : ""}`}>
+        <Link prefetch={false} href={href} className="log-row-body">
           {body}
         </Link>
       ) : (
-        <button type="button" className={`log-tile ${live ? `log-tile-live tint-${tint}` : ""}`} onClick={onOpen} disabled={disabled} aria-label={`${label}: ${sub}`}>
+        <button type="button" className="log-row-body" onClick={onOpen} disabled={disabled} aria-label={`${label}: ${sub}`}>
           {body}
+        </button>
+      )}
+      {action.href ? (
+        <Link prefetch={false} href={action.href} className={btnCls} aria-label={action.label}>
+          {svg}
+        </Link>
+      ) : (
+        <button type="button" className={btnCls} aria-label={action.label} onClick={action.onClick} disabled={disabled}>
+          {svg}
         </button>
       )}
     </li>

@@ -35,7 +35,8 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso }: { summar
     <a href="#today" className="card row-link grid grid-cols-4 gap-1 py-3 text-center no-underline" aria-label="Today so far, more below">
       {cells.map((c) => (
         <span key={c.label} className="flex flex-col">
-          <span className="text-lg font-bold leading-tight tabular-nums">{c.value}</span>
+          {/* One line always ("3 of 3–4" broke in two at 320 px); a narrow phone gets a size smaller. */}
+          <span className="whitespace-nowrap text-[clamp(0.95rem,4.6vw,1.125rem)] font-bold leading-tight tabular-nums">{c.value}</span>
           <span className="muted text-[13px]">{c.label}</span>
         </span>
       ))}
