@@ -45,17 +45,18 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
     }
   }
+  // The title first (DESIGN.md, "The shape of every screen"); the week's draft and the child's
+  // next hours under it.
   return (
-    <div className="flex flex-col gap-4">
-      {canPlan && <PlanButton existing={plan} />}
-      {week && <LanaForecast entries={week} timezone={tz} feedIntervalMin={feedInterval} hours={8} limit={4} title={`${childName(me)}, expected today`} compact />}
     <CalendarView
       data={data}
       from={from}
       today={today}
       members={((members as Pick<Member, "id" | "display_name">[]) ?? []).map((m) => ({ id: m.id, name: m.display_name }))}
       due={due}
-    />
-    </div>
+    >
+      {week && <LanaForecast entries={week} timezone={tz} feedIntervalMin={feedInterval} hours={8} limit={4} title={`${childName(me)}, expected today`} compact />}
+      {canPlan && <PlanButton existing={plan} />}
+    </CalendarView>
   );
 }

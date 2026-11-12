@@ -30,7 +30,7 @@ export default async function QuickSleepPage() {
           Feed
         </Link>
         <Link prefetch={false} href="/baby/log/diaper" className="btn">
-          Diaper
+          Nappy
         </Link>
       </div>
       <p className="muted text-sm">Add this to your home screen for one-tap timers: iPhone Share → Add to Home Screen; Android menu → Add to Home screen. Long-press the app icon for the shortcuts.</p>

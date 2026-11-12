@@ -33,8 +33,10 @@ From top to bottom, always in this order:
    screen but **the helper's button** (Mido, 12 November): round, plum, above the tab bar on the
    right, on every screen but Home (its "Tell me" is in the log card), the helper's own screen and
    the family chat. It opens the helper in a sheet over the screen; it steps aside while a sheet
-   is open or the keyboard is up, and moves up clear of a screen's bottom button
-   (`components/HelperFab.tsx`).
+   is open or the keyboard is up, and moves up clear of a screen's bottom button and then of
+   any words or taps under it, when a clear spot is within 160 px (12 November: it sat on Milk's
+   "Put a bottle away" and Members' invite buttons); in a dense list it stays put
+   (`components/HelperFab.tsx`, `lib/fab-place.ts`).
 
 The thumb reaches the bottom half of the phone easily and the top corners hardly at all.
 What people tap often lives low; what they tap rarely (or must not tap by accident, like
@@ -392,7 +394,10 @@ Pumping on goal for N days in a row (first, bronze 3, silver 7, gold 14, diamond
 over the goal (110% or more: 1, 5, 15), and the freezer stash (500 ml, 1 l, 2 l, the family's).
 The database awards them from the log (migration 5900); the client never writes one.
 
-- **The moment**: the first time a person opens the app after winning, the screen dims,
+- **The moment**: it never stands between a parent and the log (12 November: at 3 am the
+  medal covered Home before a feed could be tapped). Home opens as usual with one slim line
+  over the tab bar, "You won Bronze ›", and × for not now; left alone it slips away after 12
+  seconds and comes back on the next open until seen. Tapping it plays the moment: the screen dims,
   confetti bursts, the medal spins in, the phone buzzes; the title says the tier ("Silver!"),
   one line says what it took, "and 3 more on your shelf" counts the rest. Lovely closes it;
   See the shelf opens the shelf. Once per person per badge, on every phone. No motion for

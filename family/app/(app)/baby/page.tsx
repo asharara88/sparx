@@ -98,6 +98,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
   const [fromMs, toMs] = [Date.parse(from), Date.parse(to)];
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
   const checks = isToday ? checkEntries(week).length : 0;
+  const suggestions = (((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).filter((s) => s.kind === "due" || s.kind === "plan");
   // The date, not a second "Today" under the Today tab.
   const label = day === addDays(today, -1) ? "Yesterday" : new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
   return (
@@ -119,7 +120,12 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
         </Fold>
       )}
       {isToday && <LanaGuide fold entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />}
-      {isToday && <SuggestionCards suggestions={((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]} />}
+      {/* What the data suggests doing (a dose due, a plan for the calendar): useful, not now, so a fold. */}
+      {isToday && suggestions.length > 0 && (
+        <Fold title="Suggested" icon="calendar" tint="cal" hint={`${suggestions.length}`}>
+          <SuggestionCards suggestions={suggestions} title={null} />
+        </Fold>
+      )}
       {entries.length === 0 ? (
         <p className="muted px-1">Nothing logged on this day.</p>
       ) : (

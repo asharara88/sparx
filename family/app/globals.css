@@ -870,6 +870,20 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + e
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: rgb(43 15 35 / 0.62); backdrop-filter: blur(4px);
 }
+/* The badge waits on one slim line over the tab bar until it is tapped (Celebration.tsx). */
+.celebrate-peek {
+  position: fixed; inset-inline: 16px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 30; margin: 0 auto; max-width: 24rem;
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  border-radius: 999px; background: var(--card); border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+.celebrate-peek-open {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 10px;
+  padding: 0 10px 0 4px; border: none; background: none; color: var(--fg); font: inherit; font-weight: 700; text-align: start;
+}
+.celebrate-peek-close { width: 44px; height: 44px; flex: none; border: none; border-radius: 999px; background: none; color: var(--muted); font-size: 1.4rem; }
+html.sheet-open .celebrate-peek, html.kb-open .celebrate-peek { display: none; }
 .celebrate-confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .celebrate-card {
   position: relative; width: 100%; max-width: 22rem;

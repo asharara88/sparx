@@ -25,6 +25,7 @@ export function CalendarView({
   today,
   members,
   due = [],
+  children,
 }: {
   data: CalendarData;
   from: string;
@@ -32,13 +33,18 @@ export function CalendarView({
   members: { id: string; name: string }[];
   /** Treatments and vaccine visits with a due date, shown on their day. */
   due?: DueItem[];
+  /** What sits under the title, before the days (the week's draft, the child's next hours). */
+  children?: React.ReactNode;
 }) {
   const me = useMe();
   const [editing, setEditing] = useState<CalendarEvent | "new" | null>(null);
   const tz = data.timezone;
   const canAdd = can(me, "calendar", "add");
   const byDay = new Map<string, CalendarEvent[]>();
-  for (const e of data.events) byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
+  // A daily routine is said once, on the first day shown ("Bath time · daily"); repeated on
+  // every card it filled two weeks with the same line.
+  const first = data.days[0]?.date;
+  for (const e of data.events) if (e.repeat !== "daily" || e.date === first) byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
 
   const shownDays = data.days.filter((day) => day.date.slice(0, 10) === today.slice(0, 10) || (byDay.get(day.date)?.length ?? 0) > 0 || due.some((d) => d.due_on === day.date.slice(0, 10)));
   return (
@@ -52,12 +58,7 @@ export function CalendarView({
           <Icon name="forward" size={24} />
         </Link>
       </header>
-
-      {canAdd && (
-        <button className="btn btn-primary min-h-[64px] text-lg" onClick={() => setEditing("new")}>
-          + Add to the calendar
-        </button>
-      )}
+      {children}
 
       {editing && (
         <EventForm
@@ -121,6 +122,13 @@ export function CalendarView({
           </section>
         );
       })}
+      {canAdd && (
+        <div className="bottom-action">
+          <button type="button" className="btn btn-primary btn-lg w-full" onClick={() => setEditing("new")}>
+            + Add to the calendar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
