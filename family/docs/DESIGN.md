@@ -31,12 +31,12 @@ From top to bottom, always in this order:
    the tab bar, where the thumb already is ("Put a bottle away", "+ Log", "Save").
 4. **The tab bar**: Home, the child, a round ＋ (log), Milk, More. Nothing else is fixed to the
    screen but **the helper's button** (Mido, 12 November): round, plum, above the tab bar on the
-   right, on every screen but Home (its "Tell me" is in the log card), the helper's own screen and
-   the family chat. It opens the helper in a sheet over the screen; it steps aside while a sheet
-   is open or the keyboard is up, and moves up clear of a screen's bottom button and then of
-   any words or taps under it, when a clear spot is within 160 px (12 November: it sat on Milk's
-   "Put a bottle away" and Members' invite buttons); in a dense list it stays put
-   (`components/HelperFab.tsx`, `lib/fab-place.ts`).
+   right, on every screen but Home (its "Tell me" is in the log card), the helper's own screen,
+   the family chat and More (its helper rows come first). It opens the helper in a sheet over the
+   screen; it steps aside while a sheet is open or the keyboard is up, and moves up clear of a
+   screen's bottom button and then of any words or taps under it, when a clear spot is within
+   160 px (12 November: it sat on Milk's "Put a bottle away" and Members' invite buttons); in a
+   dense list it stays put (`components/HelperFab.tsx`, `lib/fab-place.ts`).
 
 The thumb reaches the bottom half of the phone easily and the top corners hardly at all.
 What people tap often lives low; what they tap rarely (or must not tap by accident, like
@@ -171,6 +171,12 @@ pattern this bible asks for, so that overrun is the accepted exception.
 | The child's page, About her | 6 | 1 | 39 | 1.7 | none |
 | Milk | 8 | 23 | 93 | 1.5 | none |
 | More | 7 | 1 | 48 | 1.5 | the photo link, the email line (as before) |
+
+More's header, 12 November (Mido: "the profile pic and the text near it are working against
+ux"): the photo spilled past the left edge and a loose "Change photo" link pushed the name
+aside. Now the photo with a camera badge, as on the child's page, then the name and role;
+rows in medium weight with 32 px discs. As Dana: taps 18 → 17, words 50 → 47, 1.7 → 1.6
+screens; phone checks: wide and the small photo link gone, the email line as before.
 
 Home, re-measured on 29 October 2026 (pass 3 never did), at 390 × 844 as Dana on a normal
 day with one Now notice, before and after the backlogging pass:

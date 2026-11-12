@@ -67,7 +67,7 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large flex items-center gap-3">
-        {can(me, "lana", "edit") ? <AvatarUpload compact name={s.name} path={photo} subject={{ id: s.id, profile: s.profile }} size={56} /> : <Avatar name={s.name} path={photo} size={56} />}
+        {can(me, "lana", "edit") ? <AvatarUpload name={s.name} path={photo} subject={{ id: s.id, profile: s.profile }} size={56} /> : <Avatar name={s.name} path={photo} size={56} />}
         <div className="min-w-0 flex-1">
           <h1 className="page-title">{s.name}</h1>
           <p className="muted">{age}</p>
