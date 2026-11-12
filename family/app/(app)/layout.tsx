@@ -11,6 +11,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { CreateHome } from "@/components/CreateHome";
 import { HomeSwitcher } from "@/components/HomeSwitcher";
 import { OfflineFlusher } from "@/components/OfflineFlusher";
+import { HelperFab } from "@/components/HelperFab";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { BindHome } from "@/components/RememberHome";
 import { PageSwap, PageSwapProvider } from "@/components/PageSwap";
@@ -101,6 +102,7 @@ export default async function AppLayout({
             <PageSwap>{children}</PageSwap>
           </main>
           <Nav />
+          <HelperFab />
           <OfflineFlusher />
           <NightScreen
             from={night.from}
