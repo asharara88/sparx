@@ -249,7 +249,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: var(--fg);
   background: transparent;
   border: none;
-  margin-left: -8px;
+}
+/* Pulled 8 px left so a back arrow's glyph lines up with the page edge. Layered, so a button
+   that sits elsewhere can take it off with Tailwind's m-0 (an unlayered rule would win). */
+@layer components {
+  .icon-btn { margin-left: -8px; }
 }
 .icon-btn:active { background: var(--card-2); }
 

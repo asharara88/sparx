@@ -65,9 +65,9 @@ export default async function MePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="page-header page-header-large flex items-center gap-4">
-        <AvatarUpload name={me.member.display_name} path={me.member.photo_path} />
-        <div className="min-w-0">
+      <header className="page-header page-header-large flex items-center gap-3">
+        <AvatarUpload name={me.member.display_name} path={me.member.photo_path} size={64} />
+        <div className="min-w-0 flex-1">
           <h1 className="page-title">{me.member.display_name}</h1>
           <p className="muted truncate text-sm">
             {me.role.label}
@@ -85,10 +85,10 @@ export default async function MePage() {
                 .filter((r) => r.show)
                 .map((r) => (
                   <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
-                    <span className={`icon-disc tint-${r.tint}`} style={{ width: 36, height: 36 }}>
-                      <Icon name={r.icon} size={19} />
+                    <span className={`icon-disc tint-${r.tint}`} style={{ width: 32, height: 32 }}>
+                      <Icon name={r.icon} size={17} />
                     </span>
-                    <span className="flex-1 font-semibold">{r.label}</span>
+                    <span className="flex-1 font-medium">{r.label}</span>
                     <Icon name="forward" size={18} className="muted" />
                   </Link>
                 ))}
@@ -101,8 +101,10 @@ export default async function MePage() {
       <nav aria-label="Settings" className="card flex flex-col p-0">
         {settings.map((r) => (
           <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
-            <Icon name={r.icon} size={20} className="shrink-0 text-[var(--accent)]" />
-            <span className="flex-1 font-semibold">{r.label}</span>
+            <span className="flex w-8 shrink-0 justify-center text-[var(--accent)]">
+              <Icon name={r.icon} size={20} />
+            </span>
+            <span className="flex-1 font-medium">{r.label}</span>
             {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}
             <Icon name="forward" size={18} className="muted" />
           </Link>
