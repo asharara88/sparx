@@ -6,6 +6,7 @@ import { AttendanceButton } from "@/components/AttendanceButton";
 import { fmtTime } from "@/lib/time";
 import { WEEKDAYS, can } from "@/lib/types";
 import { Icon } from "@/components/Icon";
+import { PageHeader } from "@/components/PageHeader";
 import { Avatar } from "@/components/Avatar";
 import { InviteLink } from "@/components/InviteLink";
 import { accountLabel, type AccountState } from "@/lib/accounts";
@@ -38,12 +39,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="page-header page-header-large flex items-center justify-between">
-        <h1 className="page-title">Members</h1>
-        <Link prefetch={false} href="/members/new" className="btn btn-primary">
-          <Icon name="plus" size={18} /> Add
-        </Link>
-      </header>
+      <PageHeader title="Members" large />
       {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
       {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
       {attendance && attendance.ok && (() => {
@@ -119,6 +115,12 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           </Link>
         ))}
       </nav>
+      {/* The screen's main action at the thumb (DESIGN.md), not beside the title. */}
+      <div className="bottom-action">
+        <Link prefetch={false} href="/members/new" className="btn btn-primary btn-lg w-full">
+          <Icon name="plus" size={20} /> Add someone
+        </Link>
+      </div>
     </div>
   );
 }

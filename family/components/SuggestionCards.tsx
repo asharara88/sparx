@@ -16,7 +16,7 @@ const SHOWN = new Set<string>(["due", "plan"]);
  * the action with the member's own permissions; "Not now" keeps it quiet for a week.
  * A card of a kind the app no longer has (shopping, the house) is not shown.
  */
-export function SuggestionCards({ suggestions, title = "Suggested" }: { suggestions: Suggestion[]; title?: string }) {
+export function SuggestionCards({ suggestions, title = "Suggested" }: { suggestions: Suggestion[]; title?: string | null }) {
   const router = useRouter();
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
@@ -50,10 +50,12 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
   }
 
   return (
-    <section className="flex flex-col gap-2" aria-labelledby="sugg-h">
-      <h2 id="sugg-h" className="text-xl font-semibold">
-        {title}
-      </h2>
+    <section className="flex flex-col gap-2" aria-labelledby={title ? "sugg-h" : undefined}>
+      {title && (
+        <h2 id="sugg-h" className="text-xl font-semibold">
+          {title}
+        </h2>
+      )}
       {msg.done && <p className="notice notice-ok font-semibold">{msg.done}</p>}
       {list.map((s) => {
         const entries: PlanEntry[] = s.kind === "plan" && s.action && s.action.type === "plan" ? s.action.entries : [];

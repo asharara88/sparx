@@ -8,6 +8,7 @@ import { useMe } from "@/lib/me-context";
 import { addDays, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { Sheet } from "@/components/Sheet";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -25,6 +26,7 @@ export function CalendarView({
   today,
   members,
   due = [],
+  children,
 }: {
   data: CalendarData;
   from: string;
@@ -32,13 +34,25 @@ export function CalendarView({
   members: { id: string; name: string }[];
   /** Treatments and vaccine visits with a due date, shown on their day. */
   due?: DueItem[];
+  /** What sits under the title, before the days (the week's draft, the child's next hours). */
+  children?: React.ReactNode;
 }) {
   const me = useMe();
   const [editing, setEditing] = useState<CalendarEvent | "new" | null>(null);
   const tz = data.timezone;
   const canAdd = can(me, "calendar", "add");
   const byDay = new Map<string, CalendarEvent[]>();
-  for (const e of data.events) byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
+  // A daily routine is said once, on its first day in these two weeks ("Bath time · daily");
+  // repeated on every card it filled two weeks with the same line. One that starts later in
+  // the range is said on the day it starts.
+  const saidDaily = new Set<string>();
+  for (const e of [...data.events].sort((a, b) => a.starts_at.localeCompare(b.starts_at))) {
+    if (e.repeat === "daily") {
+      if (saidDaily.has(e.id)) continue;
+      saidDaily.add(e.id);
+    }
+    byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
+  }
 
   const shownDays = data.days.filter((day) => day.date.slice(0, 10) === today.slice(0, 10) || (byDay.get(day.date)?.length ?? 0) > 0 || due.some((d) => d.due_on === day.date.slice(0, 10)));
   return (
@@ -52,21 +66,20 @@ export function CalendarView({
           <Icon name="forward" size={24} />
         </Link>
       </header>
+      {children}
 
-      {canAdd && (
-        <button className="btn btn-primary min-h-[64px] text-lg" onClick={() => setEditing("new")}>
-          + Add to the calendar
-        </button>
-      )}
-
+      {/* Adding or changing opens a sheet over wherever the list is (DESIGN.md, "Sheet"): the
+          Add button sits at the bottom, so a form at the top would open out of sight. */}
       {editing && (
-        <EventForm
-          event={editing === "new" ? null : editing}
-          members={members}
-          tz={tz}
-          defaultDate={from}
-          onClose={() => setEditing(null)}
-        />
+        <Sheet title={editing === "new" ? "New calendar entry" : "Change calendar entry"} onClose={() => setEditing(null)}>
+          <EventForm
+            event={editing === "new" ? null : editing}
+            members={members}
+            tz={tz}
+            defaultDate={from}
+            onClose={() => setEditing(null)}
+          />
+        </Sheet>
       )}
 
       {/* Only the days with something on (and today): two weeks of empty cards said nothing. */}
@@ -121,6 +134,13 @@ export function CalendarView({
           </section>
         );
       })}
+      {canAdd && (
+        <div className="bottom-action">
+          <button type="button" className="btn btn-primary btn-lg w-full" onClick={() => setEditing("new")}>
+            + Add to the calendar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -191,8 +211,7 @@ function EventForm({
   }
 
   return (
-    <form onSubmit={save} className="card flex flex-col gap-3 border-[var(--accent)]">
-      <h2 className="text-lg font-semibold">{event ? "Change" : "New"} calendar entry</h2>
+    <form onSubmit={save} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1">
         <span className="font-semibold">What</span>
         <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Plumber for the kitchen tap" />

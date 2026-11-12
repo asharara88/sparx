@@ -18,7 +18,15 @@ const { chromium } = require("playwright");
 const base = process.env.AUDIT_URL ?? "http://localhost:3000";
 const as = process.env.AUDIT_AS ?? "00000000-0000-4000-8000-000000000002";
 const out = process.env.AUDIT_OUT ?? "/tmp/ui-audit";
-const routes = process.argv.slice(2).length ? process.argv.slice(2) : ["/", "/baby", "/baby/milk", "/calendar", "/notes", "/members", "/me", "/chat"];
+// With no routes given it sweeps every screen (the list below; add a screen here when it is built).
+const ALL = [
+  "/", "/baby", "/baby?tab=week", "/baby?tab=about", "/baby/milk", "/baby/sleep", "/baby/feed", "/baby/trends",
+  "/baby/doctor", "/baby/emergency", "/baby/when-to-call", "/baby/vaccines", "/baby/medicine", "/baby/milestones",
+  "/baby/weeks", "/baby/activities", "/baby/story", "/baby/handover", "/calendar", "/notes", "/chat", "/ask",
+  "/ask/memory", "/ask/skills", "/achievements", "/members", "/members/home", "/members/roles", "/members/types",
+  "/me", "/me/display", "/me/homes", "/me/homes/new", "/me/install", "/me/notifications", "/me/password", "/me/presence",
+];
+const routes = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 
 // docs/DESIGN.md, "Budgets". Home's first screen (.screen-fill: now, the alert, the log rows)
 // is stricter than every other screen; the day's cards below it (#today) count as a screen of
@@ -28,7 +36,8 @@ const OTHER = { blocks: 8, numbers: 12, words: 150, screens: 2.5 };
 const parts = (route) => (route === "/" ? [["/ first screen", ".screen-fill", HOME], ["/ below", "#today", OTHER]] : [[route, null, OTHER]]);
 
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+// The sandbox's Chromium moves with each Playwright release; /opt/pw-browsers/chromium follows it.
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/opt/pw-browsers/chromium" });
 let over = 0;
 for (const theme of ["light", "night"]) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light" });
@@ -37,11 +46,13 @@ for (const theme of ["light", "night"]) {
   if (process.env.AUDIT_NOW) await page.clock.install({ time: new Date(process.env.AUDIT_NOW) });
   for (const route of routes) {
     const res = await page.goto(base + route, { waitUntil: "networkidle", timeout: 240_000 });
+    // A badge's moment is not part of the screen: close it so the screen itself is measured.
+    await page.evaluate(() => document.querySelectorAll(".celebrate, .celebrate-peek").forEach((el) => el.remove()));
     // Night is the 3 am screen. Force it on (or off) right before the shot, whatever the
     // clock says: the app's own night switch runs after load and would otherwise win.
     await page.evaluate((t) => (t === "night" ? document.documentElement.setAttribute("data-theme", "night") : document.documentElement.removeAttribute("data-theme")), theme);
     await page.waitForTimeout(300);
-    const name = route === "/" ? "home" : route.slice(1).replaceAll("/", "_");
+    const name = route === "/" ? "home" : route.slice(1).replace(/[/?=]/g, "_");
     await page.screenshot({ path: `${out}/${name}-${theme}.png`, fullPage: true });
     if (theme !== "light") continue;
     const measure = (scope) => page.evaluate((scope) => {
@@ -51,11 +62,18 @@ for (const theme of ["light", "night"]) {
         return s.display !== "none" && s.visibility !== "hidden" && el.getBoundingClientRect().height > 0;
       };
       const root = scope ? document.querySelector(scope) : null;
-      const column = root ?? main.querySelector(":scope > div, :scope > section") ?? main;
+      // The screen's column: past the layout's single wrappers (PageSwap, the page's own
+      // flex column) to where the blocks start. A plain layout box (flex, grid, gap and no
+      // card of its own) inside the column holds blocks too: its children count, not it.
+      const SURFACE = /\b(card|notice|fold|tile|row|bottom-action|page-header|segmented|log-card)/;
+      const plain = (el) => (el.tagName === "DIV" || el.tagName === "SECTION") && !SURFACE.test(typeof el.className === "string" ? el.className : "");
+      let column = root ?? main;
+      for (let kids = [...column.children].filter(shown); kids.length === 1 && plain(kids[0]); kids = [...column.children].filter(shown)) column = kids[0];
+      const flatten = (el) => [...el.children].filter((c) => shown(c) && !c.classList.contains("grow-space")).flatMap((c) => (plain(c) && [...c.children].filter(shown).length > 1 ? flatten(c) : [c]));
       const box = root ?? main;
       const text = box.innerText;
       return {
-        blocks: [...column.children].filter((el) => shown(el) && !el.classList.contains("grow-space")).length, // a spacer is not a block
+        blocks: flatten(column).length, // a spacer is not a block
         cards: [...box.querySelectorAll(".card, .tile, details, .action, .notice")].filter(shown).length,
         taps: [...box.querySelectorAll("a, button, summary")].filter(shown).length,
         numbers: (text.match(/\b\d+(?:[.:]\d+)?\b/g) ?? []).length,

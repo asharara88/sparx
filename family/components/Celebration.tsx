@@ -20,14 +20,25 @@ const COLOURS = ["#c2476a", "#f6b8c9", "#ffd37a", "#9fd8b8", "#9ec9f0", "#c9b6f2
  * confetti bursts, the medal spins in, the phone buzzes, and it says what was won. Once per
  * person per badge (achievements_seen, on every phone). With several new at once, the best is
  * shown and the rest counted. Nothing moves for someone who asked for less motion.
+ *
+ * It never stands between a parent and the log (12 November: at 3 am the medal covered Home
+ * before a feed could be tapped). Home opens as usual with one slim line over the tab bar,
+ * "You won Bronze ›"; tapping it plays the moment. Left alone it slips away after a while
+ * and comes back on the next open, until it has been seen.
  */
 export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
-  const [open, setOpen] = useState(fresh.length > 0);
+  const [open, setOpen] = useState(false);
+  const [peek, setPeek] = useState(fresh.length > 0);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const top = fresh[0];
 
   useEffect(() => setHost(document.body), []);
+  useEffect(() => {
+    if (!peek || open) return;
+    const t = setTimeout(() => setPeek(false), 12_000);
+    return () => clearTimeout(t);
+  }, [peek, open]);
   useEffect(() => {
     if (!open || !host) return;
     const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -76,7 +87,7 @@ export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
     return () => cancelAnimationFrame(raf);
   }, [open, host]);
 
-  if (!open || !host || !top) return null;
+  if (!(open || peek) || !host || !top) return null;
   const t = track(top.badge);
   const x = tierOf(top.badge, top.tier);
   if (!t || !x) return null;
@@ -85,6 +96,7 @@ export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
 
   const close = () => {
     setOpen(false);
+    setPeek(false);
     // A Supabase query only runs once it is awaited or then-ed: "void" alone would never send it.
     supabaseBrowser()
       .rpc("achievements_seen", { p_ids: fresh.map((f) => f.id) })
@@ -93,6 +105,21 @@ export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
         () => undefined,
       );
   };
+
+  if (!open)
+    return createPortal(
+      <div className="celebrate-peek">
+        <button type="button" className="celebrate-peek-open" onClick={() => setOpen(true)}>
+          <Medal metal={x.metal} icon={t.icon} size={32} label="" />
+          <span className="truncate">{t.family ? "The family won" : "You won"} {title.replace(/!$/, "")}</span>
+          <span aria-hidden="true">›</span>
+        </button>
+        <button type="button" className="celebrate-peek-close" aria-label="Not now" onClick={close}>
+          ×
+        </button>
+      </div>,
+      host,
+    );
 
   return createPortal(
     <div className="celebrate" role="dialog" aria-modal="true" aria-labelledby="celebrate-title" onClick={close}>

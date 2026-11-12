@@ -9,6 +9,44 @@ import { quickContextOf, type QuickContext } from "@/lib/assistant/quick-context
 import { Assistant } from "./Assistant";
 import { Icon } from "./Icon";
 import { Sheet } from "./Sheet";
+import { fabLift, type Box } from "@/lib/fab-place";
+
+const MAX_LIFT = 160;
+const CONTROLS = "button, summary, input, select, textarea, [role=button], .chip, .pill, .btn, img, svg";
+
+/**
+ * What the button must not sit on, in the column above it: every line of words, every icon,
+ * and every control narrower than the screen's column. A link or row that spans the column is
+ * a container: its words and icons count, the empty space beside them does not.
+ */
+function contentBoxes(base: Box, maxLift: number): Box[] {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const zone = { top: base.top - maxLift - 8, bottom: base.bottom + 8, left: base.left - 8, right: base.right + 8 };
+  const inZone = (r: DOMRect) => r.width > 0 && r.height > 0 && r.bottom > zone.top && r.top < zone.bottom && r.right > zone.left && r.left < zone.right;
+  const wide = main.getBoundingClientRect().width * 0.7;
+  const out: Box[] = [];
+  // Only what is really on screen: a fold's hidden rows still have boxes, clipped away.
+  const seen = (el: Element, r: DOMRect) => {
+    const at = document.elementFromPoint(Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1), Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1));
+    return !!at && (el === at || el.contains(at));
+  };
+  const keep = (r: DOMRect) => out.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
+  for (const el of main.querySelectorAll(CONTROLS)) {
+    const r = el.getBoundingClientRect();
+    if (inZone(r) && r.width < wide && !el.closest("nav, .helper-fab") && seen(el, r)) keep(r);
+  }
+  const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.textContent?.trim()) continue;
+    const box = n.parentElement?.getBoundingClientRect();
+    if (!box || !inZone(box)) continue; // skip the text far from the button cheaply
+    range.selectNodeContents(n);
+    for (const r of range.getClientRects()) if (inZone(r) && seen(n.parentElement!, r)) keep(r);
+  }
+  return out;
+}
 
 /**
  * The helper's own screens, Home (its "Tell me" is already in the log card) and More (its
@@ -37,6 +75,7 @@ export function HelperFab() {
   const [open, setOpen] = useState<number | null>(null);
   const [quick, setQuick] = useState<QuickContext | null>(null);
   const ref = useRef<HTMLButtonElement>(null);
+  const hidden = !can(me, "assistant", "view") || NOT_HERE.some((r) => r.test(path));
   // The button lives in the app's layout and outlives a screen: an answer's link (an entry,
   // the calendar) moves to another screen, and the sheet must close with it, or it would cover
   // the new screen and keep it from scrolling.
@@ -46,36 +85,57 @@ export function HelperFab() {
     lastPath.current = path;
     setOpen(null);
   }, [path]);
-  // A screen's own bottom button (Milk's "Put a bottle away") wins the spot: wherever it is,
-  // held at the bottom while the page scrolls or sitting mid-screen on a short page, the
-  // helper's button moves up just enough to clear it, and back down once it is gone.
+  // Where the button rests. A screen's own bottom button (Milk's "Put a bottle away") wins the
+  // spot: the helper's button moves up just enough to clear it. Then it slides up to the
+  // nearest spot where it covers nothing a person reads or taps (a row's amount, "Send an
+  // invite link"), up to 160 px; with no clear spot in reach it stays where it is. Measured when
+  // the screen settles and when scrolling stops, so it never jumps about under a moving thumb.
   useEffect(() => {
     let raf = 0;
+    let idle: ReturnType<typeof setTimeout> | undefined;
     const place = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const fab = ref.current;
         if (!fab) return;
         fab.style.removeProperty("--fab-lift");
-        const act = document.querySelector(".bottom-action");
-        if (!act) return;
-        const a = act.getBoundingClientRect();
         const f = fab.getBoundingClientRect();
-        if (a.height && a.bottom > f.top - 8 && a.top < f.bottom + 8) fab.style.setProperty("--fab-lift", `${Math.round(f.bottom - a.top + 12)}px`);
+        if (!f.height) return;
+        let lift = 0;
+        const act = document.querySelector(".bottom-action");
+        const a = act?.getBoundingClientRect();
+        if (a && a.height && a.bottom > f.top - 8 && a.top < f.bottom + 8) lift = Math.round(f.bottom - a.top + 12);
+        const base = { top: f.top - lift, bottom: f.bottom - lift, left: f.left, right: f.right };
+        fab.style.pointerEvents = "none";
+        lift += fabLift(base, contentBoxes(base, MAX_LIFT), MAX_LIFT);
+        fab.style.removeProperty("pointer-events");
+        if (lift) fab.style.setProperty("--fab-lift", `${lift}px`);
       });
+    };
+    const onScroll = () => {
+      clearTimeout(idle);
+      idle = setTimeout(place, 120);
     };
     const settle = setTimeout(place, 300);
     place();
-    window.addEventListener("scroll", place, { passive: true });
+    // The screen keeps arriving after the button mounts (a skeleton, then the page, then a
+    // fold opened): measure again once it stops changing.
+    const main = document.querySelector("main");
+    const watch = new MutationObserver(onScroll);
+    if (main) watch.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ["open"] });
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", place);
     return () => {
       clearTimeout(settle);
+      clearTimeout(idle);
+      watch.disconnect();
       cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", place);
+      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", place);
     };
-  }, [path]);
-  if (!can(me, "assistant", "view") || NOT_HERE.some((r) => r.test(path))) return null;
+    // Again once the button is there: on the first render it may not be yet.
+  }, [path, hidden]);
+  if (hidden) return null;
 
   const show = () => {
     setOpen((n) => (n ?? 0) + 1);

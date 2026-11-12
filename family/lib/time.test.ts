@@ -78,3 +78,9 @@ test("dayRange runs midnight to midnight, also on a clock-change day", () => {
   // and springs forward on 29 Mar 2026: a 23-hour day.
   assert.deepEqual(dayRange("2026-03-29", "Europe/London"), { from: "2026-03-29T00:00:00.000Z", to: "2026-03-29T23:00:00.000Z" });
 });
+
+test("describePayload: no ids, no raw true or false", async () => {
+  const { describePayload } = await import("./time.ts");
+  assert.equal(describePayload({ dose: "5 ml", name: "Test syrup", early: true, medicine_id: "613373ed-0803-4f3b-ba14-bea273781e18" }), "5 ml · Test syrup · given early");
+  assert.equal(describePayload({ dose: "1 drop", name: "Vitamin D drops", early: false }), "1 drop · Vitamin D drops");
+});

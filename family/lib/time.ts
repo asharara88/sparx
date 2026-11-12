@@ -176,7 +176,11 @@ export function describePayload(payload: Record<string, unknown>): string {
     .filter(([, v]) => v !== null && v !== "" && v !== undefined)
     // A meal's yes/no and "None" details say nothing unless they say something.
     .filter(([k, v]) => !((k === "new_food" && v !== "Yes") || ((k === "allergen" || k === "reaction") && v === "None")))
+    // Links and flags the app keeps for itself ("medicine_id", a uuid, "early": true) are not
+    // words a person reads: a link is dropped, a flag that is on says its name, one off says nothing.
+    .filter(([k, v]) => !k.endsWith("_id") && v !== false && typeof v !== "object" && !(typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(v)))
     .map(([k, v]) => {
+      if (v === true) return k === "early" ? "given early" : k.replace(/_/g, " ");
       if (k === "new_food") return "first time";
       if (k === "allergen") return `allergen: ${String(v).toLowerCase()}`;
       if (k === "reaction") return `reaction: ${String(v).toLowerCase()}`;
