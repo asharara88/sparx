@@ -987,3 +987,22 @@ fieldset { min-width: 0; }
 .input { min-width: 0; max-width: 100%; }
 input[type="date"], input[type="time"], input[type="datetime-local"] { -webkit-appearance: none; appearance: none; display: block; }
 input::-webkit-date-and-time-value { text-align: start; }
+
+/* The helper from any screen (components/HelperFab): round, plum, above the tab bar on the
+   right, clear of the rose ＋ in the middle. Away while a sheet is open or the keyboard is up;
+   moved up clear of a screen's bottom button (--fab-lift, set by the component); the page
+   leaves room under its last row for it. */
+.helper-fab {
+  position: fixed; z-index: 25;
+  right: max(16px, env(safe-area-inset-right), calc((100vw - 42rem) / 2 + 16px));
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 14px + var(--fab-lift, 0px));
+  width: 56px; height: 56px; border-radius: 999px; border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--fg); color: var(--bg);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--fg) 35%, transparent);
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
+}
+.helper-fab:active { transform: scale(0.95); }
+html.sheet-open .helper-fab, html.kb-open .helper-fab { display: none; }
+body:has(.helper-fab) main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 88px); }
+@media print { .helper-fab { display: none; } }

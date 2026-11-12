@@ -29,7 +29,12 @@ From top to bottom, always in this order:
 2. **The content**, one column, the full width of the phone less a 20 px margin each side.
 3. **The main action**, if the screen has one, as one wide button at the bottom, just above
    the tab bar, where the thumb already is ("Put a bottle away", "+ Log", "Save").
-4. **The tab bar**: Home, the child, a round ＋ (log), Milk, More. Nothing else is fixed to the screen.
+4. **The tab bar**: Home, the child, a round ＋ (log), Milk, More. Nothing else is fixed to the
+   screen but **the helper's button** (Mido, 12 November): round, plum, above the tab bar on the
+   right, on every screen but Home (its "Tell me" is in the log card), the helper's own screen and
+   the family chat. It opens the helper in a sheet over the screen; it steps aside while a sheet
+   is open or the keyboard is up, and moves up clear of a screen's bottom button
+   (`components/HelperFab.tsx`).
 
 The thumb reaches the bottom half of the phone easily and the top corners hardly at all.
 What people tap often lives low; what they tap rarely (or must not tap by accident, like
