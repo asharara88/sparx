@@ -201,6 +201,9 @@ export default async function HomePage() {
       <HomeHeader summary={summary} me={me} today={today} />
       <HomeState summary={summary} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} />
+      {/* One thing that needs a look, on one line; the rest wait behind a small "+N" beside it
+          (DESIGN.md rule 3), not a link floating on its own line. */}
+      <div className="now-line">
       <div className="now-queue">
         <div>
           {vaccine?.overdue && (
@@ -263,11 +266,11 @@ export default async function HomePage() {
         </div>
       </div>
       {known > 1 && (
-        <Link prefetch={false} href="/baby" className="muted -mt-3 flex min-h-[44px] items-center self-end px-1 text-sm font-semibold">
-          {known - 1} more ›
+        <Link prefetch={false} href="/baby" className="now-more" aria-label={`${known - 1} more to look at`}>
+          +{known - 1}
         </Link>
       )}
-      <div className="grow-space" />
+      </div>
       <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} tell={can(me, "assistant", "add") && can(me, "lana", "add") ? <TellBar quick={quickContextOf(summary, me)} /> : null} />
     </div>
     <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">

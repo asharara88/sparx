@@ -6,7 +6,9 @@
 // than the screen, short labels that break onto two lines, tables, a card inside a card,
 // tap targets under 44 px, text under 13 px. Folds are opened first so what hides in them
 // counts. Saves light and night screenshots to $AUDIT_OUT (default /tmp/ui-audit).
-// Env: AUDIT_AS (auth user id for the shot_as cookie), AUDIT_URL (default http://localhost:3000).
+// Env: AUDIT_AS (auth user id for the shot_as cookie), AUDIT_URL (default http://localhost:3000),
+// AUDIT_NOW (an ISO time: the browser's clock is held there, to match a server started with
+// scripts/fake-clock.cjs on a demo day shifted to that time).
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 
@@ -32,6 +34,7 @@ for (const theme of ["light", "night"]) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light" });
   await ctx.addCookies([{ name: "shot_as", value: as, domain: new URL(base).hostname, path: "/" }]);
   const page = await ctx.newPage();
+  if (process.env.AUDIT_NOW) await page.clock.install({ time: new Date(process.env.AUDIT_NOW) });
   for (const route of routes) {
     const res = await page.goto(base + route, { waitUntil: "networkidle", timeout: 240_000 });
     // Night is the 3 am screen. Force it on (or off) right before the shot, whatever the
