@@ -8,6 +8,7 @@ import { useMe } from "@/lib/me-context";
 import { addDays, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { Sheet } from "@/components/Sheet";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -41,10 +42,17 @@ export function CalendarView({
   const tz = data.timezone;
   const canAdd = can(me, "calendar", "add");
   const byDay = new Map<string, CalendarEvent[]>();
-  // A daily routine is said once, on the first day shown ("Bath time · daily"); repeated on
-  // every card it filled two weeks with the same line.
-  const first = data.days[0]?.date;
-  for (const e of data.events) if (e.repeat !== "daily" || e.date === first) byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
+  // A daily routine is said once, on its first day in these two weeks ("Bath time · daily");
+  // repeated on every card it filled two weeks with the same line. One that starts later in
+  // the range is said on the day it starts.
+  const saidDaily = new Set<string>();
+  for (const e of [...data.events].sort((a, b) => a.starts_at.localeCompare(b.starts_at))) {
+    if (e.repeat === "daily") {
+      if (saidDaily.has(e.id)) continue;
+      saidDaily.add(e.id);
+    }
+    byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
+  }
 
   const shownDays = data.days.filter((day) => day.date.slice(0, 10) === today.slice(0, 10) || (byDay.get(day.date)?.length ?? 0) > 0 || due.some((d) => d.due_on === day.date.slice(0, 10)));
   return (
@@ -60,14 +68,18 @@ export function CalendarView({
       </header>
       {children}
 
+      {/* Adding or changing opens a sheet over wherever the list is (DESIGN.md, "Sheet"): the
+          Add button sits at the bottom, so a form at the top would open out of sight. */}
       {editing && (
-        <EventForm
-          event={editing === "new" ? null : editing}
-          members={members}
-          tz={tz}
-          defaultDate={from}
-          onClose={() => setEditing(null)}
-        />
+        <Sheet title={editing === "new" ? "New calendar entry" : "Change calendar entry"} onClose={() => setEditing(null)}>
+          <EventForm
+            event={editing === "new" ? null : editing}
+            members={members}
+            tz={tz}
+            defaultDate={from}
+            onClose={() => setEditing(null)}
+          />
+        </Sheet>
       )}
 
       {/* Only the days with something on (and today): two weeks of empty cards said nothing. */}
@@ -199,8 +211,7 @@ function EventForm({
   }
 
   return (
-    <form onSubmit={save} className="card flex flex-col gap-3 border-[var(--accent)]">
-      <h2 className="text-lg font-semibold">{event ? "Change" : "New"} calendar entry</h2>
+    <form onSubmit={save} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1">
         <span className="font-semibold">What</span>
         <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Plumber for the kitchen tap" />
