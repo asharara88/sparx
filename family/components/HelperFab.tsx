@@ -34,6 +34,15 @@ export function HelperFab() {
   const [open, setOpen] = useState<number | null>(null);
   const [quick, setQuick] = useState<QuickContext | null>(null);
   const ref = useRef<HTMLButtonElement>(null);
+  // The button lives in the app's layout and outlives a screen: an answer's link (an entry,
+  // the calendar) moves to another screen, and the sheet must close with it, or it would cover
+  // the new screen and keep it from scrolling.
+  const lastPath = useRef(path);
+  useEffect(() => {
+    if (lastPath.current === path) return;
+    lastPath.current = path;
+    setOpen(null);
+  }, [path]);
   // A screen's own bottom button (Milk's "Put a bottle away") wins the spot: wherever it is,
   // held at the bottom while the page scrolls or sitting mid-screen on a short page, the
   // helper's button moves up just enough to clear it, and back down once it is gone.
