@@ -132,3 +132,15 @@ test("mergeEntry: nothing different is not a change; null drops a field; a note 
   const cleared = mergeEntry({ ...bottleEntry, note: "x" }, { note: "" });
   assert.equal(cleared.ok && cleared.next.note, null);
 });
+
+test("matchVaccines: a shared word is not a match (Hepatitis A is not Hepatitis B)", () => {
+  const hep: VaccineItem[] = [
+    { id: "hb", visit: "Birth", vaccine: "Hepatitis B", status: "due" },
+    { id: "ha", visit: "18 months", vaccine: "Hepatitis A", status: "upcoming" },
+  ];
+  const a = matchVaccines(hep, "hepatitis a");
+  assert.deepEqual(a.ok && a.items.map((v) => v.id), ["ha"]);
+  const b = matchVaccines(hep, "Hep B");
+  assert.equal(b.ok, false, "too short to be sure: asked, not guessed");
+  assert.deepEqual((matchVaccines(hep, "hepatitis b") as { items: VaccineItem[] }).items.map((v) => v.id), ["hb"]);
+});

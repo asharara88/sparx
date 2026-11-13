@@ -33,7 +33,7 @@ export function retireProposals(msgs: { proposals?: AssistantProposal[] }[], sta
  * entry it changes, the child it hands over, else its kind.
  */
 const aboutOf = (p: AssistantProposal) =>
-  p.care_entry?.type_id ?? p.end_timer?.type_id ?? (p.entry_change ? `change:${p.entry_change.entry_id}` : null) ?? (p.custody ? `custody:${p.custody.subject_id}` : null) ?? p.kind;
+  p.care_entry?.type_id ?? p.end_timer?.type_id ?? (p.entry_change ? `change:${p.entry_change.entry_id}` : null) ?? (p.custody ? `custody:${p.custody.subject_id}` : null) ?? (p.medicine_dose ? `dose:${p.medicine_dose.medicine_id}` : null) ?? p.kind;
 
 /**
  * A corrected card ("make it 90") takes the place of the latest earlier card about the same

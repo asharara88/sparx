@@ -972,6 +972,7 @@ function proposeMilkAdd(): AssistantTool {
           location: { type: "string", description: "fridge | freezer" },
           pumped_at: { type: "string", description: "When it was pumped, 'YYYY-MM-DD HH:MM' household time. Omit for now." },
           note: { type: "string" },
+          replaces_previous: { type: "boolean", description: "True when correcting a milk card not confirmed yet (\"make it 120\", \"no, the fridge\")." },
         },
         ["amount_ml", "location"],
       ),
@@ -989,6 +990,7 @@ function proposeMilkAdd(): AssistantTool {
         kind: "milk_add",
         summary: `${loc === "freezer" ? "🧊" : "🍼"} Put away · ${ml} ml · ${loc} · pumped ${local(w.at, ctx.tz)}`,
         milk_add: { amount_ml: ml, location: loc, pumped_at: w.at, note: (input.note as string) || null },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT in the stash yet." };
@@ -1009,6 +1011,7 @@ function proposeMilkMove(): AssistantTool {
           pumped_on: { type: "string", description: "The day it was pumped, YYYY-MM-DD, if said." },
           expired: { type: "boolean", description: "True for \"the expired one\", \"the old one past its date\"." },
           bottle_id: { type: "string", description: "The id from milk_stash, when known." },
+          replaces_previous: { type: "boolean", description: "True when correcting a bottle card not confirmed yet (\"no, the other one\")." },
         },
         ["action"],
       ),
@@ -1036,6 +1039,7 @@ function proposeMilkMove(): AssistantTool {
         kind: "milk_move",
         summary: `${icon} ${verb} · ${b.amount_ml} ml · ${b.location} · pumped ${local(b.pumped_at, ctx.tz)}`,
         milk_move: { bottle_id: b.id, action, amount_ml: b.amount_ml, location: b.location, pumped_at: b.pumped_at },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. Nothing has moved yet." };
@@ -1080,6 +1084,7 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
           given_anyway: { type: "boolean", description: "Only after you told the member it was earlier than the minimum gap and they said it really was given." },
           subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}. Omit when there is one.` },
           note: { type: "string" },
+          replaces_previous: { type: "boolean", description: "True when correcting a dose card not confirmed yet (\"it was at 8\", \"2 ml\")." },
         },
         ["medicine"],
       ),
@@ -1100,21 +1105,32 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
       const w = whenGiven(input.given_at, ctx);
       if ("error" in w) return w;
       if (Date.parse(w.at) > ctx.now.getTime() + 5 * 60_000) return { error: "in_the_future", message: "A dose is logged once given: ask when it was given." };
-      // The gap is checked against the time it was given, as medicine_give does: a dose logged
-      // late ("she had Calpol at 6") is measured from 6, not from now.
-      const lastBefore = med.last_at && Date.parse(med.last_at) <= Date.parse(w.at) ? med.last_at : null;
-      const nextAt = lastBefore ? Date.parse(lastBefore) + med.min_gap_hours * 3_600_000 : null;
-      const early = nextAt !== null && nextAt > Date.parse(w.at);
+      // The gap is checked as medicine_give checks it, so a card is never one the database then
+      // refuses: from the last dose at or before the time it was given, read from the log, not
+      // from the latest dose overall ("she had Calpol at 6" is measured from the dose before 6,
+      // even when another was logged at 9).
+      const at = Date.parse(w.at);
+      const gapMs = med.min_gap_hours * 3_600_000;
+      const doses = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(at - gapMs - 60_000).toISOString(), p_to: new Date(at + 20 * 60_000).toISOString() });
+      const sameMed = (e: { type_id: string; payload?: Record<string, unknown> }) =>
+        e.type_id === `${s.module_id}.medication` && (e.payload?.medicine_id === med.id || String(e.payload?.name ?? "").trim().toLowerCase() === med.name.trim().toLowerCase());
+      const logged = doses.ok ? ((doses.entries as { type_id: string; occurred_at: string; payload?: Record<string, unknown> }[]) ?? []).filter(sameMed) : [];
+      const lastBefore = doses.ok
+        ? (logged.filter((e) => Date.parse(e.occurred_at) <= at).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))[0]?.occurred_at ?? null)
+        : med.last_at && Date.parse(med.last_at) <= at ? med.last_at : null;
+      const nextAt = lastBefore ? Date.parse(lastBefore) + gapMs : null;
+      const early = nextAt !== null && nextAt > at;
+      // A dose already logged within 20 minutes either side is most likely this one, said twice.
+      const near = logged.find((e) => Math.abs(Date.parse(e.occurred_at) - at) < 20 * 60_000)?.occurred_at ?? null;
+      if (near && input.given_anyway !== true) {
+        return { error: "already_logged", logged_at: local(near, ctx.tz), message: `A dose of ${med.name} is already logged at ${local(near, ctx.tz)?.slice(11)}: ask whether this is the same dose before logging another.` };
+      }
       if (early && input.given_anyway !== true) {
-        const sameDose = lastBefore && Math.abs(Date.parse(lastBefore) - Date.parse(w.at)) < 20 * 60_000;
         return {
           error: "too_soon",
           last_given: local(lastBefore, ctx.tz),
-          last_dose: med.last_dose,
           next_allowed: local(new Date(nextAt!).toISOString(), ctx.tz),
-          message: sameDose
-            ? `A dose of ${med.name} is already logged at ${local(lastBefore, ctx.tz)?.slice(11)}: ask whether this is the same dose before logging another.`
-            : `This is earlier than the minimum gap of ${med.min_gap_hours} h for ${med.name}. Tell the member when the last dose was and when the next is allowed. Only if they say it really was given, call again with given_anyway true. If they are unsure about safety, they should ask the doctor or pharmacist.`,
+          message: `This is earlier than the minimum gap of ${med.min_gap_hours} h for ${med.name}. Tell the member when the last dose was and when the next is allowed. Only if they say it really was given, call again with given_anyway true. If they are unsure about safety, they should ask the doctor or pharmacist.`,
         };
       }
       const dose = (typeof input.dose === "string" && input.dose.trim()) || med.dose || null;
@@ -1123,6 +1139,7 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
         kind: "medicine_dose",
         summary: `💊 ${med.name}${dose ? ` · ${dose}` : ""} · ${s.name} · ${local(w.at, ctx.tz)}${early ? " · earlier than the usual gap" : ""}`,
         medicine_dose: { medicine_id: med.id, subject_name: s.name, name: med.name, dose, given_at: w.at, early, note: (input.note as string) || null },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next_allowed_after: local(new Date(Date.parse(w.at) + med.min_gap_hours * 3_600_000).toISOString(), ctx.tz), next: "Tell the member to tap Confirm. It is NOT logged yet." };
@@ -1142,6 +1159,7 @@ function proposeVaccines(ctx0: ToolContext): AssistantTool {
           given_on: { type: "string", description: "The day, YYYY-MM-DD. Omit for today." },
           place: { type: "string", description: "Where, if said (the clinic's name)." },
           subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}. Omit when there is one.` },
+          replaces_previous: { type: "boolean", description: "True when correcting a vaccine card not confirmed yet (\"it was yesterday\")." },
         },
       ),
     },
@@ -1165,6 +1183,7 @@ function proposeVaccines(ctx0: ToolContext): AssistantTool {
         kind: "vaccines",
         summary: `💉 ${m.visit} · ${m.items.map((v) => v.vaccine.replace(/\s*\(.*\)$/, "")).join(", ")} · ${s.name} · given ${day}`,
         vaccines: { subject_id: s.id, subject_name: s.name, visit: m.visit, given_on: day, place: (typeof input.place === "string" && input.place.trim()) || null, items: m.items.map((v) => ({ schedule_id: v.id, vaccine: v.vaccine })) },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. Nothing is recorded yet." };

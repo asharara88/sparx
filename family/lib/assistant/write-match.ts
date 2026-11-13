@@ -136,7 +136,12 @@ export function matchVaccines(items: VaccineItem[], said: unknown): { ok: true; 
     const left = open.filter((v) => v.visit === visit);
     return left.length ? { ok: true, visit, items: left } : { ok: false, error: "already_given", visits };
   }
-  const byName = items.filter((v) => norm(v.vaccine).includes(q) || q.split(" ").some((w) => w.length >= 4 && norm(v.vaccine).includes(w)));
+  // By name: the whole phrase inside the vaccine's name, else every word said is one of its
+  // words (or the start of one), so "hepatitis a" never matches "Hepatitis B".
+  const tokens = (x: string) => norm(x).split(" ").filter(Boolean);
+  const heard = tokens(q);
+  const fits = (v: VaccineItem) => (q.length >= 4 && norm(v.vaccine).includes(q)) || (heard.length > 0 && heard.every((w) => tokens(v.vaccine).some((x) => x === w || (w.length >= 4 && x.startsWith(w)))));
+  const byName = items.filter(fits);
   if (byName.length) {
     const left = byName.filter((v) => v.status !== "given");
     if (!left.length) return { ok: false, error: "already_given", visits };
