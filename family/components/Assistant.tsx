@@ -681,6 +681,16 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         saved("/baby/milk", t(lang, c.location === "freezer" ? "inFreezer" : "inFridge"));
       } else if (p.kind === "milk_move" && p.milk_move) {
         const c = p.milk_move;
+        // The bottle as it is now, not as it was when the card was made: a card left waiting can
+        // outlive the milk, and milk_move itself does not refuse expired milk (warming would
+        // restart its clock and bring it back as fresh).
+        const { data: stash, error: stashError } = await supabase.rpc("milk_list");
+        if (stashError) throw new Error(stashError.message);
+        const b = ((stash as { bottles?: { id: string; expired?: boolean; warmed_at?: string | null; location?: string }[] } | null)?.bottles ?? []).find((x) => x.id === c.bottle_id);
+        if (!b) throw new Error("That bottle is no longer in the stash.");
+        if (b.expired && c.action !== "binned") throw new Error("That bottle is past its time now: it can only be binned.");
+        if (c.action === "warmed" && b.warmed_at) throw new Error("That bottle is already warmed.");
+        if (c.action === "fridge" && b.location !== "freezer") throw new Error("That bottle is not in the freezer any more.");
         await rpcOk(supabase.rpc("milk_move", { p_id: c.bottle_id, p_action: c.action }));
         saved("/baby/milk", t(lang, c.action === "binned" ? "binned" : c.action === "fridge" ? "thawing" : "saved"));
       } else if (p.kind === "medicine_dose" && p.medicine_dose) {
