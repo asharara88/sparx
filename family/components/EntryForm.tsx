@@ -71,6 +71,8 @@ export function EntryForm(props: {
   const [whenBad, setWhenBad] = useState(false);
   const [endWhen, setEndWhen] = useState<When>(NOW);
   const [endBad, setEndBad] = useState(false);
+  // A first, a doctor's visit or a measurement from days ago: any date and time, not only the last two days.
+  const [anotherDay, setAnotherDay] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const atIso = (w: When) => whenToIso(w, Date.now(), (l) => fromLocalInput(l, tz));
 
@@ -180,7 +182,27 @@ export function EntryForm(props: {
       <fieldset className="card flex flex-col p-0" disabled={readOnly}>
         <div className="row flex-col px-4" role="group" aria-label={timeLabel}>
           {mode === "create" ? (
-            <WhenChips value={when} onChange={setWhen} onValid={(ok) => setWhenBad(!ok)} timezone={tz} label={timeLabel} disabled={readOnly || busy} />
+            <>
+              <WhenChips value={when} onChange={setWhen} onValid={(ok) => setWhenBad(!ok)} timezone={tz} label={timeLabel} disabled={readOnly || busy} />
+              {anotherDay ? (
+                <input
+                  className="input"
+                  type="datetime-local"
+                  aria-label={`${timeLabel}, another day`}
+                  max={toLocalInput(new Date().toISOString(), tz)}
+                  value={when.kind === "at" ? when.local : ""}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setWhen({ kind: "at", local: e.target.value });
+                    setWhenBad(false);
+                  }}
+                />
+              ) : (
+                <button type="button" className="self-start font-semibold text-[var(--accent)]" disabled={readOnly || busy} onClick={() => setAnotherDay(true)}>
+                  On another day
+                </button>
+              )}
+            </>
           ) : (
             <label className="flex flex-col gap-2">
               <span className="font-semibold">{timeLabel}</span>
