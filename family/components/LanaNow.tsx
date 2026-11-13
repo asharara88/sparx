@@ -264,7 +264,8 @@ export function LanaNow({
     const last = typeId ? seen.find((e) => e.type_id === typeId) : undefined;
     if (!last) return fallback;
     const m = minutesBetween(last.ended_at ?? last.occurred_at, realNowIso);
-    return m >= 0 && m < 24 * 60 ? `${fmtDuration(m)} ago` : fallback;
+    // From six hours on, whole hours: "15 h ago" leaves room for the detail after it at 320 px.
+    return m >= 0 && m < 24 * 60 ? `${m >= 360 ? `${Math.round(m / 60)} h` : fmtDuration(m)} ago` : fallback;
   };
   // Which half of the Feed sheet shows: the way the last feed went, bottle or breast.
   const [feedTab, setFeedTab] = useState<"breast" | "bottle">(() => (breastfeeds && lastFeedMethod !== "Bottle" ? "breast" : "bottle"));
@@ -559,7 +560,7 @@ export function LanaNow({
             </div>
           )}
           <p className="divider-label">{isEarlier(when) ? "It already happened" : "or it already happened"}</p>
-          <WhenChips label={sleepEntry ? "Woke up" : "Fell asleep"} value={when} onChange={(w) => { setWhen(w); setClash(null); }} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} defaultOpen />
+          <WhenChips label={sleepEntry ? "Woke up" : "Fell asleep"} value={when} onChange={(w) => { setWhen(w); setClash(null); }} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} defaultOpen nowChip="whenEarlier" />
           {isEarlier(when) &&
             (sleepEntry ? (
               <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => wake(sleepEntry)}>

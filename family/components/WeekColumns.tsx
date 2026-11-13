@@ -42,7 +42,7 @@ export function WeekColumns({ entries, days, prevDays, timezone, today }: { entr
         <h2 id="wk-h" className="font-[family-name:var(--font-display)] text-xl font-semibold">
           {title}
         </h2>
-        <p className="muted text-sm">The last 7 days, midnight at the top. Tap a day to see it.</p>
+        <p className="muted text-sm">Sleep and feeds, midnight at the top. Tap a day.</p>
       </div>
       <div className="card flex gap-1.5 py-3 pl-1 pr-2">
         <div className="relative w-7 shrink-0 text-[0.8rem] tabular-nums text-[var(--muted)]" style={{ height: H }} aria-hidden>

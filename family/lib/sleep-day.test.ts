@@ -54,3 +54,12 @@ test("bedtime counts as night, a gap over twelve hours says nothing, a timer lef
   assert.deepEqual(left.state, { kind: "unknown" });
   assert.deepEqual(sleepDay([], DAY, h(10), opts), { segments: [], state: { kind: "unknown" }, wokeAt: null, naps: 0, napMin: 0, nightMin: 0 });
 });
+
+test("still in the night: a wake before noon followed by more night sleep is not the morning wake", () => {
+  // 03:00, back to sleep at 02:30 after a wake at 02:00.
+  assert.equal(sleepDay([sleep(h(-5), h(2)), sleep(h(2, 30), null)], DAY, h(3), opts).wokeAt, null);
+  // 10:00, up at 06:10 and down again at 06:33, still asleep.
+  assert.equal(sleepDay([sleep(h(-5), h(6, 10)), sleep(h(6, 33), null)], DAY, h(10), opts).wokeAt, null);
+  // 21:00, woke at 07:00 and down for the next night at 19:30: today's wake stays.
+  assert.equal(sleepDay([sleep(h(-5), h(7)), sleep(h(19, 30), null)], DAY, h(21), opts).wokeAt, h(7));
+});

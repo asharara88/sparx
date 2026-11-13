@@ -1,15 +1,16 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { EntryRow, EntryType } from "@/lib/types";
 import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
-import { tintFor } from "@/lib/tints";
+import { iconFor, tintFor } from "@/lib/tints";
 import { Sheet } from "./Sheet";
 import { MoodTap } from "./MoodTap";
 import { Backfill } from "./Backfill";
 import { Icon } from "./Icon";
+import { onLogHere, takeLogFrom } from "@/lib/log-bus";
 
 /**
  * The log sheet (DESIGN.md, "The bottom bar"): how she is right now (one tap), every kind
@@ -23,16 +24,27 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
   const path = usePathname();
   const params = useSearchParams();
   const [open, setOpen] = useState<"menu" | "earlier" | null>(null);
-  // The bar's ＋ arrives as ?log=1: open the sheet, and drop the flag so Back does not reopen it.
+  // Opened by the bar's ＋ on another screen: closing it goes back there.
+  const backOnClose = useRef(false);
+  // The bar's ＋ on this screen opens the sheet in place (lib/log-bus); on a past day it goes to today.
+  useEffect(() => (isToday ? onLogHere(() => setOpen("menu")) : undefined), [isToday]);
+  // The bar's ＋ from another screen arrives as ?log=1: open the sheet, and drop the flag so Back does not reopen it.
   const wanted = params.get("log") === "1";
   useEffect(() => {
     if (!wanted) return;
+    backOnClose.current = takeLogFrom();
     setOpen("menu");
     const rest = new URLSearchParams(params.toString());
     rest.delete("log");
     router.replace(rest.size ? `${path}?${rest}` : path, { scroll: false });
   }, [wanted, params, path, router]);
-  const close = useCallback(() => setOpen(null), []);
+  const close = useCallback(() => {
+    setOpen(null);
+    if (backOnClose.current) {
+      backOnClose.current = false;
+      router.back();
+    }
+  }, [router]);
   if (!can(me, "lana", "add")) return null;
   return (
     <>
@@ -49,17 +61,21 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
           <ul className="card flex flex-col p-0">
             {types
               .filter((t) => t.key !== "mood" && (t.key !== "meal" || solids || entries.some((e) => e.type_id === t.id)))
-              .map((t) => (
+              .map((t) => {
+                const icon = iconFor(t.key);
+                return (
                 <li key={t.id} className="row px-4">
                   <Link prefetch={false} href={`/baby/log/${t.key}`} className="row-link flex min-h-[44px] w-full items-center gap-3">
-                    <span aria-hidden className={`icon-disc tint-${tintFor(t.key)} text-xl`} style={{ width: 36, height: 36 }}>
-                      {t.icon}
+                    {/* The same line icon as Home's rows; a type the family made up keeps its emoji. */}
+                    <span aria-hidden className={`icon-disc tint-${tintFor(t.key)} ${icon ? "" : "text-xl"}`} style={{ width: 36, height: 36 }}>
+                      {icon ? <Icon name={icon} size={19} /> : t.icon}
                     </span>
                     <span className="flex-1 font-semibold">{t.label}</span>
                     <Icon name="forward" size={18} className="muted" />
                   </Link>
                 </li>
-              ))}
+                );
+              })}
             <li className="row px-4">
               <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => setOpen("earlier")}>
                 <span aria-hidden className="icon-disc" style={{ width: 36, height: 36 }}>

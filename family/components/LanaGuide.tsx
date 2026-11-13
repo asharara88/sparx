@@ -12,6 +12,8 @@ import { Fold } from "./Fold";
 export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = false }: { entries: EntryRow[]; birthDate: string | null; timezone?: string; feedGapMin?: number; fold?: boolean }) {
   const me = useMe();
   const [now, setNow] = useState<number | null>(null);
+  // In the fold: the most pressing tip, the rest behind "N more" (DESIGN.md rule 3).
+  const [more, setMore] = useState(false);
   useEffect(() => {
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 60_000);
@@ -43,9 +45,26 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
   if (fold) {
     if (tips.length === 0) return null;
     const worst = tips.find((t) => t.level === "red") ? "red" : tips.find((t) => t.level === "yellow") ? "yellow" : null;
+    const shown = more ? tips : tips.slice(0, 1);
+    // Flat in the fold (no box in a box), one line of colour for how urgent, one link at the foot.
     return (
       <Fold title={`${possessive(childName(me))} guide`} icon="sparkles" tint={worst === "red" ? "danger" : worst === "yellow" ? "meds" : "guide"} hint={`${tips.length} to read`} open={worst === "red"}>
-        {body}
+        {shown.map((tip, i) => (
+          <div key={tip.title} className={i ? "border-t border-[var(--line)] pt-3" : ""}>
+            <p className={`font-semibold ${tip.level === "red" ? "text-[var(--danger)]" : tip.level === "yellow" ? "text-[var(--warn)]" : "text-[var(--fg)]"}`}>{tip.title}</p>
+            <p className="mt-1 text-sm text-[var(--fg)]">{tip.body}</p>
+          </div>
+        ))}
+        {!more && tips.length > 1 && (
+          <button type="button" className="self-start font-semibold text-[var(--accent)]" onClick={() => setMore(true)}>
+            {tips.length - 1} more
+          </button>
+        )}
+        {worst && (
+          <Link prefetch={false} href={`/baby/when-to-call#${tips[0].topic}`} className="inline-flex min-h-[44px] items-center font-semibold text-[var(--fg)]">
+            When to call the doctor ›
+          </Link>
+        )}
       </Fold>
     );
   }

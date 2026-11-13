@@ -84,3 +84,11 @@ test("describePayload: no ids, no raw true or false", async () => {
   assert.equal(describePayload({ dose: "5 ml", name: "Test syrup", early: true, medicine_id: "613373ed-0803-4f3b-ba14-bea273781e18" }), "5 ml · Test syrup · given early");
   assert.equal(describePayload({ dose: "1 drop", name: "Vitamin D drops", early: false }), "1 drop · Vitamin D drops");
 });
+
+test("entryDetail: the side and Breast as one word, the minutes only when the row has no length", async () => {
+  const { entryDetail } = await import("./time.ts");
+  assert.equal(entryDetail({ method: "Breast", side: "Left", duration_min: 22 }, true), "Left breast");
+  assert.equal(entryDetail({ method: "Breast", side: "Both", duration_min: 30 }, false), "Both breasts · 30 min");
+  assert.equal(entryDetail({ method: "Bottle", milk: "Formula", amount_ml: 120 }, false), "Bottle · Formula · 120 ml");
+  assert.equal(entryDetail({ place: "Cot" }, true), "Cot");
+});

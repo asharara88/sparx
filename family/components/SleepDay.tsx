@@ -12,7 +12,7 @@ import { napsLine } from "@/lib/stage";
  * and one line of sums. The times of each nap are in the list below, not here.
  * Server-rendered; the duration and the bar's "now" tick on the phone.
  */
-export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true, href = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** Off on Home, where the strip at the top already says when she woke and the naps. */ sums?: boolean; /** The Sleep section, linked at the foot of the card. */ href?: string | null }) {
+export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true, since: showSince = true, href = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** Off on Home, where the strip at the top already says when she woke and the naps. */ sums?: boolean; /** Off on Home, where her state card above already runs the clock. */ since?: boolean; /** The Sleep section, linked at the foot of the card. */ href?: string | null }) {
   const start = zonedMidnight(day, timezone).getTime();
   const end = start + 24 * 3600 * 1000;
   const now = nowIso ? Math.min(Date.parse(nowIso), end) : end;
@@ -35,7 +35,7 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
   if (!isToday) headline = s.wokeAt ? `Up at ${at(s.wokeAt)}` : "Sleep that day";
   else if (s.state.kind === "asleep") {
     headline = `${s.state.sleep === "night" ? "Night" : "Nap"} since ${at(s.state.since)}`;
-    since = { iso: new Date(s.state.since).toISOString(), prefix: "" };
+    since = { iso: new Date(s.state.since).toISOString(), prefix: "asleep " };
   } else if (s.state.kind === "awake" && s.state.since != null) {
     headline = `${s.state.afterNap ? "Up from a nap at" : "Woke up at"} ${at(s.state.since)}`;
     since = { iso: new Date(s.state.since).toISOString(), prefix: "awake " };
@@ -53,7 +53,7 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
     <section className="card tint-sleep flex flex-col gap-2" aria-labelledby="sleep-day-h">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="sleep-day-h" className="section-title">Sleep today</h2>
-        {since && <SleepSince sinceIso={since.iso} clockIso={clockIso} prefix={since.prefix} />}
+        {since && showSince && <SleepSince sinceIso={since.iso} clockIso={clockIso} prefix={since.prefix} />}
       </div>
       <p className="text-2xl font-bold tabular-nums">{headline}</p>
       <SleepBar segments={s.segments} dayStartMs={start} clockIso={clockIso} live={isToday} label={label} />

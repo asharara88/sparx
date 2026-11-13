@@ -61,8 +61,9 @@ export function DayStrip({
 
   const rows = entries.filter(inDay).sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
 
+  // One box deep: the tinted tiles sit on the page, not in a white card (no card in a card).
   return (
-    <div className="card">
+    <div>
       {title && <p className="mb-2 font-semibold">{title}</p>}
       {/* The day's numbers, one tinted tile each: the colour says what, the number says how much. */}
       <dl className="grid grid-cols-2 gap-2 text-center">

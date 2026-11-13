@@ -171,6 +171,19 @@ export function fromLocalInput(local: string, tz: string): string {
   return new Date(instant).toISOString();
 }
 
+/**
+ * A list row's detail ("Left breast", "Cot", "Bottle · 120 ml"): the payload in words, with
+ * the side and "Breast" as one word, and without the minutes when the row shows the length.
+ */
+export function entryDetail(payload: Record<string, unknown>, lengthShown: boolean): string {
+  const { duration_min, method, side, ...rest } = payload;
+  const p: Record<string, unknown> = {};
+  if (method === "Breast" && typeof side === "string" && side) p.side = side === "Both" ? "Both breasts" : `${side} breast`;
+  else Object.assign(p, { method, side });
+  if (!lengthShown) p.duration_min = duration_min;
+  return describePayload({ ...p, ...rest });
+}
+
 export function describePayload(payload: Record<string, unknown>): string {
   return Object.entries(payload)
     .filter(([, v]) => v !== null && v !== "" && v !== undefined)

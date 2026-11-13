@@ -81,6 +81,9 @@ export function sleepDay(
       nightMin += min;
       // The last night sleep to end before noon is the morning wake (a split night keeps the later end).
       if (!open && s.end! > dayStartMs && s.end! <= Math.min(clipEnd, dayStartMs + H12)) wokeAt = s.end!;
+      // Back to sleep for the night before noon (a wake at 02:00, or up at 06:10 and down again
+      // at 06:33): she has not woken for the day yet, so there is no morning wake to show.
+      if (open && s.start < dayStartMs + H12) wokeAt = null;
     }
   }
   const running = sleeps.find((s) => s.end == null && nowMs - s.start <= 24 * 60 * 60_000 && s.start <= nowMs);

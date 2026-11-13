@@ -2,14 +2,15 @@
 import { GrowthChart } from "@/components/GrowthChart";
 import { useMemo, useState } from "react";
 import type { DailyStats, DayStats } from "@/lib/types";
-import { fmtDuration } from "@/lib/time";
+import { dateWords, fmtDuration } from "@/lib/time";
 import { useMe } from "@/lib/me-context";
 import { childName, childPronouns } from "@/lib/names";
 import { AgeCheck } from "./AgeCheck";
 
 /**
  * The child's trends: sleep, nights, feeds, diapers and weight, one bar per day.
- * Plain SVG, no chart library. Nights belong to the day they start on.
+ * Plain SVG, no chart library. Nights belong to the day they start on. Each chart's title
+ * says the answer; colours are the features' own, named in words, not in a key (DESIGN.md).
  */
 const RANGES = [
   { key: "2w", label: "2 weeks", days: 14 },
@@ -19,6 +20,8 @@ const RANGES = [
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 // "1 h 30 min", not "1.5 h"; a per-day average keeps one decimal at most (DESIGN.md, Numbers).
+const shortDay = (day: string) => dateWords(new Date(`${day}T12:00:00Z`), { day: "numeric", month: "short", timeZone: "UTC" });
+const longDay = (day: string) => dateWords(new Date(`${day}T12:00:00Z`), { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const h = (min: number) => fmtDuration(Math.round(min));
 const n1 = (x: number) => (Number.isInteger(x) ? `${x}` : x.toFixed(1).replace(/\.0$/, ""));
 const mean = (days: DayStats[], k: keyof DayStats) => avg(days.map((d) => Number(d[k] ?? 0)));
@@ -32,19 +35,8 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
   // the last day is today and only half done: compare whole days
   const done = days.filter((d) => d.day < today);
   const thisWeek = all.filter((d) => d.day < today).slice(-7);
-  const lastWeek = all.filter((d) => d.day < today).slice(-14, -7);
   const ageWeeks = (day: string) => (birthDate ? Math.floor((Date.parse(day) - Date.parse(birthDate)) / 86_400_000 / 7) : null);
 
-  const tiles: { label: string; now: string; delta?: number; unit: string }[] = [
-    { label: "Sleep a day", now: h(mean(thisWeek, "sleep_min")), delta: mean(thisWeek, "sleep_min") - mean(lastWeek, "sleep_min"), unit: "min" },
-    { label: "Night sleep", now: h(mean(thisWeek, "night_sleep_min")), delta: mean(thisWeek, "night_sleep_min") - mean(lastWeek, "night_sleep_min"), unit: "min" },
-    { label: "Longest stretch", now: h(mean(thisWeek, "longest_stretch_min")), delta: mean(thisWeek, "longest_stretch_min") - mean(lastWeek, "longest_stretch_min"), unit: "min" },
-    { label: "Night feeds", now: n1(mean(thisWeek, "night_feeds")), delta: mean(thisWeek, "night_feeds") - mean(lastWeek, "night_feeds"), unit: "" },
-    { label: "Breastfeeds a day", now: n1(mean(thisWeek, "breast_count")), delta: mean(thisWeek, "breast_count") - mean(lastWeek, "breast_count"), unit: "" },
-    { label: "At the breast", now: fmtDuration(Math.round(mean(thisWeek, "breast_min"))), delta: mean(thisWeek, "breast_min") - mean(lastWeek, "breast_min"), unit: "min" },
-    { label: "Bottle a day", now: `${Math.round(mean(thisWeek, "bottle_ml"))} ml`, delta: mean(thisWeek, "bottle_ml") - mean(lastWeek, "bottle_ml"), unit: "ml" },
-    { label: "Diapers a day", now: n1(mean(thisWeek, "diapers")), delta: mean(thisWeek, "diapers") - mean(lastWeek, "diapers"), unit: "" },
-  ];
   const weekTotals = {
     breast_count: mean(thisWeek, "breast_count"),
     bottle_count: mean(thisWeek, "bottle_count"),
@@ -61,24 +53,6 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="card">
-        <h2 className="font-semibold">This week, per day</h2>
-        <p className="muted text-sm">Last 7 full days, against the 7 before. Only what was written down counts, so a day with few notes looks like a quiet day.</p>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {tiles.map((t) => (
-            <div key={t.label} className="rounded-xl bg-[var(--card-2)] p-2">
-              <p className="text-sm">{t.label}</p>
-              <p className="text-xl font-bold">{t.now}</p>
-              {t.delta != null && lastWeek.length > 0 && (
-                <p className="muted text-sm">
-                  {t.delta > 0 ? "▲" : t.delta < 0 ? "▼" : "•"} {t.unit === "min" ? h(Math.abs(t.delta)) : `${t.unit === "ml" ? Math.round(Math.abs(t.delta)) : n1(Math.round(Math.abs(t.delta) * 10) / 10)}${t.unit ? ` ${t.unit}` : ""}`}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
       {thisWeek.length > 0 && (
         <AgeCheck
           totals={weekTotals}
@@ -100,73 +74,64 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
       </div>
 
       <Chart
-        title="Sleep"
-        subtitle={`Night (${stats.night_from.slice(0, 5)}–${stats.night_to.slice(0, 5)}) in dark purple, naps in light. Average ${h(mean(done, "sleep_min"))} a day.`}
+        title={`Sleep: ${h(mean(done, "sleep_min"))} a day`}
+        subtitle={`The night (${stats.night_from.slice(0, 5)} to ${stats.night_to.slice(0, 5)}) darker, naps lighter.`}
         days={days}
         max={16 * 60}
         ticks={[4 * 60, 8 * 60, 12 * 60, 16 * 60]}
-        fmt={(v) => `${v / 60}h`}
+        fmt={(v) => `${v / 60} h`}
         series={[
-          { key: "night_sleep_min", color: "#6d28d9", label: "night" },
-          { key: "nap", color: "#c4b5fd", label: "naps", value: (d) => Math.max(0, d.sleep_min - d.night_sleep_min) },
+          { key: "night_sleep_min", color: "var(--sleep-fg)", label: "night" },
+          { key: "nap", color: "var(--sleep)", stroke: "var(--sleep-fg)", label: "naps", value: (d) => Math.max(0, d.sleep_min - d.night_sleep_min) },
         ]}
       />
       <Chart
-        title="Longest night stretch"
-        subtitle={`The longest unbroken sleep each night. Average ${h(mean(done, "longest_stretch_min"))}.`}
+        title={`Longest stretch: ${h(mean(done, "longest_stretch_min"))} a night`}
         days={days}
         max={12 * 60}
         ticks={[3 * 60, 6 * 60, 9 * 60, 12 * 60]}
-        fmt={(v) => `${v / 60}h`}
-        series={[{ key: "longest_stretch_min", color: "#4338ca", label: "stretch" }]}
+        fmt={(v) => `${v / 60} h`}
+        series={[{ key: "longest_stretch_min", color: "var(--sleep-fg)", label: "longest stretch" }]}
       />
       <Chart
-        title="Feeds"
-        subtitle={`Breastfeeds (blue, left darker) and bottles (sky). ${Math.round(mean(done, "breast_count"))} breast and ${mean(done, "bottle_count").toFixed(1)} bottle a day on average.`}
+        title={`Feeds: ${n1(Math.round((mean(done, "breast_count") + mean(done, "bottle_count")) * 10) / 10)} a day`}
+        subtitle="Breastfeeds darker, bottles lighter."
         days={days}
         max={Math.max(12, ...days.map((d) => d.breast_count + d.bottle_count))}
         ticks={[4, 8, 12, 16]}
         fmt={(v) => `${v}`}
         series={[
-          { key: "left_count", color: "#1d4ed8", label: "left" },
-          { key: "right_count", color: "#60a5fa", label: "right" },
-          { key: "other", color: "#93c5fd", label: "side ?", value: (d) => Math.max(0, d.breast_count - d.left_count - d.right_count) },
-          { key: "bottle_count", color: "#7dd3fc", label: "bottle" },
+          { key: "breast_count", color: "var(--feed-fg)", label: "breastfeeds" },
+          { key: "bottle_count", color: "var(--feed)", stroke: "var(--feed-fg)", label: "bottles" },
         ]}
       />
       {days.some((d) => d.bottle_ml > 0) && (
         <Chart
-          title="Bottle"
-          subtitle={`Millilitres a day. Pumped in green. Average ${Math.round(mean(done.filter((d) => d.bottle_ml > 0), "bottle_ml"))} ml on bottle days.`}
+          title={`Bottle: ${Math.round(mean(done.filter((d) => d.bottle_ml > 0), "bottle_ml"))} ml on bottle days`}
+          subtitle={days.some((d) => d.pump_ml > 0) ? "The line is what was pumped." : null}
           days={days}
           max={Math.max(300, ...days.map((d) => Math.max(d.bottle_ml, d.pump_ml)))}
           ticks={[100, 200, 300, 400, 500]}
           fmt={(v) => `${v}`}
-          series={[{ key: "bottle_ml", color: "#0284c7", label: "ml" }]}
-          line={{ key: "pump_ml", color: "#15803d", label: "pumped" }}
+          series={[{ key: "bottle_ml", color: "var(--milk-fg)", label: "ml" }]}
+          line={days.some((d) => d.pump_ml > 0) ? { key: "pump_ml", color: "var(--pump-fg)", label: "pumped" } : undefined}
         />
       )}
       <Chart
-        title="Diapers"
-        subtitle={`Wet (yellow) and dirty (brown). ${mean(done, "diapers").toFixed(1)} a day on average.`}
+        title={`Diapers: ${n1(Math.round(mean(done, "diapers") * 10) / 10)} a day`}
+        subtitle="Dirty darker, wet lighter."
         days={days}
         max={Math.max(8, ...days.map((d) => d.diapers_wet + d.diapers_dirty))}
         ticks={[2, 4, 6, 8, 10]}
         fmt={(v) => `${v}`}
         series={[
-          { key: "diapers_wet", color: "#fbbf24", label: "wet" },
-          { key: "diapers_dirty", color: "#92400e", label: "dirty" },
+          { key: "diapers_dirty", color: "var(--diaper-fg)", label: "dirty" },
+          { key: "diapers_wet", color: "var(--diaper)", stroke: "var(--diaper-fg)", label: "wet" },
         ]}
       />
 
-      {weights.length > 0 && (
-        <section className="card">
-          <h2 className="font-semibold">Weight</h2>
-          <p className="muted text-sm">
-            {weights[weights.length - 1].weight_kg} kg on {weights[weights.length - 1].day}
-            {weights.length > 1 ? `, up ${(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg)).toFixed(2)} kg since ${weights[0].day}` : ""}.
-          </p>
-          {birthDate ? <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate} /> : <WeightChart points={weights} ageWeeks={ageWeeks} />}
+      {weights.length > 0 && (() => {
+        const rows = (
           <ul className="mt-2 flex flex-col">
             {weights
               .slice()
@@ -175,7 +140,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
               .map((w) => (
                 <li key={w.day} className="row">
                   <span className="min-w-0 flex-1">
-                    <span className="block">{w.day}</span>
+                    <span className="block">{longDay(w.day)}</span>
                     {ageWeeks(w.day) != null && <span className="muted block text-sm">{ageWeeks(w.day)} weeks old</span>}
                   </span>
                   <span className="shrink-0 text-right">
@@ -185,10 +150,30 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
                 </li>
               ))}
           </ul>
-        </section>
-      )}
+        );
+        // With a birth date the WHO chart is the weight card (its own title says the latest);
+        // without one, a plain line.
+        return birthDate ? (
+          <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate}>
+            {rows}
+          </GrowthChart>
+        ) : (
+          <section className="card">
+            <h2 className="font-semibold">Weight</h2>
+            <p className="muted text-sm">
+              {weights[weights.length - 1].weight_kg} kg on {longDay(weights[weights.length - 1].day)}
+              {weights.length > 1 ? `, up ${(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg)).toFixed(2)} kg since ${longDay(weights[0].day)}` : ""}.
+            </p>
+            <WeightChart points={weights} ageWeeks={ageWeeks} />
+            {rows}
+          </section>
+        );
+      })()}
       {birthDate && lengths.length > 0 && <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} />}
       {birthDate && heads.length > 0 && <GrowthChart kind="head_cm" points={heads.map((d) => ({ day: d.day, value: Number(d.head_cm) }))} birthDate={birthDate} />}
+      {birthDate && (weights.length > 0 || lengths.length > 0 || heads.length > 0) && (
+        <p className="muted text-sm">Shaded: the 3rd to 97th percentile for girls (WHO Child Growth Standards, 2006); dashed: the median. The doctor&apos;s chart is the reference.</p>
+      )}
 
       {milestones.length > 0 && (
         <section className="card">
@@ -199,7 +184,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
               .reverse()
               .map((m, i) => (
                 <li key={i}>
-                  <span className="muted">{m.day}</span> · {m.what}
+                  <span className="muted">{longDay(m.day)}</span> · {m.what}
                 </li>
               ))}
           </ul>
@@ -209,11 +194,11 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
   );
 }
 
-type Series = { key: string; color: string; label: string; value?: (d: DayStats) => number };
+type Series = { key: string; color: string; stroke?: string; label: string; value?: (d: DayStats) => number };
 
 function Chart({
   title,
-  subtitle,
+  subtitle = null,
   days,
   max,
   ticks,
@@ -222,7 +207,7 @@ function Chart({
   line,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string | null;
   days: DayStats[];
   max: number;
   ticks: number[];
@@ -231,66 +216,54 @@ function Chart({
   line?: Series;
 }) {
   const W = 360;
-  const H = 150;
-  const padL = 30;
-  const padB = 18;
+  const H = 140;
+  const padL = 40;
+  const padB = 4;
   const n = Math.max(days.length, 1);
   const bw = (W - padL) / n;
-  const y = (v: number) => H - padB - (Math.min(v, max) / max) * (H - padB - 6);
+  const y = (v: number) => H - padB - (Math.min(v, max) / max) * (H - padB - 8);
   const val = (s: Series, d: DayStats) => (s.value ? s.value(d) : Number(d[s.key as keyof DayStats] ?? 0));
-  const labelEvery = n > 40 ? 14 : n > 20 ? 7 : n > 10 ? 2 : 1;
+  // The axis words sit in the page, not in the drawing, so they stay 13 px at any width.
+  const shown = ticks.filter((t) => t <= max);
+  const marks = days.length ? [...new Set([0, Math.floor((days.length - 1) / 2), days.length - 1])].map((i) => days[i]) : [];
   return (
     <section className="card">
       <h2 className="font-semibold">{title}</h2>
-      <p className="muted text-sm">{subtitle}</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={`${title}, one bar per day`}>
-        {ticks
-          .filter((t) => t <= max)
-          .map((t) => (
-            <g key={t}>
-              <line x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
-              <text x={padL - 4} y={y(t) + 4} fontSize="10" textAnchor="end" fill="var(--muted)">
-                {fmt(t)}
-              </text>
-            </g>
+      {subtitle && <p className="muted text-sm">{subtitle}</p>}
+      <div className="relative mt-2">
+        <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`${title}, one bar per day`}>
+          {shown.map((t) => (
+            <line key={t} x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
           ))}
-        {days.map((d, i) => {
-          let acc = 0;
-          const x = padL + i * bw;
-          return (
-            <g key={d.day}>
-              {series.map((s) => {
-                const v = val(s, d);
-                const top = y(acc + v);
-                const bottom = y(acc);
-                acc += v;
-                return v > 0 ? <rect key={s.key} x={x + bw * 0.15} y={top} width={bw * 0.7} height={Math.max(1, bottom - top)} fill={s.color} /> : null;
-              })}
-              {i % labelEvery === 0 && (
-                <text x={x + bw / 2} y={H - 4} fontSize="9" textAnchor="middle" fill="var(--muted)">
-                  {d.day.slice(5).replace("-", "/")}
-                </text>
-              )}
-              <title>{`${d.day}: ${series.map((s) => `${s.label} ${fmt(val(s, d))}`).join(", ")}`}</title>
-            </g>
-          );
-        })}
-        {line && (
-          <polyline
-            fill="none"
-            stroke={line.color}
-            strokeWidth="2"
-            points={days.map((d, i) => `${padL + i * bw + bw / 2},${y(val(line, d))}`).join(" ")}
-          />
-        )}
-      </svg>
-      <p className="muted mt-1 flex flex-wrap gap-3 text-xs">
-        {[...series, ...(line ? [line] : [])].map((s) => (
-          <span key={s.key}>
-            <span className="inline-block h-3 w-3 rounded-sm align-middle" style={{ background: s.color }} /> {s.label}
+          {days.map((d, i) => {
+            let acc = 0;
+            const x = padL + i * bw;
+            return (
+              <g key={d.day}>
+                {series.map((s) => {
+                  const v = val(s, d);
+                  const top = y(acc + v);
+                  const bottom = y(acc);
+                  acc += v;
+                  return v > 0 ? <rect key={s.key} x={x + bw * 0.15} y={top} width={bw * 0.7} height={Math.max(1, bottom - top)} fill={s.color} stroke={s.stroke} strokeWidth={s.stroke ? 1 : 0} /> : null;
+                })}
+                <title>{`${longDay(d.day)}: ${series.map((s) => `${s.label} ${fmt(val(s, d))}`).join(", ")}`}</title>
+              </g>
+            );
+          })}
+          {line && <polyline fill="none" stroke={line.color} strokeWidth="2" points={days.map((d, i) => `${padL + i * bw + bw / 2},${y(val(line, d))}`).join(" ")} />}
+        </svg>
+        {shown.map((t) => (
+          <span key={t} className="muted absolute left-0 -translate-y-1/2 text-[13px] leading-none tabular-nums" style={{ top: `${(y(t) / H) * 100}%` }}>
+            {fmt(t)}
           </span>
         ))}
-      </p>
+      </div>
+      <div className="muted mt-1 flex justify-between text-[13px]" style={{ paddingLeft: `${(padL / W) * 100}%` }}>
+        {marks.map((d) => (
+          <span key={d.day}>{shortDay(d.day)}</span>
+        ))}
+      </div>
     </section>
   );
 }

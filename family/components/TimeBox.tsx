@@ -78,7 +78,7 @@ export function TimeBox({
             inputMode="numeric"
             enterKeyHint="done"
             autoComplete="off"
-            placeholder="21:30"
+            placeholder="hh:mm"
             maxLength={8}
             value={text}
             disabled={disabled}

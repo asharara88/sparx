@@ -9,6 +9,8 @@ import { BottleCountdown } from "@/components/BottleCountdown";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { SimpleHome } from "@/components/SimpleHome";
 import { LanaNow } from "@/components/LanaNow";
+import { LogMenu } from "@/components/LogMenu";
+import { feedGapFor } from "@/lib/stage";
 import { HandoverSince } from "@/components/HandoverSince";
 import { FridgePlan } from "@/components/FridgePlan";
 import { ageDays } from "@/lib/norms";
@@ -208,7 +210,7 @@ export default async function HomePage() {
         <div>
           {vaccine?.overdue && (
             <Link prefetch={false} href="/baby/vaccines" className="notice notice-danger flex items-center gap-2 no-underline">
-              <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is overdue</span> <Icon name="forward" size={18} />
+              <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">Vaccine overdue</span> <Icon name="forward" size={18} />
             </Link>
           )}
         </div>
@@ -272,9 +274,11 @@ export default async function HomePage() {
       )}
       </div>
       <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} lastMilk={lastMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} tell={can(me, "assistant", "add") && can(me, "lana", "add") ? <TellBar quick={quickContextOf(summary, me)} /> : null} />
+      {/* The bar's ＋ opens the log sheet here, rather than taking the person to the child's page. */}
+      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} isToday entries={week} todayEntries={recent.filter((e) => Date.parse(e.occurred_at) >= dayStart)} feedIntervalMin={stage ? feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min) : 180} solids={stage?.solids ?? false} />
     </div>
     <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">
-      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} href="/baby/sleep" />
+      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} since={false} href="/baby/sleep" />
       <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} href="/baby/feed" />
       {showFood && stage && <FoodDay meals={meals} dayStartMs={dayStart} dayEndMs={dayEnd} stage={stage} timezone={tz} />}
       {showPump && <PumpDashboard pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} days={pumpDays} today={today} hourOfDay={hour} />}

@@ -10,7 +10,7 @@ import { Icon } from "@/components/Icon";
  * One big button: "I'm here" when you arrive, "Leaving" when you go. Shows when you came in.
  * With memberId an admin toggles it for someone else (a small button on the home screen).
  */
-export function AttendanceButton({ open, memberId, name, timezone, small = false }: { open: AttendanceOpen | null; memberId?: string; name?: string; timezone: string; small?: boolean }) {
+export function AttendanceButton({ open, memberId, name, timezone, small = false, bottom = false }: { open: AttendanceOpen | null; memberId?: string; name?: string; timezone: string; small?: boolean; /** The screen's one main action, at the bottom by the thumb (the nanny's Today); the page says the state. */ bottom?: boolean }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   // The button flips the state on the server, and its label comes from the page: it stays
@@ -43,6 +43,16 @@ export function AttendanceButton({ open, memberId, name, timezone, small = false
       <button type="button" className="btn btn-secondary" style={{ minHeight: 40 }} onClick={toggle} disabled={busy}>
         {open ? `${name ?? "Mark"} left` : `${name ?? "Mark"} is here`}
       </button>
+    );
+  }
+  if (bottom) {
+    return (
+      <div className="bottom-action flex flex-col gap-2">
+        {msg && <p className="notice notice-danger">{msg}</p>}
+        <button type="button" className={`btn btn-lg w-full ${open ? "" : "btn-primary"}`} onClick={toggle} disabled={busy}>
+          <Icon name={open ? "logout" : "check"} size={20} /> {open ? "Leaving" : "I'm here"}
+        </button>
+      </div>
     );
   }
   return (
