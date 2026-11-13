@@ -160,7 +160,8 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
             ))}
           </ul>
           <p className="muted mt-1 text-sm">
-            {logged.length} day{logged.length === 1 ? "" : "s"} with something logged.
+            {/* The daily stats count feeds, sleep, diapers, pumping, growth and firsts, not notes or medicine: say exactly that. */}
+            {logged.length} day{logged.length === 1 ? "" : "s"} with feeds, sleep or diapers logged.
           </p>
         </section>
       )}
