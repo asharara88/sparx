@@ -94,7 +94,7 @@ export interface Me {
   preview?: boolean;
   /** True in the first home on the deployment, whose admins keep the definitions every home shares. */
   platform?: boolean;
-  /** How many homes this account is in; above one, the Me screen offers the switcher. */
+  /** How many homes this account is in; above one, More offers the switcher. */
   homes?: number;
   member: Member;
   role: Role;

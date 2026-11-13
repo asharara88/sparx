@@ -136,6 +136,8 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
           <p className="muted">
             {open.location === "freezer" ? "Frozen" : "Pumped"} {fmtWhen(open.pumped_at, timezone, now)} · {left(open.expires_at, now)}
           </p>
+          {/* Said here, next to Warmed and Used, where it matters (no longer in the put-away sheet's footnote). */}
+          {open.location === "fridge" && !open.expired && (open.warmed_at || open.thawed_at) && <p className="muted text-sm">{open.warmed_at ? "Warmed" : "Thawed"} milk never goes back in the freezer.</p>}
           {actions.map((a) => (
             <button key={a.action} type="button" className={`btn btn-lg w-full ${a.primary ? "btn-primary" : ""}`} disabled={busy} onClick={() => void move(open, a.action)}>
               {a.label}
@@ -210,7 +212,7 @@ export function MilkPutAway({ timezone, canScan }: { timezone: string; canScan: 
           </form>
           {msg && <p className="text-sm text-[var(--danger)]">{msg}</p>}
           {canScan && <MilkScan bare timezone={timezone} />}
-          <p className="muted text-sm">Milk keeps 4 days in the fridge and 6 months frozen; thawed, 24 hours; warmed, 2 hours. Thawed or warmed milk never goes back in the freezer.</p>
+          <p className="muted text-sm">Keeps 4 days in the fridge, 6 months frozen.</p>
         </Sheet>
       )}
     </>

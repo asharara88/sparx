@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { SignOutButton } from "./SignOutButton";
 
@@ -12,17 +11,17 @@ import { SignOutButton } from "./SignOutButton";
  * to be put on the Members screen, then "Check again". Starting a new home is the
  * deliberate second step, behind one more tap, so two taps never make two homes.
  * One form, six fields, the baby first: household_create does the rest and me()
- * answers for the new home from the next render. With `another`, the same form for a
- * member making a second home from the Me screen: the account runs as the new home
- * from then on, and the switcher goes back.
+ * answers for the new home from the next render. With `another`, the same fields for a
+ * member making a second home from More (Your homes): the page gives the title and the way
+ * back, the form seeds their name from this home, and "Create the home" is the bottom
+ * button. The account runs as the new home from then on, and Your homes goes back.
  */
-export function CreateHome({ email, another = false }: { email: string | null; another?: boolean }) {
+export function CreateHome({ email, name, another = false }: { email: string | null; name?: string; another?: boolean }) {
   const router = useRouter();
-  const Wrap = another ? "div" : "main";
   const [starting, setStarting] = useState(another);
   const [checking, setChecking] = useState(false);
   const guess = email ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
-  const [yourName, setYourName] = useState(guess);
+  const [yourName, setYourName] = useState(name?.trim() || guess);
   const [homeName, setHomeName] = useState("");
   const [baby, setBaby] = useState("");
   const [born, setBorn] = useState("");
@@ -70,7 +69,7 @@ export function CreateHome({ email, another = false }: { email: string | null; a
           .catch(() => false);
         if (!switched) {
           setBusy(false);
-          return setMsg(`${homeName.trim() || "The home"} is made, but this phone could not switch to it. Pick it from the list of homes on your Me screen.`);
+          return setMsg(`${homeName.trim() || "The home"} is made, but this phone could not switch to it. Pick it from Your homes, under More.`);
         }
       }
       return window.location.assign("/");
@@ -119,79 +118,99 @@ export function CreateHome({ email, another = false }: { email: string | null; a
     );
   }
 
-  return (
-    <Wrap className={another ? "flex flex-col gap-4" : "mx-auto max-w-md p-6 pt-12"}>
-      <form onSubmit={submit} className="card flex flex-col gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{another ? "Create another home" : "Start your home"}</h1>
-          <p className="muted mt-1">
-            {another
-              ? "You stay in your current home too, and switch between them from your settings. The new home starts empty: you are its admin and add its family on its Members screen."
-              : "You are its admin: you add the rest of the family on the Members screen and send them their invite links. If someone already added your e-mail to their home, you land there instead."}
-          </p>
-        </div>
+  const fields = (
+    <>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">The baby&apos;s name</span>
+        <input className="input" value={baby} onChange={(e) => setBaby(e.target.value)} required autoComplete="off" autoFocus />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1">
-          <span className="font-semibold">The baby&apos;s name</span>
-          <input className="input" value={baby} onChange={(e) => setBaby(e.target.value)} required autoComplete="off" autoFocus />
+          <span className="font-semibold">Born</span>
+          <input className="input" type="date" value={born} onChange={(e) => setBorn(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="font-semibold">Born</span>
-            <input className="input" type="date" value={born} onChange={(e) => setBorn(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
-          </label>
-          <div className="flex flex-col gap-1">
-            <span className="font-semibold">Girl or boy</span>
-            <div className="flex gap-2" role="group" aria-label="Girl or boy">
-              {(["Girl", "Boy"] as const).map((s) => (
-                <button key={s} type="button" aria-pressed={sex === s} className="chip" onClick={() => setSex(sex === s ? null : s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold">Girl or boy</span>
+          <div className="flex gap-2" role="group" aria-label="Girl or boy">
+            {(["Girl", "Boy"] as const).map((s) => (
+              <button key={s} type="button" aria-pressed={sex === s} className="chip" onClick={() => setSex(sex === s ? null : s)}>
+                {s}
+              </button>
+            ))}
           </div>
         </div>
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Your name</span>
-          <input className="input" value={yourName} onChange={(e) => setYourName(e.target.value)} required autoComplete="given-name" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Name the home</span>
-          <input className="input" value={homeName} onChange={(e) => setHomeName(e.target.value)} placeholder={baby ? `${baby}'s home` : "Family home"} />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Timezone</span>
-          {zones.length > 1 ? (
-            <select className="input" value={tz} onChange={(e) => setTz(e.target.value)}>
-              {zones.includes(tz) ? null : <option value={tz}>{tz}</option>}
-              {zones.map((z) => (
-                <option key={z} value={z}>
-                  {z}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input className="input" value={tz} onChange={(e) => setTz(e.target.value)} />
-          )}
-          <span className="muted text-sm">Every time in the app is shown in it.</span>
-        </label>
-        {msg && (
-          <p className="notice notice-danger" role="alert">
-            {msg}
-          </p>
-        )}
-        <button type="submit" className="btn btn-primary min-h-[56px] text-lg" disabled={busy || !baby.trim() || !yourName.trim()}>
-          {busy ? "Creating…" : "Create the home"}
-        </button>
-        {another ? (
-          <Link prefetch={false} href="/me" className="btn">
-            Back
-          </Link>
+      </div>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">Your name</span>
+        <input className="input" value={yourName} onChange={(e) => setYourName(e.target.value)} required autoComplete="given-name" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">Name the home</span>
+        <input className="input" value={homeName} onChange={(e) => setHomeName(e.target.value)} placeholder={baby ? `${baby}'s home` : "Family home"} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">Timezone</span>
+        {zones.length > 1 ? (
+          <select className="input" value={tz} onChange={(e) => setTz(e.target.value)}>
+            {zones.includes(tz) ? null : <option value={tz}>{tz}</option>}
+            {zones.map((z) => (
+              <option key={z} value={z}>
+                {z}
+              </option>
+            ))}
+          </select>
         ) : (
-          <button type="button" className="btn" onClick={() => setStarting(false)} disabled={busy}>
-            Back: I am joining a family instead
-          </button>
+          <input className="input" value={tz} onChange={(e) => setTz(e.target.value)} />
         )}
+        <span className="muted text-sm">Every time in the app is shown in it.</span>
+      </label>
+    </>
+  );
+  const error = msg && (
+    <p className="notice notice-danger" role="alert">
+      {msg}
+    </p>
+  );
+  const cannotSubmit = busy || !baby.trim() || !yourName.trim();
+  const submitLabel = busy ? "Creating…" : "Create the home";
+
+  // A second home, from More: a settings screen under its own header (the page draws it, with
+  // the back arrow), the fields in one card and "Create the home" as the bottom button, so the
+  // helper's button moves up clear of it.
+  if (another) {
+    return (
+      <>
+        <form id="create-home" onSubmit={submit} className="card flex flex-col gap-4">
+          {fields}
+        </form>
+        <div className="bottom-action flex flex-col gap-2">
+          {error}
+          <button type="submit" form="create-home" className="btn btn-primary btn-lg w-full" disabled={cannotSubmit}>
+            {submitLabel}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-md p-6 pt-12">
+      <form onSubmit={submit} className="card flex flex-col gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Start your home</h1>
+          <p className="muted mt-1">
+            You are its admin: you add the rest of the family on the Members screen and send them their invite links. If someone already added your e-mail to their home, you land there instead.
+          </p>
+        </div>
+        {fields}
+        {error}
+        <button type="submit" className="btn btn-primary min-h-[56px] text-lg" disabled={cannotSubmit}>
+          {submitLabel}
+        </button>
+        <button type="button" className="btn" onClick={() => setStarting(false)} disabled={busy}>
+          Back: I am joining a family instead
+        </button>
       </form>
-    </Wrap>
+    </main>
   );
 }

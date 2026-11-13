@@ -7,21 +7,27 @@ import { fmtDate, fmtTime } from "@/lib/time";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 import { Photo } from "./Photo";
+import { Sheet } from "./Sheet";
 
 /**
  * One shared stream for the whole house: short messages and photos. Polls every
  * few seconds while the tab is visible, so a photo the home carer posts shows up on
- * a parent's phone without a refresh. Anyone deletes their own; admins delete any.
+ * a parent's phone without a refresh. Anyone deletes their own; admins delete any: tapping
+ * such a message (its words or time; the photo opens the viewer) opens a sheet with Delete,
+ * armed by a second tap (DESIGN.md, rule 8). A message nobody here may delete has no control.
  */
-export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessage[]; timezone: string; canPost: boolean }) {
+export function FamilyChat({ initial, timezone, canPost, canDeleteAny }: { initial: ChatMessage[]; timezone: string; canPost: boolean; canDeleteAny: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initial);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [acting, setActing] = useState<ChatMessage | null>(null);
+  const [armed, setArmed] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [sheetMsg, setSheetMsg] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const libraryRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     const { data } = await supabaseBrowser().rpc("chat_list", { p_limit: 150 });
@@ -62,20 +68,34 @@ export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessag
       setMsg(e instanceof Error ? e.message : "Not sent. Please try again.");
     } finally {
       setBusy(false);
-      if (cameraRef.current) cameraRef.current.value = "";
-      if (libraryRef.current) libraryRef.current.value = "";
+      if (photoRef.current) photoRef.current.value = "";
     }
   }
 
+  function act(m: ChatMessage) {
+    setArmed(false);
+    setSheetMsg(null);
+    setActing(m);
+  }
+  function closeSheet() {
+    setActing(null);
+    setArmed(false);
+    setSheetMsg(null);
+  }
   async function remove(id: string) {
-    if (!window.confirm("Delete this message?")) return;
-    const { data } = await supabaseBrowser().rpc("chat_remove", { p_id: id });
+    // Destroying is a word and a second tap, never a pop-up.
+    if (!armed) return setArmed(true);
+    setRemoving(true);
+    setSheetMsg(null);
+    const { data, error } = await supabaseBrowser().rpc("chat_remove", { p_id: id });
+    setRemoving(false);
     const r = data as { ok: boolean; message?: string } | null;
-    if (!r?.ok) {
-      setMsg(r?.message ?? "Could not delete.");
+    if (error || !r?.ok) {
+      setSheetMsg(r?.message ?? error?.message ?? "Could not delete.");
       return;
     }
     setMessages((m) => m.filter((x) => x.id !== id));
+    closeSheet();
   }
 
   let lastDay = "";
@@ -89,7 +109,7 @@ export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessag
           lastDay = day;
           return (
             <li key={m.id} className="flex flex-col gap-2">
-              {showDay && <p className="muted my-1 text-center text-xs font-semibold uppercase tracking-wide">{day}</p>}
+              {showDay && <p className="section-title my-1 text-center">{day}</p>}
               <div className={`flex items-end gap-2 ${m.mine ? "flex-row-reverse" : ""}`}>
                 {!m.mine && <Avatar name={m.author_name} path={m.author_photo} size={32} className="shrink-0" />}
                 <div className={`chat-bubble ${m.mine ? "chat-bubble-mine" : ""}`}>
@@ -99,13 +119,24 @@ export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessag
                       <Photo path={m.photo_path} alt={`Photo from ${m.author_name}`} className="chat-photo" />
                     </button>
                   )}
-                  {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
-                  <p className="chat-meta">
-                    <span>{fmtTime(m.created_at, timezone)}</span>
-                    <button type="button" className="chat-delete" onClick={() => remove(m.id)} aria-label="Delete message">
-                      <Icon name="x" size={14} />
-                    </button>
-                  </p>
+                  {m.mine || canDeleteAny ? (
+                    <>
+                      {/* The words stay text you can select and copy; a plain tap on them, or the time line, opens the message's sheet. */}
+                      {m.body && (
+                        <p className="whitespace-pre-wrap break-words" onClick={() => { if (window.getSelection()?.isCollapsed !== false) act(m); }}>
+                          {m.body}
+                        </p>
+                      )}
+                      <button type="button" className="chat-meta min-h-[44px] w-full" onClick={() => act(m)} aria-haspopup="dialog" aria-label={`Message at ${fmtTime(m.created_at, timezone)}: options`}>
+                        {fmtTime(m.created_at, timezone)}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
+                      <p className="chat-meta">{fmtTime(m.created_at, timezone)}</p>
+                    </>
+                  )}
                 </div>
               </div>
             </li>
@@ -128,13 +159,10 @@ export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessag
             void send();
           }}
         >
-          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void send(e.target.files?.[0])} />
-          <input ref={libraryRef} type="file" accept="image/*" className="hidden" onChange={(e) => void send(e.target.files?.[0])} />
-          <button type="button" className="icon-btn" aria-label="Take a photo" disabled={busy} onClick={() => cameraRef.current?.click()}>
+          {/* One photo button: without `capture`, the phone itself offers the camera or the library. */}
+          <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => void send(e.target.files?.[0])} />
+          <button type="button" className="icon-btn" aria-label="Add a photo" disabled={busy} onClick={() => photoRef.current?.click()}>
             <Icon name="camera" size={22} />
-          </button>
-          <button type="button" className="icon-btn" aria-label="Choose a photo" disabled={busy} onClick={() => libraryRef.current?.click()}>
-            <Icon name="grid" size={22} />
           </button>
           <textarea
             value={text}
@@ -145,7 +173,7 @@ export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessag
                 void send();
               }
             }}
-            placeholder="Write a message"
+            placeholder="Message"
             rows={1}
             maxLength={2000}
             className="input flex-1 resize-none"
@@ -156,6 +184,24 @@ export function FamilyChat({ initial, timezone, canPost }: { initial: ChatMessag
             <Icon name="send" size={20} />
           </button>
         </form>
+      )}
+
+      {acting && (
+        <Sheet title="Message" onClose={closeSheet}>
+          {acting.body ? <p className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words">{acting.body}</p> : <p className="muted">A photo, {fmtTime(acting.created_at, timezone)}</p>}
+          {sheetMsg && (
+            <p role="alert" className="text-sm text-[var(--danger)]">
+              {sheetMsg}
+            </p>
+          )}
+          <button type="button" className="btn w-full" onClick={closeSheet}>
+            Cancel
+          </button>
+          {/* Never the first button (DESIGN.md rule 8), and it asks twice. */}
+          <button type="button" className="btn btn-danger w-full" disabled={removing} onClick={() => void remove(acting.id)}>
+            {armed ? "Tap again to delete" : "Delete message"}
+          </button>
+        </Sheet>
       )}
 
       {open && (

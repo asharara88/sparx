@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { autoNightEnabled, setAutoNightEnabled } from "@/lib/theme";
 
-/** Me screen: the automatic dark screen at night, per phone. */
+/** Display: the automatic dark screen at night, per phone. */
 export function NightPref({ from, to }: { from: string; to: string }) {
   const [on, setOn] = useState(true);
   useEffect(() => setOn(autoNightEnabled()), []);

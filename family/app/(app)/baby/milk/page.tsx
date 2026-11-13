@@ -7,9 +7,8 @@ import { MilkPutAway, MilkStash } from "@/components/MilkStash";
 import { PageHeader } from "@/components/PageHeader";
 import { FridgePlan } from "@/components/FridgePlan";
 import { MilkInsights, ThawReminder } from "@/components/MilkInsights";
-import Link from "next/link";
-import { Fold } from "@/components/Fold";
-import { Icon } from "@/components/Icon";
+import { Fold, FoldLink } from "@/components/Fold";
+import { forecastHint, milkForecast, safeFridgeMl } from "@/lib/milk-insights";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { addDays, dayRange, todayYmd } from "@/lib/time";
@@ -55,13 +54,16 @@ export default async function MilkPage() {
     if (b && Number(b.payload.amount_ml)) lastBottleMl = Number(b.payload.amount_ml);
   }
   // Pumping since yesterday evening, against the day's target: it lived on Home until the
-  // phone pass moved everything that is not "now" off it (DESIGN.md, "Home"); the row
+  // phone pass moved everything that is not "now" off it (DESIGN.md, "Home"); its bar
   // here opens the dashboard (sleep today, pumping, the bottles at home, the usual day).
   const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
   const pumps = history.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
   const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
   const target = me.household.milk_target_ml ?? 400;
   const showPump = !!me.member.breastfeeds || me.role.id === "admin";
+  // The forecast's answer goes on its bar, where Fridge and Freezer put theirs ("till Sat").
+  const safeMl = safeFridgeMl(milk.bottles);
+  const lasts = forecastHint(milkForecast(safeMl, history), safeMl, tz);
   // DESIGN.md, "Milk": what is in the fridge and freezer as lists, the plan only on a day
   // someone is away, the rest folded, "Put a bottle away" at the bottom.
   return (
@@ -70,21 +72,10 @@ export default async function MilkPage() {
       {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} />}
       <ThawReminder milk={milk} entries={history} timezone={tz} opts={thaw} />
       <MilkStash data={milk} timezone={tz} />
-      <Fold title="How long it will last" icon="trend" tint="milk" hint="estimate">
+      <Fold title="Fridge lasts" icon="trend" tint="milk" hint={lasts}>
         <MilkInsights bare milk={milk} entries={history} timezone={tz} thaw={thaw} />
       </Fold>
-      {showPump && (
-        <nav className="card py-0" aria-label="Pumping">
-          <Link prefetch={false} href="/#today" className="row row-link">
-            <span className="icon-disc tint-pump" style={{ width: 36, height: 36 }}>
-              <Icon name="droplet" size={19} />
-            </span>
-            <span className="flex-1 font-semibold">Pumping</span>
-            <span className="muted text-sm tabular-nums">{pumpedMl} / {target} ml</span>
-            <Icon name="forward" size={18} className="muted" />
-          </Link>
-        </nav>
-      )}
+      {showPump && <FoldLink href="/#today" title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${target} ml`} />}
       <MilkPutAway timezone={tz} canScan={can(me, "lana", "add")} />
     </div>
   );

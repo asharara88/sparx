@@ -83,9 +83,10 @@ export function MilkScan({ timezone, bare = false }: { timezone: string; bare?: 
   return (
     <section className={bare ? "flex flex-col gap-2 border-t border-[var(--line)] pt-3" : "card flex flex-col gap-2"}>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">{bare ? "Or take a photo of the label" : "Read a bag or bottle"}</h2>
+        {/* In the sheet it is a line of the form, not a second title (an h2 takes the display face). */}
+        {bare ? <p className="font-semibold">Or take a photo of the label</p> : <h2 className="font-semibold">Read a bag or bottle</h2>}
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
-        <button type="button" className="btn" style={{ minHeight: 40 }} disabled={busy} onClick={() => fileRef.current?.click()}>
+        <button type="button" className="btn min-h-11" disabled={busy} onClick={() => fileRef.current?.click()}>
           <Icon name="camera" size={18} /> {busy && !reading ? "Reading…" : "Photo"}
         </button>
       </div>

@@ -9,7 +9,7 @@ import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
-/** Language, the simple screen, large text and the dark screen at night: this phone's display. */
+/** Display: the language, then the simple screen, large text and the dark screen at night as one group of switches. */
 export default async function DisplayPage() {
   const supabase = await createClient();
   const { data: meData } = await meOnce();
@@ -18,11 +18,10 @@ export default async function DisplayPage() {
   const night = nightWindow(me.subjects?.[0] ?? null);
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/me" title="Language and display" />
-      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"} />
-      <div className="card">
+      <PageHeader back="/me" title="Display" />
+      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"}>
         <NightPref from={night.from} to={night.to} />
-      </div>
+      </PrefsForm>
     </div>
   );
 }

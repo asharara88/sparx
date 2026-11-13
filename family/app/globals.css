@@ -222,7 +222,7 @@ input::-webkit-date-and-time-value { text-align: start; }
 
 @layer components {
 /* Display face for titles and card headings; body stays the system font for reading at 3 am. */
-.page-title, .wordmark, h2, .fold > summary { font-family: var(--font-display); letter-spacing: -0.01em; }
+.page-title, .wordmark, h2, .fold > summary, .fold-link { font-family: var(--font-display); letter-spacing: -0.01em; }
 h2.section-title { letter-spacing: 0.06em; }
 /* --tw-leading: a text-2xl/3xl/4xl size on the wordmark keeps its tight line height. */
 .wordmark { font-weight: 700; line-height: 1; --tw-leading: 1; display: inline-flex; align-items: baseline; }
@@ -446,7 +446,10 @@ h2.section-title { letter-spacing: 0.06em; }
   color: var(--tint-fg);
   border-color: transparent;
 }
-[class*="tint-"] .muted { color: inherit; opacity: 0.72; }
+/* Grey on a tint: faded enough to read as the second line, still 4.5 : 1 on every feature tint
+   in all three themes (the lowest, pump in the day theme, is 4.76). Danger fades not at all. */
+[class*="tint-"] .muted { color: inherit; opacity: 0.88; }
+[class*="tint-"] .section-title { color: inherit; opacity: 0.88; }
 [class*="tint-"] .chip, [class*="tint-"] .btn:not(.btn-primary):not(.btn-danger), [class*="tint-"] .input, [class*="tint-"] .tile-icon, [class*="tint-"] .icon-disc {
   background: var(--card);
   color: var(--fg);
@@ -489,7 +492,7 @@ h2.section-title { letter-spacing: 0.06em; }
 .action-col { flex-direction: column; align-items: flex-start; justify-content: space-between; min-height: 132px; }
 .action-col .icon-disc { width: 48px; height: 48px; }
 .action-label { display: block; font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; line-height: 1.15; }
-.action-sub { display: block; font-size: 0.85rem; opacity: 0.75; margin-top: 2px; }
+.action-sub { display: block; font-size: 0.85rem; opacity: 0.88; margin-top: 2px; }
 
 /* ---- bottom sheet (the one-tap log's amounts) ------------------------------ */
 .sheet-backdrop {
@@ -539,7 +542,8 @@ h2.section-title { letter-spacing: 0.06em; }
   background: var(--card);
   box-shadow: var(--shadow);
 }
-.fold > summary {
+/* .fold-link (FoldLink): a bar drawn like a fold's that opens another screen (Milk's Pumping). */
+.fold > summary, .fold-link {
   list-style: none;
   display: flex;
   align-items: center;
@@ -549,10 +553,13 @@ h2.section-title { letter-spacing: 0.06em; }
   font-weight: 700;
   font-size: 1.1rem;
   cursor: pointer;
+  text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
 .fold > summary::-webkit-details-marker { display: none; }
-.fold > summary .fold-hint { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif; font-size: 0.85rem; font-weight: 600; opacity: 0.75; letter-spacing: 0; }
+.fold > summary .fold-hint, .fold-link .fold-hint { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif; font-size: 0.85rem; font-weight: 600; opacity: 0.88; letter-spacing: 0; }
+/* Danger is only 4.86 : 1 at full strength in the day theme: its grey lines do not fade. */
+.tint-danger .muted, .tint-danger .section-title, .fold.tint-danger > summary .fold-hint, .fold-link.tint-danger .fold-hint, .action.tint-danger .action-sub { opacity: 1; }
 .fold-chev { flex: none; transition: transform 150ms ease; opacity: 0.6; }
 .fold[open] > summary .fold-chev { transform: rotate(90deg); }
 .fold-body { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
@@ -749,7 +756,6 @@ h2.section-title { letter-spacing: 0.06em; }
 .chat-author { font-size: 0.78rem; font-weight: 700; opacity: 0.75; margin-bottom: 0.1rem; }
 .chat-photo { max-height: 16rem; width: auto; max-width: 100%; margin-bottom: 0.35rem; }
 .chat-meta { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.15rem; font-size: 0.78rem; opacity: 0.7; }
-.chat-delete { display: inline-flex; padding: 0.15rem; border-radius: 999px; opacity: 0.8; }
 .chat-composer {
   position: sticky;
   bottom: 0;

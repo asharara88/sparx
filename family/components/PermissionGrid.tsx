@@ -1,12 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Action, Module, Role } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { Sheet } from "@/components/Sheet";
 
-const ACTIONS: Action[] = ["view", "add", "edit", "delete"];
+const ACTIONS: { id: Action; label: string }[] = [
+  { id: "view", label: "View" },
+  { id: "add", label: "Add" },
+  { id: "edit", label: "Edit" },
+  { id: "delete", label: "Delete" },
+];
 
+/**
+ * Roles and what each may do, as a list (DESIGN.md: a phone screen never has a table). A role
+ * opens a sheet with a row per module: its name, then View · Add · Edit · Delete as four equal
+ * toggles, which fit at 320 px. A toggle saves at once. "Add a role" is the screen's bottom
+ * button and opens its own sheet. The page's flex column holds these directly (a fragment), so
+ * the bottom button rests by the thumb on a short screen.
+ */
 export function PermissionGrid({
   roles,
   modules,
@@ -26,6 +39,16 @@ export function PermissionGrid({
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [newRole, setNewRole] = useState({ id: "", label: "" });
+  const [openRole, setOpenRole] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const closeRole = useCallback(() => {
+    setOpenRole(null);
+    setMsg(null);
+  }, []);
+  const closeAdd = useCallback(() => {
+    setAdding(false);
+    setMsg(null);
+  }, []);
 
   async function toggle(role: string, module: string, action: Action) {
     const key = `${role}|${module}|${action}`;
@@ -45,69 +68,101 @@ export function PermissionGrid({
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not add the role.");
     setNewRole({ id: "", label: "" });
+    setMsg(null);
+    setAdding(false);
+    // Straight on to what it may do: its sheet opens once the refreshed list has it.
+    setOpenRole(id);
     router.refresh();
   }
 
+  const role = openRole ? roles.find((r) => r.id === openRole) : undefined;
+  const alert = msg ? (
+    <p role="alert" className="notice notice-danger">
+      {msg}
+    </p>
+  ) : null;
+
   return (
-    <div className="flex flex-col gap-4">
-      {msg && (
-        <p role="alert" className="notice notice-danger">
-          {msg}
-        </p>
-      )}
-      {roles.map((r) => (
-        <section key={r.id} className="card overflow-x-auto">
-          <h2 className="text-lg font-semibold">{r.label}</h2>
-          {r.description && <p className="muted text-sm">{r.description}</p>}
-          <table className="mt-2 w-full text-sm">
-            <thead>
-              <tr>
-                <th className="text-left">Module</th>
-                {ACTIONS.map((a) => (
-                  <th key={a} className="capitalize">
-                    {a}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {modules.map((m) => (
-                <tr key={m.id} className="border-t border-[var(--line)]">
-                  <td className="py-1 pr-2 font-semibold">{m.label}</td>
-                  {ACTIONS.map((a) => {
-                    const on = !!state.get(`${r.id}|${m.id}|${a}`);
-                    const locked = r.id === myRole && m.id === "members" && (a === "view" || a === "edit");
-                    return (
-                      <td key={a} className="text-center">
+    <>
+      {!role && !adding && alert}
+      <ul className="card flex flex-col p-0" aria-label="Roles">
+        {roles.map((r) => (
+          <li key={r.id} className="row p-0">
+            <button type="button" className="row-link flex w-full items-center gap-3 px-4 py-3 text-start" onClick={() => setOpenRole(r.id)}>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{r.label}</span>
+                {r.description && <span className="muted block truncate text-sm">{r.description}</span>}
+              </span>
+              <Icon name="forward" size={18} className="muted shrink-0" />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {role && (
+        <Sheet title={role.label} onClose={closeRole}>
+          {role.description && <p className="muted">{role.description}</p>}
+          {alert}
+          <ul className="card flex flex-col p-0" aria-label={`What ${role.label} may do`}>
+            {modules.map((m) => {
+              const mine = role.id === myRole && m.id === "members";
+              return (
+                <li key={m.id} className="row flex-col gap-2 px-4">
+                  <span className="font-semibold">{m.label}</span>
+                  <div className="grid grid-cols-4 gap-1" role="group" aria-label={m.label}>
+                    {ACTIONS.map((a) => {
+                      const on = !!state.get(`${role.id}|${m.id}|${a.id}`);
+                      // An admin never locks themselves out of this screen.
+                      const locked = mine && (a.id === "view" || a.id === "edit");
+                      return (
                         <button
+                          key={a.id}
                           type="button"
-                          className="h-12 w-12 rounded-xl border border-[var(--line)] text-xl"
-                          style={on ? { background: "var(--accent)", color: "white", borderColor: "var(--accent)" } : undefined}
+                          className="chip px-0 text-sm"
                           aria-pressed={on}
-                          aria-label={`${r.label} ${a} ${m.label}`}
+                          aria-label={`${role.label}: ${a.label} ${m.label}`}
                           disabled={locked}
                           title={locked ? "Your own role keeps access to Members" : undefined}
-                          onClick={() => toggle(r.id, m.id, a)}
+                          onClick={() => toggle(role.id, m.id, a.id)}
                         >
-                          {on ? <Icon name="check" size={18} /> : ""}
+                          {a.label}
                         </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ))}
-      <form onSubmit={addRole} className="card flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">Add a role</h2>
-        <input className="input" placeholder="Label, e.g. Night nurse" value={newRole.label} onChange={(e) => setNewRole({ ...newRole, label: e.target.value })} required />
-        <input className="input" placeholder="Short id, e.g. night_nurse" value={newRole.id} onChange={(e) => setNewRole({ ...newRole, id: e.target.value })} required />
-        <button className="btn" type="submit">
-          Add role (nothing allowed until you tick it)
+                      );
+                    })}
+                  </div>
+                  {mine && <span className="muted text-sm">Your own role keeps View and Edit here.</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </Sheet>
+      )}
+
+      {adding && (
+        <Sheet title="Add a role" onClose={closeAdd}>
+          <form onSubmit={addRole} className="flex flex-col gap-3">
+            <p className="muted">Nothing is allowed until you tick it.</p>
+            <label className="flex flex-col gap-1">
+              <span className="font-semibold">Name</span>
+              <input className="input" placeholder="e.g. Night nurse" value={newRole.label} onChange={(e) => setNewRole({ ...newRole, label: e.target.value })} required />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-semibold">Short name, no spaces</span>
+              <input className="input" placeholder="e.g. night_nurse" autoCapitalize="none" value={newRole.id} onChange={(e) => setNewRole({ ...newRole, id: e.target.value })} required />
+            </label>
+            {alert}
+            <button className="btn btn-primary btn-lg w-full" type="submit">
+              Add role
+            </button>
+          </form>
+        </Sheet>
+      )}
+
+      <div className="bottom-action">
+        <button type="button" className="btn btn-primary btn-lg w-full" onClick={() => setAdding(true)}>
+          <Icon name="plus" size={20} /> Add a role
         </button>
-      </form>
-    </div>
+      </div>
+    </>
   );
 }

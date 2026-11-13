@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
-/** Reached from Me → Change password, and from the "forgot password" e-mail link. */
+/** Reached from More → Password, and from the "forgot password" e-mail link. */
 export default async function PasswordPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const { reset } = await searchParams;
   return (

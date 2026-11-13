@@ -13,13 +13,20 @@ function toKey(b64: string): Uint8Array {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-/** Push notifications on this phone: the morning brief, things to approve, reminders. */
+/** Push notifications on this phone: the morning brief, things to approve, reminders. The page's header says what they are. */
 export function NotificationsToggle() {
   const me = useMe();
   const [status, setStatus] = useState<PushStatus | null>(null);
   const [here, setHere] = useState<"unknown" | "on" | "off" | "unsupported" | "blocked">("unknown");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // An iPhone browser tab (not the app on the Home Screen) cannot get them yet. Read after
+  // the first render, so the server's page and the phone's first render are the same.
+  const [iosTab, setIosTab] = useState(false);
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
+    setIosTab(/iPhone|iPad/.test(navigator.userAgent) && !standalone);
+  }, []);
 
   async function load() {
     const { data } = await supabaseBrowser().rpc("push_status");
@@ -79,35 +86,36 @@ export function NotificationsToggle() {
     }
   }
 
-  const ios = typeof navigator !== "undefined" && /iPhone|iPad/.test(navigator.userAgent);
-  const standalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true);
+  const iosFirst = iosTab && here !== "on";
+  // Nothing known yet (the first moment on the page): no empty white box under the header.
+  if (here === "unknown" && !status && !msg && !iosFirst) return null;
 
   return (
-    <div className="card">
-      <h2 className="text-lg font-semibold">Notifications</h2>
-      <p className="muted mt-1 text-sm">The morning brief at 7, things to approve, a reminder before an appointment, the next nap.</p>
-      {here === "unsupported" && <p className="mt-2">{KEY ? "This browser cannot receive notifications." : "Notifications are not set up on the server yet."}</p>}
-      {here === "blocked" && <p className="mt-2">Notifications are blocked for this site. Allow them in the phone's settings, then come back.</p>}
-      {ios && !standalone && here !== "on" && <p className="mt-2 text-sm">On iPhone, first add the app to the Home Screen (Share → Add to Home Screen) and open it from there; then switch notifications on.</p>}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {here === "off" && (
-          <button type="button" className="btn btn-primary" onClick={turnOn} disabled={busy}>
-            {busy ? "…" : "Turn on on this phone"}
-          </button>
-        )}
-        {here === "on" && (
-          <button type="button" className="btn" onClick={turnOff} disabled={busy}>
-            {busy ? "…" : "Turn off on this phone"}
-          </button>
-        )}
-      </div>
+    <div className="card flex flex-col gap-3">
+      {here === "unsupported" && <p>{KEY ? "This browser cannot receive notifications." : "Notifications are not set up on the server yet."}</p>}
+      {here === "blocked" && <p>Notifications are blocked for this site. Allow them in the phone's settings, then come back.</p>}
+      {iosFirst && <p className="text-sm">On iPhone, first add the app to the Home Screen (Share → Add to Home Screen) and open it from there; then switch notifications on.</p>}
+      {(here === "off" || here === "on") && (
+        <div className="flex flex-wrap gap-2">
+          {here === "off" && (
+            <button type="button" className="btn btn-primary" onClick={turnOn} disabled={busy}>
+              {busy ? "…" : "Turn on on this phone"}
+            </button>
+          )}
+          {here === "on" && (
+            <button type="button" className="btn" onClick={turnOff} disabled={busy}>
+              {busy ? "…" : "Turn off on this phone"}
+            </button>
+          )}
+        </div>
+      )}
       {msg && (
-        <p role="alert" className="mt-2 text-sm text-[var(--danger)]">
+        <p role="alert" className="text-sm text-[var(--danger)]">
           {msg}
         </p>
       )}
       {status && (
-        <p className="muted mt-2 text-sm">
+        <p className="muted text-sm">
           {status.phones === 0 ? "No phone has them on yet." : `${status.phones} ${status.phones === 1 ? "phone has" : "phones have"} them on.`}
           {status.recent.length > 0 ? ` Last: ${status.recent[0].title} (${fmtDateTime(status.recent[0].sent_at, me.household.timezone)})` : ""}
         </p>

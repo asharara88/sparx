@@ -20,7 +20,7 @@ export default async function MyPresencePage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/me" title="Where you are" />
-      <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} title="Where are you?" />
+      <PresenceForm memberId={me.member.id} states={(states as PresenceState[]) ?? []} history={(history as Presence[]) ?? []} />
     </div>
   );
 }

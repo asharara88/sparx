@@ -4,8 +4,14 @@ import { useRouter } from "next/navigation";
 import type { RpcError, Suggestion } from "@/lib/types";
 import { SuggestionCards } from "./SuggestionCards";
 import { apiFetch } from "@/lib/supabase/client";
+import { Icon } from "@/components/Icon";
 
-/** "Draft next week": the model proposes a plan from the calendar, who is home, what is due and what is low. */
+/**
+ * "Draft next week": the helper's plan from the calendar, who is home, what is due and what is
+ * low. Under the days as a quiet line with the helper's sparkles (no fill, no box), so the
+ * screen's one filled button stays "+ Add to the calendar"; the draft it made sits above it.
+ * The label stays short enough for one line at 320 px in large text.
+ */
 export function PlanButton({ existing }: { existing: Suggestion | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -30,8 +36,9 @@ export function PlanButton({ existing }: { existing: Suggestion | null }) {
   return (
     <div className="flex flex-col gap-2">
       {draft ? <SuggestionCards suggestions={[draft]} title="Next week" /> : null}
-      <button type="button" className="btn" onClick={go} disabled={busy}>
-        {busy ? "Thinking about next week…" : draft ? "Draft it again" : "Draft next week"}
+      <button type="button" className="btn btn-ghost w-full" onClick={go} disabled={busy}>
+        <Icon name="sparkles" size={18} />
+        {busy ? "Drafting next week…" : draft ? "Draft it again" : "Draft next week"}
       </button>
       {msg && (
         <p role="alert" className="text-sm text-[var(--danger)]">

@@ -5,19 +5,36 @@ import { useRouter } from "next/navigation";
 import type { CalendarData, CalendarEvent, DueItem, EventKind } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
-import { addDays, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
+import { addDays, fmtDate, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
+import { PageHeader } from "@/components/PageHeader";
 import { Sheet } from "@/components/Sheet";
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** The app's line icons for each kind, not the emoji (EVENT_KINDS keeps those for the helper and /send). */
+const KIND_ICON: Record<EventKind, IconName> = {
+  event: "calendar",
+  plan: "clipboard",
+  reminder: "bell",
+  routine: "history",
+  guest: "users",
+  delivery: "inbox",
+  contractor: "wrench",
+  appointment: "syringe",
+};
 
+/** "Today", "Tomorrow", then "Mon 16 Nov" (DESIGN.md, "Numbers, times and dates"). */
 function dayLabel(ymd: string, today: string) {
   ymd = ymd.slice(0, 10);
   if (ymd === today) return "Today";
   if (ymd === addDays(today, 1)) return "Tomorrow";
-  const d = new Date(ymd.slice(0, 10) + "T12:00:00Z");
-  return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+  return fmtDate(`${ymd}T12:00:00Z`, "UTC");
+}
+
+/** The fortnight on screen: "13 – 26 Nov", or "30 Nov – 13 Dec" across a month. */
+function rangeLabel(from: string, to: string) {
+  const day = (ymd: string, opts: Intl.DateTimeFormatOptions = {}) => fmtDate(`${ymd}T12:00:00Z`, "UTC", { weekday: undefined, ...opts });
+  return `${from.slice(0, 7) === to.slice(0, 7) ? day(from, { month: undefined }) : day(from)} – ${day(to)}`;
 }
 
 export function CalendarView({
@@ -26,7 +43,7 @@ export function CalendarView({
   today,
   members,
   due = [],
-  children,
+  footer,
 }: {
   data: CalendarData;
   from: string;
@@ -34,16 +51,18 @@ export function CalendarView({
   members: { id: string; name: string }[];
   /** Treatments and vaccine visits with a due date, shown on their day. */
   due?: DueItem[];
-  /** What sits under the title, before the days (the week's draft, the child's next hours). */
-  children?: React.ReactNode;
+  /** What sits under the days, above the bottom button (the week's draft). */
+  footer?: React.ReactNode;
 }) {
   const me = useMe();
   const [editing, setEditing] = useState<CalendarEvent | "new" | null>(null);
   const tz = data.timezone;
   const canAdd = can(me, "calendar", "add");
+  // Calendar is a tab for staff (Nav.tsx), so no Back for them; everyone else opens it from More.
+  const staff = !can(me, "lana", "view");
   const byDay = new Map<string, CalendarEvent[]>();
   // A daily routine is said once, on its first day in these two weeks ("Bath time · daily");
-  // repeated on every card it filled two weeks with the same line. One that starts later in
+  // repeated on every day it filled two weeks with the same line. One that starts later in
   // the range is said on the day it starts.
   const saidDaily = new Set<string>();
   for (const e of [...data.events].sort((a, b) => a.starts_at.localeCompare(b.starts_at))) {
@@ -57,16 +76,23 @@ export function CalendarView({
   const shownDays = data.days.filter((day) => day.date.slice(0, 10) === today.slice(0, 10) || (byDay.get(day.date)?.length ?? 0) > 0 || due.some((d) => d.due_on === day.date.slice(0, 10)));
   return (
     <div className="flex flex-col gap-4">
-      <header className="page-header flex items-center justify-between gap-2">
-        <Link prefetch={false} href={`/calendar?d=${addDays(from, -14)}`} className="icon-btn" aria-label="Earlier">
-          <Icon name="back" size={24} />
-        </Link>
-        <h1 className="page-title">Calendar</h1>
-        <Link prefetch={false} href={`/calendar?d=${addDays(from, 14)}`} className="icon-btn" aria-label="Later">
-          <Icon name="forward" size={24} />
-        </Link>
-      </header>
-      {children}
+      {/* The fortnight on the line under the title, its two arrows together on the right, so no
+          arrow sits under Back on the left edge where it could be taken for it. */}
+      <PageHeader
+        back={staff ? undefined : "/me"}
+        title="Calendar"
+        subtitle={rangeLabel(from, addDays(from, 13))}
+        action={
+          <>
+            <Link prefetch={false} href={`/calendar?d=${addDays(from, -14)}`} className="icon-btn" aria-label="Two weeks earlier">
+              <Icon name="back" size={22} />
+            </Link>
+            <Link prefetch={false} href={`/calendar?d=${addDays(from, 14)}`} className="icon-btn ml-0 -mr-2" aria-label="Two weeks later">
+              <Icon name="forward" size={22} />
+            </Link>
+          </>
+        }
+      />
 
       {/* Adding or changing opens a sheet over wherever the list is (DESIGN.md, "Sheet"): the
           Add button sits at the bottom, so a form at the top would open out of sight. */}
@@ -82,50 +108,60 @@ export function CalendarView({
         </Sheet>
       )}
 
-      {/* Only the days with something on (and today): two weeks of empty cards said nothing. */}
+      {/* Only the days with something on (and today): two weeks of empty days said nothing.
+          Each day is a label over one white list of rows (DESIGN.md, "List rows"), as on More. */}
       {shownDays.length === 0 && <p className="muted px-1">Nothing planned in these two weeks.</p>}
       {shownDays.map((day) => {
+        const ymd = day.date.slice(0, 10);
         const events = byDay.get(day.date) ?? [];
+        const dueToday = due.filter((d) => d.due_on === ymd);
         return (
-          <section key={day.date} className="card" aria-labelledby={`d-${day.date}`}>
-            <h2 id={`d-${day.date}`} className="text-lg font-bold">
+          <section key={day.date} className="flex flex-col gap-2" aria-labelledby={`d-${ymd}`}>
+            <h2 id={`d-${ymd}`} className="section-title">
               {dayLabel(day.date, today)}
             </h2>
-            {due
-              .filter((d) => d.due_on === day.date.slice(0, 10))
-              .map((d) => (
-                <Link prefetch={false} key={d.label + d.due_at} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} mt-2 block text-sm font-semibold`}>
-                  {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
-                </Link>
-              ))}
+            {dueToday.map((d) => (
+              <Link prefetch={false} key={d.label + d.due_at} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} block text-sm font-semibold`}>
+                {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
+              </Link>
+            ))}
             {events.length === 0 ? (
-              !due.some((d) => d.due_on === day.date.slice(0, 10)) && <p className="muted mt-1">Nothing planned.</p>
+              dueToday.length === 0 && <p className="muted px-1">Nothing planned.</p>
             ) : (
-              <ul className="mt-2 flex flex-col gap-2">
+              <ul className="card flex flex-col p-0">
                 {events.map((e) => {
                   const k = EVENT_KINDS.find((x) => x.id === e.kind);
                   const mine = e.created_by === me.member.id;
                   const editable = can(me, "calendar", "edit") || (mine && canAdd);
-                  return (
-                    <li key={e.id + e.starts_at}>
-                      <button
-                        className="card-flat w-full rounded-xl p-3 text-left"
-                        onClick={() => editable && setEditing(e)}
-                        disabled={!editable}
-                      >
-                        <span className="block font-semibold">
-                          <span aria-hidden>{k?.icon} </span>
-                          {e.all_day ? "All day" : fmtTime(e.starts_at, tz)}
-                          {!e.all_day && e.ends_at ? `–${fmtTime(e.ends_at, tz)}` : ""} · {e.title}
-                        </span>
+                  const inner = (
+                    <>
+                      <span className="icon-disc size-8 tint-cal">
+                        <Icon name={KIND_ICON[e.kind] ?? "calendar"} size={17} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{e.title}</span>
                         <span className="muted block text-sm">
-                          {k?.label}
+                          {e.all_day ? "All day" : fmtTime(e.starts_at, tz)}
+                          {!e.all_day && e.ends_at ? `–${fmtTime(e.ends_at, tz)}` : ""}
+                          {k ? ` · ${k.label}` : ""}
                           {e.assigned_name ? ` · ${e.assigned_name}` : ""}
                           {e.visibility === "family" ? " · family only" : ""}
                           {e.repeat !== "none" ? ` · ${e.repeat}` : ""}
                           {e.note ? ` · ${e.note}` : ""}
                         </span>
-                      </button>
+                      </span>
+                    </>
+                  );
+                  // The whole row is the tap target when it can be changed; otherwise it only reads.
+                  return (
+                    <li key={e.id + e.starts_at} className="row px-4 py-0">
+                      {editable ? (
+                        <button type="button" className="row-link flex w-full items-center gap-3 py-3 text-left" onClick={() => setEditing(e)}>
+                          {inner}
+                        </button>
+                      ) : (
+                        <div className="flex w-full items-center gap-3 py-3">{inner}</div>
+                      )}
                     </li>
                   );
                 })}
@@ -134,6 +170,7 @@ export function CalendarView({
           </section>
         );
       })}
+      {footer}
       {canAdd && (
         <div className="bottom-action">
           <button type="button" className="btn btn-primary btn-lg w-full" onClick={() => setEditing("new")}>
@@ -172,6 +209,7 @@ function EventForm({
   const [until, setUntil] = useState(event?.repeat_until ?? "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const staffKind = kind === "guest" || kind === "delivery" || kind === "contractor";
   const canFamily = can(me, "calendar_family", "add");
 
@@ -200,12 +238,14 @@ function EventForm({
   }
 
   async function remove() {
-    if (!event || !confirm("Remove this from the calendar?")) return;
+    if (!event) return;
+    // Destroying is a word and a second tap, never a pop-up (DESIGN.md, rule 8; as EntrySheet).
+    if (!confirmDelete) return setConfirmDelete(true);
     setBusy(true);
     const { data } = await supabaseBrowser().rpc("calendar_remove", { p_id: event.id });
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
-    if (!res?.ok) return setMsg(res?.message ?? "Could not remove.");
+    if (!res?.ok) return setMsg(res?.message ?? "Could not delete.");
     onClose();
     router.refresh();
   }
@@ -219,7 +259,7 @@ function EventForm({
       <div className="flex flex-wrap gap-2" role="group" aria-label="Kind">
         {EVENT_KINDS.map((k) => (
           <button key={k.id} type="button" className="chip" aria-pressed={kind === k.id} onClick={() => setKind(k.id)}>
-            <span aria-hidden>{k.icon} </span>
+            <Icon name={KIND_ICON[k.id]} size={18} />
             {k.label}
           </button>
         ))}
@@ -293,8 +333,8 @@ function EventForm({
         </button>
       </div>
       {event && (can(me, "calendar", "delete") || event.created_by === me.member.id) && (
-        <button type="button" className="btn btn-danger" onClick={remove} disabled={busy}>
-          Remove
+        <button type="button" className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
+          {confirmDelete ? "Tap again to delete" : "Delete"}
         </button>
       )}
     </form>

@@ -51,3 +51,14 @@ test("thaw plan picks the oldest freezer bags until tomorrow is covered", () => 
   assert.equal(thawPlan(bottles, entries, { awayTomorrow: false, awayMinutes: 480, intervalMin: 120, hour: 19 }), null);
   assert.equal(thawPlan(bottles, entries, { awayTomorrow: true, awayMinutes: 480, intervalMin: 120, hour: 9 }), null);
 });
+
+test("forecastHint: the forecast bar's answer, short enough for its hint", async () => {
+  const { forecastHint } = await import("./milk-insights.ts");
+  const f = (until: number | null, usePerDay = 300) => ({ usePerDay, pumpPerDay: 0, netPerDay: usePerDay, until, shortPerDay: usePerDay });
+  assert.equal(forecastHint(f(null, 0), 500, "UTC", NOW), null);
+  assert.equal(forecastHint(f(null), 500, "UTC", NOW), "keeping up");
+  assert.equal(forecastHint(f(NOW + 3 * 3_600_000), 0, "UTC", NOW), "empty");
+  assert.equal(forecastHint(f(NOW + 3 * 3_600_000), 500, "UTC", NOW), "till 19:00");
+  assert.match(forecastHint(f(NOW + 2 * D), 500, "UTC", NOW) ?? "", /^till [A-Z][a-z]{2}$/);
+  assert.match(forecastHint(f(NOW + 9 * D), 500, "UTC", NOW) ?? "", /^till \d{1,2} [A-Z][a-z]{2,3}$/);
+});

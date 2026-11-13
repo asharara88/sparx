@@ -73,7 +73,7 @@ export function LoginForm({ initialMode = "signin", next = "/", joining = false,
         if (beforeRedirect) await beforeRedirect();
         const { error } = await supabase.auth.signInWithOtp({ email: addr(), options: { emailRedirectTo: callback() } });
         if (error) return setError(friendly(error.message));
-        setDone(`We sent a link to ${addr()}. Tap it on this phone. You can choose a password later, on your Me screen.`);
+        setDone(`We sent a link to ${addr()}. Tap it on this phone. You can choose a password later, under More.`);
       }
     } finally {
       setBusy(false);
