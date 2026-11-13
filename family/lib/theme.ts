@@ -20,7 +20,7 @@ export function setManualNight(on: boolean) {
   apply();
 }
 
-/** Per phone: "0" switches the automatic night screen off (Me screen). */
+/** Per phone: "0" switches the automatic night screen off (More → Display). */
 export const NIGHT_PREF_KEY = "family.night.auto";
 export const NIGHT_PREF_EVENT = "family:night-pref";
 /** The choice for this tab when storage is blocked (private mode): it lasts until the tab closes. */

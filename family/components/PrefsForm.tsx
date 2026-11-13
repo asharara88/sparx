@@ -4,8 +4,12 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { LANGS, type Lang } from "@/lib/i18n";
 
-/** Me: language for the simple screen and the voice helper, and the simple screen itself. */
-export function PrefsForm({ lang, simple, large }: { lang: Lang; simple: boolean; large: boolean }) {
+/**
+ * Display: language for the simple screen and the voice helper, the simple screen and large
+ * text. `children` go last in the same card, so the night switch (saved on this phone, not
+ * the account) sits with the other two.
+ */
+export function PrefsForm({ lang, simple, large, children }: { lang: Lang; simple: boolean; large: boolean; children?: React.ReactNode }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -57,6 +61,7 @@ export function PrefsForm({ lang, simple, large }: { lang: Lang; simple: boolean
           }}
         />
       </label>
+      {children}
       {msg && <p className="text-sm text-[var(--danger)]">{msg}</p>}
     </section>
   );

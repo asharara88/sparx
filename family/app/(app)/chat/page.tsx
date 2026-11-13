@@ -20,6 +20,7 @@ export default async function ChatPage() {
   return (
     <div className="flex h-[calc(100dvh-var(--tabbar-h))] flex-col gap-3">
       <PageHeader
+        back={can(me, "lana", "view") ? "/me" : undefined}
         title="Family chat"
         subtitle="Everyone at home sees these."
         action={
@@ -30,7 +31,7 @@ export default async function ChatPage() {
           ) : undefined
         }
       />
-      <FamilyChat initial={chat.ok ? chat.messages : []} timezone={me.household.timezone} canPost={can(me, "chat", "add")} />
+      <FamilyChat initial={chat.ok ? chat.messages : []} timezone={me.household.timezone} canPost={can(me, "chat", "add")} canDeleteAny={can(me, "chat", "delete")} />
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import type { EntryRow, MilkBottle } from "@/lib/types";
+// Relative with .ts: the unit tests run this file under plain node, without the @/ alias.
+import { fmtDate, fmtTime, todayYmd, ymdInZone } from "./time.ts";
 
 /**
  * Milk sense: when the fridge runs out at the current pace, how the pumping is
@@ -32,6 +34,26 @@ export interface MilkForecast {
   until: number | null;
   /** How much more to pump a day to keep up. */
   shortPerDay: number;
+}
+
+/** ml in the fridge that is still good to give (past its time does not count). */
+export function safeFridgeMl(bottles: MilkBottle[]): number {
+  return bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);
+}
+
+/**
+ * The forecast's answer in a couple of words, for the Milk screen's "Fridge lasts" bar:
+ * "till 18:00" today, "till Sat" this week, "till 21 Nov" later, "keeping up" when pumping
+ * covers the bottles, "empty" with nothing safe in the fridge; null with no bottles this week.
+ */
+export function forecastHint(f: MilkForecast, safeMl: number, timezone: string, now = Date.now()): string | null {
+  if (f.usePerDay === 0) return null;
+  if (f.until == null) return "keeping up";
+  if (safeMl <= 0) return "empty";
+  const iso = new Date(f.until).toISOString();
+  if (ymdInZone(new Date(f.until), timezone) === todayYmd(timezone, new Date(now))) return `till ${fmtTime(iso, timezone)}`;
+  if (f.until - now < 6 * D) return `till ${fmtDate(iso, timezone, { day: undefined, month: undefined })}`;
+  return `till ${fmtDate(iso, timezone, { weekday: undefined })}`;
 }
 
 export function milkForecast(safeFridgeMl: number, entries: EntryRow[], now = Date.now()): MilkForecast {
@@ -102,7 +124,7 @@ export function thawPlan(bottles: MilkBottle[], entries: EntryRow[], opts: { awa
   if (opts.hour < 17 || !opts.awayTomorrow || opts.awayMinutes <= 0) return null;
   const size = usualBottle(entries);
   const need = Math.max(1, Math.ceil(opts.awayMinutes / Math.max(60, opts.intervalMin))) * size;
-  const have = bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);
+  const have = safeFridgeMl(bottles);
   if (have >= need) return { need, have, picks: [], short: 0 };
   const picks: MilkBottle[] = [];
   let got = have;

@@ -56,13 +56,14 @@ export default async function AchievementsPage() {
                 {tiers.length} of {t.tiers.length}
               </span>
             </div>
-            <ul className="grid grid-cols-5 items-end gap-1" aria-label="Medals">
+            {/* One column per medal, tops in line: a name on two lines no longer lifts its medal. */}
+            <ul className="grid items-start gap-1" style={{ gridTemplateColumns: `repeat(${t.tiers.length}, minmax(0, 1fr))` }} aria-label="Medals">
               {t.tiers.map((x) => {
                 const w = won.find((e) => e.tier === x.tier);
                 return (
                   <li key={x.tier} className="flex min-w-0 flex-col items-center gap-1 text-center">
                     <Medal metal={x.metal} icon={t.icon} size={46} locked={!w} label={`${x.name}${w ? ", won" : ", not yet"}`} />
-                    <span className={`text-[0.82rem] leading-tight ${w ? "font-semibold" : "muted"}`}>{x.name}</span>
+                    <span className={`text-[0.82rem] leading-tight text-balance ${w ? "font-semibold" : "muted"}`}>{x.name}</span>
                   </li>
                 );
               })}
@@ -73,7 +74,7 @@ export default async function AchievementsPage() {
                   Next: <b>{next.tier.name}</b> · {t.id === "pump_goal" ? t.unit(next.left) : t.id === "pump_beat" ? t.unit(next.left) : `${t.unit(next.left)} more in the freezer`}
                 </p>
                 <div className="h-2 overflow-hidden rounded-full bg-[var(--card)]" aria-hidden="true">
-                  <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, Math.round((next.have / next.tier.need) * 100))}%` }} />
+                  <div className="h-full rounded-full bg-[var(--tint-fg)]" style={{ width: `${Math.min(100, Math.round((next.have / next.tier.need) * 100))}%` }} />
                 </div>
               </div>
             ) : (

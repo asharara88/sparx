@@ -35,7 +35,8 @@ export function HomeSwitcher({ homes, recover = false }: { homes: HomeListing[];
 
   return (
     <div className="card flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">Your homes</h2>
+      {/* On Your homes the page's header says it; only the recovery screen needs its own. */}
+      {recover && <h2 className="text-lg font-semibold">Your homes</h2>}
       {homes.length > 1 || (recover && homes.length === 1) ? (
         <ul className="flex flex-col gap-2">
           {homes.map((h) => (

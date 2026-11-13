@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMe } from "@/lib/me-context";
-import { can, type HomeSummary, type RpcError } from "@/lib/types";
+import { can, type HomeSummary, type Me, type RpcError } from "@/lib/types";
+import { childName } from "@/lib/names";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { quickContextOf, type QuickContext } from "@/lib/assistant/quick-context";
 import { Assistant } from "./Assistant";
@@ -53,7 +54,7 @@ function contentBoxes(base: Box, maxLift: number): Box[] {
  * first rows are the helper's) carry no button.
  */
 // Not on a log or edit form either: it sat on the note field, and a form has its own Save at the thumb.
-const NOT_HERE = [/^\/$/, /^\/ask(\/|$)/, /^\/chat(\/|$)/, /^\/me$/, /^\/baby\/log\//, /^\/baby\/entry\//, /^\/entry\//];
+const NOT_HERE = [/^\/$/, /^\/ask(\/|$)/, /^\/chat(\/|$)/, /^\/me$/, /^\/baby\/log\//, /^\/baby\/entry\//, /^\/entry\//, /^\/members\/([0-9a-f-]{36}|new)$/];
 
 /** Which screen the question came from, as the helper's prompt knows them (app/api/assistant). */
 function screenOf(path: string): string | null {
@@ -61,6 +62,19 @@ function screenOf(path: string): string | null {
   if (path.startsWith("/baby")) return "child";
   if (path.startsWith("/calendar")) return "calendar";
   return null;
+}
+
+/**
+ * A question or two about the screen it was opened from, as one-tap rows in the empty sheet.
+ * Questions only, never a phrase that logs something ("Put 120 ml in the freezer" would save in
+ * one tap).
+ */
+function questionsFor(screen: string | null, me: Me): string[] {
+  const child = childName(me);
+  if (screen === "milk") return ["How long will the fridge last?", "What is in the freezer?"];
+  if (screen === "child" && can(me, "lana", "view")) return [`When did ${child} last feed?`, `How did ${child} sleep last night?`];
+  if (screen === "calendar" && can(me, "calendar", "view")) return ["What is on tomorrow?"];
+  return [];
 }
 
 /**
@@ -75,6 +89,9 @@ export function HelperFab() {
   const path = usePathname() ?? "/";
   const [open, setOpen] = useState<number | null>(null);
   const [quick, setQuick] = useState<QuickContext | null>(null);
+  // The sheet stays as tall as what it holds until the chat starts, then fills the screen so the
+  // conversation scrolls inside it (an empty full-height sheet was a screen of blank).
+  const [tall, setTall] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
   const hidden = !can(me, "assistant", "view") || NOT_HERE.some((r) => r.test(path));
   // The button lives in the app's layout and outlives a screen: an answer's link (an entry,
@@ -139,6 +156,7 @@ export function HelperFab() {
   if (hidden) return null;
 
   const show = () => {
+    setTall(false);
     setOpen((n) => (n ?? 0) + 1);
     if (can(me, "lana", "add") && (me.subjects?.length ?? 1) <= 1) {
       // Offline or refused: no quick logs, and the helper still answers.
@@ -157,9 +175,9 @@ export function HelperFab() {
         <Icon name="sparkles" size={26} />
       </button>
       {open != null && (
-        <Sheet title="Helper" fill onClose={() => setOpen(null)}>
-          <Assistant key={open} embedded suggestions={[]} quick={quick} screen={screenOf(path)} />
-          <Link prefetch={false} href="/ask" className="muted shrink-0 self-end text-sm font-semibold" onClick={() => setOpen(null)}>
+        <Sheet title="Helper" fill={tall} onClose={() => setOpen(null)}>
+          <Assistant key={open} embedded suggestions={questionsFor(screenOf(path), me)} quick={quick} screen={screenOf(path)} onStart={() => setTall(true)} />
+          <Link prefetch={false} href="/ask" className="muted flex min-h-[44px] shrink-0 items-center self-end text-sm font-semibold" onClick={() => setOpen(null)}>
             Open the full chat ›
           </Link>
         </Sheet>

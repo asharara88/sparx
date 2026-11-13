@@ -44,7 +44,7 @@ export function InviteLink({ memberId, name, state }: { memberId: string; name: 
 
   return (
     <div className="flex flex-col gap-1">
-      <button type="button" className="btn w-full" style={{ minHeight: 44 }} onClick={send} disabled={busy}>
+      <button type="button" className="btn w-full" onClick={send} disabled={busy}>
         <Icon name="send" size={18} /> {busy ? "One moment…" : state === "signed_in" ? "Send a link to this home" : "Send an invite link"}
       </button>
       {msg && (

@@ -12,6 +12,9 @@ import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, readQueueFor, sendOrQueue } from "@/lib/offline";
 import { Cited } from "./Cited";
 import { Icon } from "@/components/Icon";
+import { PageHeader } from "@/components/PageHeader";
+import { Sheet } from "@/components/Sheet";
+import { Fold } from "@/components/Fold";
 import { speechLang, spokenWhen, t, type Lang } from "@/lib/i18n";
 import { primeVoices } from "@/lib/voice";
 import { speak as sayAloud, stopSpeaking, unlockAudio } from "@/lib/speak";
@@ -83,7 +86,8 @@ function sameRow(a: { occurred_at: string; ended_at: string | null; payload: Rec
   return ms(a.occurred_at) === ms(b.occurred_at) && ms(a.ended_at) === ms(b.ended_at) && flat(a.payload) === flat(b.payload) && (a.note ?? "") === (b.note ?? "");
 }
 
-export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null, embedded = false }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null; embedded?: boolean }) {
+/** `onStart`: called once, when the conversation gets its first message (the helper's sheet grows to full height then). */
+export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null, embedded = false, onStart }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null; embedded?: boolean; onStart?: () => void }) {
   const me = useMe();
   const router = useRouter();
   const STORE = storeKey(me.member.id);
@@ -95,7 +99,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     msgsRef.current = msgs;
   }, [msgs]);
   const [chatId, setChatId] = useState<string | null>(initial?.id ?? null);
-  const [showChats, setShowChats] = useState(false);
+  // The Ask screen's Options sheet, and the earlier chats opened from it.
+  const [panel, setPanel] = useState<"options" | "chats" | null>(null);
+  const [armedChat, setArmedChat] = useState<string | null>(null);
+  const [goneChats, setGoneChats] = useState<string[]>([]);
+  const [chatsMsg, setChatsMsg] = useState<string | null>(null);
   const [aloud, setAloud] = useState(false);
   const spokeRef = useRef(false);
   const [input, setInput] = useState("");
@@ -254,8 +262,16 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     } catch {
       /* ignore */
     }
-    endRef.current?.scrollIntoView({ block: "end" });
+    // An empty chat has nothing to scroll to: scrolling to the end of the intro opened Ask
+    // already scrolled past its own title on a small phone.
+    if (msgs.length > 0) endRef.current?.scrollIntoView({ block: "end" });
   }, [msgs, pstate, chatId]);
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (!onStart || startedRef.current || msgs.length === 0) return;
+    startedRef.current = true;
+    onStart();
+  }, [msgs.length, onStart]);
 
   // Save the thread (title = the first question) after every assistant reply and every proposal outcome.
   const saveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -738,7 +754,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     setMsgs([]);
     setPstate({});
     setChatId(null);
-    setShowChats(false);
+    setPanel(null);
     try {
       sessionStorage.removeItem(STORE);
     } catch {
@@ -758,10 +774,16 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     }
   }
   async function removeChat(id: string) {
+    // Destroying is a word and a second tap, never a pop-up (DESIGN.md, rule 8).
+    setChatsMsg(null);
+    if (armedChat !== id) return setArmedChat(id);
+    setArmedChat(null);
+    setGoneChats((g) => [...g, id]); // off the list at once; back if the server refuses
     const { data, error } = await supabaseBrowser().rpc("ask_chat_remove", { p_id: id });
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) {
-      window.alert(res?.message ?? error?.message ?? "Could not remove that chat. Try again.");
+      setGoneChats((g) => g.filter((x) => x !== id));
+      setChatsMsg(res?.message ?? error?.message ?? "Could not remove that chat. Try again.");
       return;
     }
     if (id === chatId) clear();
@@ -778,72 +800,130 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
   }
 
   const writer = can(me, "assistant", "add");
+  const shownChats = chats.filter((c) => !goneChats.includes(c.id));
+  // Suggested questions, one row each, the same on Ask and in the helper's sheet. Not chips: a
+  // question ("How much milk is in the freezer?") wrapped a chip onto two lines at 320 px.
+  const suggestionRows = (list: string[]) =>
+    list.length > 0 && (
+      <ul className="card flex flex-col divide-y divide-[var(--line)] p-0">
+        {list.map((s) => (
+          <li key={s}>
+            <button type="button" className="row row-link w-full px-4 text-left font-medium" onClick={() => void ask(s)}>
+              {s}
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
 
   return (
-    <div className={embedded ? "ask flex min-h-0 flex-1 flex-col gap-3" : "ask flex min-h-[calc(100dvh-9rem)] flex-col gap-3"}>
-      {!embedded && <header className="page-header flex items-center justify-between gap-2">
-        <h1 className="page-title">Ask</h1>
-        <div className="flex gap-1">
-          {canTalk && (
-            <button type="button" className={`btn ${talk ? "btn-primary" : ""}`} style={{ minHeight: 40 }} onClick={talk ? endTalk : startTalk} aria-pressed={talk} aria-label={talk ? "End the call" : "Talk to the helper"} title="Hands-free: it listens, answers out loud, then listens again">
-              <Icon name="phone" size={18} /> {talk ? "End" : "Talk"}
-            </button>
-          )}
-          <button type="button" className="icon-btn m-0" onClick={toggleAloud} aria-pressed={aloud} aria-label="Read answers aloud" title="Read answers aloud">
-            <Icon name="volume" size={22} className={aloud ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
-          </button>
-          <button type="button" className="icon-btn m-0" onClick={toggleNight} aria-pressed={night} aria-label={night ? "Day screen" : "Night screen"} title="Dark screen for the night">
-            <Icon name={night ? "sun" : "moon"} size={22} className="text-[var(--muted)]" />
-          </button>
-          <button type="button" className="icon-btn m-0" onClick={() => setShowChats((v) => !v)} aria-pressed={showChats} aria-label="Earlier chats" title="Earlier chats">
-            <Icon name="history" size={22} className={showChats ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
-          </button>
-          {msgs.length > 0 && (
-            <button type="button" className="btn" style={{ minHeight: 40 }} onClick={clear}>
-              New
-            </button>
-          )}
-        </div>
-      </header>}
-      {!embedded && showChats && (
-        <div className="card">
-          <p className="section-title mb-1">Earlier chats</p>
-          {chats.length === 0 ? (
-            <p className="muted text-sm">Nothing saved yet. Chats save themselves after the first answer.</p>
+    <div className={embedded ? "ask flex min-h-0 flex-1 flex-col gap-3" : "ask flex min-h-[calc(100dvh-var(--tabbar-h))] flex-col gap-3"}>
+      {/* The title alone on its line; Talk, New and Options on the line under it (DESIGN.md, the
+          page header). Reading aloud, the night screen and earlier chats are in the Options sheet. */}
+      {!embedded && (
+        <PageHeader
+          // Ask is never a tab (Nav.tsx): everyone, staff included, comes to it from More or Chat.
+          back="/me"
+          title="Ask"
+          action={
+            <>
+              {canTalk && (
+                <button type="button" className={`btn ${talk ? "btn-primary" : "btn-secondary"}`} onClick={talk ? endTalk : startTalk} aria-pressed={talk} aria-label={talk ? "End the call" : "Talk to the helper"} title="Hands-free: it listens, answers out loud, then listens again">
+                  <Icon name="phone" size={18} /> {talk ? "End" : "Talk"}
+                </button>
+              )}
+              {msgs.length > 0 && (
+                <button type="button" className="btn btn-secondary" onClick={clear}>
+                  New
+                </button>
+              )}
+              <button type="button" className="icon-btn m-0" onClick={() => setPanel("options")} aria-haspopup="dialog" aria-label="Options">
+                <Icon name="settings" size={22} className="text-[var(--muted)]" />
+              </button>
+            </>
+          }
+        />
+      )}
+      {!embedded && panel === "options" && (
+        <Sheet title="Options" onClose={() => setPanel(null)}>
+          <ul className="card flex flex-col p-0">
+            <li className="row px-4">
+              <button type="button" className="flex w-full items-center gap-3 text-left" onClick={toggleAloud} aria-pressed={aloud}>
+                <Icon name="volume" size={22} className={aloud ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
+                <span className="min-w-0 flex-1 font-semibold">Read aloud</span>
+                <span className="muted shrink-0">{aloud ? "On" : "Off"}</span>
+              </button>
+            </li>
+            <li className="row px-4">
+              {/* The one switch for the app's night theme (lib/theme.ts), so it stays. */}
+              <button type="button" className="flex w-full items-center gap-3 text-left" onClick={toggleNight} aria-pressed={night}>
+                <Icon name={night ? "sun" : "moon"} size={22} className={night ? "text-[var(--accent)]" : "text-[var(--muted)]"} />
+                <span className="min-w-0 flex-1 font-semibold">Night screen</span>
+                <span className="muted shrink-0">{night ? "On" : "Off"}</span>
+              </button>
+            </li>
+            <li className="row px-4">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 text-left"
+                onClick={() => {
+                  setArmedChat(null);
+                  setChatsMsg(null);
+                  setPanel("chats");
+                }}
+              >
+                <Icon name="history" size={22} className="text-[var(--muted)]" />
+                <span className="min-w-0 flex-1 font-semibold">Earlier chats</span>
+                <Icon name="forward" size={18} className="text-[var(--muted)]" />
+              </button>
+            </li>
+          </ul>
+        </Sheet>
+      )}
+      {!embedded && panel === "chats" && (
+        <Sheet title="Earlier chats" onClose={() => setPanel(null)}>
+          {shownChats.length === 0 ? (
+            <p className="muted">Nothing saved yet. Chats save themselves after the first answer.</p>
           ) : (
-            <ul className="flex flex-col">
-              {chats.map((c) => (
-                <li key={c.id} className="row">
+            <ul className="card flex flex-col p-0">
+              {shownChats.map((c) => (
+                <li key={c.id} className="row px-4">
                   <a href={`/ask?c=${c.id}`} className={`row-link min-w-0 grow ${c.id === chatId ? "font-semibold text-[var(--accent)]" : ""}`}>
                     <span className="block truncate">{c.title}</span>
-                    <span className="muted block text-xs">{dateWords(new Date(c.updated_at), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: me.household.timezone })}</span>
+                    <span className="muted block text-sm">{dateWords(new Date(c.updated_at), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: me.household.timezone })}</span>
                   </a>
-                  <button type="button" className="icon-btn m-0 text-[var(--muted)]" aria-label="Remove chat" onClick={() => window.confirm("Remove this chat?") && removeChat(c.id)}>
-                    <Icon name="x" size={18} />
+                  <button type="button" className={`btn btn-ghost m-0 min-h-[44px] shrink-0 whitespace-nowrap px-2 ${armedChat === c.id ? "text-[var(--danger)]" : ""}`} onClick={() => void removeChat(c.id)} aria-label={armedChat === c.id ? `Tap again to remove ${c.title}` : `Remove ${c.title}`}>
+                    {armedChat === c.id ? "Remove?" : "Remove"}
                   </button>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+          {chatsMsg && (
+            <p role="alert" className="text-sm text-[var(--danger)]">
+              {chatsMsg}
+            </p>
+          )}
+        </Sheet>
       )}
 
       {msgs.length === 0 && embedded && (
-        <p className="muted text-sm">Say or type what happened: “120 ml bottle”, “wet diaper”, “fell asleep 10 min ago”, “woke up”. Or ask anything.</p>
+        <div className="flex flex-col gap-3">
+          <p className="muted">{quick ? "Say what happened, like “120 ml bottle” or “woke up”, or ask anything." : "Ask anything about the family’s day."}</p>
+          {/* Questions only, never a phrase that logs something: a row is one tap. */}
+          {suggestionRows(suggestions.slice(0, 3))}
+        </div>
       )}
       {msgs.length === 0 && !embedded && (
-        <div className="card">
-          <p className="font-semibold">Ask anything about the family’s day, in your own words.</p>
-          <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {quick ? "Say “120 ml bottle”, “wet diaper”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
-          {canTalk && <p className="muted mt-1 text-sm">Tap Talk for hands-free: it listens, answers out loud, then listens again. Say “remember that…” to teach it something.</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {suggestions.map((s) => (
-              <button key={s} type="button" className="chip chip-say" onClick={() => void ask(s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
+        <>
+          <p className="muted px-1">Ask anything about the family’s day.</p>
+          {suggestionRows(suggestions)}
+          <Fold title="How it works">
+            <p className="text-sm">Every answer links to the entry it came from.</p>
+            <p className="text-sm">{quick ? "Say “120 ml bottle”, “wet diaper”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle”: it prepares it and you tap Confirm." : "This role can read, not write."}</p>
+            {writer && <p className="text-sm">Say “remember that…” to teach it something.</p>}
+          </Fold>
+        </>
       )}
 
       <ol className={`flex flex-1 flex-col gap-3 ${embedded ? "min-h-0 overflow-y-auto overscroll-contain" : ""}`} aria-live="polite">
@@ -940,21 +1020,28 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       </ol>
 
       <form
-        className={embedded ? "flex shrink-0 gap-2 border-t border-[var(--line)] bg-[var(--bg)] pt-3" : "ask-composer sticky bottom-[calc(64px+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"}
+        className={embedded ? "tell-bar shrink-0 border-t border-[var(--line)] bg-[var(--bg)] pt-3" : "ask-composer sticky bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] flex gap-2 bg-[var(--bg)] pt-2"}
         onSubmit={(e) => {
           e.preventDefault();
           if (aloud || talk) unlockAudio();
           void ask(input);
         }}
       >
-        {canSpeak && (
-          <button type="button" className={`btn mic ${listening ? "mic-on" : ""}`} onClick={toggleListening} aria-pressed={listening} aria-label={listening ? "Stop listening" : "Speak"} disabled={busy}>
-            {listening ? <span className="dot dot-danger" /> : <Icon name="mic" />}
-          </button>
-        )}
-        <input className="input flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? (talk ? "Listening… say something, or tap End" : "Listening…") : talk && busy ? "Thinking…" : "Ask or tell me something"} aria-label="Your question" autoComplete="off" enterKeyHint="send" autoFocus={embedded && !autoAsk} />
-        <button type="submit" className="btn btn-primary" disabled={busy || !input.trim()} aria-label="Send">
-          <Icon name="send" />
+        {/* In a sheet (Home's Tell me, the helper's button) it takes Tell me's shapes: a round
+            mic, a pill box and a round send, as on Home's log card. */}
+        {canSpeak &&
+          (embedded ? (
+            <button type="button" className={`round-btn ${listening ? "mic-on" : "tint-guide"}`} onClick={toggleListening} aria-pressed={listening} aria-label={listening ? "Stop listening" : "Speak"} disabled={busy}>
+              <Icon name="mic" size={22} />
+            </button>
+          ) : (
+            <button type="button" className={`btn mic ${listening ? "mic-on" : ""}`} onClick={toggleListening} aria-pressed={listening} aria-label={listening ? "Stop listening" : "Speak"} disabled={busy}>
+              {listening ? <span className="dot dot-danger" /> : <Icon name="mic" />}
+            </button>
+          ))}
+        <input className={embedded ? "tell-box text-[var(--fg)]" : "input flex-1"} value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? (talk ? "Listening… say something, or tap End" : "Listening…") : talk && busy ? "Thinking…" : "Ask or tell me"} aria-label="Your question" autoComplete="off" enterKeyHint="send" autoFocus={embedded && !autoAsk} />
+        <button type="submit" className={embedded ? "round-btn bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-45" : "btn btn-primary"} disabled={busy || !input.trim()} aria-label="Send">
+          <Icon name="send" size={embedded ? 20 : undefined} />
         </button>
       </form>
     </div>

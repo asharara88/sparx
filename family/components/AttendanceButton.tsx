@@ -40,8 +40,9 @@ export function AttendanceButton({ open, memberId, name, timezone, small = false
   }
   if (small) {
     return (
-      <button type="button" className="btn btn-secondary" style={{ minHeight: 40 }} onClick={toggle} disabled={busy}>
-        {open ? `${name ?? "Mark"} left` : `${name ?? "Mark"} is here`}
+      <button type="button" className="btn btn-secondary" onClick={toggle} disabled={busy}>
+        {/* An action, not a fact beside the status: "Mark Lilly left", not "Lilly left". */}
+        {open ? `Mark ${name ?? "them"} left` : `Mark ${name ?? "them"} here`}
       </button>
     );
   }

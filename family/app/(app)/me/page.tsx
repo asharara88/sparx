@@ -9,10 +9,15 @@ import { Icon, type IconName } from "@/components/Icon";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import type { Tint } from "@/components/Fold";
 import { meOnce } from "@/lib/server/me";
+import { todayYmd } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 const LANG_NAME = { en: "English", ar: "العربية", ru: "Русский" } as const;
+
+/** A feature's tint, or "plain" for a row that belongs to no feature (the audit log). */
+type RowTint = Tint | "plain";
+const discClass = (t: RowTint) => (t === "plain" ? "icon-disc size-8 shrink-0 bg-[var(--card-2)] text-[var(--muted)]" : `icon-disc size-8 shrink-0 tint-${t}`);
 
 /**
  * More: you, then one grouped list (the family's screens, the helper, your settings). Each
@@ -25,39 +30,43 @@ export default async function MePage() {
   if (!me?.ok) redirect("/");
   const [{ data: states }, { data: history }, { data: homesData }] = await Promise.all([
     supabase.from("presence_states").select("*").order("sort"),
-    supabase.from("presence").select("*").eq("member_id", me.member.id).order("starts_on", { ascending: false }).limit(1),
+    supabase.from("presence").select("*").eq("member_id", me.member.id).order("starts_on", { ascending: false }).limit(5),
     supabase.rpc("my_homes"),
   ]);
   const homes = (homesData as HomeListing[] | null) ?? [];
-  const here = ((history as Presence[] | null) ?? [])[0];
+  // Where you are today: the stay in force in the home's today, not a later one or one that has ended.
+  const today = todayYmd(me.household.timezone);
+  const here = ((history as Presence[] | null) ?? []).find((p) => p.starts_on <= today && (!p.ends_on || p.ends_on >= today));
   const hereLabel = ((states as PresenceState[] | null) ?? []).find((s) => s.id === here?.state_id)?.label ?? "Not set";
 
   // One grouped list (DESIGN.md, "What lives where"): the family's screens, the helper, you.
-  const groups: { title: string; rows: { href: string; icon: IconName; label: string; tint: Tint; show: boolean }[] }[] = [
+  // Chat and Calendar are tabs for someone without the child's log (Nav.tsx), so not here too.
+  const staff = !can(me, "lana", "view");
+  const groups: { title: string; rows: { href: string; icon: IconName; label: string; tint: RowTint; show: boolean }[] }[] = [
     {
       title: "Family",
       rows: [
         { href: "/achievements", icon: "star", label: "Achievements", tint: "pump", show: can(me, "lana", "view") },
-        { href: "/chat", icon: "chat", label: "Chat", tint: "guide", show: can(me, "chat", "view") },
+        { href: "/chat", icon: "chat", label: "Chat", tint: "guide", show: can(me, "chat", "view") && !staff },
         { href: "/members", icon: "users", label: "Members", tint: "house", show: can(me, "members", "edit") },
-        { href: "/calendar", icon: "calendar", label: "Calendar", tint: "cal", show: can(me, "calendar", "view") },
+        { href: "/calendar", icon: "calendar", label: "Calendar", tint: "cal", show: can(me, "calendar", "view") && !staff },
         { href: "/notes", icon: "note", label: "Notes", tint: "notes", show: can(me, "notes", "view") },
-        { href: "/audit", icon: "history", label: "Audit log", tint: "cal", show: can(me, "audit", "view") },
+        { href: "/audit", icon: "history", label: "Audit log", tint: "plain", show: can(me, "audit", "view") },
       ],
     },
     {
       title: "The helper",
       rows: [
         { href: "/ask", icon: "sparkles", label: "Ask", tint: "guide", show: can(me, "assistant", "view") },
-        { href: "/ask/memory", icon: "note", label: "What it remembers", tint: "guide", show: can(me, "assistant", "view") },
-        { href: "/ask/skills", icon: "clipboard", label: "What it can do", tint: "sleep", show: can(me, "assistant", "edit") },
+        { href: "/ask/memory", icon: "list", label: "What it remembers", tint: "guide", show: can(me, "assistant", "view") },
+        { href: "/ask/skills", icon: "clipboard", label: "What it can do", tint: "guide", show: can(me, "assistant", "edit") },
       ],
     },
   ];
   const settings: { href: string; icon: IconName; label: string; hint?: string | null }[] = [
-    { href: "/me/display", icon: "globe", label: "Language and display", hint: LANG_NAME[(me.member.lang ?? "en") as keyof typeof LANG_NAME] },
+    { href: "/me/display", icon: "globe", label: "Display", hint: LANG_NAME[(me.member.lang ?? "en") as keyof typeof LANG_NAME] },
     { href: "/me/notifications", icon: "bell", label: "Notifications" },
-    { href: "/me/presence", icon: "house", label: "Where you are", hint: hereLabel },
+    { href: "/me/presence", icon: "pin", label: "Where you are", hint: hereLabel },
     ...(!me.preview ? [{ href: "/me/homes", icon: "home" as IconName, label: "Your homes", hint: `${homes.length || 1}` }] : []),
     { href: "/me/install", icon: "plus", label: "Add to your phone" },
     { href: "/me/password", icon: "key", label: "Password" },
@@ -69,10 +78,11 @@ export default async function MePage() {
         <AvatarUpload name={me.member.display_name} path={me.member.photo_path} size={64} />
         <div className="min-w-0 flex-1">
           <h1 className="page-title">{me.member.display_name}</h1>
-          <p className="muted truncate text-sm">
-            {me.role.label}
-            {me.work_days.length > 0 ? ` · works ${me.work_days.map((d) => WEEKDAYS[d].slice(0, 3)).join(", ")}` : ""}
-          </p>
+          <p className="muted truncate text-sm">{me.role.label}</p>
+          {/* The only place a carer sees her own days: on a line of their own, so they are never cut. */}
+          {me.work_days.length > 0 && (
+            <p className="muted text-sm">Works {[1, 2, 3, 4, 5, 6, 0].filter((d) => me.work_days.includes(d)).map((d) => WEEKDAYS[d]).join(", ")}</p>
+          )}
         </div>
       </header>
 
@@ -85,7 +95,7 @@ export default async function MePage() {
                 .filter((r) => r.show)
                 .map((r) => (
                   <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
-                    <span className={`icon-disc tint-${r.tint}`} style={{ width: 32, height: 32 }}>
+                    <span className={discClass(r.tint)}>
                       <Icon name={r.icon} size={17} />
                     </span>
                     <span className="flex-1 font-medium">{r.label}</span>
@@ -104,8 +114,9 @@ export default async function MePage() {
             <span className="flex w-8 shrink-0 justify-center text-[var(--accent)]">
               <Icon name={r.icon} size={20} />
             </span>
-            <span className="flex-1 font-medium">{r.label}</span>
-            {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}
+            {/* The label stays on one line; the grey value beside it is cut first. */}
+            <span className="flex-1 whitespace-nowrap font-medium">{r.label}</span>
+            {r.hint && <span className="muted min-w-0 truncate text-sm">{r.hint}</span>}
             <Icon name="forward" size={18} className="muted" />
           </Link>
         ))}

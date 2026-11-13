@@ -2,13 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { AttendanceData, HouseholdToday, Me, RpcError, Role } from "@/lib/types";
-import { AttendanceButton } from "@/components/AttendanceButton";
-import { fmtTime } from "@/lib/time";
-import { WEEKDAYS, can } from "@/lib/types";
+import { fmtDate, fmtTime } from "@/lib/time";
+import { can } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/PageHeader";
 import { Avatar } from "@/components/Avatar";
-import { InviteLink } from "@/components/InviteLink";
 import { accountLabel, type AccountState } from "@/lib/accounts";
 import { meOnce } from "@/lib/server/me";
 
@@ -28,70 +26,50 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     supabase.rpc("members_accounts"),
     supabase.rpc("attendance_today"),
   ]);
-  // Who works here today and whether they are in: moved from Home, which keeps only "now".
+  // Who is in right now (moved from Home, which keeps only "now"): said on their row. Marking
+  // someone in or out is on their own page, with the invite and "View the app as".
   const attendance = attData as AttendanceData | RpcError | null;
+  const openFor = new Map((attendance?.ok ? attendance.open : []).map((o) => [o.member_id, o]));
   const photos = new Map(((photoRows as { id: string; photo_path: string | null }[] | null) ?? []).map((r) => [r.id, r.photo_path]));
   // Who has signed in, who still waits for a link (migration 5300); not while previewing, which is read only.
   const accountsRes = accountsData as { ok: boolean; members?: Record<string, AccountState> } | null;
   const accounts = accountsRes?.ok ? (accountsRes.members ?? {}) : null;
   const data = hh as HouseholdToday;
   const roleLabel = new Map((roles as Role[]).map((r) => [r.id, r.label]));
+  const tz = me.household.timezone;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/me" title="Members" />
       {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
       {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
-      {attendance && attendance.ok && (() => {
-        const staff = (hh as HouseholdToday).members.filter((m) => m.work_days.length > 0 && m.id !== me.member.id);
-        if (staff.length === 0 && attendance.open.length === 0) return null;
-        return (
-          <section className="card flex flex-col gap-2" aria-label="Here today">
-            <h2 className="section-title">Here today</h2>
-            {attendance.open.map((o) => (
-              <p key={o.member_id}>
-                {o.name} here since {fmtTime(o.in_at, me.household.timezone)}
-              </p>
-            ))}
-            <div className="flex flex-wrap gap-2">
-              {staff.map((m) => (
-                <AttendanceButton key={m.id} small memberId={m.id} name={m.name} timezone={me.household.timezone} open={attendance.open.find((o) => o.member_id === m.id) ?? null} />
-              ))}
-            </div>
-          </section>
-        );
-      })()}
-      <p className="muted text-sm">Add someone, then send them their invite link.</p>
-      <ul className="flex flex-col gap-2">
-        {data.members.map((m) => (
-          <li key={m.id} className="card flex flex-col gap-2">
-            <Link prefetch={false} href={`/members/${m.id}`} className="flex items-center gap-3">
-              <Avatar name={m.name} path={photos.get(m.id)} size={48} />
-              <span className="min-w-0 grow">
-              <span className="flex items-baseline justify-between">
-                <span className="text-lg font-semibold">{m.name}</span>
-                <span className="muted">{roleLabel.get(m.role_id) ?? m.role_id}</span>
-              </span>
-              <p className="muted">
-                {m.relationship ? `${m.relationship} · ` : ""}
-                {m.presence ? m.presence.label : "No presence set"}
-                {m.presence?.ends_on ? ` until ${m.presence.ends_on}` : ""}
-              </p>
-              {m.work_days.length > 0 && <p className="muted">Works: {m.work_days.map((d) => WEEKDAYS[d]).join(", ")}</p>}
-              {accounts && m.id !== me.member.id && <p className={accounts[m.id] === "signed_in" ? "muted" : "pill-warn inline-block"}>{accountLabel(accounts[m.id])}</p>}
-              </span>
-            </Link>
-            {accounts && m.id !== me.member.id && <InviteLink memberId={m.id} name={m.name} state={accounts[m.id]} />}
-            {m.id !== me.member.id && (
-              <form action="/api/view-as" method="post">
-                <input type="hidden" name="member_id" value={m.id} />
-                <button type="submit" className="btn w-full" style={{ minHeight: 44 }}>
-                  <Icon name="eye" size={18} /> View the app as {m.name}
-                </button>
-              </form>
-            )}
-          </li>
-        ))}
+      {/* One white list of people (DESIGN.md, "The patterns we use"): a row opens the person,
+          where their invite, "View the app as" and in / out live. */}
+      <ul className="card flex flex-col p-0" aria-label="Members">
+        {data.members.map((m) => {
+          const open = openFor.get(m.id);
+          // A presence date is a calendar day: read in UTC, or a home west of UTC sees the day before.
+          const where = m.presence ? `${m.presence.label}${m.presence.ends_on ? ` until ${fmtDate(m.presence.ends_on, "UTC")}` : ""}` : "No presence set";
+          const state = accounts && m.id !== me.member.id ? accounts[m.id] : "signed_in";
+          return (
+            <li key={m.id} className="row p-0">
+              <Link prefetch={false} href={`/members/${m.id}`} className="row-link flex w-full min-w-0 items-center gap-3 px-4 py-3">
+                <Avatar name={m.name} path={photos.get(m.id)} size={40} className="shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+                    <span className="truncate font-semibold">{m.name}</span>
+                    {state !== "signed_in" && <span className="pill pill-warn shrink-0">{accountLabel(state)}</span>}
+                  </span>
+                  {/* Where they are first: at 320 px the line is cut, and it is the part that changes. */}
+                  <span className="muted block truncate text-sm">
+                    {open ? `Here since ${fmtTime(open.in_at, tz)}` : where} · {roleLabel.get(m.role_id) ?? m.role_id}
+                  </span>
+                </span>
+                <Icon name="forward" size={18} className="muted shrink-0" />
+              </Link>
+            </li>
+          );
+        })}
       </ul>
       {(inactive as { id: string; display_name: string }[] | null)?.length ? (
         <p className="muted">
@@ -103,15 +81,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       <nav aria-label="Home settings" className="card flex flex-col p-0">
         {(
           [
-            { href: "/members/home", icon: "house", label: "Home settings", hint: me.household.name },
-            { href: "/members/roles", icon: "lock", label: "Roles and permissions", hint: null },
+            { href: "/members/home", icon: "house", label: "Home settings" },
+            { href: "/members/roles", icon: "lock", label: "Roles and permissions" },
           ] as const
         ).map((r) => (
           <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
             <Icon name={r.icon} size={20} className="shrink-0 text-[var(--accent)]" />
-            <span className="flex-1 font-semibold">{r.label}</span>
-            {r.hint && <span className="muted truncate text-sm">{r.hint}</span>}
-            <Icon name="forward" size={18} className="muted" />
+            <span className="min-w-0 flex-1 truncate font-medium">{r.label}</span>
+            <Icon name="forward" size={18} className="muted shrink-0" />
           </Link>
         ))}
       </nav>

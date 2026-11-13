@@ -105,7 +105,8 @@ sources at the bottom.
    and notice about sleep is lilac and every one about feeds is pink, wherever it sits
    (Mido, 7 November): Sleep today, sleep tips, the sleep bar and the pattern's sleep bands;
    Feeds today, "feed due", feed tips and the pattern's feed ticks. A card about several
-   things (Coming up) takes none of theirs. Amber means *needs a look*,
+   things (Coming up) takes none of theirs. The freezer is sky beside the mint fridge, so the
+   two read apart at a glance (the one exception: Milk and the freezer stash). Amber means *needs a look*,
    red means *act now*; neither is decoration. Green is not used to mean "fine": fine is
    the absence of colour.
 8. **Big targets, few of them.** Every tap target is at least 44 px tall. A card has at
@@ -365,7 +366,8 @@ helper, Tell me; `lib/milk-take.ts`, Mido, 10 November): "Freezer" milk takes th
 out of the freezer, a pumped milk comes out of the fridge, formula or no milk named takes
 nothing. Such a bottle has no Undo (deleting it would not put the milk back); it is fixed
 from its entry. The plan for the day shows only on a day someone is away; how long the fridge will last
-is a fold. Pumping is a row ("Pumping · 250 / 400 ml ›") that opens Home's day cards.
+is a fold. Pumping is a bar like Fridge and Freezer (`FoldLink`: "Pumping · 250 / 400 ml ›") that
+opens Home's day cards; the forecast bar gives its answer in the hint ("Fridge lasts · till Sat").
 
 ### The day's cards (Home, below the log card; `/baby/dashboard` goes there)
 
@@ -468,7 +470,7 @@ Use these; extend one before adding a new one, and add any new one here.
 - **Three text sizes per card**: the headline (1.25 rem bold), the body (1 rem), the small
   muted line (0.85 rem). Screen titles use the display font; nothing else does.
 - **Space, not boxes.** 20 px side margins, 16 px between blocks, a hairline between rows.
-- **Large text** (Settings → Language and display, on by default for everyone but admins) makes
+- **Large text** (More → Display, on by default for everyone but admins) makes
   the root 19 px instead of 17, so every rem grows, sheets included. Until 13 November it only
   reached the shell's own text and left titles, folds, buttons and sheets at normal size.
 - **Every rule in `app/globals.css` sits in a layer**: element defaults in `@layer base`, part

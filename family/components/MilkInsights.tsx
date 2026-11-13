@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { EntryRow, MilkData } from "@/lib/types";
-import { milkForecast, pumpInsights, thawPlan } from "@/lib/milk-insights";
+import { milkForecast, pumpInsights, safeFridgeMl, thawPlan } from "@/lib/milk-insights";
 import { fmtDate, fmtTime } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 
@@ -11,8 +11,7 @@ import { Icon } from "@/components/Icon";
  * version inside a fold, without the thaw reminder (the page shows that on its own).
  */
 export function MilkInsights({ milk, entries, timezone, thaw, bare = false }: { milk: MilkData; entries: EntryRow[]; timezone: string; thaw: Parameters<typeof thawPlan>[2]; bare?: boolean }) {
-  const safe = milk.bottles.filter((b) => b.location === "fridge" && !b.expired).reduce((s, b) => s + b.amount_ml, 0);
-  const f = milkForecast(safe, entries);
+  const f = milkForecast(safeFridgeMl(milk.bottles), entries);
   const p = pumpInsights(entries, timezone);
   const soon = f.until != null && f.until - Date.now() < 2 * 86_400_000;
   return (
@@ -23,7 +22,8 @@ export function MilkInsights({ milk, entries, timezone, thaw, bare = false }: { 
           <h2 id="mf-h" className={bare ? "sr-only" : "font-semibold"}>
             Milk forecast
           </h2>
-          <p className="muted text-sm">An estimate from the last 7 days.</p>
+          {/* In the fold the bar already gives the answer; the card on its own says where it comes from. */}
+          {!bare && <p className="muted text-sm">An estimate from the last 7 days.</p>}
         </div>
         {f.usePerDay === 0 ? (
           <p className="muted text-sm">No bottles logged this week yet.</p>
@@ -61,7 +61,6 @@ export function MilkInsights({ milk, entries, timezone, thaw, bare = false }: { 
             <p className="muted text-sm">
               This week {p.lastDay} ml a day
               {p.prevDay ? ` · last week ${p.prevDay} ml` : ""}
-              {p.change != null ? ` (${p.change >= 0 ? "+" : ""}${Math.round(p.change * 100)}%)` : ""}
             </p>
             {p.dropping && <p className={bare ? "text-sm font-semibold text-[var(--warn)]" : "notice notice-warn text-sm"}>Supply is a bit lower than last week. Rest, water and not skipping pumps usually help. If it keeps dropping, a lactation consultant can help.</p>}
           </div>
