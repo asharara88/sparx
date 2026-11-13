@@ -39,7 +39,7 @@ export function HandoverPanel({ summary: s, bag }: { summary: HomeSummary; bag: 
         <p className="muted">{s.custody?.name ? `${s.custody.name} has ${s.subject.name} right now.` : `Nobody is marked as having ${s.subject.name}.`}</p>
         <Row label="Last feed" typeId="lana.feed" />
         <Row label="Last nap" typeId="lana.sleep" />
-        <Row label="Last nappy" typeId="lana.diaper" />
+        <Row label="Last diaper" typeId="lana.diaper" />
       </section>
       <section className="card">
         <h2 className="font-semibold">Given today</h2>

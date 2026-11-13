@@ -196,7 +196,7 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
               <li key={d.day} className="row">
                 <span className="w-24 shrink-0 font-semibold">{dayName(d.day)}</span>
                 <span className="muted min-w-0 flex-1 text-sm">
-                  {d.breast_count + d.bottle_count} feeds{d.bottle_ml ? `, ${d.bottle_ml} ml` : ""} · {fmtDuration(d.sleep_min)} sleep · {d.diapers} nappies
+                  {d.breast_count + d.bottle_count} feeds{d.bottle_ml ? `, ${d.bottle_ml} ml` : ""} · {fmtDuration(d.sleep_min)} sleep · {d.diapers} diapers
                 </span>
               </li>
             ))}

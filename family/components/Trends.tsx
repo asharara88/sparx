@@ -43,7 +43,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
     { label: "Breastfeeds a day", now: n1(mean(thisWeek, "breast_count")), delta: mean(thisWeek, "breast_count") - mean(lastWeek, "breast_count"), unit: "" },
     { label: "At the breast", now: fmtDuration(Math.round(mean(thisWeek, "breast_min"))), delta: mean(thisWeek, "breast_min") - mean(lastWeek, "breast_min"), unit: "min" },
     { label: "Bottle a day", now: `${Math.round(mean(thisWeek, "bottle_ml"))} ml`, delta: mean(thisWeek, "bottle_ml") - mean(lastWeek, "bottle_ml"), unit: "ml" },
-    { label: "Nappies a day", now: n1(mean(thisWeek, "diapers")), delta: mean(thisWeek, "diapers") - mean(lastWeek, "diapers"), unit: "" },
+    { label: "Diapers a day", now: n1(mean(thisWeek, "diapers")), delta: mean(thisWeek, "diapers") - mean(lastWeek, "diapers"), unit: "" },
   ];
   const weekTotals = {
     breast_count: mean(thisWeek, "breast_count"),

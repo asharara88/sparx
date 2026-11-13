@@ -6,7 +6,7 @@ import type { EntryRow } from "@/lib/types";
  *
  * Feeds: the median gap between feeds over the last week, bounded to 1.5–4 h,
  * measured separately for the hours the breastfeeding parent is at work (bottles come closer
- * together) and the rest of the day. Nappies: median gap. Sleeps: median nap
+ * together) and the rest of the day. Diapers: median gap. Sleeps: median nap
  * length and median awake window. Each falls back to a sensible default when
  * there are fewer than three samples.
  */
@@ -160,4 +160,4 @@ export function forecast(entries: EntryRow[], opts: ForecastOptions = {}): Forec
   return out.sort((a, b) => a.at - b.at);
 }
 
-export const FORECAST_LABEL: Record<ForecastItem["kind"], string> = { feed: "Feed", diaper: "Nappy", sleep: "Nap", wake: "Wakes up" };
+export const FORECAST_LABEL: Record<ForecastItem["kind"], string> = { feed: "Feed", diaper: "Diaper", sleep: "Nap", wake: "Wakes up" };

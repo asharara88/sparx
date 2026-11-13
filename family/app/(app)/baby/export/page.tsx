@@ -103,7 +103,7 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
             <tr><td>Breast minutes</td><td className="text-right font-semibold">{avg("breast_min")} min (L {sum("left_count")} · R {sum("right_count")} over the period)</td></tr>
             <tr><td>Sleep</td><td className="text-right font-semibold">{fmtDuration(avg("sleep_min"))} (night {fmtDuration(avg("night_sleep_min"))}, longest stretch {fmtDuration(avg("longest_stretch_min"))}, {avg("nap_count")} naps)</td></tr>
             <tr><td>Night wake-ups / night feeds</td><td className="text-right font-semibold">{avg("night_wakes")} / {avg("night_feeds")}</td></tr>
-            <tr><td>Nappies</td><td className="text-right font-semibold">{avg("diapers")} ({avg("diapers_wet")} wet · {avg("diapers_dirty")} dirty)</td></tr>
+            <tr><td>Diapers</td><td className="text-right font-semibold">{avg("diapers")} ({avg("diapers_wet")} wet · {avg("diapers_dirty")} dirty)</td></tr>
           </tbody>
         </table>
 
@@ -147,7 +147,7 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
 
         <h2 className="mt-4 text-lg font-bold">Day by day</h2>
         <table className="mt-1 w-full text-xs">
-          <thead><tr className="text-left"><th>Day</th><th>Feeds</th><th>ml</th><th>Sleep</th><th>Night</th><th>Wakes</th><th>Nappies</th></tr></thead>
+          <thead><tr className="text-left"><th>Day</th><th>Feeds</th><th>ml</th><th>Sleep</th><th>Night</th><th>Wakes</th><th>Diapers</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.day}>

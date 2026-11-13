@@ -3,7 +3,7 @@ import { can } from "@/lib/types";
 
 /**
  * What a screen needs to save plain logs on the phone ("120 ml bottle", "wet nappy"): the one
- * child, her feed, nappy and sleep types, any running sleep, and whether Undo may delete.
+ * child, her feed, diaper and sleep types, any running sleep, and whether Undo may delete.
  * Built on the server from home_summary (Home and Ask), read by the Assistant. Not in a
  * "use client" file, so server pages can call it.
  */

@@ -31,7 +31,7 @@ test("a nap that runs past the end of the window is capped at the end", () => {
   assert.equal(s.napMin, 60);
 });
 
-test("feeds and nappies count by when they happened", () => {
+test("feeds and diapers count by when they happened", () => {
   const s = windowStats(
     [
       row("lana.feed", "2026-10-14T05:00:00.000Z", null, { method: "Bottle", amount_ml: 120 }),

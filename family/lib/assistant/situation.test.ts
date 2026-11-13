@@ -19,7 +19,7 @@ test("the situation reads as a few plain lines", () => {
   });
   assert.equal(
     s,
-    ["Lana right now: asleep since 14:10.", "Last feed 13:40 (120 ml pumped), next due about 16:30.", "Today so far: 5 feeds, 4 nappies. Wafa has her.", 'Active plan "Earlier bedtime", day 3 of 7: Start the wind-down at 18:30 (not ticked yet today).'].join("\n"),
+    ["Lana right now: asleep since 14:10.", "Last feed 13:40 (120 ml pumped), next due about 16:30.", "Today so far: 5 feeds, 4 diapers. Wafa has her.", 'Active plan "Earlier bedtime", day 3 of 7: Start the wind-down at 18:30 (not ticked yet today).'].join("\n"),
   );
 });
 
@@ -30,7 +30,7 @@ test("nothing logged yet is said, not hidden", () => {
   assert.ok(!s.includes("Active plan"));
 });
 
-test("awake since, the last nappy, last night and the usual day are said when known", () => {
+test("awake since, the last diaper, last night and the usual day are said when known", () => {
   const s = formatSituation({
     name: "Sam",
     them: "him",
@@ -54,8 +54,8 @@ test("awake since, the last nappy, last night and the usual day are said when kn
   const lines = s.split("\n");
   assert.equal(lines[0], "Sam right now: awake since 13:50 (1 h 12 min).");
   assert.equal(lines[1], "Last feed 13:40 (breast left).");
-  assert.equal(lines[2], "Last nappy 12:00 (dirty).");
-  assert.equal(lines[3], "Today so far: 4 feeds, 3 nappies. Luda has him.");
+  assert.equal(lines[2], "Last diaper 12:00 (dirty).");
+  assert.equal(lines[3], "Today so far: 4 feeds, 3 diapers. Luda has him.");
   assert.equal(lines[4], "Last night: 9 h of sleep, longest stretch 3 h 20 min, 2 wake-ups, 1 night feed.");
   assert.equal(lines[5], "Usual day lately (6 days): about 7 feeds and 480 ml of bottles, 14 h of sleep, 9 h 20 min of it at night.");
   assert.equal(hm(0), "0 min");
@@ -78,9 +78,9 @@ test("who is in the house is one line, or nothing", () => {
 
 test("today's meals are in the counts once the child eats, and not before", () => {
   const base = { name: "Lana", nowLocal: "", ageDays: 220, asleepSince: null, lastFeedAt: null, lastFeedMl: null, lastFeedKind: null, nextFeedDue: null, feedsToday: 4, diapersToday: 3, whoHas: null, plan: null };
-  assert.match(formatSituation({ ...base, mealsToday: 2 }), /Today so far: 4 feeds, 3 nappies, 2 meals\./);
-  assert.match(formatSituation({ ...base, mealsToday: 1 }), /3 nappies, 1 meal\./);
-  assert.match(formatSituation({ ...base, ageDays: 120 }), /Today so far: 4 feeds, 3 nappies\./);
+  assert.match(formatSituation({ ...base, mealsToday: 2 }), /Today so far: 4 feeds, 3 diapers, 2 meals\./);
+  assert.match(formatSituation({ ...base, mealsToday: 1 }), /3 diapers, 1 meal\./);
+  assert.match(formatSituation({ ...base, ageDays: 120 }), /Today so far: 4 feeds, 3 diapers\./);
 });
 
 test("formatMilk: the stash in one line for the helper", async () => {

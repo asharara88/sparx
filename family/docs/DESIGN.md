@@ -101,7 +101,7 @@ sources at the bottom.
 6. **Never show a wrong or stale fact.** If the log has a gap (nothing for 12 hours), say
    nothing rather than "awake 122 h". An open timer older than a day is not "running".
 7. **Colour says what, not how much.** Each feature has its tint (feed pink, sleep lilac,
-   nappy sky, medicine butter, milk mint, pumping peach, food yellow…). Every card, row
+   diaper sky, medicine butter, milk mint, pumping peach, food yellow…). Every card, row
    and notice about sleep is lilac and every one about feeds is pink, wherever it sits
    (Mido, 7 November): Sleep today, sleep tips, the sleep bar and the pattern's sleep bands;
    Feeds today, "feed due", feed tips and the pattern's feed ticks. A card about several
@@ -114,9 +114,11 @@ sources at the bottom.
 9. **The same thing looks the same everywhere.** A feed is pink with the bottle icon on
    Home, on the child's page, in the day list and in a push. Reuse the parts below; do not
    invent a new card for one screen.
-10. **Plain words, the family's words.** "Nappy", "Pumped today 08:00", "3 days left".
+10. **Plain words, the family's words.** "Diaper", "Pumped today 08:00", "3 days left".
     No jargon, no percentages, no "entries", no exclamation marks (see `BRAND.md`, Voice; a
     badge's title is the one exception).
+    Diaper, never nappy (Mido, 13 November), on every screen and in the helper's answers;
+    the helper still understands nappy.
 
 9. **A tap answers at once.** The screen changes the instant a tap is made (the row's
    button, the card, "40 min ago" becomes "just now") and the server catches up behind
@@ -154,7 +156,7 @@ Where things stood on 29 October 2026, before the phone passes (every screen was
 | Home | 10 | 28 | 224 | 2.4 | sideways, wrapped labels, card in card, small taps, tiny text |
 | The child's page, Today | 16 | 3 | 124 | 2.2 | a table, wrapped labels, card in card |
 | The child's page, Patterns | 9 | 66 | 358 | 3.1 | 31 elements wider than the phone, a table |
-| Trends | 3 | 236 | 621 | 5.6 | 31 wider than the phone, 2 tables, "1.4285714285714286 wet nappies" |
+| Trends | 3 | 236 | 621 | 5.6 | 31 wider than the phone, 2 tables, "1.4285714285714286 wet diapers" |
 | Milk | 4 | 41 | 247 | 2.8 | small taps |
 | When to call | 8 | 32 | 576 | 3.7 | 10 cards in cards |
 | Weeks, Activities | | | 744–1277 | 4.9–5.6 | |
@@ -205,8 +207,8 @@ numbers, 95 → 69 words (the columns replace the bars and their figures); More 
 before, More one row longer (Chat).
 
 Awake was one number over: the Asleep tile repeated "awake 2 h 6 min" from the big line.
-Asleep and a running feed went up a little because they now show the last nappy and sleep
-too (the four tiles while she sleeps; "Woke 14:29 · nappy 1 h 38 min ago" during a feed),
+Asleep and a running feed went up a little because they now show the last diaper and sleep
+too (the four tiles while she sleeps; "Woke 14:29 · diaper 1 h 38 min ago" during a feed),
 and the feed card's own "Feeding, left · 9 min" header went.
 
 ## What lives where
@@ -236,7 +238,7 @@ bottom bar as a grid of tiles.
    woke instead. Asleep: "Asleep 42 min, since 13:10". Feeding: "Feeding 9 min". With no
    sleep in 12 hours, plain "Awake for", or nothing (rule 6).
 3. **Today strip**: four numbers in one white bar (woke 06:10 · naps 1 of 3–4 · feeds 5 ·
-   nappies 4); tapping it scrolls to the day's cards below the log card. The last of each is on
+   diapers 4); tapping it scrolls to the day's cards below the log card. The last of each is on
    the rows, so the strip gives the day's totals instead. Each number stays on one line, a size
    smaller on a 320 px screen.
 4. **Now**: one notice on one slim line (48 px, words cut with … rather than wrapping), the top
@@ -245,7 +247,7 @@ bottom bar as a grid of tiles.
    The guide's most pressing tip is a candidate: a red one right after an overdue vaccine, a
    yellow one after "feed due". The nap is no longer a notice: the card says it.
 5. **Log**, one white card at the thumb (Mido, 9 November: the helper is becoming the main
-   way to log). On top, four **rows** (Feed, Sleep, Nappy, and a fourth that grows with
+   way to log). On top, four **rows** (Feed, Sleep, Diaper, and a fourth that grows with
    the child: Meal once she eats, from 24 weeks; before that Pump while the parent who pumps
    still does (a pump in the last two weeks), else Medicine; `lib/stage.ts` decides). Each
    row: the tinted icon, the name, one line under it ("40 min ago · 90 ml", "since 13:10"),
@@ -253,9 +255,9 @@ bottom bar as a grid of tiles.
    its row. Tapping the row opens its sheet. Rows, not a grid of four tiles: the tiles (9 to
    12 November) cut every line to "2 h 41 min ago · 13…" and read as clutter (Mido, 12
    November: "too messy and text heavy"). Under the rows, a hairline, then **Tell me**: a box and a
-   microphone. Typing or saying "120 ml bottle", "wet nappy", "fell asleep 10 min ago" or
+   microphone. Typing or saying "120 ml bottle", "wet diaper", "fell asleep 10 min ago" or
    "woke up" saves it at once on the phone, with Undo (`lib/assistant/quick-log.ts`, no model
-   call, works offline); "changed a nappy" asks Wet / Dirty / Both as buttons; anything else
+   call, works offline); "changed a diaper" asks Wet / Dirty / Both as buttons; anything else
    goes to the helper. It all opens in a sheet over Home, never a new screen; *Open the full
    chat* goes to Ask. At night while she sleeps, *Up for the day* is in the sleep sheet.
 6. **Below the log card** (`#today`, Mido, 7 November: Home and the dashboard are one): Sleep
@@ -298,7 +300,7 @@ Dana's second ask. The yardstick is Huckleberry's "Set time" and BabyLog's two o
   words. Clock times, never only "80 min ago". Picking a chip folds the line. A sleep from
   earlier takes its end the same way: the length chips, or "or woke at" typed.
 - **The time carries over for a minute.** After an entry from earlier, the next sheet opened
-  within a minute starts on that time (a bottle and a nappy from the same moment). A round
+  within a minute starts on that time (a bottle and a diaper from the same moment). A round
   ▶ or ■ never uses it, so a direct tap is never quietly backdated.
 - **No keyboard on Home's sheets.** Every amount is a chip; the last bottle's amount is marked
   as the usual one (and added as a chip if it is not one).

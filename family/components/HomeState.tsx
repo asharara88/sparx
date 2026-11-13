@@ -16,7 +16,7 @@ const H12 = 12 * 60;
  * been awake, a bar filling towards the window; over an hour past it, when she last woke, since
  * a nap was most likely not logged). Asleep or feeding, the running time. A gap
  * in the log (no sleep for 12 hours) says nothing rather than "awake 20 h" (rule 6). The last
- * feed, sleep and nappy are on the rows below, so the card does not repeat them. Timers
+ * feed, sleep and diaper are on the rows below, so the card does not repeat them. Timers
  * started or ended on this phone, or still on their way to the server, count straight
  * away (lib/offline.ts). The clock starts on the server's time, so the first paint shows
  * the number (not a dash) and matches the server-rendered screen; this phone's clock

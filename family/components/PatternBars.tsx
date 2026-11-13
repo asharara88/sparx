@@ -36,7 +36,7 @@ export function PatternBars({ entries, days, timezone, today }: { entries: Entry
   return (
     <section className="card">
       <h2 className="font-semibold">Patterns, last {days.length} days</h2>
-      <p className="muted text-sm">Purple is sleep, pale purple is awake in the night, pink ticks are feeds (lighter for bottles), dots are nappies. Midnight to midnight.</p>
+      <p className="muted text-sm">Purple is sleep, pale purple is awake in the night, pink ticks are feeds (lighter for bottles), dots are diapers. Midnight to midnight.</p>
       <div className="mt-3 flex flex-col gap-1">
         {rows.map((r) => (
           <div key={r.day} className="flex items-center gap-2">

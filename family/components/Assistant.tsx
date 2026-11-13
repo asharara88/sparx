@@ -306,7 +306,7 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     const timer = setTimeout(() => setUndo(null), Math.max(0, undo.until - Date.now()));
     return () => clearTimeout(timer);
   }, [undo]);
-  /** A card for what was said, a question to ask first (the nappy's kind), or null for the helper. */
+  /** A card for what was said, a question to ask first (the diaper's kind), or null for the helper. */
   async function readLocal(q: string): Promise<{ proposal: AssistantProposal } | { choice: AssistantChoice } | null> {
     if (!quick) return null;
     // An answer to the helper's own question ("How much?" → "120 ml") goes back to the helper with the
@@ -829,12 +829,12 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       )}
 
       {msgs.length === 0 && embedded && (
-        <p className="muted text-sm">Say or type what happened: “120 ml bottle”, “wet nappy”, “fell asleep 10 min ago”, “woke up”. Or ask anything.</p>
+        <p className="muted text-sm">Say or type what happened: “120 ml bottle”, “wet diaper”, “fell asleep 10 min ago”, “woke up”. Or ask anything.</p>
       )}
       {msgs.length === 0 && !embedded && (
         <div className="card">
           <p className="font-semibold">Ask anything about the family’s day, in your own words.</p>
-          <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {quick ? "Say “120 ml bottle”, “wet nappy”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
+          <p className="muted mt-1 text-sm">Every answer links to the entry it came from. {quick ? "Say “120 ml bottle”, “wet diaper”, “fell asleep 10 min ago” or “woke up”: it is saved at once, with Undo. Anything else it prepares for you to confirm." : writer ? "You can also say “log a 120 ml bottle” — it prepares it and you tap Confirm." : "This role can read, not write."}</p>
           {canTalk && <p className="muted mt-1 text-sm">Tap Talk for hands-free: it listens, answers out loud, then listens again. Say “remember that…” to teach it something.</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {suggestions.map((s) => (

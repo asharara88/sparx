@@ -71,7 +71,7 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
     if (sleepPerDay) numbers.push(["Sleep a day", hm(sleepPerDay)]);
     if (longest) numbers.push(["Longest stretch", hm(longest)]);
     const nappies = sum("diapers_wet") + sum("diapers_dirty");
-    if (nappies) numbers.push(["Nappies", String(nappies)]);
+    if (nappies) numbers.push(["Diapers", String(nappies)]);
     if (w1) numbers.push(["Weight", `${w1.weight_kg} kg${w0 && w0.day !== w1.day ? ` (from ${w0.weight_kg} kg)` : ""}${ref ? `, WHO median ${ref.p50.toFixed(1)} kg` : ""}`]);
   }
 

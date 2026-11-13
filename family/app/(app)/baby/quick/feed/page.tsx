@@ -86,7 +86,7 @@ export default async function QuickFeedPage() {
           Sleep
         </Link>
         <Link prefetch={false} href="/baby/log/diaper" className="btn">
-          Nappy
+          Diaper
         </Link>
       </div>
       <p className="muted text-sm">

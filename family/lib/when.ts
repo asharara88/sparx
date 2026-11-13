@@ -57,7 +57,7 @@ export const RECALL_MS = 60_000;
 
 /**
  * The "when" a log sheet opens with: the time just used for an entry from earlier, if
- * that was under a minute ago (a bottle and a nappy from the same moment), else now. A
+ * that was under a minute ago (a bottle and a diaper from the same moment), else now. A
  * one-tap tile never uses it, so a direct tap is never quietly backdated.
  */
 export function recallWhen(last: { when: When; at: number } | null, nowMs: number): When {

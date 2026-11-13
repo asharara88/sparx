@@ -1698,5 +1698,12 @@ select pg_temp.assert((public.care_entry_delete((select id from hc)))->>'ok' = '
 reset role;
 select pg_temp.assert((select deleted_at from public.care_entries where id = (select id from hc)) is not null, 'and it is gone from the log');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards).'
+-- Diaper, never nappy (migration 6200): no helper skill or play idea says nappy, and the
+-- illness skill wakes for diapers as well as nappies.
+reset role;
+select pg_temp.assert(not exists (select 1 from public.assistant_skills where body ~* '\mnapp(y|ies)\M' or "when" ~* '\mnapp(y|ies)\M'), 'no helper skill says nappy');
+select pg_temp.assert(not exists (select 1 from public.activities where title ~* '\mnapp(y|ies)\M' or how ~* '\mnapp(y|ies)\M' or why ~* '\mnapp(y|ies)\M'), 'no play idea says nappy');
+select pg_temp.assert((select triggers @> array['dry diapers', 'fewer diapers', 'dry nappies'] from public.assistant_skills where id = 'illness'), 'the illness skill wakes for diapers, and still for nappies');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

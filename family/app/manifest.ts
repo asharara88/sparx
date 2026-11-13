@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Sleep timer", short_name: "Sleep", url: "/baby/quick/sleep", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Feed", short_name: "Feed", url: "/baby/quick/feed", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Log a nappy", short_name: "Nappy", url: "/baby/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Log a diaper", short_name: "Diaper", url: "/baby/log/diaper", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Ask the helper", short_name: "Ask", url: "/ask", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
     icons: [

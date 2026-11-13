@@ -37,7 +37,7 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const t = (e: EntryRow) => Date.parse(e.occurred_at);
   const sorted = [...entries].sort((a, b) => t(b) - t(a));
   const day = sorted.filter((e) => now - t(e) <= 24 * H);
-  if (!day.length) return [{ level: "yellow", title: "Nothing logged in 24 hours", body: "Was anything missed? Log feeds, nappies and sleep so the guide can help.", topic: "feeds" }];
+  if (!day.length) return [{ level: "yellow", title: "Nothing logged in 24 hours", body: "Was anything missed? Log feeds, diapers and sleep so the guide can help.", topic: "feeds" }];
   const tips: Tip[] = [];
   const covered = (now - Math.min(...day.map(t))) / H >= 18;
 
@@ -45,11 +45,11 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const nappies = day.filter((e) => e.type_id === "lana.diaper");
   const wet = nappies.filter((e) => e.payload.kind !== "Dirty").length;
   const lastNappy = sorted.find((e) => e.type_id === "lana.diaper");
-  if (covered && wet <= Math.max(1, n.wet.low - 3)) tips.push({ level: "red", title: `Only ${wet} wet napp${wet === 1 ? "y" : "ies"} in 24 h`, body: `Were any changes missed? Babies this age usually have ${n.wet.low} or more wet nappies a day. If that is right, offer more milk. Call the doctor if ${name} seems drowsy, has a dry mouth or dark wee.`, topic: "nappies" });
-  else if (covered && wet < n.wet.low) tips.push({ level: "yellow", title: `${wet} wet nappies in 24 h`, body: `A bit under the usual ${n.wet.low} or more. Check whether any were missed, and offer feeds a little more often today.`, topic: "nappies" });
-  if (lastNappy && now - t(lastNappy) > 5 * H) tips.push({ level: "yellow", title: `No nappy for ${hm(mins(now - t(lastNappy)))}`, body: `Time to check ${pr.their} nappy. Was a change missed?`, topic: "nappies" });
+  if (covered && wet <= Math.max(1, n.wet.low - 3)) tips.push({ level: "red", title: `Only ${wet} wet diaper${wet === 1 ? "" : "s"} in 24 h`, body: `Were any changes missed? Babies this age usually have ${n.wet.low} or more wet diapers a day. If that is right, offer more milk. Call the doctor if ${name} seems drowsy, has a dry mouth or dark wee.`, topic: "nappies" });
+  else if (covered && wet < n.wet.low) tips.push({ level: "yellow", title: `${wet} wet diapers in 24 h`, body: `A bit under the usual ${n.wet.low} or more. Check whether any were missed, and offer feeds a little more often today.`, topic: "nappies" });
+  if (lastNappy && now - t(lastNappy) > 5 * H) tips.push({ level: "yellow", title: `No diaper for ${hm(mins(now - t(lastNappy)))}`, body: `Time to check ${pr.their} diaper. Was a change missed?`, topic: "nappies" });
   const lastDirty = sorted.find((e) => e.type_id === "lana.diaper" && (e.payload.kind === "Dirty" || e.payload.kind === "Both"));
-  if (lastDirty && now - t(lastDirty) > 4 * 24 * H) tips.push({ level: "yellow", title: "No dirty nappy for 4 or more days", body: `Can be normal for a breastfed baby over 6 weeks who feeds well and is comfortable. Call the doctor if ${possessive(name)} tummy is hard or swollen, or there is pain or vomiting.`, topic: "poo" });
+  if (lastDirty && now - t(lastDirty) > 4 * 24 * H) tips.push({ level: "yellow", title: "No dirty diaper for 4 or more days", body: `Can be normal for a breastfed baby over 6 weeks who feeds well and is comfortable. Call the doctor if ${possessive(name)} tummy is hard or swollen, or there is pain or vomiting.`, topic: "poo" });
 
   // Feeds
   const feeds = day.filter((e) => e.type_id === "lana.feed");
@@ -69,7 +69,7 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
   const spurt = growthSpurt(entries, dayOf, now);
   if (spurt) {
     const phase = birthDate ? ageOutlook(days).now.find((w) => /spurt|sleep change|teething/i.test(w)) : null;
-    tips.push({ level: "info", title: "Possible growth spurt", body: `${cap(name)} is feeding about ${spurt.recentPerDay} times a day, up from ${spurt.beforePerDay}.${phase ? ` At this age this fits: ${phase.toLowerCase()}.` : ""} This is common and usually lasts 2 to 3 days: feed on demand. Call the doctor if ${name} has fewer than 6 wet nappies a day or seems unwell.`, topic: "feeds" });
+    tips.push({ level: "info", title: "Possible growth spurt", body: `${cap(name)} is feeding about ${spurt.recentPerDay} times a day, up from ${spurt.beforePerDay}.${phase ? ` At this age this fits: ${phase.toLowerCase()}.` : ""} This is common and usually lasts 2 to 3 days: feed on demand. Call the doctor if ${name} has fewer than 6 wet diapers a day or seems unwell.`, topic: "feeds" });
   }
 
   // Sleep
@@ -105,22 +105,22 @@ export type Topic = { id: Tip["topic"]; title: string; normal: string; call: str
 /** When to call the doctor: warning signs from NHS, AAP and NICE guidance. */
 export const TOPICS: Topic[] = [
   {
-    id: "nappies", title: "Wet nappies and dehydration",
-    normal: "After the first week, 6 or more heavy wet nappies a day with pale, clear wee.",
-    call: ["Fewer than 6 wet nappies in 24 hours, or very light ones", "Dark yellow or strong-smelling wee", "Dry mouth, lips or no tears when crying", "Feeding less than usual or refusing feeds"],
-    emergency: ["No wet nappy for 12 hours or more", "Sunken soft spot on top of the head or sunken eyes", "Very sleepy, floppy or hard to wake", "Cold hands and feet with pale or blotchy skin"],
+    id: "nappies", title: "Wet diapers and dehydration",
+    normal: "After the first week, 6 or more heavy wet diapers a day with pale, clear wee.",
+    call: ["Fewer than 6 wet diapers in 24 hours, or very light ones", "Dark yellow or strong-smelling wee", "Dry mouth, lips or no tears when crying", "Feeding less than usual or refusing feeds"],
+    emergency: ["No wet diaper for 12 hours or more", "Sunken soft spot on top of the head or sunken eyes", "Very sleepy, floppy or hard to wake", "Cold hands and feet with pale or blotchy skin"],
     src: ["NHS: Dehydration in children", "AAP (HealthyChildren.org): Signs of dehydration in infants"],
   },
   {
     id: "poo", title: "Poo",
     normal: "Breastfed babies over 6 weeks may poo several times a day or only once every few days. Soft yellow, green or brown is normal.",
-    call: ["Hard, pellet-like poo or straining with pain", "No poo for 4 or more days and the baby seems uncomfortable", "Frequent watery poo, especially with fewer wet nappies"],
+    call: ["Hard, pellet-like poo or straining with pain", "No poo for 4 or more days and the baby seems uncomfortable", "Frequent watery poo, especially with fewer wet diapers"],
     emergency: ["Red blood, black poo (after the first days), or white or pale grey poo", "Swollen, hard tummy with vomiting", "Green (bile) vomit"],
     src: ["NHS: Constipation and diarrhoea in babies", "AAP: Infant constipation; stool colour warning signs"],
   },
   {
     id: "feeds", title: "Feeding",
-    normal: "3 to 6 months: usually 6 to 8 feeds in 24 hours. Steady weight gain and enough wet nappies mean the baby is getting enough.",
+    normal: "3 to 6 months: usually 6 to 8 feeds in 24 hours. Steady weight gain and enough wet diapers mean the baby is getting enough.",
     call: ["Feeding much less than usual for a day", "Not gaining weight, or dropping across growth chart lines", "Repeated forceful vomiting after feeds", "Coughing or choking during most feeds"],
     emergency: ["Refuses all feeds for several hours and seems unwell", "Breathing fast, grunting, or skin pulling in between the ribs", "Blue or grey lips"],
     src: ["NHS: Breastfeeding and bottle feeding guidance", "AAP: How much and how often to feed"],

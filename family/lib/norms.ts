@@ -136,8 +136,8 @@ export function checkDay(t: DayTotals, days: number, complete: boolean): CheckRo
   } else if (t.bottle_ml > 0) {
     rows.push({ key: "ml", label: "Milk by bottle", value: `${Math.round(t.bottle_ml)} ml`, typical: "", note: "No usual amount alongside breastfeeds", verdict: complete ? "ok" : "so_far" });
   }
-  rows.push({ key: "wet", label: "Wet nappies", value: count(t.diapers_wet), typical: `${norms.wet.low} to ${norms.wet.high}`, verdict: judge(t.diapers_wet, norms.wet) });
-  rows.push({ key: "dirty", label: "Dirty nappies", value: count(t.diapers_dirty), typical: `${norms.dirty.low} to ${norms.dirty.high}`, verdict: judge(t.diapers_dirty, norms.dirty), note: norms.dirty.note });
+  rows.push({ key: "wet", label: "Wet diapers", value: count(t.diapers_wet), typical: `${norms.wet.low} to ${norms.wet.high}`, verdict: judge(t.diapers_wet, norms.wet) });
+  rows.push({ key: "dirty", label: "Dirty diapers", value: count(t.diapers_dirty), typical: `${norms.dirty.low} to ${norms.dirty.high}`, verdict: judge(t.diapers_dirty, norms.dirty), note: norms.dirty.note });
   rows.push({ key: "sleep", label: "Sleep in 24 h", value: hours(t.sleep_min), typical: hoursRange(norms.sleepMin.low, norms.sleepMin.high), verdict: judge(t.sleep_min, norms.sleepMin) });
   rows.push({ key: "night", label: "Night sleep", value: hours(t.night_sleep_min), typical: hoursRange(norms.nightSleepMin.low, norms.nightSleepMin.high), verdict: judge(t.night_sleep_min, norms.nightSleepMin), note: norms.nightSleepMin.note });
   return rows;

@@ -6,7 +6,7 @@ import { range, stageFor } from "@/lib/stage";
 
 /**
  * Home's day in four numbers (DESIGN.md, "Stat strip"): when she woke, naps against what is
- * usual at her age, feeds and nappies so far. One white bar; tapping it goes to the day's
+ * usual at her age, feeds and diapers so far. One white bar; tapping it goes to the day's
  * cards below the log rows. The last of each is on the rows themselves, so not repeated here.
  */
 export function TodayStrip({ summary, entries, day, timezone, nowIso }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string }) {
@@ -29,7 +29,7 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso }: { summar
     { value: s.wokeAt ? fmtTime(new Date(s.wokeAt).toISOString(), timezone) : "—", label: "woke" },
     { value: usual[1] ? `${s.naps} of ${range(usual)}` : `${s.naps}`, label: "naps" },
     { value: `${feeds}`, label: feeds === 1 ? "feed" : "feeds" },
-    { value: `${nappies}`, label: nappies === 1 ? "nappy" : "nappies" },
+    { value: `${nappies}`, label: nappies === 1 ? "diaper" : "diapers" },
   ];
   return (
     <a href="#today" className="card row-link grid grid-cols-4 gap-1 py-3 text-center no-underline" aria-label="Today so far, more below">
