@@ -470,8 +470,9 @@ Use these; extend one before adding a new one, and add any new one here.
   and feature classes in `@layer components`. A rule outside the layers beats every Tailwind
   utility on the element whatever its specificity, so `p-0`, `text-sm`, `min-h-[60px]` or
   `ring-2` written on a card or a button silently did nothing: More's photo, the bottle amounts,
-  the "When" line and two dozen list cards broke that way until 13 November. Only the print rules
-  and the iPhone no-zoom rule stay outside, on purpose.
+  the "When" line and two dozen list cards broke that way until 13 November. Only the print rules,
+  the iPhone no-zoom rule and the screen states (a sheet open, the keyboard up: they must beat
+  the utilities on what they move) stay outside, on purpose.
 
 ## Numbers, times and dates
 

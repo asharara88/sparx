@@ -155,8 +155,9 @@ html[data-theme="night"] {
    so a Tailwind utility written on an element always wins, as Tailwind intends. Unlayered
    rules beat every utility whatever their specificity: that is how the photo on More
    spilled off the screen, and how p-0, text-sm, font-semibold, min-h-[60px] and ring-2
-   quietly did nothing on dozens of screens until 13 November 2026. Only the print rules
-   and the iPhone no-zoom rule stay outside the layers, so they always win.
+   quietly did nothing on dozens of screens until 13 November 2026. Only the print rules,
+   the iPhone no-zoom rule and the screen states (a sheet open, the keyboard up) stay outside
+   the layers, at the end of this file, so they always win.
    ========================================================================== */
 @layer base {
 html {
@@ -918,7 +919,6 @@ h2.section-title { letter-spacing: 0.06em; }
   padding: 0 10px 0 4px; border: none; background: none; color: var(--fg); font: inherit; font-weight: 700; text-align: start;
 }
 .celebrate-peek-close { width: 44px; height: 44px; min-height: 0; flex: none; border: none; border-radius: 999px; background: none; color: var(--muted); font-size: 1.4rem; }
-html.sheet-open .celebrate-peek, html.kb-open .celebrate-peek { display: none; }
 .celebrate-confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .celebrate-card {
   position: relative; width: 100%; max-width: 22rem;
@@ -1017,13 +1017,6 @@ html.sheet-open .celebrate-peek, html.kb-open .celebrate-peek { display: none; }
 
 /* A long press on a tab or a button is a press, not a link preview or a text selection. */
 .tab, .btn, .chip, .round-go, .log-row, .icon-btn { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-/* A sheet is open: the page behind it does not scroll (components/Sheet). */
-html.sheet-open, html.sheet-open body { overflow: hidden; }
-/* Typing (components/ViewportVars): the keyboard takes the bottom of the screen, so the tab
-   bar steps aside, a sheet needs no room for the home bar, and the helper's box sits on the keyboard. */
-html.kb-open .tabbar { display: none; }
-html.kb-open .sheet { padding-bottom: 12px; }
-html.kb-open .ask-composer { bottom: 0; padding-bottom: 8px; }
 
 /* The helper from any screen (components/HelperFab): round, plum, above the tab bar on the
    right, clear of the rose ＋ in the middle. Away while a sheet is open or the keyboard is up;
@@ -1040,7 +1033,6 @@ html.kb-open .ask-composer { bottom: 0; padding-bottom: 8px; }
   -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
 }
 .helper-fab:active { transform: scale(0.95); }
-html.sheet-open .helper-fab, html.kb-open .helper-fab { display: none; }
 body:has(.helper-fab) main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 88px); }
 @media print { .helper-fab { display: none; } }
 }
@@ -1062,3 +1054,18 @@ body:has(.helper-fab) main { padding-bottom: calc(var(--tabbar-h) + env(safe-are
 @supports (-webkit-touch-callout: none) {
   input, textarea, select { font-size: max(16px, 1em); }
 }
+
+/* ------------------------------------------------------------------------------------------
+   States of the whole screen, outside the layers on purpose: they must beat the utilities on
+   the parts they move (Ask's composer carries bottom-[calc(64px…)], and sits on the keyboard
+   only if this wins). */
+/* A sheet is open: the page behind it does not scroll (components/Sheet), and the helper's
+   button and a badge's line step aside. */
+html.sheet-open, html.sheet-open body { overflow: hidden; }
+html.sheet-open .helper-fab, html.sheet-open .celebrate-peek { display: none; }
+/* Typing (components/ViewportVars): the keyboard takes the bottom of the screen, so the tab
+   bar, the helper's button and a badge's line step aside, a sheet needs no room for the home
+   bar, and the helper's box sits on the keyboard. */
+html.kb-open .tabbar, html.kb-open .helper-fab, html.kb-open .celebrate-peek { display: none; }
+html.kb-open .sheet { padding-bottom: 12px; }
+html.kb-open .ask-composer { bottom: 0; padding-bottom: 8px; }
