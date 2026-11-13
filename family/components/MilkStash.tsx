@@ -79,7 +79,7 @@ export function MilkStash({ data, timezone }: { data: MilkData; timezone: string
       </>
     );
     return (
-      <li className="row px-4">
+      <li className="row">
         {canAdd ? (
           <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(b)} aria-label={`${b.amount_ml} ml, ${left(b.expires_at, now)}`}>
             {inner}
@@ -182,9 +182,9 @@ export function MilkPutAway({ timezone, canScan }: { timezone: string; canScan: 
       </div>
       {open && (
         <Sheet title="Put a bottle away" onClose={close}>
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[var(--card-2)] p-1" role="group" aria-label="Where">
+          <div className="segmented" role="group" aria-label="Where">
             {(["fridge", "freezer"] as const).map((w) => (
-              <button key={w} type="button" aria-pressed={where === w} onClick={() => setWhere(w)} className={`min-h-[44px] rounded-xl text-sm font-bold ${where === w ? "bg-[var(--card)] shadow-[var(--shadow)]" : "muted"}`}>
+              <button key={w} type="button" aria-pressed={where === w} onClick={() => setWhere(w)}>
                 {w === "fridge" ? "Fridge" : "Freezer"}
               </button>
             ))}

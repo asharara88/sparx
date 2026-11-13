@@ -453,6 +453,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
 | When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. |
 | Pill | `.pill` | A state beside a headline | "use first", "short", "expired". One line. Not for numbers that are fine. |
+| Tick | `.tick` | Marking a thing done (Activities, the bag list) | 44 px round; an empty ring until done, then a filled disc with a tick. |
 
 ## Colour, type and space
 
@@ -464,6 +465,16 @@ Use these; extend one before adding a new one, and add any new one here.
 - **Three text sizes per card**: the headline (1.25 rem bold), the body (1 rem), the small
   muted line (0.85 rem). Screen titles use the display font; nothing else does.
 - **Space, not boxes.** 20 px side margins, 16 px between blocks, a hairline between rows.
+- **Large text** (Settings → Language and display, on by default for everyone but admins) makes
+  the root 19 px instead of 17, so every rem grows, sheets included. Until 13 November it only
+  reached the shell's own text and left titles, folds, buttons and sheets at normal size.
+- **Every rule in `app/globals.css` sits in a layer**: element defaults in `@layer base`, part
+  and feature classes in `@layer components`. A rule outside the layers beats every Tailwind
+  utility on the element whatever its specificity, so `p-0`, `text-sm`, `min-h-[60px]` or
+  `ring-2` written on a card or a button silently did nothing: More's photo, the bottle amounts,
+  the "When" line and two dozen list cards broke that way until 13 November. Only the print rules,
+  the iPhone no-zoom rule and the screen states (a sheet open, the keyboard up: they must beat
+  the utilities on what they move) stay outside, on purpose.
 
 ## Numbers, times and dates
 

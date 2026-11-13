@@ -83,13 +83,13 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       </label>
       {member && (
         <label className="flex items-center gap-3">
-          <input type="checkbox" className="h-7 w-7" checked={breastfeeds} onChange={(e) => setBreastfeeds(e.target.checked)} />
+          <input type="checkbox" checked={breastfeeds} onChange={(e) => setBreastfeeds(e.target.checked)} />
           <span className="font-semibold">Breastfeeds {childName(me)} (shows the breast timer and left/right)</span>
         </label>
       )}
       {member && !isSelf && (
         <label className="flex items-center gap-3">
-          <input type="checkbox" className="h-7 w-7" checked={active} onChange={(e) => setActive(e.target.checked)} />
+          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           <span className="font-semibold">Active (can sign in)</span>
         </label>
       )}

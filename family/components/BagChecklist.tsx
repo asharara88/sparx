@@ -39,8 +39,8 @@ export function BagChecklist({ items }: { items: BagItem[] }) {
       <ul className="mt-2 flex flex-col">
         {live.map((i) => (
           <li key={i.id} className="row">
-            <button type="button" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${i.checked ? "bg-[var(--ok)] text-white" : "border border-[var(--line)] bg-[var(--card-2)]"}`} aria-pressed={i.checked} aria-label={i.label} disabled={!canTick || busy === i.id} onClick={() => call("bag_toggle", { p_id: i.id, p_checked: !i.checked }, i.id)}>
-              {i.checked && <Icon name="check" size={18} />}
+            <button type="button" className="tick" aria-pressed={i.checked} aria-label={i.label} disabled={!canTick || busy === i.id} onClick={() => call("bag_toggle", { p_id: i.id, p_checked: !i.checked }, i.id)}>
+              <Icon name="check" size={18} />
             </button>
             <span className={`grow ${i.checked ? "muted line-through" : ""}`}>{i.label}</span>
             {canEdit && (

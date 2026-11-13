@@ -373,7 +373,7 @@ export function LanaNow({
         <div role="status" className="notice notice-ok flex items-center gap-3 text-sm">
           <span className="flex-1">{msg}</span>
           {undo && (
-            <button type="button" className="btn min-h-[44px]" disabled={busy} onClick={() => undoLast(undo)}>
+            <button type="button" className="btn" disabled={busy} onClick={() => undoLast(undo)}>
               Undo
             </button>
           )}
@@ -457,7 +457,7 @@ export function LanaNow({
                   <button
                     key={ml}
                     type="button"
-                    className="chip min-h-[60px] text-xl"
+                    className="chip min-h-[60px] px-0 text-xl"
                     aria-pressed={ml === bottle.usual}
                     disabled={off}
                     onClick={() =>
@@ -515,7 +515,7 @@ export function LanaNow({
               <button
                 key={ml}
                 type="button"
-                className="chip min-h-[60px] text-xl"
+                className="chip min-h-[60px] px-0"
                 disabled={off}
                 onClick={() =>
                   run(`Pumped ${ml} ml.`, async () => {
@@ -699,13 +699,13 @@ function MealForm({ types, value, onChange, onSave, disabled }: { types: EntryTy
       <input className="input" value={value.food} onChange={(e) => set({ food: e.target.value })} placeholder="What was eaten (avocado, porridge…)" aria-label="What was eaten" maxLength={80} autoFocus enterKeyHint="done" />
       <div className="grid grid-cols-2 gap-2" role="group" aria-label="How much">
         {opts("amount", ["A taste", "A few spoons", "Half a bowl", "A full bowl"]).map((a) => (
-          <button key={a} type="button" className="chip min-h-[44px]" aria-pressed={value.amount === a} disabled={disabled} onClick={() => set({ amount: value.amount === a ? null : a })}>
+          <button key={a} type="button" className="chip" aria-pressed={value.amount === a} disabled={disabled} onClick={() => set({ amount: value.amount === a ? null : a })}>
             {a}
           </button>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="chip min-h-[44px]" aria-pressed={value.isNew} disabled={disabled} onClick={() => set({ isNew: !value.isNew })}>
+        <button type="button" className="chip" aria-pressed={value.isNew} disabled={disabled} onClick={() => set({ isNew: !value.isNew })}>
           First time
         </button>
         <select className="input" value={value.allergen} aria-label="Allergen in it" disabled={disabled} onChange={(e) => set({ allergen: e.target.value })}>
@@ -736,7 +736,7 @@ function RecentList({ title, items, timezone, describe, onOpen }: { title: strin
       <ul className="flex flex-col">
         {items.map((e) => (
           <li key={e.id}>
-            <button type="button" className="row-link flex min-h-[44px] w-full items-center gap-3 text-left" onClick={() => onOpen(e)}>
+            <button type="button" className="row-link flex w-full items-center gap-3 text-left" onClick={() => onOpen(e)}>
               <span className="w-14 font-semibold tabular-nums">{fmtTime(e.occurred_at, timezone)}</span>
               <span className="muted flex-1">{describe(e)}</span>
               <Icon name="forward" size={18} className="muted" />

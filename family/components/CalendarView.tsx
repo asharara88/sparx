@@ -225,7 +225,7 @@ function EventForm({
         ))}
       </div>
       <label className="flex items-center gap-3">
-        <input type="checkbox" className="h-7 w-7" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+        <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
         <span className="font-semibold">All day</span>
       </label>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

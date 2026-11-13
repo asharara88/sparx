@@ -88,7 +88,7 @@ export function TimeBox({
           />
         </label>
         {showYesterday && (
-          <button type="button" className="chip min-h-[44px]" aria-pressed={back} disabled={disabled} onClick={() => update(text, !back)}>
+          <button type="button" className="chip" aria-pressed={back} disabled={disabled} onClick={() => update(text, !back)}>
             Yesterday
           </button>
         )}

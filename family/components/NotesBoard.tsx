@@ -69,7 +69,7 @@ export function NotesBoard({ notes, compact = false, bare = false }: { notes: No
           </div>
           {text.trim() && (
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} className="h-5 w-5" style={{ minHeight: 0 }} />
+              <input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} />
               Just for me (nobody else sees it)
             </label>
           )}

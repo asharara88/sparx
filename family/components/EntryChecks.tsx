@@ -50,8 +50,8 @@ export function EntryChecks({ entries, timezone, limit, canDelete, compact = fal
 
   return (
     <section className="flex flex-col gap-2" aria-label="Entries to check">
-      {flags.map((f) => (
-        <div key={f.id} className="card ring-2 ring-[var(--accent)]">
+      {flags.map((f, i) => (
+        <div key={f.id} className={i ? "border-t border-[var(--line)] pt-3" : ""}>
           <p className="text-lg font-bold">{f.title}</p>
           <p className="muted text-sm">
             {f.entry.type_id.split(".")[1]} at {when(f.entry.occurred_at)}. {f.detail.replace(ISO_IN_TEXT, (iso) => when(iso))}
