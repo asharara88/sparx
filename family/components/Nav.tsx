@@ -8,6 +8,8 @@ import { childName } from "@/lib/names";
 import { Icon, type IconName } from "@/components/Icon";
 import { usePageSwap } from "@/components/PageSwap";
 import { markLogFrom, openLogHere } from "@/lib/log-bus";
+import { useEffect } from "react";
+import { notePath } from "@/lib/nav-history";
 
 /**
  * Home, the child, ＋, Milk, More (DESIGN.md, "The bottom bar"): the ＋ in the middle opens
@@ -18,6 +20,8 @@ export function Nav() {
   const me = useMe();
   const path = usePathname();
   const swap = usePageSwap();
+  // Every screen as it changes, so a Back arrow knows whether there is a screen to go back to.
+  useEffect(() => notePath(path), [path]);
   // The skeleton shows the moment a tab is tapped (rule 9): a plain tap only, not a
   // click that opens the tab elsewhere (a modifier key, a middle button) and leaves this page.
   const plain = (e: React.MouseEvent) => !(e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
@@ -55,7 +59,7 @@ export function Nav() {
         {items.map((it) => {
           // More stays lit on the screens it opens (Chat, Calendar, Notes, Members, the helper's pages).
           const underMore = !staff && ["/chat", "/calendar", "/notes", "/members", "/audit", "/ask"].some((p) => path.startsWith(p));
-          const active = it.log ? false : it.href === "/" ? path === "/" : it.href === "/baby" ? path.startsWith("/baby") && !path.startsWith("/baby/milk") : it.href === "/me" ? path.startsWith("/me") || underMore : path.startsWith(it.href);
+          const active = it.log ? false : it.href === "/" ? path === "/" : it.href === "/baby" ? (path.startsWith("/baby") && !path.startsWith("/baby/milk")) || path.startsWith("/entry") : it.href === "/me" ? path.startsWith("/me") || underMore : path.startsWith(it.href);
           if (it.log)
             return (
               <li key={it.href}>

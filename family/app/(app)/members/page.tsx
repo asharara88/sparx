@@ -39,7 +39,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Members" large />
+      <PageHeader back="/me" title="Members" />
       {error === "preview" && <p className="notice notice-danger">“View as” is not set up on the server yet (SUPABASE_JWT_SECRET).</p>}
       {error === "member" && <p className="notice notice-danger">That member is not active.</p>}
       {attendance && attendance.ok && (() => {

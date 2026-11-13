@@ -52,7 +52,8 @@ function contentBoxes(base: Box, maxLift: number): Box[] {
  * The helper's own screens, Home (its "Tell me" is already in the log card) and More (its
  * first rows are the helper's) carry no button.
  */
-const NOT_HERE = [/^\/$/, /^\/ask(\/|$)/, /^\/chat(\/|$)/, /^\/me$/];
+// Not on a log or edit form either: it sat on the note field, and a form has its own Save at the thumb.
+const NOT_HERE = [/^\/$/, /^\/ask(\/|$)/, /^\/chat(\/|$)/, /^\/me$/, /^\/baby\/log\//, /^\/baby\/entry\//, /^\/entry\//];
 
 /** Which screen the question came from, as the helper's prompt knows them (app/api/assistant). */
 function screenOf(path: string): string | null {

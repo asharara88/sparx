@@ -154,7 +154,7 @@ export default async function HomePage() {
   // The guide's most pressing tip (DESIGN.md, rule 3): a red one right after an overdue vaccine, a yellow one after "feed due".
   const tip = summary && summary.ok ? tipsFor(week, summary.subject.birth_date, now.getTime(), { timezone: tz, feedGapMin: summary.types.find((t) => t.id === "lana.feed")?.due_after_min ?? undefined, name: summary.subject.name, sex: child(me)?.sex ?? null }).find((t) => t.level !== "info") ?? null : null;
   const tipNotice = tip ? (
-    <Link prefetch={false} href={tip.topic === "sleep" ? "/baby/sleep" : tip.topic === "feeds" ? "/baby/feed" : "/baby/when-to-call"} className={`notice ${tip.level === "red" ? "notice-danger" : tip.topic === "sleep" ? "tint-sleep" : tip.topic === "feeds" ? "tint-feed" : tip.topic === "nappies" || tip.topic === "poo" ? "tint-diaper" : "notice-warn"} flex items-center gap-2 no-underline`}>
+    <Link prefetch={false} href={tip.topic === "sleep" ? "/baby/sleep" : tip.topic === "feeds" ? "/baby/feed" : `/baby/when-to-call/${tip.topic}`} className={`notice ${tip.level === "red" ? "notice-danger" : tip.topic === "sleep" ? "tint-sleep" : tip.topic === "feeds" ? "tint-feed" : tip.topic === "nappies" || tip.topic === "poo" ? "tint-diaper" : "notice-warn"} flex items-center gap-2 no-underline`}>
       <span className="flex-1 font-semibold">{tip.title}</span> <Icon name="forward" size={18} />
     </Link>
   ) : null;

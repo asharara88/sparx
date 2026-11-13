@@ -93,7 +93,7 @@ export function ChildCard({ subject, canEdit }: { subject: Subject; canEdit: boo
       )}
       {canEdit && (
         <button type="button" className="btn mt-2" onClick={() => setEditing(true)}>
-          Edit card
+          Edit health card
         </button>
       )}
     </section>

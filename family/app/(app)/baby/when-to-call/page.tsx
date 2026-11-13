@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { HomeSummary, Me, RpcError } from "@/lib/types";
@@ -7,10 +8,26 @@ import { PageHeader } from "@/components/PageHeader";
 import { TOPICS } from "@/lib/child-guide";
 import { meOnce } from "@/lib/server/me";
 import { ambulanceOf } from "@/lib/emergency";
+import { CallBanner } from "@/components/CallBanner";
+import { Icon, type IconName } from "@/components/Icon";
+import type { Tint } from "@/components/Fold";
 
 export const dynamic = "force-dynamic";
 
-/** The ambulance number comes from the child's profile (emergency_ambulance), as on the emergency card. */
+/** Each topic's line icon and feature colour (DESIGN.md rule 7); fever is about no one feature. */
+const TOPIC_LOOK: Record<string, { icon: IconName; tint?: Tint }> = {
+  nappies: { icon: "diaper", tint: "diaper" },
+  poo: { icon: "diaper", tint: "diaper" },
+  feeds: { icon: "bottle", tint: "feed" },
+  sleep: { icon: "zzz", tint: "sleep" },
+  fever: { icon: "flame" },
+};
+
+/**
+ * When to call the doctor: the ambulance line, then one row per topic, each opening its own
+ * screen (it was five cards of boxes in boxes, 3.9 screens). The rows keep the topic ids, so an
+ * old /baby/when-to-call#feeds link still lands on its row.
+ */
 export default async function WhenToCallPage() {
   const supabase = await createClient();
   const { data: meData } = await meOnce();
@@ -19,44 +36,26 @@ export default async function WhenToCallPage() {
   const { data: sumData } = await supabase.rpc("home_summary");
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/");
-  const number = ambulanceOf(summary.subject.profile);
-  const ambulance = number ?? "your local emergency number";
   const name = summary.subject.name;
-  const pr = childPronouns(me);
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/baby" title="When to call the doctor" subtitle="Warning signs from NHS, AAP and NICE guidance." />
-      <div className="rounded-3xl bg-[var(--danger)] p-4 text-white">
-        <p className="font-bold">Emergency? Call {ambulance}{number ? " (ambulance)" : ""} now.</p>
-        <p className="text-sm opacity-90">Do not wait for the app. If you are unsure, call {pr.their} paediatrician.</p>
-      </div>
-      {TOPICS.map((t) => (
-        <section key={t.id} id={t.id} className="card flex scroll-mt-4 flex-col gap-3">
-          <h2 className="text-xl font-semibold">{t.title}</h2>
-          <p className="notice notice-ok text-sm">
-            <b>Usual: </b>
-            {t.normal}
-          </p>
-          <div>
-            <p className="font-bold">Call the doctor today if</p>
-            <ul className="ml-5 list-disc text-sm">
-              {t.call.map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="notice notice-danger">
-            <p className="font-bold">Call {ambulance} or go to A&amp;E if</p>
-            <ul className="ml-5 list-disc text-sm">
-              {t.emergency.map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-          </div>
-          <p className="muted text-xs">Sources: {t.src.join(" · ")}</p>
-        </section>
-      ))}
-      <p className="muted text-xs">A summary of public health guidance, not a diagnosis. {possessive(name)} doctor knows {name} best.</p>
+      <PageHeader back="/baby?tab=about" title="When to call the doctor" subtitle="Warning signs from NHS, AAP and NICE guidance." />
+      <CallBanner number={ambulanceOf(summary.subject.profile)} their={childPronouns(me).their} />
+      <nav aria-label="Topics" className="card flex flex-col p-0">
+        {TOPICS.map((t) => {
+          const look = TOPIC_LOOK[t.id] ?? { icon: "clipboard" as IconName };
+          return (
+            <Link prefetch={false} key={t.id} id={t.id} href={`/baby/when-to-call/${t.id}`} className="row row-link scroll-mt-4 px-4">
+              <span className={`icon-disc ${look.tint ? `tint-${look.tint}` : ""}`} style={{ width: 32, height: 32 }}>
+                <Icon name={look.icon} size={17} />
+              </span>
+              <span className="flex-1 font-medium">{t.title}</span>
+              <Icon name="forward" size={18} className="muted" />
+            </Link>
+          );
+        })}
+      </nav>
+      <p className="muted text-sm">A summary of public health guidance, not a diagnosis. {possessive(name)} doctor knows {name} best.</p>
     </div>
   );
 }

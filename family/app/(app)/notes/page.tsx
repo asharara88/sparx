@@ -17,7 +17,7 @@ export default async function NotesPage() {
   const notes = data as NotesData | RpcError;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/" title="Notes" subtitle="Short notes for the house. A note marked “just for me” is yours alone." />
+      <PageHeader back="/me" title="Notes" subtitle="Short notes for the house. A note marked “just for me” is yours alone." />
       <NotesBoard notes={notes.ok ? notes.notes : []} />
     </div>
   );

@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Subject } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -91,6 +90,7 @@ export function DoctorCard({ subject, canEdit }: { subject: Subject; canEdit: bo
   return (
     <div className="flex flex-col gap-4">
       <section className="card flex flex-col gap-3">
+        <h2 className="section-title">Doctor</h2>
         {has("doctor_name") ? (
           <>
             <div className="flex items-start gap-3">
@@ -144,7 +144,7 @@ export function DoctorCard({ subject, canEdit }: { subject: Subject; canEdit: bo
         )}
         {canEdit && (
           <button type="button" className="btn" onClick={() => setEditing(true)}>
-            Edit card
+            Edit doctor
           </button>
         )}
       </section>
@@ -170,9 +170,6 @@ export function DoctorCard({ subject, canEdit }: { subject: Subject; canEdit: bo
         {msg && !editing && <p className="text-[var(--danger)]">{msg}</p>}
       </section>
 
-      <Link prefetch={false} href="/baby/log/appointment" className="btn btn-secondary">
-        <Icon name="plus" size={18} /> Log a visit
-      </Link>
     </div>
   );
 }

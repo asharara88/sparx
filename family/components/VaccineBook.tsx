@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { VaccineItem, VaccinesData } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { ageLabel } from "@/lib/norms";
 import { dateWords } from "@/lib/time";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
@@ -98,14 +97,14 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
                 {pill(v.status)}
               </span>
             </div>
+            {v.status === "overdue" && <p className="muted text-sm">The window has closed. Book it.</p>}
             <ul className="flex flex-col divide-y divide-[var(--line)]">
               {v.items.map((it) => (
                 <li key={it.id} className="flex flex-col gap-1 py-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">
-                        {it.vaccine} <span className="muted">· dose {it.dose}</span>
-                      </p>
+                      <p className="font-medium">{it.vaccine}</p>
+                      {!it.given && <p className="muted text-sm">Dose {it.dose}{it.note ? ` · ${it.note}` : ""}</p>}
                       {it.given ? (
                         <p className="muted text-sm">
                           Given {fmt(it.given.given_on)}
@@ -113,9 +112,7 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
                           {it.given.batch ? ` · batch ${it.given.batch}` : ""}
                           {it.given.recorded_by ? ` · by ${it.given.recorded_by}` : ""}
                         </p>
-                      ) : (
-                        it.note && <p className="muted text-sm">{it.note}</p>
-                      )}
+                      ) : null}
                     </div>
                     {it.given ? (
                       <span className="flex items-center gap-2">
@@ -204,21 +201,8 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
   return (
     <div className="flex flex-col gap-3">
       {!data.birth_date && <p className="notice notice-warn">Add the date of birth on the profile and the dates will fill in.</p>}
-      <section className="card flex items-center gap-3">
-        <Icon name="syringe" size={24} className="shrink-0" />
-        <div className="flex-1">
-          <p className="font-semibold">
-            {givenCount} of {data.items.length} doses recorded
-            {data.birth_date ? ` · ${ageLabel(Math.floor((Date.parse(data.today) - Date.parse(data.birth_date)) / 86_400_000))} old` : ""}
-          </p>
-          {next && (
-            <p className="muted text-sm">
-              Next: {next.visit} visit{next.due_on ? `, due around ${fmt(next.due_on)}` : ""}
-              {next.status === "overdue" ? ". The window has closed, book it." : ""}
-            </p>
-          )}
-        </div>
-      </section>
+      {/* No summary card: the visit's own card says what is due, once, with its "overdue" pill;
+          the count of doses sits on the Given fold. */}
 
       {msg && (
         <p role="alert" className="notice notice-danger">
@@ -228,12 +212,12 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
 
       {now.map(visitCard)}
       {later.length > 0 && (
-        <Fold title="Later visits" icon="calendar" tint="cal" hint={`${later.length}`}>
+        <Fold title="Later visits" icon="calendar" tint="meds" hint={`${later.length}`}>
           {later.map(visitCard)}
         </Fold>
       )}
       {done.length > 0 && (
-        <Fold title="Given" icon="check" tint="milk" hint={`${done.length} visit${done.length === 1 ? "" : "s"}`}>
+        <Fold title="Given" icon="check" tint="meds" hint={`${givenCount} of ${data.items.length} doses`}>
           {done.map(visitCard)}
         </Fold>
       )}

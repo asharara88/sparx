@@ -22,6 +22,7 @@ const T = {
   empty: { en: "Not added yet", ar: "لسه مش مضاف", ru: "Ещё не добавлено" },
   missing: { en: "Not added yet:", ar: "لسه مش مضاف:", ru: "Ещё не добавлено:" },
   map: { en: "Map", ar: "الخريطة", ru: "Карта" },
+  edit: { en: "Edit details", ar: "تعديل البيانات", ru: "Изменить" },
 };
 type Lang = keyof typeof T.call;
 const FIELDS: [string, string][] = [
@@ -124,7 +125,7 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
       )}
       {missing.length > 0 && (
         <p className="muted px-1 text-sm">
-          {t("missing")} {missing.join(", ")}.
+          {t("missing")} {missing.join(lang === "ar" ? "، " : ", ")}.
         </p>
       )}
       {canEdit &&
@@ -152,7 +153,7 @@ export function EmergencyCard({ subject, lang, canEdit }: { subject: Subject; la
           </form>
         ) : (
           <button type="button" className="btn" onClick={() => setEdit(true)}>
-            Edit details
+            {t("edit")}
           </button>
         ))}
     </div>

@@ -1,21 +1,17 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { Icon } from "@/components/Icon";
+import { BackLink } from "@/components/BackLink";
 
 /**
  * Top of every screen: optional back chevron and the title on one line, with the whole width
  * to itself; the subtitle and an optional action share the line under it, so a button never
- * squeezes the title onto two lines. Large title on top-level screens (`large`).
+ * squeezes the title onto two lines. Large title on top-level screens (`large`). `back` is where
+ * the arrow goes when the screen was opened from outside the app; from inside, it goes back.
  */
 export function PageHeader({ title, back, subtitle, action, large = false }: { title: ReactNode; back?: string; subtitle?: ReactNode; action?: ReactNode; large?: boolean }) {
   return (
     <header className={`page-header ${large ? "page-header-large" : ""}`}>
       <div className="flex items-center gap-2">
-        {back && (
-          <Link prefetch={false} href={back} className="icon-btn" aria-label="Back">
-            <Icon name="back" size={24} />
-          </Link>
-        )}
+        {back && <BackLink fallback={back} />}
         <h1 className="page-title min-w-0 grow">{title}</h1>
       </div>
       {(subtitle || action) && (

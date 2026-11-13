@@ -22,7 +22,7 @@ export default async function MemoryPage() {
   ];
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/ask" title="What the helper remembers" subtitle="Short facts about the home, the child and each of you. The ones that matter go into every answer." />
+      <PageHeader back="/me" title="What the helper remembers" subtitle="Short facts about the home, the child and each of you. The ones that matter go into every answer." />
       <MemoryList items={mem && mem.ok ? mem.items : []} timezone={me.household.timezone} about={about} />
     </div>
   );

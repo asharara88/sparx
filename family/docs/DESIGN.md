@@ -438,7 +438,7 @@ Use these; extend one before adding a new one, and add any new one here.
 
 | Part | Class or component | Use it for | Rules |
 |---|---|---|---|
-| Page header | `PageHeader` | The top of every screen | Title alone on its line; subtitle and any action on the line under it. |
+| Page header | `PageHeader` | The top of every screen | Title alone on its line; subtitle and any action on the line under it. The back arrow goes back to the screen the person came from in the app (`BackLink`, `lib/nav-history.ts`); `back` is only where it goes when the screen was opened from outside (a push, a link, a reload). A title says what the row that opened it says ("Doctor", "Vaccines"). |
 | List row | `.row` in a white `ul` | Any set of like things | First line what and when, second line muted detail, number on the right. |
 | Sheet | `Sheet` (`.sheet`) | Logging, editing, choosing | Opens from a tile, a row or the bottom button; Escape or a tap outside closes it; Save at the bottom says what is missing. |
 | Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls; on a short screen it rests at the bottom by the thumb, not mid-screen (13 November: Milk, the nanny's Today). |
@@ -447,6 +447,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle) | Two or three words; the chosen one raised. |
 | Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. |
 | Week columns | `WeekColumns` | The shape of a week | Seven columns, midnight at the top; a column is one tap target. |
+| Log form | `EntryForm` (`/baby/log/…`, `/baby/entry/…`) | Anything less common than Home's rows, and editing in full | One card, a row per question, the When line first; two or three answers as a segmented control, a question with one possible answer not asked; photo and note in a second card; Save as the bottom button; Delete a word that asks twice. No helper button on it. |
 | Edit sheet | `EntrySheet` from `EntryList` | Changing or deleting an entry | Time picker, end chips, field chips, Save, Delete with a second tap. |
 | Stat strip | `DayStrip` tiles | A day's sums | Four at most, a dash for none. |
 | Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |

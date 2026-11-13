@@ -34,7 +34,7 @@ export default async function LanaTrendsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        back="/baby"
+        back="/baby?tab=about"
         title="Trends"
         action={
           <Link prefetch={false} href="/baby/export" className="btn">
