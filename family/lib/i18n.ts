@@ -58,6 +58,16 @@ const STRINGS = {
     planStarted: "Plan started. Today's step is on Home.",
     forgotten: "Forgotten.",
     remembered: "Remembered.",
+    custodySet: "{name} has {child} now.",
+    changed: "Changed.",
+    deleted: "Deleted.",
+    inFridge: "In the fridge.",
+    inFreezer: "In the freezer.",
+    binned: "Binned.",
+    thawing: "Moved to the fridge to thaw.",
+    doseLogged: "Logged. The next dose is allowed from {time}.",
+    inVaccineBook: "In the vaccine book.",
+    notAllowed: "You are not allowed to do this.",
     couldNotSave: "Could not save.",
     to: "to",
     yesterday: "yesterday",
@@ -121,6 +131,16 @@ const STRINGS = {
     planStarted: "بدأت الخطة. خطوة اليوم على الشاشة الرئيسية.",
     forgotten: "تم النسيان.",
     remembered: "تم الحفظ في الذاكرة.",
+    custodySet: "{child} مع {name} الآن.",
+    changed: "تم التعديل.",
+    deleted: "تم الحذف.",
+    inFridge: "في الثلاجة.",
+    inFreezer: "في الفريزر.",
+    binned: "تم رميها.",
+    thawing: "نُقلت إلى الثلاجة لتذوب.",
+    doseLogged: "تم التسجيل. الجرعة التالية مسموحة من {time}.",
+    inVaccineBook: "في سجل التطعيمات.",
+    notAllowed: "غير مسموح لك بهذا.",
     couldNotSave: "تعذّر الحفظ.",
     to: "إلى",
     yesterday: "أمس",
@@ -177,6 +197,16 @@ const STRINGS = {
     planStarted: "План начат. Шаг на сегодня на главном экране.",
     forgotten: "Забыто.",
     remembered: "Запомнено.",
+    custodySet: "Теперь {child} с {name}.",
+    changed: "Изменено.",
+    deleted: "Удалено.",
+    inFridge: "В холодильнике.",
+    inFreezer: "В морозилке.",
+    binned: "Выброшено.",
+    thawing: "Перенесено в холодильник размораживаться.",
+    doseLogged: "Записано. Следующая доза — не раньше {time}.",
+    inVaccineBook: "В прививочном дневнике.",
+    notAllowed: "Вам это не разрешено.",
     couldNotSave: "Не удалось сохранить.",
     to: "до",
     yesterday: "вчера",
@@ -188,6 +218,10 @@ export type Key = keyof (typeof STRINGS)["en"] extends infer K ? Exclude<K, `${s
 export interface Vars {
   /** The child's name in this language. */
   child?: string;
+  /** A member's name ("Wafa has Lana now"). */
+  name?: string;
+  /** A clock time, "14:10". */
+  time?: string;
   /** "Girl" or "Boy" (anything else reads as the default form). */
   sex?: string | null;
   [k: string]: string | number | null | undefined;

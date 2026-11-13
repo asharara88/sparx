@@ -3,7 +3,7 @@ import type { AssistantProposal } from "../types";
 /** What happened to a proposal card: kept in the chat and in session storage. */
 export type ProposalState = { status: "pending" } | { status: "saving" } | { status: "saved"; href?: string; note: string } | { status: "dropped" } | { status: "replaced" } | { status: "error"; message: string };
 
-const KINDS = new Set<string>(["care_entry", "end_timer", "calendar_event", "plan", "memory", "forget"]);
+const KINDS = new Set<string>(["care_entry", "end_timer", "calendar_event", "plan", "memory", "forget", "custody", "entry_change", "entry_delete", "milk_add", "milk_move", "medicine_dose", "vaccines"]);
 const GONE = /^\/(shopping|house)(\/|$)/;
 
 /**
@@ -28,8 +28,12 @@ export function retireProposals(msgs: { proposals?: AssistantProposal[] }[], sta
   return out;
 }
 
-/** What a card is about, for matching a correction to the card it corrects: its entry type, else its kind. */
-const aboutOf = (p: AssistantProposal) => p.care_entry?.type_id ?? p.end_timer?.type_id ?? p.kind;
+/**
+ * What a card is about, for matching a correction to the card it corrects: its entry type, the
+ * entry it changes, the child it hands over, else its kind.
+ */
+const aboutOf = (p: AssistantProposal) =>
+  p.care_entry?.type_id ?? p.end_timer?.type_id ?? (p.entry_change ? `change:${p.entry_change.entry_id}` : null) ?? (p.custody ? `custody:${p.custody.subject_id}` : null) ?? (p.medicine_dose ? `dose:${p.medicine_dose.medicine_id}` : null) ?? p.kind;
 
 /**
  * A corrected card ("make it 90") takes the place of the latest earlier card about the same

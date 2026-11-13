@@ -76,6 +76,13 @@ function recognitionCtor(): (new () => Recognition) | null {
  * `embedded`: inside Home's "Tell me" sheet. No page header, no earlier chats, a fresh chat each
  * time it opens (the Ask screen's own chat in this tab is left alone), the box focused.
  */
+/** Whether a log entry still says what a change card read from it (times, fields, note). */
+function sameRow(a: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown> | null; note: string | null }, b: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note: string | null }): boolean {
+  const ms = (x: string | null) => (x ? Date.parse(x) : null);
+  const flat = (o: Record<string, unknown> | null) => JSON.stringify(Object.entries(o ?? {}).sort(([x], [y]) => x.localeCompare(y)));
+  return ms(a.occurred_at) === ms(b.occurred_at) && ms(a.ended_at) === ms(b.ended_at) && flat(a.payload) === flat(b.payload) && (a.note ?? "") === (b.note ?? "");
+}
+
 export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null, embedded = false }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null; embedded?: boolean }) {
   const me = useMe();
   const router = useRouter();
@@ -134,6 +141,21 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const c = p.end_timer;
       return `${c.type_label} ${c.subject_name}, ${spokenWhen(c.since, tz, lang)} ${t(lang, "to")} ${spokenWhen(c.ended_at, tz, lang)}.`;
     }
+    if (p.kind === "medicine_dose" && p.medicine_dose) {
+      const c = p.medicine_dose;
+      return `${c.name}${c.dose ? `, ${c.dose}` : ""}, ${c.subject_name}, ${spokenWhen(c.given_at, tz, lang)}${c.early ? ", earlier than the usual gap" : ""}.`;
+    }
+    if (p.kind === "milk_add" && p.milk_add) return `${p.milk_add.amount_ml} ml, ${p.milk_add.location}, ${spokenWhen(p.milk_add.pumped_at, tz, lang)}.`;
+    if (p.kind === "milk_move" && p.milk_move) {
+      const c = p.milk_move;
+      const verb = { fridge: "Thaw", warmed: "Warmed", used: "Used", binned: "Bin" }[c.action];
+      return `${verb}: ${c.amount_ml} ml, ${c.location}, pumped ${spokenWhen(c.pumped_at, tz, lang)}.`;
+    }
+    if (p.kind === "vaccines" && p.vaccines) {
+      const c = p.vaccines;
+      const day = dayWord(`${c.given_on}T12:00`, toLocalInput(new Date().toISOString(), tz)).replace(/\s\d{2}:\d{2}$/, "");
+      return `${c.visit}: ${c.items.map((v) => v.vaccine.replace(/\s*\(.*\)$/, "")).join(", ")}, given ${day}.`;
+    }
     return p.summary.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\s+·\s+/g, ", ").trim();
   }
   /** A card's line as people read it: "🍼 Feed · Bottle, 120 ml · today 14:00", never "2026-11-09 14:00". */
@@ -149,6 +171,36 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         .join(", ");
       const span = c.ended_at ? `${when(c.occurred_at)} to ${fmtTime(c.ended_at, tz)}` : when(c.occurred_at);
       return [`${icon} ${c.type_label}`.trim(), details, span].filter(Boolean).join(" · ");
+    }
+    if (p.kind === "medicine_dose" && p.medicine_dose) {
+      const c = p.medicine_dose;
+      return [`${icon || "💊"} ${c.name}`, c.dose, when(c.given_at), c.early ? "earlier than the usual gap" : ""].filter(Boolean).join(" · ");
+    }
+    if (p.kind === "milk_add" && p.milk_add) {
+      const c = p.milk_add;
+      return `${icon} Put away · ${c.amount_ml} ml · ${c.location} · pumped ${when(c.pumped_at)}`.trim();
+    }
+    if (p.kind === "milk_move" && p.milk_move) {
+      const c = p.milk_move;
+      const verb = { fridge: "Thaw", warmed: "Warmed", used: "Used", binned: "Bin" }[c.action];
+      return `${icon} ${verb} · ${c.amount_ml} ml · ${c.location} · pumped ${when(c.pumped_at)}`.trim();
+    }
+    if (p.kind === "custody" && p.custody) return p.summary;
+    // The day of a saved entry, without the clock (its times are in the before and after).
+    const dayOf = (iso: string) => when(iso).replace(/\s\d{2}:\d{2}$/, "");
+    if (p.kind === "entry_change" && p.entry_change) {
+      const c = p.entry_change;
+      return `${icon || "✏️"} ${c.type_label}, ${dayOf(c.occurred_at)} · ${c.after} (was ${c.before})`;
+    }
+    if (p.kind === "entry_delete" && p.entry_delete) {
+      const c = p.entry_delete;
+      return `${icon || "🗑️"} Delete · ${c.type_label}, ${dayOf(c.occurred_at)} · ${c.what}`;
+    }
+    if (p.kind === "vaccines" && p.vaccines) {
+      const c = p.vaccines;
+      // A day, not a time: dayWord on the day's noon, without the clock.
+      const day = dayWord(`${c.given_on}T12:00`, nowLocal).replace(/\s\d{2}:\d{2}$/, "");
+      return [`${icon || "💉"} ${c.visit}`, c.items.map((v) => v.vaccine.replace(/\s*\(.*\)$/, "")).join(", "), `given ${day}`].join(" · ");
     }
     if (p.kind === "end_timer" && p.end_timer) {
       const e = p.end_timer;
@@ -522,6 +574,14 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     stopSpeaking();
   }
 
+  /** An RPC's answer when it says ok; otherwise its own message (a refusal, "too soon") as the card's error. */
+  async function rpcOk(call: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<Record<string, unknown>> {
+    const { data, error } = await call;
+    const res = data as ({ ok?: boolean; message?: string; error?: string } & Record<string, unknown>) | null;
+    if (error || !res?.ok) throw new Error(res?.message ?? (res?.error === "not_allowed" ? t(lang, "notAllowed") : error?.message) ?? t(lang, "couldNotSave"));
+    return res;
+  }
+
   // ---- proposals: the one tap that writes
   // Cards being saved or saved: a second tap, or Confirm all reaching a card already tapped, does nothing.
   const claimedRef = useRef(new Set<string>());
@@ -597,6 +657,67 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? t(lang, "couldNotSave"));
         saved("/ask/memory", t(lang, "remembered"));
+      } else if (p.kind === "custody" && p.custody) {
+        const c = p.custody;
+        await rpcOk(supabase.rpc("custody_set", { p_subject_id: c.subject_id, p_member_id: c.member_id }));
+        saved("/", t(lang, "custodySet", { name: c.member_name, child: c.subject_name }));
+      } else if (p.kind === "entry_change" && p.entry_change) {
+        const c = p.entry_change;
+        // care_entry_update writes every column, so the card saves only over the row it read:
+        // an end set since ("she woke up" on Home) or another change is never undone.
+        const { data: row, error: readError } = await supabase.from("care_entries").select("occurred_at,ended_at,payload,note,deleted_at").eq("id", c.entry_id).maybeSingle();
+        if (readError) throw new Error(readError.message);
+        const now = row as { occurred_at: string; ended_at: string | null; payload: Record<string, unknown> | null; note: string | null; deleted_at: string | null } | null;
+        if (!now || now.deleted_at) throw new Error("That entry has been deleted since.");
+        if (c.was && !sameRow(now, c.was)) throw new Error("That entry changed since this card was made. Ask again to see it as it is now.");
+        await rpcOk(supabase.rpc("care_entry_update", { p_id: c.entry_id, p_occurred_at: c.occurred_at, p_ended_at: c.ended_at, p_payload: c.payload, p_note: c.note }));
+        saved(`/entry/${c.entry_id}`, t(lang, "changed"));
+      } else if (p.kind === "entry_delete" && p.entry_delete) {
+        await rpcOk(supabase.rpc("care_entry_delete", { p_id: p.entry_delete.entry_id }));
+        saved(undefined, t(lang, "deleted"));
+      } else if (p.kind === "milk_add" && p.milk_add) {
+        const c = p.milk_add;
+        await rpcOk(supabase.rpc("milk_add", { p_amount_ml: c.amount_ml, p_location: c.location, p_pumped_at: c.pumped_at, p_note: c.note }));
+        saved("/baby/milk", t(lang, c.location === "freezer" ? "inFreezer" : "inFridge"));
+      } else if (p.kind === "milk_move" && p.milk_move) {
+        const c = p.milk_move;
+        // The bottle as it is now, not as it was when the card was made: a card left waiting can
+        // outlive the milk, and milk_move itself does not refuse expired milk (warming would
+        // restart its clock and bring it back as fresh).
+        const { data: stash, error: stashError } = await supabase.rpc("milk_list");
+        if (stashError) throw new Error(stashError.message);
+        const b = ((stash as { bottles?: { id: string; expired?: boolean; warmed_at?: string | null; location?: string }[] } | null)?.bottles ?? []).find((x) => x.id === c.bottle_id);
+        if (!b) throw new Error("That bottle is no longer in the stash.");
+        if (b.expired && c.action !== "binned") throw new Error("That bottle is past its time now: it can only be binned.");
+        if (c.action === "warmed" && b.warmed_at) throw new Error("That bottle is already warmed.");
+        if (c.action === "fridge" && b.location !== "freezer") throw new Error("That bottle is not in the freezer any more.");
+        await rpcOk(supabase.rpc("milk_move", { p_id: c.bottle_id, p_action: c.action }));
+        saved("/baby/milk", t(lang, c.action === "binned" ? "binned" : c.action === "fridge" ? "thawing" : "saved"));
+      } else if (p.kind === "medicine_dose" && p.medicine_dose) {
+        const c = p.medicine_dose;
+        const out = await rpcOk(supabase.rpc("medicine_give", { p_id: c.medicine_id, p_dose: c.dose, p_occurred_at: c.given_at, p_note: c.note, p_force: c.early }));
+        // When the next dose is allowed, read again after saving: someone may have logged a later
+        // dose since the card was made, and medicine_give only counts doses up to this one. The
+        // card's own time, then medicine_give's, only when the list cannot be read.
+        let nextIso: string | null = null;
+        if (c.subject_id) {
+          try {
+            const { data: list } = await supabase.rpc("medicines_list", { p_subject_id: c.subject_id });
+            const item = ((list as { items?: { id: string; next_at: string | null }[] } | null)?.items ?? []).find((m) => m.id === c.medicine_id);
+            nextIso = item?.next_at ?? null;
+          } catch {
+            /* no signal: fall back below */
+          }
+        }
+        nextIso ??= c.next_at ?? (typeof out.next_at === "string" ? out.next_at : null);
+        const next = nextIso ? dayWord(toLocalInput(nextIso, tz), toLocalInput(new Date().toISOString(), tz)).replace(/^today /, "") : null;
+        saved(typeof out.id === "string" ? `/entry/${out.id}` : "/baby/medicine", next ? t(lang, "doseLogged", { time: next }) : `${t(lang, "saved")}.`);
+      } else if (p.kind === "vaccines" && p.vaccines) {
+        const c = p.vaccines;
+        // One call per vaccine. vaccine_record keeps one row per vaccine, so Try again after a
+        // half-saved visit records the rest without doubling the ones already in.
+        for (const v of c.items) await rpcOk(supabase.rpc("vaccine_record", { p_subject_id: c.subject_id, p_schedule_id: v.schedule_id, p_given_on: c.given_on, p_place: c.place, p_batch: null, p_note: null }));
+        saved("/baby/vaccines", t(lang, "inVaccineBook"));
       } else {
         throw new Error("I do not know how to save that.");
       }
@@ -748,15 +869,16 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                 ))}
               </div>
             )}
-            {(m.proposals?.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length ?? 0) > 1 && (
+            {/* A delete is always its own tap: it never rides along in Confirm all. */}
+            {(m.proposals?.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending" && p.kind !== "entry_delete").length ?? 0) > 1 && (
               <button type="button" className="btn btn-primary mt-2 min-h-[56px] w-full text-lg" onClick={() => void (async () => {
                 // The whole batch is claimed and shown as saving first, so no card in it can be tapped or dropped meanwhile.
-                const batch = m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending" && !claimedRef.current.has(x.id));
+                const batch = m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending" && x.kind !== "entry_delete" && !claimedRef.current.has(x.id));
                 for (const p of batch) claimedRef.current.add(p.id);
                 setPstate((s) => ({ ...s, ...Object.fromEntries(batch.map((p) => [p.id, { status: "saving" } as ProposalState])) }));
                 for (const p of batch) await confirm(p, true);
               })()}>
-                Confirm all {m.proposals!.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length}
+                Confirm all {m.proposals!.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending" && p.kind !== "entry_delete").length}
               </button>
             )}
             {m.proposals?.map((p) => {
@@ -778,8 +900,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                       <button type="button" className="btn" onClick={() => setPstate((s) => ({ ...s, [p.id]: { status: "dropped" } }))}>
                         {p.plan ? "Not now" : "Not this"}
                       </button>
-                      <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={() => void confirm(p)}>
-                        {p.plan ? "Start this plan" : "Confirm"}
+                      <button type="button" className={`btn ${p.kind === "entry_delete" ? "btn-danger" : "btn-primary"} min-h-[64px] text-lg`} onClick={() => void confirm(p)}>
+                        {p.plan ? "Start this plan" : p.kind === "entry_delete" ? "Delete" : "Confirm"}
                       </button>
                     </div>
                   )}

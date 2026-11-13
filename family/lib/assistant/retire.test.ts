@@ -38,3 +38,18 @@ test("replacedBy: a correction replaces the latest waiting card about the same t
   assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "error", message: "offline" } }), ["c"], "a card whose save failed is replaced, so Try again cannot save it too");
   assert.deepEqual(replacedBy(msgs, [card("d", "lana.feed", { replaces: true })], { c: { status: "saving" } }), ["a"], "a card being saved is left alone");
 });
+
+test("retireProposals: every kind the helper writes today stays confirmable after a reload", () => {
+  const kinds = ["custody", "entry_change", "entry_delete", "milk_add", "milk_move", "medicine_dose", "vaccines"];
+  const out = retireProposals([{ proposals: kinds.map((k) => p(k, k)) }], Object.fromEntries(kinds.map((k) => [k, { status: "pending" as const }])));
+  for (const k of kinds) assert.deepEqual(out[k], { status: "pending" }, k);
+});
+
+test("replacedBy: a corrected handover replaces the handover card, a corrected change replaces the change to the same entry", async () => {
+  const { replacedBy } = await import("./retire.ts");
+  const hand = (id: string, member: string, replaces = false) => ({ id, kind: "custody", summary: id, custody: { subject_id: "lana", subject_name: "Lana", member_id: member, member_name: member }, ...(replaces ? { replaces: true } : {}) }) as AssistantProposal;
+  const change = (id: string, entry: string, replaces = false) => ({ id, kind: "entry_change", summary: id, entry_change: { entry_id: entry }, ...(replaces ? { replaces: true } : {}) }) as unknown as AssistantProposal;
+  const earlier = [{ proposals: [hand("h1", "dana"), change("c1", "e1"), change("c2", "e2")] }];
+  assert.deepEqual(replacedBy(earlier, [hand("h2", "wafa", true)], {}), ["h1"]);
+  assert.deepEqual(replacedBy(earlier, [change("c3", "e2", true)], {}), ["c2"], "the change to the same entry, not the latest change");
+});

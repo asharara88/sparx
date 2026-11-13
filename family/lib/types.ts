@@ -385,7 +385,87 @@ export interface Attachment {
 }
 
 // ---- Step 4: the assistant ------------------------------------------------
-export type ProposalKind = "care_entry" | "end_timer" | "calendar_event" | "memory" | "forget" | "plan";
+export type ProposalKind = "care_entry" | "end_timer" | "calendar_event" | "memory" | "forget" | "plan" | "custody" | "entry_change" | "entry_delete" | "milk_add" | "milk_move" | "medicine_dose" | "vaccines";
+
+/** "Wafa has Lana now": who looks after the child from now on (custody_set). */
+export interface CustodyProposal {
+  subject_id: string;
+  subject_name: string;
+  member_id: string;
+  member_name: string;
+}
+
+/**
+ * "That bottle was 90, not 120": a saved entry as it will be after the change. Every column is
+ * carried, since care_entry_update writes all of them; `before` is what it says now, for the card.
+ */
+export interface EntryChangeProposal {
+  entry_id: string;
+  subject_name: string;
+  type_id: string;
+  type_label: string;
+  occurred_at: string;
+  ended_at: string | null;
+  payload: Record<string, unknown>;
+  note: string | null;
+  before: string;
+  after: string;
+  /** The row as the card read it: Confirm saves only if it still says this. */
+  was?: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note: string | null };
+}
+
+/** "Delete the last nappy, it was a mistake": one saved entry, soft-deleted (care_entry_delete). */
+export interface EntryDeleteProposal {
+  entry_id: string;
+  subject_name: string;
+  type_id: string;
+  type_label: string;
+  occurred_at: string;
+  what: string;
+}
+
+/** "Put 120 ml in the freezer": a bottle into the stash (milk_add). */
+export interface MilkAddProposal {
+  amount_ml: number;
+  location: "fridge" | "freezer";
+  pumped_at: string;
+  note: string | null;
+}
+
+/** "Binned the 90 from Saturday", "thawed a bag": one bottle in the stash moved on (milk_move). */
+export interface MilkMoveProposal {
+  bottle_id: string;
+  action: "fridge" | "warmed" | "used" | "binned";
+  amount_ml: number;
+  location: string;
+  pumped_at: string;
+}
+
+/** "Gave her 2.5 ml Calpol": a dose of a medicine on the child's list (medicine_give, which keeps the gap). */
+export interface MedicineDoseProposal {
+  medicine_id: string;
+  /** For reading the medicine list again after saving (older cards have none). */
+  subject_id?: string;
+  subject_name: string;
+  name: string;
+  dose: string | null;
+  given_at: string;
+  /** Given before the minimum gap was up, and the member said it really was: medicine_give's p_force. */
+  early: boolean;
+  note: string | null;
+  /** When the next dose is allowed: after this one, or after a later dose already logged. */
+  next_at?: string;
+}
+
+/** "She had her 4 month jabs today": the vaccines of one visit marked given (vaccine_record, one per vaccine). */
+export interface VaccinesProposal {
+  subject_id: string;
+  subject_name: string;
+  visit: string;
+  given_on: string;
+  place: string | null;
+  items: { schedule_id: string; vaccine: string }[];
+}
 
 /** "She woke up": the running timer the helper found, and when it should end. */
 export interface EndTimerProposal {
@@ -434,6 +514,13 @@ export interface AssistantProposal {
   forget?: { id: string; body: string };
   /** A short day-by-day coach plan the family can start. */
   plan?: { subject_id: string; subject_name: string; goal: string; steps: { day: number; step: string }[] };
+  custody?: CustodyProposal;
+  entry_change?: EntryChangeProposal;
+  entry_delete?: EntryDeleteProposal;
+  milk_add?: MilkAddProposal;
+  milk_move?: MilkMoveProposal;
+  medicine_dose?: MedicineDoseProposal;
+  vaccines?: VaccinesProposal;
 }
 
 /** A citation target: the tool result the answer came from, as a link. */
