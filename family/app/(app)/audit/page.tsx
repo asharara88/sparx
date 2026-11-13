@@ -24,7 +24,7 @@ export default async function AuditPage() {
   const tz = me.household.timezone;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/" title="Audit log" action={<a href="/api/audit/export" className="btn" style={{ minHeight: 40 }}>CSV</a>} />
+      <PageHeader back="/me" title="Audit log" action={<a href="/api/audit/export" className="btn" style={{ minHeight: 40 }}>CSV</a>} />
       <BackupsCard rows={((backups as BackupRow[] | null) ?? []) as BackupRow[]} runs={runs} tz={tz} />
       <p className="muted">Every write, and every attempt that was not allowed. Newest first.</p>
       <ul className="flex flex-col gap-2 text-sm">

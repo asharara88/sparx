@@ -869,6 +869,9 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 16px; background: var(--card-2); }
 .segmented > button { min-height: 44px; border: none; border-radius: 12px; background: transparent; color: var(--muted); font: inherit; font-weight: 700; white-space: nowrap; }
 .segmented > button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
+/* The same control made of links (a range that changes the page, For the doctor). */
+.segmented > a { min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; color: var(--muted); font-weight: 700; white-space: nowrap; text-decoration: none; }
+.segmented > a[aria-current="page"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
 
 /* The timer sheets' one big button: now, in one tap (Huckleberry's Start). */
 .big-timer {

@@ -34,53 +34,47 @@ export default async function MilestonesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        back="/baby"
-        title="Firsts"
-        subtitle={`${s.name}'s milestones, newest first.`}
-        action={
-          canAdd ? (
-            <Link prefetch={false} href="/baby/log/milestone" className="btn btn-primary" style={{ minHeight: 40 }}>
-              <Icon name="plus" size={18} /> Add
-            </Link>
-          ) : undefined
-        }
-      />
+      <PageHeader back="/baby?tab=about" title="Firsts" subtitle={`${s.name}'s milestones, newest first.`} />
       {entries.length === 0 ? (
-        <div className="card">
-          <p className="font-semibold">Nothing written down yet.</p>
-          <p className="muted mt-1 text-sm">First smile, first laugh, rolled over, slept through. Add one, then put a photo on it from the entry.</p>
-        </div>
+        <p className="muted px-1">Nothing written down yet: a first smile, a laugh, rolling over.</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        // One list, a row per first (DESIGN.md: list rows, not a card each): the photo when there is one.
+        <ul className="card flex flex-col p-0">
           {entries.map((e) => {
             const photo = photoOf.get(e.id) ?? null;
             const day = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(e.occurred_at));
             const age = s.birth_date ? ageLabel(ageDays(s.birth_date, day)) : null;
             return (
               <li key={e.id}>
-                <Link prefetch={false} href={`/baby/entry/${e.id}`} className="card flex gap-3 no-underline">
+                <Link prefetch={false} href={`/baby/entry/${e.id}`} className="row row-link px-4">
                   {photo ? (
-                    <Photo path={photo} alt="" className="h-24 w-24 shrink-0 rounded-xl object-cover" />
+                    <Photo path={photo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
                   ) : (
-                    <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)]">
-                      <Icon name="star" size={28} className="text-[var(--accent)]" />
+                    <span className="icon-disc tint-sleep" style={{ width: 36, height: 36 }}>
+                      <Icon name="star" size={18} />
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block text-lg font-semibold">{String(e.payload.what ?? "Milestone")}</span>
+                    <span className="block font-semibold">{String(e.payload.what ?? "Milestone")}</span>
                     <span className="muted block text-sm">
-                      {fmtDate(e.occurred_at, tz, { weekday: "short", day: "numeric", month: "long" })}
+                      {fmtDate(e.occurred_at, tz, { weekday: "short", day: "numeric", month: "short" })}
                       {age ? ` · ${age} old` : ""}
                     </span>
-                    {e.note && <span className="muted block text-sm">{e.note}</span>}
-                    {!photo && canAdd && <span className="block text-sm text-[var(--accent)]">Add a photo ›</span>}
                   </span>
+                  <Icon name="forward" size={18} className="muted" />
                 </Link>
               </li>
             );
           })}
         </ul>
+      )}
+      {/* Adding a first is the screen's one action, at the thumb. */}
+      {canAdd && (
+        <div className="bottom-action">
+          <Link prefetch={false} href="/baby/log/milestone" className="btn btn-primary btn-lg w-full">
+            <Icon name="plus" size={20} /> Add a first
+          </Link>
+        </div>
       )}
     </div>
   );

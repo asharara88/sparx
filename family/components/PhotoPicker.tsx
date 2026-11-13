@@ -49,7 +49,7 @@ export function PhotoPicker({
   }
   return (
     <div className="flex flex-col gap-2">
-      <label className={`btn min-h-[64px] text-lg ${disabled ? "opacity-50" : ""}`}>
+      <label className={`btn ${disabled ? "opacity-50" : ""}`}>
         <Icon name="camera" size={20} /> {file ? "Change photo" : label}
         <input ref={ref} type="file" accept="image/*" capture={library ? undefined : "environment"} className="sr-only" disabled={disabled} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
       </label>

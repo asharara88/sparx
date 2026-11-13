@@ -3,8 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { childPronouns } from "@/lib/names";
 import type { HomeSummary, Me, RpcError, VaccinesData } from "@/lib/types";
 import { can } from "@/lib/types";
-import Link from "next/link";
-import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/PageHeader";
 import { VaccineBook } from "@/components/VaccineBook";
 import { meOnce } from "@/lib/server/me";
@@ -23,13 +21,7 @@ export default async function VaccinesPage() {
   const vax = data as VaccinesData | RpcError;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/baby" title={`${summary.subject.name} · Vaccines`} subtitle={`Dated from ${childPronouns(me).their} birthday.`}
-        action={
-          <Link prefetch={false} href="/baby/doctor" className="btn btn-secondary">
-            <Icon name="phone" size={18} /> Doctor
-          </Link>
-        }
-      />
+      <PageHeader back="/baby?tab=about" title="Vaccines" subtitle={`Dated from ${childPronouns(me).their} birthday.`} />
       {vax.ok ? (
         <VaccineBook subjectId={summary.subject.id} data={vax} timezone={me.household.timezone} canAdd={can(me, "lana", "add")} canEdit={can(me, "lana", "edit")} />
       ) : (

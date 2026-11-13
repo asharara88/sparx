@@ -38,15 +38,8 @@ export default async function DoctorPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        back="/baby"
-        title={`${s.name} · Paediatrician`}
-        action={
-          <Link prefetch={false} href="/baby/vaccines" className="btn btn-secondary">
-            <Icon name="syringe" size={18} /> Vaccines
-          </Link>
-        }
-      />
+      {/* No floating Vaccines button: "Coming up" below already links to them. */}
+      <PageHeader back="/baby?tab=about" title="Doctor" />
       <DoctorCard subject={s} canEdit={can(me, "lana", "edit")} />
       <ChildCard subject={s} canEdit={can(me, "lana", "edit")} />
 
@@ -97,6 +90,14 @@ export default async function DoctorPage() {
           </ul>
         )}
       </section>
+      {/* Logging a visit is the screen's one action, at the thumb. */}
+      {can(me, "lana", "add") && (
+        <div className="bottom-action">
+          <Link prefetch={false} href="/baby/log/appointment" className="btn btn-primary btn-lg w-full">
+            <Icon name="plus" size={20} /> Log a visit
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ export default async function SkillsPage() {
   const skills = res && res.ok ? res.items : [];
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/ask" title="Helper skills" subtitle="What the helper knows, one topic at a time. Trigger words call a skill into an answer; always-on skills are in every answer. Say where a fact comes from." />
+      <PageHeader back="/me" title="Helper skills" subtitle="What the helper knows, one topic at a time. Trigger words call a skill into an answer; always-on skills are in every answer. Say where a fact comes from." />
       {!me.platform && (
         <p className="notice notice-accent">
           This is shared by every home on elnunu, so only the first home&apos;s admins change it. What you see here is what applies to yours.

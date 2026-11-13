@@ -23,7 +23,7 @@ export default async function ActivitiesPage() {
   const age = acts && acts.ok && acts.age_days != null ? `${ageLabel(acts.age_days)} old` : "";
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/baby" title="Play" subtitle={`Short things to do with ${summary.subject.name}${age ? `, ${age}` : ""}. A few a week is plenty.`} />
+      <PageHeader back="/baby?tab=about" title="Play" subtitle={`Short things to do with ${summary.subject.name}${age ? `, ${age}` : ""}. A few a week is plenty.`} />
       <Activities subjectId={summary.subject.id} items={items} />
     </div>
   );

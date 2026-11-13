@@ -20,7 +20,14 @@ export default async function EmergencyPage() {
   const lang = (me.member.lang ?? "en") as "en" | "ar" | "ru";
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/" title="Emergency" subtitle={`Ambulance, ${childPronouns(me).their} doctor, hospital and medical details.`} />
+      {/* In the member's language and direction, like the card under it (the grandmother reads Arabic). */}
+      <div dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
+        <PageHeader
+          back="/baby?tab=about"
+          title={lang === "ar" ? "طوارئ" : lang === "ru" ? "Экстренно" : "Emergency"}
+          subtitle={lang === "ar" ? "الإسعاف والدكتور والمستشفى والبيانات الطبية." : lang === "ru" ? "Скорая, врач, больница и медицинские данные." : `Ambulance, ${childPronouns(me).their} doctor, hospital and medical details.`}
+        />
+      </div>
       <EmergencyCard subject={summary.subject} lang={lang} canEdit={can(me, "lana", "edit")} />
     </div>
   );

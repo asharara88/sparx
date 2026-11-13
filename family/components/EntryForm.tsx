@@ -1,6 +1,5 @@
 "use client";
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EntryType, FieldDef, Subject } from "@/lib/types";
 import { fromLocalInput, toLocalInput } from "@/lib/time";
@@ -11,6 +10,8 @@ import { uploadPhoto } from "@/lib/photos";
 import { PhotoPicker } from "./PhotoPicker";
 import { Attachments } from "./Attachments";
 import { PageHeader } from "@/components/PageHeader";
+import { WhenChips } from "./WhenChips";
+import { NOW, whenToIso, type When } from "@/lib/when";
 
 interface Initial {
   payload: Record<string, unknown>;
@@ -62,7 +63,18 @@ export function EntryForm(props: {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoText, setPhotoText] = useState("");
   const home = subject.module_id === "lana" ? "/" : `/${subject.module_id}`;
-  const list = `/${subject.module_id}`;
+  // The child's page itself, not /lana and a redirect (the helper's entry links land here too).
+  const list = subject.module_id === "lana" ? "/baby" : `/${subject.module_id}`;
+  // A new entry's time is the app's When line (WhenChips), read at Save: "now" is the moment of
+  // the tap, not the moment the page opened. Editing keeps the full date and time box.
+  const [when, setWhen] = useState<When>(NOW);
+  const [whenBad, setWhenBad] = useState(false);
+  const [endWhen, setEndWhen] = useState<When>(NOW);
+  const [endBad, setEndBad] = useState(false);
+  // A first, a doctor's visit or a measurement from days ago: any date and time, not only the last two days.
+  const [anotherDay, setAnotherDay] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const atIso = (w: When) => whenToIso(w, Date.now(), (l) => fromLocalInput(l, tz));
 
   const visible = useMemo(() => t.fields.filter((f) => showField(f, payload)), [t.fields, payload]);
   const missing = visible.filter((f) => f.required && (payload[f.key] === undefined || payload[f.key] === "" || payload[f.key] === null));
@@ -74,8 +86,9 @@ export function EntryForm(props: {
   async function save(extra: Record<string, unknown> = {}) {
     if (savedAway) return; // Enter in a field after the save must not log it twice
     const finalPayload = cleanPayload({ ...payload, ...extra }, visible);
-    const occurredIso = fromLocalInput(occurred, tz);
-    const endedIso = endApplies && !stillGoing && ended ? fromLocalInput(ended, tz) : null;
+    if (mode === "create" && (whenBad || (endApplies && !stillGoing && endBad))) return setMsg("Pick a time from the list, or type one like 21:30.");
+    const occurredIso = mode === "create" ? atIso(when) : fromLocalInput(occurred, tz);
+    const endedIso = endApplies && !stillGoing ? (mode === "create" ? atIso(endWhen) : ended ? fromLocalInput(ended, tz) : null) : null;
     if (endedIso && new Date(endedIso) < new Date(occurredIso)) {
       setMsg("The end time is before the start time.");
       return;
@@ -137,7 +150,8 @@ export function EntryForm(props: {
   }
 
   async function remove() {
-    if (!confirm("Delete this entry?")) return;
+    // A second tap, as in the edit sheet: no browser pop-up about "this entry".
+    if (!confirmDelete) return setConfirmDelete(true);
     setBusy(true);
     const { data } = await supabaseBrowser().rpc("care_entry_delete", { p_id: props.entryId });
     setBusy(false);
@@ -151,6 +165,7 @@ export function EntryForm(props: {
   const quickField = visible.find((f) => f.type === "number" && f.quick?.length);
   const canQuickSave = mode === "create" && quickField && missing.every((f) => f.key === quickField.key);
 
+  const timeLabel = endApplies ? "Started" : "When";
   return (
     <form
       className="flex flex-col gap-4"
@@ -160,146 +175,159 @@ export function EntryForm(props: {
         save();
       }}
     >
-      <PageHeader back={mode === "create" ? home : list} title={<><span aria-hidden>{t.icon} </span>
-          {mode === "create" ? t.label : `Edit ${t.label.toLowerCase()}`}</>} />
+      <PageHeader back={mode === "create" ? home : list} title={mode === "create" ? t.label : `Edit ${t.label.toLowerCase()}`} />
 
-      {visible.map((f) => (
-        <fieldset key={f.key} className="card" disabled={readOnly}>
-          <legend className="px-1 font-semibold">{f.label}</legend>
-          {f.type === "choice" && (
-            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={f.label}>
-              {f.options?.filter((o) => optionAllowed(f, o)).map((o) => (
-                <button key={o} type="button" className="chip" aria-pressed={payload[f.key] === o} onClick={() => set(f.key, o)}>
-                  {o}
+      {/* One card, a row per question (DESIGN.md: list rows, no box per field); the time first,
+          so it is set before any amount chip that saves at once. */}
+      <fieldset className="card flex flex-col p-0" disabled={readOnly}>
+        <div className="row flex-col px-4" role="group" aria-label={timeLabel}>
+          {mode === "create" ? (
+            <>
+              <WhenChips value={when} onChange={setWhen} onValid={(ok) => setWhenBad(!ok)} timezone={tz} label={timeLabel} disabled={readOnly || busy} />
+              {anotherDay ? (
+                <input
+                  className="input"
+                  type="datetime-local"
+                  aria-label={`${timeLabel}, another day`}
+                  max={toLocalInput(new Date().toISOString(), tz)}
+                  value={when.kind === "at" ? when.local : ""}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setWhen({ kind: "at", local: e.target.value });
+                    setWhenBad(false);
+                  }}
+                />
+              ) : (
+                <button type="button" className="self-start font-semibold text-[var(--accent)]" disabled={readOnly || busy} onClick={() => setAnotherDay(true)}>
+                  On another day
                 </button>
-              ))}
-            </div>
-          )}
-          {f.type === "number" && (
-            <div className="mt-2">
-              {f.quick && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {f.quick.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      className="chip"
-                      aria-pressed={payload[f.key] === q}
-                      onClick={() => (canQuickSave ? save({ [f.key]: q }) : set(f.key, q))}
-                      disabled={busy}
-                    >
-                      {q}
-                      
-                    </button>
-                  ))}
-                </div>
               )}
-              <input
-                className="input"
-                type="number"
-                inputMode="decimal"
-                step={f.step ?? 1}
-                value={payload[f.key] === undefined || payload[f.key] === null ? "" : String(payload[f.key])}
-                onChange={(e) => set(f.key, e.target.value === "" ? null : Number(e.target.value))}
-                aria-label={`${f.label} (type a number)`}
-              />
-              {canQuickSave && <p className="muted mt-1 text-sm">Tap a number to save straight away.</p>}
-            </div>
-          )}
-          {f.type === "date" && (
-            <div className="mt-2">
-              <div className="mb-2 flex flex-wrap gap-2">
-                {[
-                  ["In 1 month", 1],
-                  ["In 3 months", 3],
-                  ["In 6 months", 6],
-                  ["In 1 year", 12],
-                ].map(([label, months]) => (
-                  <button
-                    key={String(label)}
-                    type="button"
-                    className="chip"
-                    onClick={() => {
-                      const d = new Date(occurred || Date.now());
-                      d.setMonth(d.getMonth() + Number(months));
-                      set(f.key, d.toISOString().slice(0, 10));
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <input className="input" type="date" value={(payload[f.key] as string) ?? ""} onChange={(e) => set(f.key, e.target.value || null)} aria-label={f.label} />
-            </div>
-          )}
-          {f.type === "text" && (
-            <input
-              className="input mt-2"
-              type="text"
-              value={(payload[f.key] as string) ?? ""}
-              onChange={(e) => set(f.key, e.target.value)}
-              aria-label={f.label}
-            />
-          )}
-        </fieldset>
-      ))}
-
-      <fieldset className="card" disabled={readOnly}>
-        <legend className="px-1 font-semibold">{endApplies ? "Start time" : "Time"}</legend>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" className="chip" onClick={() => setOccurred(toLocalInput(new Date().toISOString(), tz))}>
-            Now
-          </button>
-          {[15, 30, 60].map((m) => (
-            <button
-              key={m}
-              type="button"
-              className="chip"
-              onClick={() => setOccurred(toLocalInput(new Date(Date.now() - m * 60000).toISOString(), tz))}
-            >
-              {m} min ago
-            </button>
-          ))}
-        </div>
-        <input className="input mt-2" type="datetime-local" value={occurred} onChange={(e) => setOccurred(e.target.value)} required />
-        {endApplies && (
-          <div className="mt-3">
-            <label className="flex items-center gap-3">
-              <input type="checkbox" checked={stillGoing} onChange={(e) => setStillGoing(e.target.checked)} />
-              <span className="font-semibold">Still going (no end time yet)</span>
+            </>
+          ) : (
+            <label className="flex flex-col gap-2">
+              <span className="font-semibold">{timeLabel}</span>
+              <input className="input" type="datetime-local" value={occurred} onChange={(e) => setOccurred(e.target.value)} required />
             </label>
-            {!stillGoing && (
-              <>
-                <p className="mt-2 font-semibold">End time</p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  <button type="button" className="chip" onClick={() => setEnded(toLocalInput(new Date().toISOString(), tz))}>
-                    Now
-                  </button>
-                </div>
-                <input className="input mt-2" type="datetime-local" value={ended} onChange={(e) => setEnded(e.target.value)} />
-              </>
-            )}
+          )}
+          {endApplies && (
+            <>
+              <div className="segmented" role="group" aria-label="Has it ended?">
+                <button type="button" aria-pressed={stillGoing} onClick={() => setStillGoing(true)}>
+                  Still going
+                </button>
+                <button type="button" aria-pressed={!stillGoing} onClick={() => setStillGoing(false)}>
+                  Ended
+                </button>
+              </div>
+              {!stillGoing &&
+                (mode === "create" ? (
+                  <WhenChips value={endWhen} onChange={setEndWhen} onValid={(ok) => setEndBad(!ok)} timezone={tz} label="Ended" disabled={readOnly || busy} />
+                ) : (
+                  <input className="input" type="datetime-local" value={ended} onChange={(e) => setEnded(e.target.value)} aria-label="Ended" />
+                ))}
+            </>
+          )}
+        </div>
+
+        {visible.map((f) => {
+          const opts = f.type === "choice" ? (f.options ?? []).filter((o) => optionAllowed(f, o) || payload[f.key] === o) : [];
+          // A question with one possible answer, already given, asks nothing ("How: Bottle").
+          if (f.type === "choice" && opts.length <= 1 && payload[f.key] === opts[0]) return null;
+          return (
+            <div key={f.key} className="row flex-col px-4" role="group" aria-label={f.label}>
+              <span className="font-semibold">{f.label}</span>
+              {f.type === "choice" &&
+                (opts.length <= 3 ? (
+                  <div className="segmented">
+                    {opts.map((o) => (
+                      <button key={o} type="button" aria-pressed={payload[f.key] === o} onClick={() => set(f.key, o)}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {opts.map((o) => (
+                      <button key={o} type="button" className="chip" aria-pressed={payload[f.key] === o} onClick={() => set(f.key, o)}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              {f.type === "number" && (
+                <>
+                  {f.quick && (
+                    <div className="flex flex-wrap gap-2">
+                      {f.quick.map((q) => (
+                        <button key={q} type="button" className="chip" aria-pressed={payload[f.key] === q} onClick={() => (canQuickSave ? save({ [f.key]: q }) : set(f.key, q))} disabled={busy || (canQuickSave && whenBad)}>
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="decimal"
+                    step={f.step ?? 1}
+                    placeholder={f.quick ? "Other amount" : undefined}
+                    value={payload[f.key] === undefined || payload[f.key] === null ? "" : String(payload[f.key])}
+                    onChange={(e) => set(f.key, e.target.value === "" ? null : Number(e.target.value))}
+                    aria-label={`${f.label} (type a number)`}
+                  />
+                  {canQuickSave && <p className="muted text-sm">Tap a number to save straight away.</p>}
+                </>
+              )}
+              {f.type === "date" && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ["In 1 month", 1],
+                      ["In 3 months", 3],
+                      ["In 6 months", 6],
+                      ["In 1 year", 12],
+                    ].map(([label, months]) => (
+                      <button
+                        key={String(label)}
+                        type="button"
+                        className="chip"
+                        onClick={() => {
+                          const d = new Date(mode === "create" ? atIso(when) : fromLocalInput(occurred, tz));
+                          d.setMonth(d.getMonth() + Number(months));
+                          set(f.key, d.toISOString().slice(0, 10));
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <input className="input" type="date" value={(payload[f.key] as string) ?? ""} onChange={(e) => set(f.key, e.target.value || null)} aria-label={f.label} />
+                </>
+              )}
+              {f.type === "text" && <input className="input" type="text" value={(payload[f.key] as string) ?? ""} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label} />}
+            </div>
+          );
+        })}
+      </fieldset>
+
+      <fieldset className="card flex flex-col p-0" disabled={readOnly}>
+        {mode === "create" && (
+          <div className="row flex-col px-4" role="group" aria-label="Photo">
+            <span className="font-semibold">
+              Photo <span className="muted font-normal">(optional)</span>
+            </span>
+            <PhotoPicker file={photo} onFile={setPhoto} withText onText={setPhotoText} disabled={busy} />
+            {photoText && <p className="muted max-h-24 overflow-auto whitespace-pre-wrap text-sm">{photoText}</p>}
           </div>
         )}
+        <label className="row flex-col px-4">
+          <span className="font-semibold">
+            Note {t.key === "note" ? "" : <span className="muted font-normal">(optional)</span>}
+          </span>
+          <textarea className="input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} required={t.key === "note"} />
+        </label>
       </fieldset>
-
-      {mode === "create" && (
-        <fieldset className="card" disabled={readOnly}>
-          <legend className="px-1 font-semibold">Photo (optional)</legend>
-          <div className="mt-2">
-            <PhotoPicker file={photo} onFile={setPhoto} withText onText={setPhotoText} disabled={busy} />
-            {photoText && <p className="muted mt-2 max-h-24 overflow-auto whitespace-pre-wrap text-sm">{photoText}</p>}
-          </div>
-        </fieldset>
-      )}
-      {mode === "edit" && props.entryId && (
-        <Attachments module={subject.module_id} table="care_entries" entityId={props.entryId} folder="entries" canAdd={!readOnly} />
-      )}
-
-      <fieldset className="card" disabled={readOnly}>
-        <legend className="px-1 font-semibold">Note {t.key === "note" ? "" : "(optional)"}</legend>
-        <textarea className="input mt-2" rows={3} value={note} onChange={(e) => setNote(e.target.value)} required={t.key === "note"} />
-      </fieldset>
+      {mode === "edit" && props.entryId && <Attachments module={subject.module_id} table="care_entries" entityId={props.entryId} folder="entries" canAdd={!readOnly} />}
 
       {msg && (
         <p role="alert" className="notice notice-danger">
@@ -307,28 +335,34 @@ export function EntryForm(props: {
         </p>
       )}
 
-      {savedAway ? (
-        <button
-          type="button"
-          className="btn btn-primary min-h-[64px] text-xl"
-          onClick={() => {
-            router.push(home);
-            router.refresh();
-          }}
-        >
-          Done
+      {/* Deleting is a word, away from Save, and asks with a second tap (DESIGN.md rule 8). */}
+      {mode === "edit" && props.canDelete && (
+        <button type="button" className="self-end px-2 font-bold text-[var(--danger)]" onClick={() => void remove()} disabled={busy}>
+          {confirmDelete ? "Tap again to delete" : `Delete this ${t.label.toLowerCase()}`}
         </button>
+      )}
+      {/* The screen's one main action, at the thumb. */}
+      {savedAway ? (
+        <div className="bottom-action">
+          <button
+            type="button"
+            className="btn btn-primary btn-lg w-full"
+            onClick={() => {
+              router.push(home);
+              router.refresh();
+            }}
+          >
+            Done
+          </button>
+        </div>
       ) : (
         !readOnly && (
-          <button type="submit" className="btn btn-primary min-h-[64px] text-xl" disabled={busy}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          <div className="bottom-action">
+            <button type="submit" className="btn btn-primary btn-lg w-full" disabled={busy || (mode === "create" && whenBad)}>
+              {busy ? "Saving…" : "Save"}
+            </button>
+          </div>
         )
-      )}
-      {mode === "edit" && props.canDelete && (
-        <button type="button" className="btn btn-danger" onClick={remove} disabled={busy}>
-          Delete
-        </button>
       )}
     </form>
   );

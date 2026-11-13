@@ -83,10 +83,10 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        back="/baby"
+        back="/baby?tab=about"
         title={`${s.name}'s month ${month}`}
         subtitle={`${fmtDate(`${span.from}T12:00:00Z`, "UTC", { day: "numeric", month: "long", weekday: undefined })} to ${fmtDate(`${span.to}T12:00:00Z`, "UTC", { day: "numeric", month: "long", weekday: undefined })}${span.inProgress ? ", so far" : ""}. ${ageLabel(ageEnd)} old at the end.`}
-        action={<PrintButton label="Print or save" />}
+        action={<PrintButton label="Print or save" className="btn btn-secondary" />}
       />
       <nav className="no-print flex items-center justify-between text-sm">
         {month > 1 ? (

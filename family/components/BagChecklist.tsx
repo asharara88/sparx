@@ -14,6 +14,8 @@ export function BagChecklist({ items }: { items: BagItem[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  // Removing asks with a second tap (DESIGN.md rule 8): the first tap on × turns it into the word.
+  const [removing, setRemoving] = useState<string | null>(null);
   const canTick = can(me, "lana", "add");
   const canEdit = can(me, "lana", "edit") && can(me, "members", "edit");
   const live = items.filter((i) => i.is_active);
@@ -31,7 +33,7 @@ export function BagChecklist({ items }: { items: BagItem[] }) {
   return (
     <section className="card">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">The bag</h2>
+        <h2 className="section-title">The bag</h2>
         <span className="pill">
           {packed} / {live.length}
         </span>
@@ -44,9 +46,15 @@ export function BagChecklist({ items }: { items: BagItem[] }) {
             </button>
             <span className={`grow ${i.checked ? "muted line-through" : ""}`}>{i.label}</span>
             {canEdit && (
-              <button type="button" className="icon-btn m-0 text-[var(--muted)]" aria-label="Remove from the list" disabled={busy === i.id} onClick={() => call("bag_save", { p_id: i.id, p_label: i.label, p_sort: i.sort, p_is_active: false }, i.id)}>
-                <Icon name="x" size={16} />
-              </button>
+              removing === i.id ? (
+                <button type="button" className="shrink-0 px-2 font-bold text-[var(--danger)]" disabled={busy === i.id} onClick={() => { setRemoving(null); void call("bag_save", { p_id: i.id, p_label: i.label, p_sort: i.sort, p_is_active: false }, i.id); }}>
+                  Remove
+                </button>
+              ) : (
+                <button type="button" className="icon-btn m-0 text-[var(--muted)]" aria-label={`Remove ${i.label} from the list`} disabled={busy === i.id} onClick={() => setRemoving(i.id)}>
+                  <Icon name="x" size={16} />
+                </button>
+              )
             )}
           </li>
         ))}

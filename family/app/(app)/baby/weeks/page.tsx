@@ -57,7 +57,7 @@ export default async function WeeksPage() {
   );
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/baby" title="Week by week" subtitle={now ? `${s.name} is in week ${now.week}.` : `What each stretch of the first three years usually brings.`} />
+      <PageHeader back="/baby?tab=about" title="Week by week" subtitle={now ? `${s.name} is in week ${now.week}.` : `What each stretch of the first three years usually brings.`} />
       {now && (
         <section className="card flex flex-col gap-1" aria-labelledby="now-h">
           <p className="muted text-sm">

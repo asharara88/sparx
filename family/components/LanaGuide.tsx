@@ -32,7 +32,7 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
           <div key={tip.title} className={`notice ${tip.level === "red" ? "notice-danger" : tip.level === "yellow" ? "notice-warn" : ""}`}>
             <p className="font-semibold">{tip.title}</p>
             <p className="mt-1 text-sm opacity-90">{tip.body}</p>
-            <Link prefetch={false} href={`/baby/when-to-call#${tip.topic}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold underline">
+            <Link prefetch={false} href={`/baby/when-to-call/${tip.topic}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold underline">
               When to call the doctor
             </Link>
           </div>
@@ -61,7 +61,7 @@ export function LanaGuide({ entries, birthDate, timezone, feedGapMin, fold = fal
           </button>
         )}
         {worst && (
-          <Link prefetch={false} href={`/baby/when-to-call#${tips[0].topic}`} className="inline-flex min-h-[44px] items-center font-semibold text-[var(--fg)]">
+          <Link prefetch={false} href={`/baby/when-to-call/${tips[0].topic}`} className="inline-flex min-h-[44px] items-center font-semibold text-[var(--fg)]">
             When to call the doctor ›
           </Link>
         )}

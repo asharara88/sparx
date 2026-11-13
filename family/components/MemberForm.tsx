@@ -11,7 +11,8 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
   const router = useRouter();
   const [name, setName] = useState(member?.display_name ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
-  const [role, setRole] = useState(member?.role_id ?? roles[0]?.id ?? "");
+  // A new member starts with no role: Save would otherwise make the nanny an Admin.
+  const [role, setRole] = useState(member?.role_id ?? "");
   const [relationship, setRelationship] = useState(member?.relationship ?? "");
   const [birth, setBirth] = useState(member?.birth_date ?? "");
   const [active, setActive] = useState(member?.is_active ?? true);
@@ -22,6 +23,7 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (!role) return setMsg("Choose a role.");
     setBusy(true);
     setMsg(null);
     const { data, error } = await supabaseBrowser().rpc("member_save", {
@@ -59,7 +61,12 @@ export function MemberForm({ member, roles, isSelf }: { member: Member | null; r
       </label>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Role</span>
-        <select className="input" value={role} onChange={(e) => setRole(e.target.value)} disabled={isSelf}>
+        <select className="input" value={role} onChange={(e) => setRole(e.target.value)} disabled={isSelf} required>
+          {!role && (
+            <option value="" disabled>
+              Choose a role
+            </option>
+          )}
           {roles.map((r) => (
             <option key={r.id} value={r.id}>
               {r.label}

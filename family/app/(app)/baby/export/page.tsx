@@ -5,7 +5,7 @@ import type { DailyStats, EntryRow, HomeSummary, Me, RpcError, VaccinesData } fr
 import { can } from "@/lib/types";
 import { addDays, dayRange, describePayload, fmtDate, fmtDuration, fmtTime, minutesBetween, todayYmd } from "@/lib/time";
 import { PrintButton } from "@/components/PrintButton";
-import { Icon } from "@/components/Icon";
+import { PageHeader } from "@/components/PageHeader";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -52,8 +52,8 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
     const d = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(e.occurred_at));
     byDay.set(d, [...(byDay.get(d) ?? []), e]);
   }
+  // Seven days is the child's Week tab; the doctor's printout starts at two weeks.
   const ranges = [
-    { label: "7 days", from: addDays(today, -6) },
     { label: "2 weeks", from: addDays(today, -13) },
     { label: "4 weeks", from: addDays(today, -27) },
     { label: "3 months", from: addDays(today, -90) },
@@ -61,24 +61,24 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
 
   return (
     <div className="flex flex-col gap-4 print:gap-2">
-      <header className="page-header no-print flex items-center justify-between gap-2">
-        <Link prefetch={false} href="/baby/trends" className="icon-btn" aria-label="Back">
-          <Icon name="back" size={24} />
-        </Link>
-        <div className="flex flex-wrap gap-2">
+      {/* The screen: a title like its siblings, the range as one control, Save as PDF at the thumb.
+          The printout below keeps everything; the long tables print but do not fill the phone. */}
+      <div className="no-print flex flex-col gap-3">
+        <PageHeader back="/baby?tab=about" title="For the doctor" subtitle={`${s.name} · the printout for the paediatrician`} />
+        <nav className="segmented" aria-label="How far back">
           {ranges.map((r) => (
-            <Link prefetch={false} key={r.label} href={`/baby/export?from=${r.from}&to=${today}`} className="chip" aria-pressed={from === r.from && to === today}>
+            <Link prefetch={false} key={r.label} href={`/baby/export?from=${r.from}&to=${today}`} aria-current={from === r.from && to === today ? "page" : undefined}>
               {r.label}
             </Link>
           ))}
-        </div>
-      </header>
-      <div className="no-print">
-        <PrintButton label="Print or save as PDF for the paediatrician" />
-        <p className="muted mt-1 text-sm">On the phone: tap the button, then “Save as PDF” or share it straight to the clinic.</p>
+        </nav>
+        <p className="muted px-1">
+          The printout has {s.name}&apos;s averages per day, growth, vaccines, every day and every entry for these {days} days, ready for the clinic.
+        </p>
       </div>
 
-      <section className="print-page">
+      {/* The printout itself: tables suit paper, not a phone, so they appear only when printed. */}
+      <section className="print-page hidden print:block">
         <h1 className="page-title">
           {s.name}
           {s.birth_date ? ` · born ${fmtDate(s.birth_date, tz, { day: "numeric", month: "long", year: "numeric" })}` : ""}
@@ -159,7 +159,7 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
       </section>
 
       {entries.length > 0 && (
-        <section className="print-page">
+        <section className="print-page hidden print:block">
           <h2 className="text-lg font-bold">Entries</h2>
           {Array.from(byDay.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([d, list]) => (
             <div key={d} className="mt-2 break-inside-avoid">
@@ -178,6 +178,9 @@ export default async function LanaExportPage({ searchParams }: { searchParams: P
           ))}
         </section>
       )}
+      <div className="bottom-action no-print">
+        <PrintButton label="Save as PDF" className="btn btn-primary btn-lg w-full" />
+      </div>
     </div>
   );
 }
