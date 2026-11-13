@@ -134,7 +134,7 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
           All details ›
         </Link>
         {canDelete && (
-          <button type="button" className="min-h-[44px] px-2 font-bold text-[var(--danger)]" disabled={busy} onClick={() => void remove()}>
+          <button type="button" className="px-2 font-bold text-[var(--danger)]" disabled={busy} onClick={() => void remove()}>
             {confirmDelete ? "Tap again to delete" : `Delete this ${noun}`}
           </button>
         )}

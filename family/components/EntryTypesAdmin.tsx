@@ -93,13 +93,13 @@ export function EntryTypesAdmin({ types, modules }: { types: EntryType[]; module
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2">
-            <input type="checkbox" className="h-5 w-5" style={{ minHeight: 0 }} checked={f.has_end} onChange={(e) => setF({ ...f, has_end: e.target.checked })} /> Has a start and an end
+            <input type="checkbox" checked={f.has_end} onChange={(e) => setF({ ...f, has_end: e.target.checked })} /> Has a start and an end
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" className="h-5 w-5" style={{ minHeight: 0 }} checked={f.show_on_home} onChange={(e) => setF({ ...f, show_on_home: e.target.checked })} /> Show on the home screen
+            <input type="checkbox" checked={f.show_on_home} onChange={(e) => setF({ ...f, show_on_home: e.target.checked })} /> Show on the home screen
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" className="h-5 w-5" style={{ minHeight: 0 }} checked={f.is_active} onChange={(e) => setF({ ...f, is_active: e.target.checked })} /> Switched on
+            <input type="checkbox" checked={f.is_active} onChange={(e) => setF({ ...f, is_active: e.target.checked })} /> Switched on
           </label>
         </div>
         <label className="flex flex-col gap-1 text-sm">

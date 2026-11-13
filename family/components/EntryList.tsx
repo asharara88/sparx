@@ -22,8 +22,8 @@ export function EntryList({ entries, types, timezone, canEdit, canDelete, bare =
         {entries.map((e) => {
           const len = lastedMin(e);
           return (
-            <li key={e.id} className="row px-4">
-              <button type="button" className="flex min-h-[44px] w-full items-center gap-3 text-left" onClick={() => setOpen(e)}>
+            <li key={e.id} className={bare ? "row" : "row px-4"}>
+              <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(e)}>
                 <span className="w-12 shrink-0 font-semibold tabular-nums">{fmtTime(e.occurred_at, timezone)}</span>
                 <span aria-hidden className={`icon-disc tint-${tintFor(e.type_id.split(".")[1])} text-lg`} style={{ width: 32, height: 32 }}>
                   {e.icon}

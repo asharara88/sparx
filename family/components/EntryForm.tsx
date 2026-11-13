@@ -265,7 +265,7 @@ export function EntryForm(props: {
         {endApplies && (
           <div className="mt-3">
             <label className="flex items-center gap-3">
-              <input type="checkbox" className="h-7 w-7" checked={stillGoing} onChange={(e) => setStillGoing(e.target.checked)} />
+              <input type="checkbox" checked={stillGoing} onChange={(e) => setStillGoing(e.target.checked)} />
               <span className="font-semibold">Still going (no end time yet)</span>
             </label>
             {!stillGoing && (

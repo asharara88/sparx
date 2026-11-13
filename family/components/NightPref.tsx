@@ -17,8 +17,6 @@ export function NightPref({ from, to }: { from: string; to: string }) {
       </span>
       <input
         type="checkbox"
-        className="h-7 w-7"
-        style={{ minHeight: 0 }}
         checked={on}
         onChange={(e) => {
           setOn(e.target.checked);

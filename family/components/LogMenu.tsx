@@ -61,7 +61,7 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
                 </li>
               ))}
             <li className="row px-4">
-              <button type="button" className="flex min-h-[44px] w-full items-center gap-3 text-left" onClick={() => setOpen("earlier")}>
+              <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => setOpen("earlier")}>
                 <span aria-hidden className="icon-disc" style={{ width: 36, height: 36 }}>
                   <Icon name="history" size={20} />
                 </span>

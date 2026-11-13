@@ -39,11 +39,11 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
     <li className="row flex-col items-stretch">
       <div className="flex items-start gap-3">
         {canTick && a.band === "now" ? (
-          <button type="button" className={`icon-btn m-0 shrink-0 ${a.done_on ? "bg-[var(--ok)] text-white" : ""}`} style={{ width: 40, height: 40, minHeight: 40 }} aria-pressed={!!a.done_on} aria-label={a.done_on ? `Done: ${a.title}` : `Mark done: ${a.title}`} disabled={busy === a.id} onClick={() => void tick(a)}>
+          <button type="button" className="tick" aria-pressed={!!a.done_on} aria-label={a.done_on ? `Done: ${a.title}` : `Mark done: ${a.title}`} disabled={busy === a.id} onClick={() => void tick(a)}>
             <Icon name="check" size={18} />
           </button>
         ) : (
-          <span className="w-10 shrink-0" />
+          <span className="w-11 shrink-0" />
         )}
         <button type="button" className="min-w-0 grow text-left" onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}>
           <span className={`block font-semibold ${a.done_on ? "muted line-through" : ""}`}>{a.title}</span>

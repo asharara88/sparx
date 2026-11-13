@@ -55,7 +55,7 @@ export function CustodyToggle({
 
   return (
     <div className={inline ? "relative inline-block" : "relative"}>
-      <button className={inline ? "-my-3 py-3 font-semibold" : "chip"} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button className={inline ? "-my-3 whitespace-nowrap py-3 font-semibold" : "chip"} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         {shown} ▾
       </button>
       {open && (

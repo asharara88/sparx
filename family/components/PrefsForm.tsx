@@ -36,7 +36,7 @@ export function PrefsForm({ lang, simple, large }: { lang: Lang; simple: boolean
           <span className="block font-semibold">Simple screen</span>
           <span className="muted text-sm">Four big buttons instead of the full home screen.</span>
         </span>
-        <input type="checkbox" className="h-7 w-7" style={{ minHeight: 0 }} checked={simple} disabled={busy} onChange={(e) => save({ p_simple_mode: e.target.checked })} />
+        <input type="checkbox" checked={simple} disabled={busy} onChange={(e) => save({ p_simple_mode: e.target.checked })} />
       </label>
       <label className="flex items-center justify-between gap-3">
         <span>
@@ -45,8 +45,6 @@ export function PrefsForm({ lang, simple, large }: { lang: Lang; simple: boolean
         </span>
         <input
           type="checkbox"
-          className="h-7 w-7"
-          style={{ minHeight: 0 }}
           checked={large}
           disabled={busy}
           onChange={async (e) => {

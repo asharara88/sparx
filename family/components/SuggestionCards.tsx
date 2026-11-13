@@ -81,7 +81,7 @@ export function SuggestionCards({ suggestions, title = "Suggested" }: { suggesti
                 {entries.map((e, i) => (
                   <li key={i}>
                     <label className="flex items-start gap-3">
-                      <input type="checkbox" className="mt-1 h-7 w-7" checked={chosen.has(i)} onChange={() => togglePick(s, i, entries.length)} />
+                      <input type="checkbox" className="mt-1" checked={chosen.has(i)} onChange={() => togglePick(s, i, entries.length)} />
                       <span>
                         <span className="block font-semibold">
                           {EVENT_KINDS.find((k) => k.id === e.kind)?.icon} {e.date}

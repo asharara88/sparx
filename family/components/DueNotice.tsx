@@ -17,7 +17,7 @@ export function DueNotice({ fromMs, children, className = "notice notice-warn", 
   }, []);
   if (now == null || now < fromMs) return null;
   return href ? (
-    <Link prefetch={false} href={href} className={`${className} block no-underline`}>
+    <Link prefetch={false} href={href} className={`${className} flex items-center gap-2 no-underline`}>
       {children}
     </Link>
   ) : (
