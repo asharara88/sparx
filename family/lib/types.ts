@@ -410,6 +410,8 @@ export interface EntryChangeProposal {
   note: string | null;
   before: string;
   after: string;
+  /** The row as the card read it: Confirm saves only if it still says this. */
+  was?: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note: string | null };
 }
 
 /** "Delete the last nappy, it was a mistake": one saved entry, soft-deleted (care_entry_delete). */
@@ -449,6 +451,8 @@ export interface MedicineDoseProposal {
   /** Given before the minimum gap was up, and the member said it really was: medicine_give's p_force. */
   early: boolean;
   note: string | null;
+  /** When the next dose is allowed: after this one, or after a later dose already logged. */
+  next_at?: string;
 }
 
 /** "She had her 4 month jabs today": the vaccines of one visit marked given (vaccine_record, one per vaccine). */

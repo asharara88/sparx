@@ -86,16 +86,18 @@ export const CASES: EvalCase[] = [
   { id: "remember", member: "Dana", question: "Remember that white noise helps her settle", expect: { propose: "memory" } },
   { id: "forget", member: "Dana", question: "Forget what I said about white noise, it does not help any more", expect: { propose: "forget", avoid: ["\\bforgotten\\b.*\\bdone\\b"] } },
   // Anything about her, with a confirm card (Mido, 13 November: "Wafa has Lana now" got "I can't change who has Lana").
-  { id: "handover", member: "Dana", question: "Wafa has Lana now", expect: { propose: "custody", tools_none: ["propose_memory"], avoid: ["(can't|cannot|not able to) change"], max_words: 25 } },
-  { id: "taking_her", member: "Wafa", question: "I'm taking Lana now", expect: { propose: "custody", tools_none: ["propose_memory"] } },
-  { id: "fix_bottle", member: "Dana", question: "The last bottle was 90 ml, not 120", expect: { tools_any: ["care_now", "care_entries"], propose: "entry_change", tools_none: ["propose_care_entry"] } },
-  { id: "delete_mistake", member: "Mido", question: "Delete the last nappy, it was logged by mistake", expect: { tools_any: ["care_now", "care_entries"], propose: "entry_delete" } },
+  // These grade the tool the helper reaches for, not the card: what the live log holds (who has her
+  // already, a dose too soon, a visit already recorded) decides whether a card comes back.
+  { id: "handover", member: "Dana", question: "Wafa has Lana now", expect: { tools_any: ["propose_custody"], tools_none: ["propose_memory"], avoid: ["(can't|cannot|not able to) change"], max_words: 25 } },
+  { id: "taking_her", member: "Wafa", question: "I'm taking Lana now", expect: { tools_any: ["propose_custody"], tools_none: ["propose_memory"] } },
+  { id: "fix_bottle", member: "Dana", question: "The last bottle was 90 ml, not 120", expect: { tools_any: ["propose_entry_change"], tools_none: ["propose_care_entry"] } },
+  { id: "delete_mistake", member: "Mido", question: "Delete the last nappy, it was logged by mistake", expect: { tools_any: ["propose_entry_delete"], tools_none: ["propose_care_entry"] } },
   { id: "carer_no_delete", member: "Wafa", question: "Delete the last nappy, it was logged by mistake", expect: { propose: "none", mention: ["(can't|cannot|not allowed|ask (Mido|Dana|an admin))"] } },
   { id: "milk_freezer", member: "Dana", question: "Put 150 ml in the freezer, I just pumped it", expect: { propose: "milk_add", tools_none: ["propose_memory"] } },
   { id: "milk_where", member: "Dana", question: "I put a 120 ml bottle away", expect: { propose: "none", choice: ["fridge", "freezer"], max_words: 30 } },
-  { id: "bin_expired", member: "Dana", question: "I binned the expired bottle", expect: { propose: "milk_move" } },
-  { id: "vitamin_d", member: "Wafa", question: "Gave her the vitamin D drops just now", expect: { propose: "medicine_dose", avoid: NO_DOSES.filter((x) => !/drop/i.test(x)) } },
-  { id: "jabs", member: "Dana", question: "She had her 4 month jabs today", expect: { propose: "vaccines", tools_none: ["propose_calendar_event"] } },
+  { id: "bin_expired", member: "Dana", question: "I binned the expired bottle", expect: { tools_any: ["propose_milk_move"], tools_none: ["propose_care_entry"] } },
+  { id: "vitamin_d", member: "Wafa", question: "Gave her the vitamin D drops just now", expect: { tools_any: ["propose_medicine_dose"], tools_none: ["propose_memory"] } },
+  { id: "jabs", member: "Dana", question: "She had her 4 month jabs today", expect: { tools_any: ["propose_vaccines"], tools_none: ["propose_calendar_event"] } },
   { id: "sitter_no_write", member: "Lilly", question: "Put a note on the family board that we are out of nappies", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"] } },
 
   // Language and person.

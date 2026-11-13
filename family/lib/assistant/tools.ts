@@ -778,19 +778,36 @@ function remember(): AssistantTool {
 // the member confirms; the card calls the same RPC as the screen, as that member.
 // ---------------------------------------------------------------------------
 
-/** "120 ml, Bottle" from an entry's payload, as the cards say it. */
-function detailWords(payload: Record<string, unknown>): string {
-  return Object.entries(payload)
-    .filter(([k, v]) => v !== null && v !== "" && v !== undefined && !["auto_end", "checked", "medicine_id", "early", "client_id"].includes(k))
-    .map(([k, v]) => (k === "amount_ml" ? `${v} ml` : k === "amount_g" ? `${v} g` : k === "duration_min" ? `${v} min` : typeof v === "boolean" ? (v ? k.replace(/_/g, " ") : "") : String(v)))
+/** "120 ml, Bottle" from an entry's payload, as the cards say it: the type's own fields only, never the timers' bookkeeping. */
+function detailWords(payload: Record<string, unknown>, t?: EntryType): string {
+  const keys = t?.fields.length ? t.fields.map((f) => f.key) : Object.keys(payload).filter((k) => !["auto_end", "checked", "medicine_id", "early", "client_id", "timer_capped", "timer_ok", "raw_minutes"].includes(k));
+  return keys
+    .filter((k) => payload[k] !== null && payload[k] !== "" && payload[k] !== undefined)
+    .map((k) => {
+      const v = payload[k];
+      return k === "amount_ml" ? `${v} ml` : k === "amount_g" ? `${v} g` : k === "duration_min" ? `${v} min` : typeof v === "boolean" ? (v ? (t?.fields.find((f) => f.key === k)?.label ?? k.replace(/_/g, " ")) : "") : String(v);
+    })
     .filter(Boolean)
     .join(", ");
 }
 
-/** One entry in words: "Bottle, 120 ml · 07:10 → 07:30", for the before and after of a change. */
-function entryWords(e: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note?: string | null }, tz: string): string {
-  const d = detailWords(e.payload);
-  const span = `${local(e.occurred_at, tz)?.slice(11)}${e.ended_at ? ` → ${local(e.ended_at, tz)?.slice(11)}` : ""}`;
+/** "today", "yesterday" or "Sat 7 Nov": the household day of an instant, against now. */
+function dayLabel(iso: string, ctx: ToolContext): string {
+  const d = local(iso, ctx.tz)!.slice(0, 10);
+  const today = todayYmd(ctx.tz, ctx.now);
+  if (d === today) return "today";
+  if (d === addDays(today, -1)) return "yesterday";
+  return new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/**
+ * One entry in words: "Bottle, 120 ml · 07:10 → 07:30", for the before and after of a change.
+ * With `withDay`, each time says its day ("yesterday 19:00"), for a change that moves the day.
+ */
+function entryWords(e: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note?: string | null }, ctx: ToolContext, t?: EntryType, withDay = false): string {
+  const at = (iso: string) => `${withDay ? `${dayLabel(iso, ctx)} ` : ""}${local(iso, ctx.tz)?.slice(11)}`;
+  const d = detailWords(e.payload, t);
+  const span = `${at(e.occurred_at)}${e.ended_at ? ` → ${at(e.ended_at)}` : ""}`;
   return [d, span, e.note ? `“${e.note}”` : ""].filter(Boolean).join(" · ");
 }
 
@@ -889,16 +906,20 @@ function proposeEntryChange(ctx0: ToolContext): AssistantTool {
         ended = x.at;
       }
       const note = input.note === undefined || input.note === null ? undefined : String(input.note);
-      const m = mergeEntry({ occurred_at: e.occurred_at, ended_at: e.ended_at, payload: e.payload ?? {}, note: e.note }, { occurred_at: occurred, ended_at: ended, payload: changes, note });
+      const m = mergeEntry({ occurred_at: e.occurred_at, ended_at: e.ended_at, payload: e.payload ?? {}, note: e.note }, { occurred_at: occurred, ended_at: ended, payload: changes, note }, t?.fields ?? []);
       if (!m.ok) return m.error === "end_before_start" ? { error: "end_before_start", message: "That end is before the start: ask the member again." } : { error: "nothing_changed", message: "That is what the entry already says: tell the member nothing needs changing." };
       const label = t?.label ?? e.type_id;
-      const before = entryWords({ ...e, payload: e.payload ?? {} }, ctx.tz);
-      const after = entryWords(m.next, ctx.tz);
+      const dayOf = (iso: string | null) => (iso ? local(iso, ctx.tz)?.slice(0, 10) : null);
+      const movesDay = dayOf(e.occurred_at) !== dayOf(m.next.occurred_at) || (e.ended_at && m.next.ended_at ? dayOf(e.ended_at) !== dayOf(m.next.ended_at) : false);
+      const before = entryWords({ ...e, payload: e.payload ?? {} }, ctx, t, movesDay);
+      const after = entryWords(m.next, ctx, t, movesDay);
       const p: AssistantProposal = {
         id: newId(),
         kind: "entry_change",
         summary: `✏️ ${label} · ${after} (was ${before})`,
-        entry_change: { entry_id: e.id, subject_name: s.name, type_id: e.type_id, type_label: label, ...m.next, before, after },
+        // `was`: the row as the card read it. Confirm saves only if the row still says that, so
+        // an end set meanwhile ("she woke up" on Home) or another change is never overwritten.
+        entry_change: { entry_id: e.id, subject_name: s.name, type_id: e.type_id, type_label: label, ...m.next, before, after, was: { occurred_at: e.occurred_at, ended_at: e.ended_at, payload: e.payload ?? {}, note: e.note } },
         ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       entryRef(ctx, { id: e.id, type_label: label, occurred_at: e.occurred_at }, s.module_id);
@@ -922,7 +943,7 @@ function proposeEntryDelete(ctx0: ToolContext): AssistantTool {
       const { e, s, t } = found;
       if (!can(ctx.me, s.module_id, "delete")) return { error: "not_allowed", message: "You cannot delete entries for that child: ask an admin." };
       const label = t?.label ?? e.type_id;
-      const what = entryWords({ ...e, payload: e.payload ?? {} }, ctx.tz);
+      const what = entryWords({ ...e, payload: e.payload ?? {} }, ctx, t);
       const p: AssistantProposal = {
         id: newId(),
         kind: "entry_delete",
@@ -1021,9 +1042,19 @@ function proposeMilkMove(): AssistantTool {
       if (!action) return { error: "bad_action", options: ["thaw", "warmed", "used", "binned"] };
       const r = await rpc(ctx, "milk_list", {});
       if (!r.ok) return r;
-      const bottles = ((r.bottles as Bottle[]) ?? []).filter((b) => (action === "fridge" ? b.location === "freezer" : true));
-      if (!bottles.length) return { error: "nothing_there", message: action === "fridge" ? "Nothing is in the freezer to thaw." : "The stash is empty." };
-      const m = matchBottle(bottles, { id: input.bottle_id, amount_ml: input.amount_ml, location: input.location, pumped_on: input.pumped_on, expired: input.expired }, (iso) => local(iso, ctx.tz)?.slice(0, 10) ?? "");
+      const all = ((r.bottles as Bottle[]) ?? []).filter((b) => (action === "fridge" ? b.location === "freezer" : true));
+      // A bottle past its time can only be binned: thawing, warming or using it would put it
+      // back in the stash as if it were fine.
+      const bottles = action === "binned" ? all : all.filter((b) => !b.expired);
+      if (!bottles.length) return { error: "nothing_there", message: action === "fridge" ? "Nothing in the freezer can be thawed." : all.length ? "The only bottles left are past their time: they can only be binned." : "The stash is empty." };
+      const hint = { id: input.bottle_id, amount_ml: input.amount_ml, location: input.location, pumped_on: input.pumped_on, expired: action === "binned" ? input.expired : undefined };
+      const dayOfBottle = (iso: string) => local(iso, ctx.tz)?.slice(0, 10) ?? "";
+      const m = matchBottle(bottles, hint, dayOfBottle);
+      if (!m.ok && action !== "binned") {
+        const old = matchBottle(all, { ...hint, expired: input.expired }, dayOfBottle);
+        if (old.ok && old.item.expired) return { error: "expired", pumped: local(old.item.pumped_at, ctx.tz), message: "That bottle is past its time: it can only be binned. Tell the member, and offer to bin it." };
+      }
+      if (m.ok && action === "warmed" && m.item.warmed_at) return { error: "already_warmed", warmed: local(m.item.warmed_at, ctx.tz), message: "That bottle is already warmed: use it or bin it." };
       if (!m.ok) {
         return {
           error: m.error === "ambiguous" ? "which_bottle" : "no_such_bottle",
@@ -1037,7 +1068,7 @@ function proposeMilkMove(): AssistantTool {
       const p: AssistantProposal = {
         id: newId(),
         kind: "milk_move",
-        summary: `${icon} ${verb} · ${b.amount_ml} ml · ${b.location} · pumped ${local(b.pumped_at, ctx.tz)}`,
+        summary: `${icon} ${verb} · ${b.amount_ml} ml · ${b.location} · pumped ${local(b.pumped_at, ctx.tz)}${b.expired ? " · past its time" : ""}`,
         milk_move: { bottle_id: b.id, action, amount_ml: b.amount_ml, location: b.location, pumped_at: b.pumped_at },
         ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
@@ -1099,7 +1130,14 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
       if (!m.ok) {
         return m.error === "ambiguous"
           ? { error: "which_medicine", options: m.options.map((x) => x.name), message: "Ask which with ask_choice." }
-          : { error: "not_on_the_list", known: meds.map((x) => x.name), message: `Not on ${s.name}'s medicine list. Log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose; an admin can add it to the list on the Medicine screen.` };
+          : meds.length
+            ? {
+                error: "not_on_the_list",
+                known: meds.map((x) => x.name),
+                ask: { options: [...meds.map((x) => x.name), "Something else"] },
+                message: `No medicine of that name on ${s.name}'s list, but it may be one of these under another name (a brand name, a shorter name). Ask with ask_choice which it was, the list's names plus "Something else". Only if they pick "Something else", log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose.`,
+              }
+            : { error: "not_on_the_list", known: [], message: `${s.name} has no medicines on her list. Log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose; an admin can add it to the list on the Medicine screen.` };
       }
       const med = m.item;
       const w = whenGiven(input.given_at, ctx);
@@ -1134,15 +1172,17 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
         };
       }
       const dose = (typeof input.dose === "string" && input.dose.trim()) || med.dose || null;
+      // When the next one is allowed: after this dose, or after a later one already logged.
+      const nextAllowed = new Date(Math.max(at + gapMs, med.last_at && Date.parse(med.last_at) > at ? Date.parse(med.last_at) + gapMs : 0)).toISOString();
       const p: AssistantProposal = {
         id: newId(),
         kind: "medicine_dose",
         summary: `💊 ${med.name}${dose ? ` · ${dose}` : ""} · ${s.name} · ${local(w.at, ctx.tz)}${early ? " · earlier than the usual gap" : ""}`,
-        medicine_dose: { medicine_id: med.id, subject_name: s.name, name: med.name, dose, given_at: w.at, early, note: (input.note as string) || null },
+        medicine_dose: { medicine_id: med.id, subject_name: s.name, name: med.name, dose, given_at: w.at, early, note: (input.note as string) || null, next_at: nextAllowed },
         ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);
-      return { ok: true, proposal_id: p.id, shown_as: p.summary, next_allowed_after: local(new Date(Date.parse(w.at) + med.min_gap_hours * 3_600_000).toISOString(), ctx.tz), next: "Tell the member to tap Confirm. It is NOT logged yet." };
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next_allowed_after: local(nextAllowed, ctx.tz), next: "Tell the member to tap Confirm. It is NOT logged yet." };
     },
   };
 }
@@ -1175,7 +1215,12 @@ function proposeVaccines(ctx0: ToolContext): AssistantTool {
       const items = ((r.items as VaccineItem[]) ?? []).map((v) => ({ id: v.id, visit: v.visit, vaccine: v.vaccine, dose: v.dose, status: v.status, due_on: v.due_on }));
       const m = matchVaccines(items, input.which);
       if (!m.ok) {
-        const msg = { unknown: "No visit or vaccine of that name: ask which visit, with the visits as options.", already_given: "Those are already recorded as given: tell the member.", nothing_due: "No visit is due now: ask which visit it was." }[m.error];
+        const msg = {
+          unknown: "No visit or vaccine of that name: ask which visit, with ask_choice and the visits as options.",
+          already_given: "Those are already recorded as given: tell the member.",
+          nothing_due: "No visit is due now: ask which visit it was.",
+          which_visit: "More than one visit is due or overdue: ask which one with ask_choice, these visits as the options, then call again with which.",
+        }[m.error];
         return { error: m.error, visits: m.visits, message: msg };
       }
       const p: AssistantProposal = {

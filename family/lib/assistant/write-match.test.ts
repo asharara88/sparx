@@ -144,3 +144,57 @@ test("matchVaccines: a shared word is not a match (Hepatitis A is not Hepatitis 
   assert.equal(b.ok, false, "too short to be sure: asked, not guessed");
   assert.deepEqual((matchVaccines(hep, "hepatitis b") as { items: VaccineItem[] }).items.map((v) => v.id), ["hb"]);
 });
+
+const schedule: VaccineItem[] = [
+  { id: "bcg", visit: "Birth", vaccine: "BCG", status: "overdue" },
+  { id: "m12", visit: "12 months", vaccine: "MMR", status: "upcoming" },
+  { id: "w8", visit: "8 weeks", vaccine: "6-in-1", status: "due" },
+  { id: "m18", visit: "18 months", vaccine: "MMR", dose: "2", status: "upcoming" },
+  { id: "y10", visit: "10 to 11 years", vaccine: "Meningococcal ACWY", status: "upcoming" },
+  { id: "y13", visit: "13 years", vaccine: "HPV", status: "upcoming" },
+  { id: "rota", visit: "4 months", vaccine: "Rotavirus (Rotarix, oral)", status: "overdue" },
+  { id: "polio", visit: "6 months", vaccine: "Oral polio (bOPV)", status: "upcoming" },
+];
+
+test("matchVaccines: an age is compared whole, in any unit; never by a piece of another", () => {
+  for (const said of ["1 year", "one year", "1 yr", "her 1 year jabs", "12 months"]) {
+    const r = matchVaccines(schedule, said);
+    assert.equal(r.ok && r.visit, "12 months", said);
+  }
+  assert.equal((matchVaccines(schedule, "2 months") as { visit: string }).visit, "8 weeks");
+  assert.equal(matchVaccines(schedule, "3 years").ok, false, "not 13 years");
+  assert.equal(matchVaccines(schedule, "8 months").ok, false, "not 18 months");
+});
+
+test("matchVaccines: with nothing said and two visits open, which one is a question", () => {
+  const r = matchVaccines(schedule, "");
+  assert.equal(!r.ok && r.error, "which_visit");
+  assert.deepEqual(!r.ok && [...r.visits].sort(), ["4 months", "8 weeks", "Birth"]);
+});
+
+test("matchVaccines: 'oral polio' is the polio vaccine, not rotavirus (oral)", () => {
+  const r = matchVaccines(schedule, "oral polio");
+  assert.deepEqual(r.ok && r.items.map((v) => v.id), ["polio"]);
+});
+
+test("matchMedicine: the words in any order", () => {
+  const meds = [{ id: "d", name: "Vitamin D drops" }, { id: "p", name: "Paracetamol (Calpol)" }];
+  assert.equal((matchMedicine(meds, "drops of vitamin d") as { item: { id: string } }).item.id, "d");
+  assert.equal((matchMedicine(meds, "calpol") as { item: { id: string } }).item.id, "p");
+  assert.equal(matchMedicine(meds, "nurofen").ok, false);
+});
+
+test("mergeEntry: a bottle saved with its end at its start moves both", () => {
+  const instant = { occurred_at: "2026-11-13T03:30:00Z", ended_at: "2026-11-13T03:30:00Z", payload: { method: "Bottle", amount_ml: 120 }, note: null };
+  const later = mergeEntry(instant, { occurred_at: "2026-11-13T04:00:00Z" });
+  assert.ok(later.ok, "moving it later is not an end before the start");
+  assert.equal(later.ok && later.next.ended_at, "2026-11-13T04:00:00Z");
+  const earlier = mergeEntry(instant, { occurred_at: "2026-11-13T03:00:00Z" });
+  assert.equal(earlier.ok && earlier.next.ended_at, "2026-11-13T03:00:00Z", "and earlier is not a 30 minute feed");
+});
+
+test("mergeEntry: a field the new choice hides goes (Bottle to Breast drops the ml)", () => {
+  const fields = [{ key: "method" }, { key: "amount_ml", show_if: { method: "Bottle" } }, { key: "side", show_if: { method: "Breast" } }];
+  const r = mergeEntry({ occurred_at: "2026-11-13T03:00:00Z", ended_at: null, payload: { method: "Bottle", amount_ml: 120 }, note: null }, { payload: { method: "Breast", side: "Left" } }, fields);
+  assert.deepEqual(r.ok && r.next.payload, { method: "Breast", side: "Left" });
+});

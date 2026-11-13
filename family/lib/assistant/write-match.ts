@@ -51,6 +51,13 @@ export function matchMedicine<T extends { id: string; name: string }>(meds: T[],
   const part = meds.filter((m) => norm(m.name).includes(q) || q.includes(norm(m.name)));
   if (part.length === 1) return { ok: true, item: part[0] };
   if (part.length > 1) return { ok: false, error: "ambiguous", options: part };
+  // The words in any order ("drops of vitamin d" for "Vitamin D drops"): every word said that
+  // is not a filler is a word of the name, or the start of one.
+  const filler = new Set(["of", "the", "her", "his", "some", "a", "an", "dose", "doses", "ml", "drop"]);
+  const heard = q.split(" ").filter((w) => w && !filler.has(w) && !/^\d/.test(w));
+  const byWords = heard.length ? meds.filter((m) => heard.every((w) => norm(m.name).split(" ").some((x) => x === w || (w.length >= 3 && x.startsWith(w))))) : [];
+  if (byWords.length === 1) return { ok: true, item: byWords[0] };
+  if (byWords.length > 1) return { ok: false, error: "ambiguous", options: byWords };
   return { ok: false, error: "unknown", options: meds };
 }
 
@@ -67,7 +74,8 @@ export interface Bottle {
 /**
  * A bottle in the stash from what was said: its amount, where it is, the day it was pumped
  * ("YYYY-MM-DD", household day), or its id. With nothing said and one bottle, that one; else
- * ask. Expired bottles only match when asked for ("bin the old one": expired true), or by id.
+ * ask. "The expired one" (expired true) keeps only bottles past their time; otherwise the
+ * caller passes the bottles that may take the action (an expired bottle can only be binned).
  */
 export function matchBottle(bottles: Bottle[], hint: { id?: unknown; amount_ml?: unknown; location?: unknown; pumped_on?: unknown; expired?: unknown }, dayOf: (iso: string) => string): Match<Bottle> {
   const id = String(hint.id ?? "").trim().toLowerCase();
@@ -111,14 +119,17 @@ export interface VaccineItem {
  * one vaccine by name ("rotavirus"), or nothing (the earliest visit that is due or overdue).
  * Only vaccines not recorded yet are offered; a visit given in full says so.
  */
-export function matchVaccines(items: VaccineItem[], said: unknown): { ok: true; visit: string; items: VaccineItem[] } | { ok: false; error: "unknown" | "already_given" | "nothing_due"; visits: string[] } {
+export function matchVaccines(items: VaccineItem[], said: unknown): { ok: true; visit: string; items: VaccineItem[] } | { ok: false; error: "unknown" | "already_given" | "nothing_due" | "which_visit"; visits: string[] } {
   const open = items.filter((v) => v.status !== "given");
   const visits = [...new Set(items.map((v) => v.visit))];
   const q = norm(said).replace(/\b(jabs?|vaccines?|vaccinations?|shots?|visit|the|her|his|check ?up)\b/g, " ").replace(/\s+/g, " ").trim();
   if (!q) {
-    const firstDue = open.find((v) => v.status === "overdue" || v.status === "due");
-    if (!firstDue) return { ok: false, error: "nothing_due", visits };
-    return { ok: true, visit: firstDue.visit, items: open.filter((v) => v.visit === firstDue.visit) };
+    // "She had her jabs": the one visit that is due or overdue. With two or more open (an
+    // earlier visit never recorded), which one is a question, never the earliest by default.
+    const dueVisits = [...new Set(open.filter((v) => v.status === "overdue" || v.status === "due").map((v) => v.visit))];
+    if (!dueVisits.length) return { ok: false, error: "nothing_due", visits };
+    if (dueVisits.length > 1) return { ok: false, error: "which_visit", visits: dueVisits };
+    return { ok: true, visit: dueVisits[0], items: open.filter((v) => v.visit === dueVisits[0]) };
   }
   // "4 month" / "4 months" / "four months": compare on the number and the unit's first letter.
   const words: Record<string, string> = { one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", eight: "8", nine: "9", ten: "10", twelve: "12" };
@@ -131,7 +142,22 @@ export function matchVaccines(items: VaccineItem[], said: unknown): { ok: true; 
       .replace(/\s+/g, " ")
       .trim();
   const k = key(q);
-  const visit = visits.find((v) => key(v) === k) ?? visits.find((v) => key(v).includes(k) && /\d/.test(k));
+  // An age said one way matches a visit written another ("1 year" is "12 months", "8 weeks"
+  // is "2 months"), compared whole: "1 year" never matches "10 to 11 years".
+  const months = (x: string): number | null => {
+    const m = /^(\d+)(w|m|y)$/.exec(x);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return m[2] === "y" ? n * 12 : m[2] === "m" ? n : Math.round(n / 4.345);
+  };
+  const visit =
+    visits.find((v) => key(v) === k) ??
+    (() => {
+      const want = months(k);
+      if (want === null) return undefined;
+      const same = visits.filter((v) => months(key(v)) === want);
+      return same.length === 1 ? same[0] : undefined;
+    })();
   if (visit) {
     const left = open.filter((v) => v.visit === visit);
     return left.length ? { ok: true, visit, items: left } : { ok: false, error: "already_given", visits };
@@ -164,7 +190,11 @@ export interface EntryNow {
  * changed is carried over as it is. `ended_at: ""` clears the end ("she's still asleep").
  * Payload changes merge into the old payload; a key set to null is dropped.
  */
-export function mergeEntry(now: EntryNow, change: { occurred_at?: string; ended_at?: string | ""; payload?: Record<string, unknown>; note?: string | null }): { ok: true; next: EntryNow; changed: string[] } | { ok: false; error: "end_before_start" | "nothing_changed" } {
+export function mergeEntry(
+  now: EntryNow,
+  change: { occurred_at?: string; ended_at?: string | ""; payload?: Record<string, unknown>; note?: string | null },
+  fields: { key: string; show_if?: Record<string, string> }[] = [],
+): { ok: true; next: EntryNow; changed: string[] } | { ok: false; error: "end_before_start" | "nothing_changed" } {
   const payload: Record<string, unknown> = { ...now.payload };
   delete payload.auto_end;
   const changed: string[] = [];
@@ -179,9 +209,20 @@ export function mergeEntry(now: EntryNow, change: { occurred_at?: string; ended_
       changed.push(k);
     }
   }
+  // A field the entry's choices now hide goes, as the edit sheet drops it: a feed changed from
+  // Bottle to Breast keeps no amount_ml (fields' show_if, e.g. amount_ml shows for Bottle).
+  for (const f of fields) {
+    if (f.show_if && f.key in payload && !Object.entries(f.show_if).every(([k, v]) => payload[k] === v)) {
+      delete payload[f.key];
+      if (!changed.includes(f.key)) changed.push(f.key);
+    }
+  }
   const occurred_at = change.occurred_at ?? now.occurred_at;
   if (change.occurred_at && Date.parse(change.occurred_at) !== Date.parse(now.occurred_at)) changed.push("start");
-  const ended_at = change.ended_at === "" ? null : change.ended_at ?? now.ended_at;
+  // A bottle from Home is saved with its end at its start: moving it moves both, as the edit
+  // sheet does, so "it was at 8:00" never leaves an end at the old time.
+  const instant = now.ended_at !== null && Date.parse(now.ended_at) === Date.parse(now.occurred_at);
+  const ended_at = change.ended_at === "" ? null : change.ended_at ?? (instant && change.occurred_at ? occurred_at : now.ended_at);
   if (change.ended_at !== undefined && (ended_at ? Date.parse(ended_at) : null) !== (now.ended_at ? Date.parse(now.ended_at) : null)) changed.push("end");
   const note = change.note === undefined ? now.note : change.note?.trim() || null;
   if (change.note !== undefined && (note ?? "") !== (now.note ?? "")) changed.push("note");

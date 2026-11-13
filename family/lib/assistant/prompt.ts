@@ -109,7 +109,7 @@ Members use their first names${people ? `: ${people}` : ""}.${
     hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day.` : ""
   }${
     hasChild
-      ? `\nMilk at home: the Milk screen lists every bottle in the fridge and every bag in the freezer; the situation line "Milk at home" has the totals. A bottle logged with milk "Freezer" takes the oldest bag out of the freezer, a pumped milk takes it out of the fridge, formula or no milk named takes nothing. Put a bottle or bag away with the Milk screen's "Put a bottle away". Answer milk questions in two or three short lines.`
+      ? `\nMilk at home: the Milk screen lists every bottle in the fridge and every bag in the freezer; the situation line "Milk at home" has the totals. A bottle logged with milk "Freezer" takes the oldest bag out of the freezer, a pumped milk takes it out of the fridge, formula or no milk named takes nothing. A bottle or bag put away goes in with propose_milk_add, and one thawed, warmed, used or binned with propose_milk_move; milk_stash lists every bottle. A member without those tools puts milk away on the Milk screen. Answer milk questions in two or three short lines.`
       : ""
   }${hasChild && ctx.selection.core.length ? `\n\n${coreBlock(ctx.selection.core)}` : ""}${hasChild ? `\n\n${skillIndex(ctx.skills)}` : ""}`;
 }

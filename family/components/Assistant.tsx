@@ -76,6 +76,13 @@ function recognitionCtor(): (new () => Recognition) | null {
  * `embedded`: inside Home's "Tell me" sheet. No page header, no earlier chats, a fresh chat each
  * time it opens (the Ask screen's own chat in this tab is left alone), the box focused.
  */
+/** Whether a log entry still says what a change card read from it (times, fields, note). */
+function sameRow(a: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown> | null; note: string | null }, b: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note: string | null }): boolean {
+  const ms = (x: string | null) => (x ? Date.parse(x) : null);
+  const flat = (o: Record<string, unknown> | null) => JSON.stringify(Object.entries(o ?? {}).sort(([x], [y]) => x.localeCompare(y)));
+  return ms(a.occurred_at) === ms(b.occurred_at) && ms(a.ended_at) === ms(b.ended_at) && flat(a.payload) === flat(b.payload) && (a.note ?? "") === (b.note ?? "");
+}
+
 export function Assistant({ suggestions, chats = [], initial = null, autoAsk = null, screen = null, quick = null, embedded = false }: { suggestions: string[]; chats?: ChatSummary[]; initial?: AskChat | null; autoAsk?: string | null; screen?: string | null; quick?: QuickContext | null; embedded?: boolean }) {
   const me = useMe();
   const router = useRouter();
@@ -136,9 +143,19 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     }
     if (p.kind === "medicine_dose" && p.medicine_dose) {
       const c = p.medicine_dose;
-      return `${c.name}${c.dose ? `, ${c.dose}` : ""}, ${c.subject_name}, ${spokenWhen(c.given_at, tz, lang)}.`;
+      return `${c.name}${c.dose ? `, ${c.dose}` : ""}, ${c.subject_name}, ${spokenWhen(c.given_at, tz, lang)}${c.early ? ", earlier than the usual gap" : ""}.`;
     }
     if (p.kind === "milk_add" && p.milk_add) return `${p.milk_add.amount_ml} ml, ${p.milk_add.location}, ${spokenWhen(p.milk_add.pumped_at, tz, lang)}.`;
+    if (p.kind === "milk_move" && p.milk_move) {
+      const c = p.milk_move;
+      const verb = { fridge: "Thaw", warmed: "Warmed", used: "Used", binned: "Bin" }[c.action];
+      return `${verb}: ${c.amount_ml} ml, ${c.location}, pumped ${spokenWhen(c.pumped_at, tz, lang)}.`;
+    }
+    if (p.kind === "vaccines" && p.vaccines) {
+      const c = p.vaccines;
+      const day = dayWord(`${c.given_on}T12:00`, toLocalInput(new Date().toISOString(), tz)).replace(/\s\d{2}:\d{2}$/, "");
+      return `${c.visit}: ${c.items.map((v) => v.vaccine.replace(/\s*\(.*\)$/, "")).join(", ")}, given ${day}.`;
+    }
     return p.summary.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\s+·\s+/g, ", ").trim();
   }
   /** A card's line as people read it: "🍼 Feed · Bottle, 120 ml · today 14:00", never "2026-11-09 14:00". */
@@ -646,6 +663,13 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         saved("/", t(lang, "custodySet", { name: c.member_name, child: c.subject_name }));
       } else if (p.kind === "entry_change" && p.entry_change) {
         const c = p.entry_change;
+        // care_entry_update writes every column, so the card saves only over the row it read:
+        // an end set since ("she woke up" on Home) or another change is never undone.
+        const { data: row, error: readError } = await supabase.from("care_entries").select("occurred_at,ended_at,payload,note,deleted_at").eq("id", c.entry_id).maybeSingle();
+        if (readError) throw new Error(readError.message);
+        const now = row as { occurred_at: string; ended_at: string | null; payload: Record<string, unknown> | null; note: string | null; deleted_at: string | null } | null;
+        if (!now || now.deleted_at) throw new Error("That entry has been deleted since.");
+        if (c.was && !sameRow(now, c.was)) throw new Error("That entry changed since this card was made. Ask again to see it as it is now.");
         await rpcOk(supabase.rpc("care_entry_update", { p_id: c.entry_id, p_occurred_at: c.occurred_at, p_ended_at: c.ended_at, p_payload: c.payload, p_note: c.note }));
         saved(`/entry/${c.entry_id}`, t(lang, "changed"));
       } else if (p.kind === "entry_delete" && p.entry_delete) {
@@ -662,7 +686,9 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       } else if (p.kind === "medicine_dose" && p.medicine_dose) {
         const c = p.medicine_dose;
         const out = await rpcOk(supabase.rpc("medicine_give", { p_id: c.medicine_id, p_dose: c.dose, p_occurred_at: c.given_at, p_note: c.note, p_force: c.early }));
-        const next = typeof out.next_at === "string" ? fmtTime(out.next_at, tz) : null;
+        // The card's own time when it has one: it counts a later dose already logged.
+        const nextIso = c.next_at ?? (typeof out.next_at === "string" ? out.next_at : null);
+        const next = nextIso ? dayWord(toLocalInput(nextIso, tz), toLocalInput(new Date().toISOString(), tz)).replace(/^today /, "") : null;
         saved(typeof out.id === "string" ? `/entry/${out.id}` : "/baby/medicine", next ? t(lang, "doseLogged", { time: next }) : `${t(lang, "saved")}.`);
       } else if (p.kind === "vaccines" && p.vaccines) {
         const c = p.vaccines;
