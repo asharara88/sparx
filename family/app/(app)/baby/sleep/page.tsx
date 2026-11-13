@@ -44,11 +44,11 @@ export default async function SleepPage() {
   const lastNight = days.find((d) => d.day === addDays(today, -1));
   const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
   const asleep = summary.ongoing.find((e) => e.type_id === sleepType.id) ?? null;
-  const name = summary.subject.name;
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/" title="Sleep" subtitle={asleep ? `${name} is asleep.` : `${name} is awake.`} />
+      {/* No subtitle: Sleep today below says what she is doing and since when. */}
+      <PageHeader back="/" title="Sleep" />
       {can(me, "lana", "add") && <QuickSleep subjectId={summary.subject.id} typeId={sleepType.id} asleep={asleep} timezone={tz} />}
       <SleepDay entries={entries} day={today} timezone={tz} nowIso={new Date().toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage.naps} />
       {lastNight && lastNight.night_sleep_min > 0 && (
@@ -56,11 +56,13 @@ export default async function SleepPage() {
           <h2 id="last-night-h" className="section-title">Last night</h2>
           <p className="text-2xl font-bold">{fmtDuration(lastNight.night_sleep_min)} of sleep</p>
           <p className="text-sm">
-            Longest stretch {fmtDuration(lastNight.longest_stretch_min)} · {lastNight.night_wakes} {lastNight.night_wakes === 1 ? "wake-up" : "wake-ups"} · {lastNight.night_feeds} {lastNight.night_feeds === 1 ? "night feed" : "night feeds"}
+            {/* Night feeds are the Feeds screen's number; "0 wake-ups" beside them read as a contradiction. */}
+            Longest stretch {fmtDuration(lastNight.longest_stretch_min)}
+            {lastNight.night_wakes > 0 ? ` · ${lastNight.night_wakes} ${lastNight.night_wakes === 1 ? "wake-up" : "wake-ups"}` : ""}
           </p>
         </section>
       )}
-      <DayEntries entries={sleeps} types={summary.types} timezone={tz} today={today} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} tint="sleep" noun={["sleep", "sleeps"]} />
+      <DayEntries entries={sleeps} types={summary.types} timezone={tz} today={today} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} noun={["sleep", "sleeps"]} />
       {days.length > 0 && (
         <Fold title="The week" icon="moon" tint="sleep" hint={`usually ${range(stage.naps)} naps`}>
           <ul className="flex flex-col">

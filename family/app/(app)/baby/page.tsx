@@ -32,7 +32,7 @@ import { MoodPattern } from "@/components/MoodPattern";
 import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { checkEntries } from "@/lib/entry-checks";
-import { Fold, type Tint } from "@/components/Fold";
+import { Fold } from "@/components/Fold";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -169,7 +169,7 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
     <>
       <WeekColumns entries={entries} days={days.slice(-7)} prevDays={days.slice(0, 7)} timezone={tz} today={today} />
       {full.length > 0 && (
-        <Fold title={`Against ${pr.their} age`} icon="trend" tint="guide" hint="a day this week">
+        <Fold title={`Against ${pr.their} age`} icon="trend" hint="a day this week">
           <AgeCheck
             bare
             totals={{ breast_count: mean("breast_count"), bottle_count: mean("bottle_count"), bottle_ml: mean("bottle_ml"), diapers_wet: mean("diapers_wet"), diapers_dirty: mean("diapers_dirty"), sleep_min: mean("sleep_min"), night_sleep_min: mean("night_sleep_min") }}
@@ -215,33 +215,35 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
 
 function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today: string }) {
   const s = summary.subject;
-  const groups: { title: string; rows: { href: string; icon: IconName; label: string; tint: Tint; show?: boolean }[] }[] = [
+  // Built like More's settings rows (a glyph, medium weight): a feature's colour only where the
+  // row is that feature (medicine), and red for Emergency (DESIGN.md rule 7).
+  const groups: { title: string; rows: { href: string; icon: IconName; label: string; tone?: "meds" | "danger"; show?: boolean }[] }[] = [
     {
       title: "Health",
       rows: [
-        { href: "/baby/doctor", icon: "phone", label: "Doctor", tint: "feed" },
-        { href: "/baby/when-to-call", icon: "clipboard", label: "When to call", tint: "diaper" },
-        { href: "/baby/vaccines", icon: "syringe", label: "Vaccines", tint: "meds" },
-        { href: "/baby/medicine", icon: "clock", label: "Medicine", tint: "meds" },
-        { href: "/baby/emergency", icon: "bell", label: "Emergency", tint: "danger" },
-        { href: "/baby/export", icon: "printer", label: "For the doctor", tint: "guide" },
+        { href: "/baby/doctor", icon: "phone", label: "Doctor" },
+        { href: "/baby/when-to-call", icon: "clipboard", label: "When to call" },
+        { href: "/baby/vaccines", icon: "syringe", label: "Vaccines", tone: "meds" },
+        { href: "/baby/medicine", icon: "clock", label: "Medicine", tone: "meds" },
+        { href: "/baby/emergency", icon: "bell", label: "Emergency", tone: "danger" },
+        { href: "/baby/export", icon: "printer", label: "For the doctor" },
       ],
     },
     {
       title: "Growing",
       rows: [
-        { href: "/baby/trends", icon: "trend", label: "Growth and trends", tint: "house" },
-        { href: "/baby/milestones", icon: "star", label: "Firsts", tint: "sleep" },
-        { href: "/baby/weeks", icon: "calendar", label: "Week by week", tint: "cal" },
-        { href: "/baby/activities", icon: "sparkles", label: "Play", tint: "pump" },
-        { href: "/baby/story", icon: "note", label: "Story", tint: "notes" },
+        { href: "/baby/trends", icon: "trend", label: "Growth and trends" },
+        { href: "/baby/milestones", icon: "star", label: "Firsts" },
+        { href: "/baby/weeks", icon: "calendar", label: "Week by week" },
+        { href: "/baby/activities", icon: "sparkles", label: "Play" },
+        { href: "/baby/story", icon: "note", label: "Story" },
       ],
     },
     {
       title: "Care",
       rows: [
-        { href: "/baby/handover", icon: "users", label: "Handover", tint: "house" },
-        { href: "/ask?from=child", icon: "chat", label: `Ask about ${s.name}`, tint: "guide", show: can(me, "assistant", "view") },
+        { href: "/baby/handover", icon: "users", label: "Handover" },
+        { href: "/ask?from=child", icon: "chat", label: `Ask about ${s.name}`, show: can(me, "assistant", "view") },
       ],
     },
   ];
@@ -255,21 +257,19 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
       {groups.map((g) => (
         <section key={g.title} className="flex flex-col gap-2">
           <h2 className="section-title">{g.title}</h2>
-          <ul className="card flex flex-col p-0">
+          <nav aria-label={g.title} className="card flex flex-col p-0">
             {g.rows
               .filter((r) => r.show !== false)
               .map((r) => (
-                <li key={r.href} className="row px-4">
-                  <Link prefetch={false} href={r.href} className="row-link flex min-h-[44px] w-full items-center gap-3">
-                    <span className={`icon-disc tint-${r.tint}`} style={{ width: 36, height: 36 }}>
-                      <Icon name={r.icon} size={19} />
-                    </span>
-                    <span className="flex-1 font-semibold">{r.label}</span>
-                    <Icon name="forward" size={18} className="muted" />
-                  </Link>
-                </li>
+                <Link prefetch={false} key={r.href} href={r.href} className="row row-link px-4">
+                  <span className={`flex w-8 shrink-0 justify-center ${r.tone === "meds" ? "text-[var(--meds-fg)]" : r.tone === "danger" ? "text-[var(--danger)]" : "text-[var(--accent)]"}`}>
+                    <Icon name={r.icon} size={20} />
+                  </span>
+                  <span className="flex-1 font-medium">{r.label}</span>
+                  <Icon name="forward" size={18} className="muted" />
+                </Link>
               ))}
-          </ul>
+          </nav>
         </section>
       ))}
     </>

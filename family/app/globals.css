@@ -559,6 +559,11 @@ h2.section-title { letter-spacing: 0.06em; }
 /* A card inside a fold or a card is not a second box: it sits flat on its parent
    (DESIGN.md, "Built for a phone": no card in a card). */
 .fold-body .card, .card .card { background: transparent; border: none; box-shadow: none; padding: 0; border-radius: 0; }
+/* A fold as a row of a white list (earlier days, Week by week): no box of its own, body text,
+   a hairline between them. */
+.fold.fold-flat { border: none; border-radius: 0; background: transparent; box-shadow: none; }
+.fold.fold-flat > summary { font-family: inherit; font-weight: 600; font-size: 1rem; letter-spacing: 0; min-height: 48px; }
+.fold.fold-flat + .fold.fold-flat { border-top: 1px solid var(--line); }
 
 /* ---- hero ------------------------------------------------------------------ */
 .hero {
@@ -815,6 +820,13 @@ h2.section-title { letter-spacing: 0.06em; }
   margin-top: 4px;
 }
 .bottom-action > .btn { box-shadow: 0 6px 24px rgb(0 0 0 / 0.18); }
+/* On a short screen it rests at the bottom by the thumb, not mid-screen with empty space under
+   it (Milk, the nanny's Today): the screen's column fills the height and the action takes the
+   space left above it. */
+main:has(.bottom-action) { display: flex; flex-direction: column; }
+main:has(.bottom-action) > div { flex: 1 0 auto; display: flex; flex-direction: column; }
+main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 auto; }
+.flex-col > .bottom-action { margin-top: auto; }
 
 /* ---- Home's log rows (DESIGN.md, "Home"): an activity per row, the row opens its sheet,
    the round button on the right is the one-tap action (start, stop, add). */
@@ -886,7 +898,8 @@ h2.section-title { letter-spacing: 0.06em; }
 .week-col { position: relative; display: block; border-radius: 8px; background: var(--card-2); }
 .week-col-today { box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--accent) 35%, transparent); }
 .week-sleep { position: absolute; left: 3px; right: 3px; border-radius: 5px; background: color-mix(in oklab, var(--sleep-fg) 70%, transparent); }
-.week-feed { position: absolute; left: 2px; right: 2px; height: 4px; border-radius: 2px; background: var(--feed-fg); }
+/* Feed ticks in the feed colour, softened so they do not read as red ("act now"). */
+.week-feed { position: absolute; left: 2px; right: 2px; height: 4px; border-radius: 2px; background: color-mix(in oklab, var(--feed-fg) 55%, var(--feed)); }
 .week-now { position: absolute; left: -2px; right: -2px; height: 2px; background: var(--accent); }
 /* The bar's ＋ (DESIGN.md, "The bottom bar"): the log sheet from any screen, raised at the thumb. */
 .tab-log { justify-content: center; }

@@ -7,6 +7,7 @@ import { can } from "@/lib/types";
 import { childName } from "@/lib/names";
 import { Icon, type IconName } from "@/components/Icon";
 import { usePageSwap } from "@/components/PageSwap";
+import { markLogFrom, openLogHere } from "@/lib/log-bus";
 
 /**
  * Home, the child, ＋, Milk, More (DESIGN.md, "The bottom bar"): the ＋ in the middle opens
@@ -19,8 +20,19 @@ export function Nav() {
   const swap = usePageSwap();
   // The skeleton shows the moment a tab is tapped (rule 9): a plain tap only, not a
   // click that opens the tab elsewhere (a modifier key, a middle button) and leaves this page.
+  const plain = (e: React.MouseEvent) => !(e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
   const go = (e: React.MouseEvent, href: string) => {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (plain(e)) swap(href);
+  };
+  // ＋ opens the log sheet where the person is when the screen has one (Home, the child's page);
+  // from anywhere else it goes to the child's page, and closing the sheet comes back here.
+  const log = (e: React.MouseEvent, href: string) => {
+    if (!plain(e)) return;
+    if (openLogHere()) {
+      e.preventDefault();
+      return;
+    }
+    markLogFrom(path);
     swap(href);
   };
   const staff = !can(me, "lana", "view");
@@ -47,7 +59,7 @@ export function Nav() {
           if (it.log)
             return (
               <li key={it.href}>
-                <Link prefetch={false} href={it.href} onClick={(e) => go(e, it.href)} className="tab tab-log" aria-label="Log something">
+                <Link prefetch={false} href={it.href} onClick={(e) => log(e, it.href)} className="tab tab-log" aria-label="Log something">
                   <span className="tab-log-disc">
                     <Icon name="plus" size={28} strokeWidth={2.4} />
                   </span>

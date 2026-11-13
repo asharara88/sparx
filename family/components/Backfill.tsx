@@ -8,6 +8,7 @@ import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { newClientId, sendOrQueue } from "@/lib/offline";
 import { fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
+import { iconFor } from "@/lib/tints";
 import { clockMarks, maxDurationMin, type When, whenToIso } from "@/lib/when";
 import { bottleChoices, NAP_LENGTHS, overlappingSleep } from "@/lib/backlog";
 import { WhenChips } from "@/components/WhenChips";
@@ -158,7 +159,11 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
       <div className="flex flex-wrap gap-2" role="group" aria-label="What">
         {choices.map((c) => (
           <button key={c.key} type="button" className="chip min-h-[48px]" aria-pressed={what === c.key} disabled={busy} onClick={() => { setWhat(c.key); setLasted(null); setClash(null); setDetail(c.key === "bottle" && bottle.usual ? { amount_ml: bottle.usual } : {}); }}>
-            <span aria-hidden>{c.icon}</span> {c.label}
+            {(() => {
+              const icon = iconFor(c.type.key);
+              return icon ? <Icon name={icon} size={18} /> : <span aria-hidden>{c.icon}</span>;
+            })()}{" "}
+            {c.label}
           </button>
         ))}
       </div>

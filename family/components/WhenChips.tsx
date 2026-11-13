@@ -10,7 +10,7 @@ import { TimeBox } from "./TimeBox";
  * Clock times, not "80 min ago", so it matches the clock on the wall. Collapsed to one line
  * until tapped, so the one-tap screen stays one tap; picking a chip folds it back.
  */
-export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null, onValid }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null; /** False while a typed time is incomplete or refused: the sheet holds its buttons. */ onValid?: (ok: boolean) => void }) {
+export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null, onValid, nowChip = "always" }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null; /** False while a typed time is incomplete or refused: the sheet holds its buttons. */ onValid?: (ok: boolean) => void; /** "whenEarlier": under a big now button the Now chip shows only once an earlier time is picked (to go back), and the grid keeps 12 cells. */ nowChip?: "always" | "whenEarlier" }) {
   const [open, setOpen] = useState(alwaysOpen || defaultOpen);
   // The time came from the box (a typed time that happens to match a chip is still typed).
   const [typed, setTyped] = useState(false);
@@ -28,14 +28,18 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
     onChange(w);
     if (!alwaysOpen) setOpen(false);
   };
-  const times = clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), marks);
+  const showNow = nowChip === "always" || value.kind !== "now";
+  // Under a big now button: twelve clock times, or Now and eleven once an earlier one is picked.
+  const times = clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), nowChip === "whenEarlier" && showNow ? marks - 1 : marks);
   const onDay = day;
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={label}>
       <div className="grid grid-cols-4 gap-2">
-        <button type="button" className="chip px-0" aria-pressed={value.kind === "now"} disabled={disabled} onClick={() => pick(NOW)}>
-          Now
-        </button>
+        {showNow && (
+          <button type="button" className="chip px-0" aria-pressed={value.kind === "now"} disabled={disabled} onClick={() => pick(NOW)}>
+            Now
+          </button>
+        )}
         {times.map((local) => (
           <button key={local} type="button" className="chip px-0 tabular-nums" aria-pressed={value.kind === "at" && value.local === local} disabled={disabled} onClick={() => pick({ kind: "at", local })}>
             {local.slice(11)}

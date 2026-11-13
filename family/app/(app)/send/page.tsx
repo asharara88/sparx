@@ -24,15 +24,16 @@ export default async function TodayPage() {
   const attendance = att as AttendanceData | RpcError | null;
   const calendar = cal as CalendarData | RpcError | null;
   const todays = calendar && calendar.ok ? calendar.events.filter((e) => e.date === today) : [];
+  const mine = attendance && attendance.ok ? (attendance.open.find((o) => o.member_id === me.member.id) ?? null) : null;
   return (
     <div className="flex flex-col gap-4">
       <header className="page-header page-header-large">
         <h1 className="page-title">Today</h1>
+        <p className="page-subtitle">{mine ? `Here since ${fmtTime(mine.in_at, tz)}` : "Not checked in yet"}</p>
       </header>
-      <AttendanceButton open={attendance && attendance.ok ? (attendance.open.find((o) => o.member_id === me.member.id) ?? null) : null} timezone={tz} />
       {calendar && calendar.ok && (
         <section className="card">
-          <h2 className="text-xl font-bold">Today at home</h2>
+          <h2 className="text-xl font-bold">On the calendar</h2>
           {todays.length === 0 ? (
             <p className="muted mt-1">Nothing planned today.</p>
           ) : (
@@ -48,6 +49,8 @@ export default async function TodayPage() {
           )}
         </section>
       )}
+      {/* Checking in and out is the screen's one action: at the bottom, by the thumb. */}
+      <AttendanceButton bottom open={mine} timezone={tz} />
     </div>
   );
 }

@@ -162,12 +162,17 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   return (
     <div className="flex flex-col gap-4" dir={dirOf(lang)} lang={lang}>
       <header className="page-header page-header-large">
-        <h1 className="page-title">{L("title")}</h1>
+        {/* Emergency where the grandmother can find it, as on the full Home (HomeHeader). */}
+        <div className="flex items-center gap-3">
+          <h1 className="page-title min-w-0 flex-1">{L("title")}</h1>
+          <Link prefetch={false} href="/baby/emergency" className="round-btn tint-danger" aria-label={L("emergency")}>
+            <Icon name="phone" size={21} />
+          </Link>
+        </div>
         <p className="text-xl">{status}</p>
-        <p className="muted">
-          {lastFeed ? `${L("lastFeed")}: ${fmtTime(lastFeed.occurred_at, timezone)} (${fmtAgo(lang, minutesSince(lastFeed.ended_at ?? lastFeed.occurred_at))})` : ""}
-          {lastDiaper ? ` · ${L("lastDiaper")}: ${fmtTime(lastDiaper.occurred_at, timezone)}` : ""}
-        </p>
+        {/* How long ago, one fact a line, as Home's rows say it: a clock time alone read as today. */}
+        {lastFeed && <p className="muted">{`${L("lastFeed")} ${fmtAgo(lang, minutesSince(lastFeed.ended_at ?? lastFeed.occurred_at))}`}</p>}
+        {lastDiaper && <p className="muted">{`${L("lastDiaper")} ${fmtAgo(lang, minutesSince(lastDiaper.occurred_at))}`}</p>}
         {milk && <p className="muted">{milk.fridge_ml} ml {L("milkInFridge")}</p>}
       </header>
       {msg && (
@@ -192,7 +197,7 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
           {openSleep ? <Big icon="sun" label={L("wokeUp")} onClick={() => endSleep(openSleep)} /> : <Big icon="zzz" label={L("fellAsleep")} onClick={() => log(sleepType, {}, false)} />}
           <Big icon="note" label={L("note")} onClick={() => setPanel("note")} />
           {can(me, "assistant", "view") && (
-            <Link prefetch={false} href="/ask" className="btn flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
+            <Link prefetch={false} href="/ask" className="btn col-span-2 flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
               <Icon name="mic" size={36} />
               {L("ask")}
             </Link>

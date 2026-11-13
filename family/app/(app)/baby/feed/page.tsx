@@ -70,7 +70,7 @@ export default async function FeedPage() {
           </p>
         </section>
       )}
-      <DayEntries entries={feeds} types={summary.types} timezone={tz} today={today} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} tint="feed" noun={["feed", "feeds"]} />
+      <DayEntries entries={feeds} types={summary.types} timezone={tz} today={today} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} noun={["feed", "feeds"]} />
       {days.length > 0 && (
         <Fold title="The week" icon="bottle" tint="feed" hint={norms ? `usually ${norms.feeds.low} to ${norms.feeds.high} a day` : null}>
           <ul className="flex flex-col">

@@ -223,7 +223,9 @@ Three levels, no more.
 
 The bottom bar has Home, the child, a round **＋** in the middle, Milk and More (Huckleberry's
 centre button). ＋ opens the child's log sheet (every kind of entry, *From earlier*) from any
-screen. Chat and Calendar live in More. Simple mode has no Milk. Home does not repeat the
+screen: in place on Home and the child's page, so it never moves the person; from anywhere else
+on the child's page, and closing the sheet goes back (13 November, `lib/log-bus.ts`). Its rows
+use Home's line icons and names. Chat and Calendar live in More. Simple mode has no Milk. Home does not repeat the
 bottom bar as a grid of tiles.
 
 ### Home
@@ -439,9 +441,9 @@ Use these; extend one before adding a new one, and add any new one here.
 | Page header | `PageHeader` | The top of every screen | Title alone on its line; subtitle and any action on the line under it. |
 | List row | `.row` in a white `ul` | Any set of like things | First line what and when, second line muted detail, number on the right. |
 | Sheet | `Sheet` (`.sheet`) | Logging, editing, choosing | Opens from a tile, a row or the bottom button; Escape or a tap outside closes it; Save at the bottom says what is missing. |
-| Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls. |
+| Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls; on a short screen it rests at the bottom by the thumb, not mid-screen (13 November: Milk, the nanny's Today). |
 | Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` ▶ / ■ / ＋ on the right; the row opens its sheet. Tint = the feature. |
-| Big timer | `.big-timer` | Start or end something now, in a timer sheet | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. |
+| Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. |
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle) | Two or three words; the chosen one raised. |
 | Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. |
 | Week columns | `WeekColumns` | The shape of a week | Seven columns, midnight at the top; a column is one tap target. |
@@ -449,7 +451,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Stat strip | `DayStrip` tiles | A day's sums | Four at most, a dash for none. |
 | Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |
-| Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. |
+| Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `className="fold-flat"` makes folds the rows of one white list (earlier days on Sleep and Feeds, Week by week). |
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
 | When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. |
 | Pill | `.pill` | A state beside a headline | "use first", "short", "expired". One line. Not for numbers that are fine. |
@@ -478,7 +480,8 @@ Use these; extend one before adding a new one, and add any new one here.
 
 ## Numbers, times and dates
 
-- Durations: "45 min", "1 h 20 min", "3 days left". Never "5.7 h", and never more than 120
+- Durations: "45 min", "1 h 20 min", "3 days left". How long ago, from six hours on, in whole
+  hours ("15 h ago"), so a row's detail after it still fits at 320 px. Never "5.7 h", and never more than 120
   minutes written as minutes (`fmtDuration` in `lib/time.ts`).
 - Counts are whole numbers; a per-day average keeps one decimal at most ("1.4 a day").
   Never print a raw computed number.

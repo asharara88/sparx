@@ -6,6 +6,7 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { Fold } from "@/components/Fold";
 import { childPronouns } from "@/lib/names";
 
 /** Play ideas for the child's age, a tick each. The next age band shows below as "coming". */
@@ -35,15 +36,17 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
     router.refresh();
   }
 
-  const Row = ({ a }: { a: Activity }) => (
+  const Row = ({ a }: { a: Activity }) => {
+    const hasTick = canTick && a.band === "now";
+    // The detail lines up under the title: the tick's 44 px and the 12 px gap.
+    const inset = hasTick ? "pl-[56px]" : "";
+    return (
     <li className="row flex-col items-stretch">
       <div className="flex items-start gap-3">
-        {canTick && a.band === "now" ? (
+        {hasTick && (
           <button type="button" className="tick" aria-pressed={!!a.done_on} aria-label={a.done_on ? `Done: ${a.title}` : `Mark done: ${a.title}`} disabled={busy === a.id} onClick={() => void tick(a)}>
             <Icon name="check" size={18} />
           </button>
-        ) : (
-          <span className="w-11 shrink-0" />
         )}
         <button type="button" className="min-w-0 grow text-left" onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}>
           <span className={`block font-semibold ${a.done_on ? "muted line-through" : ""}`}>{a.title}</span>
@@ -51,16 +54,16 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
         </button>
       </div>
       {failed?.id === a.id && (
-        <p role="alert" className="mt-1 pl-[52px] text-sm text-[var(--danger)]">
+        <p role="alert" className={`mt-1 ${inset} text-sm text-[var(--danger)]`}>
           {failed.message}
         </p>
       )}
       {open === a.id && (
-        <div className="muted mt-2 pl-[52px] text-sm">
+        <div className={`muted mt-2 ${inset} text-sm`}>
           <p>{a.why}</p>
-          <p className="mt-1 text-xs">Source: {a.source}</p>
+          <p className="mt-1">Source: {a.source}</p>
           {a.done_on && (
-            <p className="mt-1 text-xs">
+            <p className="mt-1">
               Done {a.done_on}
               {a.done_by ? ` by ${a.done_by}` : ""}
             </p>
@@ -68,7 +71,8 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
         </div>
       )}
     </li>
-  );
+    );
+  };
 
   if (compact) {
     if (shown.length === 0) return null;
@@ -104,18 +108,19 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
           {now.length === 0 && <li className="muted text-sm">No ideas for this age yet.</li>}
         </ul>
       </section>
+      {/* What comes later is a list of names, folded: nothing to do with it yet. */}
       {coming.length > 0 && (
-        <section className="card">
-          <h2 className="font-semibold">Coming next</h2>
-          <p className="muted text-sm">From about {Math.round(coming[0].from_days / 30.44)} months.</p>
-          <ul className="mt-1 flex flex-col">
+        <Fold title="Coming next" hint={`from about ${Math.round(coming[0].from_days / 30.44)} months`}>
+          <ul className="flex flex-col">
             {coming.map((a) => (
-              <Row key={a.id} a={a} />
+              <li key={a.id} className="row">
+                {a.title}
+              </li>
             ))}
           </ul>
-        </section>
+        </Fold>
       )}
-      <p className="muted text-xs">Ideas drawn from NHS Start for Life, AAP HealthyChildren and CDC milestones. Play is not a test: skip anything {pr.they} {pr.is} not in the mood for.</p>
+      <p className="muted text-sm">Ideas drawn from NHS Start for Life, AAP HealthyChildren and CDC milestones. Play is not a test: skip anything {pr.they} {pr.is} not in the mood for.</p>
     </div>
   );
 }

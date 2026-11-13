@@ -1705,5 +1705,10 @@ select pg_temp.assert(not exists (select 1 from public.assistant_skills where bo
 select pg_temp.assert(not exists (select 1 from public.activities where title ~* '\mnapp(y|ies)\M' or how ~* '\mnapp(y|ies)\M' or why ~* '\mnapp(y|ies)\M'), 'no play idea says nappy');
 select pg_temp.assert((select triggers @> array['dry diapers', 'fewer diapers', 'dry nappies'] from public.assistant_skills where id = 'illness'), 'the illness skill wakes for diapers, and still for nappies');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper).'
+-- Family words (migration 6300): the + sheet's labels match Home's rows (Pump, Medicine).
+select pg_temp.assert((select label from public.care_entry_types where id = 'lana.pump') = 'Pump'
+  and (select label from public.care_entry_types where id = 'lana.medication') = 'Medicine'
+  and (select label from public.care_entry_types where id = 'lana.diaper') = 'Diaper', 'entry types match Home''s rows: Diaper, Pump, Medicine');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

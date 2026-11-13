@@ -61,18 +61,23 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
   const w1 = weights[weights.length - 1] ?? null;
   const ageEnd = Math.floor((Date.parse(span.to) - Date.parse(birth)) / 86_400_000);
   const ref = w1 ? reference("weight_kg", Math.floor((Date.parse(w1.day) - Date.parse(birth)) / 86_400_000)) : null;
-  const sleepPerDay = days.length ? sum("sleep_min") / days.length : 0;
+  // Days with anything logged: the stats come back for every day of the month, empty or not.
+  const logged = days.filter((d) => d.sleep_min > 0 || d.breast_count + d.bottle_count > 0 || d.diapers > 0 || d.pump_ml > 0 || d.weight_kg != null || d.length_cm != null || d.head_cm != null || d.milestones.length > 0);
+  const slept = days.filter((d) => d.sleep_min > 0);
+  const sleepPerDay = slept.length ? slept.reduce((a, d) => a + d.sleep_min, 0) / slept.length : 0;
   const longest = Math.max(0, ...days.map((d) => Number(d.longest_stretch_min ?? 0)));
   const hm = (min: number) => `${Math.floor(min / 60)} h${min % 60 ? ` ${Math.round(min % 60)} min` : ""}`;
   const numbers: [string, string][] = [];
   if (days.length) {
     const feeds = sum("breast_count") + sum("bottle_count");
-    if (feeds) numbers.push(["Feeds", `${feeds}${sum("bottle_ml") ? `, ${Math.round(sum("bottle_ml") / 1000)} litres from bottles` : ""}`]);
+    if (feeds) numbers.push(["Feeds", String(feeds)]);
+    const bottleMl = sum("bottle_ml");
+    if (bottleMl) numbers.push(["From bottles", bottleMl >= 1000 ? `${(bottleMl / 1000).toFixed(1).replace(/\.0$/, "")} l` : `${Math.round(bottleMl)} ml`]);
     if (sleepPerDay) numbers.push(["Sleep a day", hm(sleepPerDay)]);
     if (longest) numbers.push(["Longest stretch", hm(longest)]);
     const nappies = sum("diapers_wet") + sum("diapers_dirty");
     if (nappies) numbers.push(["Diapers", String(nappies)]);
-    if (w1) numbers.push(["Weight", `${w1.weight_kg} kg${w0 && w0.day !== w1.day ? ` (from ${w0.weight_kg} kg)` : ""}${ref ? `, WHO median ${ref.p50.toFixed(1)} kg` : ""}`]);
+    if (w1) numbers.push(["Weight", `${w1.weight_kg} kg${w0 && w0.day !== w1.day ? `, from ${w0.weight_kg} kg` : ""}`]);
   }
 
   return (
@@ -106,7 +111,7 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
           <p className="muted mt-2 text-xs">Written by the helper from the log{span.inProgress ? "; it is rewritten each day while the month runs" : ""}.</p>
         </section>
       )}
-      {story && !story.ok && story.error !== "not_allowed" && <p className="muted text-sm">The helper's paragraph is not available right now ({story.message}).</p>}
+      {/* No paragraph (no key, today's allowance used, an error): say nothing rather than a server message. */}
 
       {firsts.length > 0 && (
         <section className="card" aria-labelledby="firsts-h">
@@ -142,16 +147,20 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
           <h2 id="numbers-h" className="font-semibold">
             The month in numbers
           </h2>
-          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          {/* List rows: the measure on the left, its number on the right (DESIGN.md). */}
+          <ul className="mt-1 flex flex-col">
             {numbers.map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="muted">{k}</dt>
-                <dd className="font-semibold">{v}</dd>
-              </div>
+              <li key={k} className="row">
+                <span className="flex-1">
+                  {k}
+                  {k === "Weight" && ref && <span className="muted block text-sm">WHO median {ref.p50.toFixed(1)} kg</span>}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums">{v}</span>
+              </li>
             ))}
-          </dl>
-          <p className="muted mt-1 text-xs">
-            {days.length} day{days.length === 1 ? "" : "s"} with something logged.
+          </ul>
+          <p className="muted mt-1 text-sm">
+            {logged.length} day{logged.length === 1 ? "" : "s"} with something logged.
           </p>
         </section>
       )}

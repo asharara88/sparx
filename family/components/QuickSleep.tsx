@@ -47,10 +47,14 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
   }
   return (
     <div className="flex flex-col gap-3">
-      <button type="button" className={`btn ${asleep ? "" : "btn-primary"} flex-col gap-2`} style={{ minHeight: 160, fontSize: "1.5rem" }} disabled={busy || whenBad} onClick={() => void go()}>
-        <Icon name={asleep ? "sun" : "zzz"} size={40} />
-        {asleep ? `Woke up (asleep since ${fmtTime(asleep.occurred_at, timezone)})` : when.kind === "now" ? "Fell asleep now" : "Fell asleep earlier"}
-      </button>
+      {/* The same round now button as Home's Sleep sheet (DESIGN.md, "Big timer"). */}
+      <div className="flex justify-center">
+        <button type="button" className="big-timer tint-sleep" disabled={busy || whenBad} onClick={() => void go()}>
+          <Icon name={asleep ? "sun" : "zzz"} size={30} />
+          <span>{asleep ? (isEarlier(when) ? "Woke up earlier" : "Woke up now") : isEarlier(when) ? "Asleep earlier" : "Asleep now"}</span>
+          {asleep && <span className="big-timer-sub">since {fmtTime(asleep.occurred_at, timezone)}</span>}
+        </button>
+      </div>
       <WhenChips value={when} onChange={setWhen} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} label={asleep ? "Woke up" : "Fell asleep"} />
       {msg && (
         <p role="status" className="notice notice-ok text-center font-semibold">
