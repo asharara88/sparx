@@ -1,0 +1,186 @@
+/**
+ * The pure part of the helper's writes (lib/assistant/tools.ts): turning what the member said
+ * ("Wafa", "the 120 from Saturday", "Calpol", "her 4 month jabs") into the one row a confirm
+ * card will change, or into a question when it could be more than one. No database, no model:
+ * the tools fetch the lists and the confirm card writes; this only matches and merges.
+ * Imports stay relative with .ts so the unit tests load it directly.
+ */
+
+export type Match<T> = { ok: true; item: T } | { ok: false; error: "unknown" | "ambiguous"; options: T[] };
+
+const norm = (s: unknown) =>
+  String(s ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * A household member by what someone called them: the whole name, else the first name, else
+ * the start of a name ("Lil" → Lilly). "me", "I" and "myself" are the member asking. Two members
+ * who both fit is a question, never a guess.
+ */
+export function matchMember<T extends { id: string; name: string }>(people: T[], said: unknown, meId?: string): Match<T> {
+  const q = norm(said);
+  if (!q) return { ok: false, error: "unknown", options: people };
+  if (meId && /^(me|i|myself|mine)$/.test(q)) {
+    const self = people.find((p) => p.id === meId);
+    if (self) return { ok: true, item: self };
+  }
+  const tiers: ((p: T) => boolean)[] = [
+    (p) => norm(p.name) === q,
+    (p) => norm(p.name).split(" ")[0] === q,
+    (p) => norm(p.name).startsWith(q) || norm(p.name).split(" ").some((w) => w.startsWith(q) && q.length >= 3),
+  ];
+  for (const fits of tiers) {
+    const hits = people.filter(fits);
+    if (hits.length === 1) return { ok: true, item: hits[0] };
+    if (hits.length > 1) return { ok: false, error: "ambiguous", options: hits };
+  }
+  return { ok: false, error: "unknown", options: people };
+}
+
+/** A medicine on the child's list by name ("calpol", "vitamin d"). */
+export function matchMedicine<T extends { id: string; name: string }>(meds: T[], said: unknown): Match<T> {
+  const q = norm(said);
+  if (!q) return meds.length === 1 ? { ok: true, item: meds[0] } : { ok: false, error: meds.length ? "ambiguous" : "unknown", options: meds };
+  const exact = meds.filter((m) => norm(m.name) === q);
+  if (exact.length === 1) return { ok: true, item: exact[0] };
+  const part = meds.filter((m) => norm(m.name).includes(q) || q.includes(norm(m.name)));
+  if (part.length === 1) return { ok: true, item: part[0] };
+  if (part.length > 1) return { ok: false, error: "ambiguous", options: part };
+  return { ok: false, error: "unknown", options: meds };
+}
+
+export interface Bottle {
+  id: string;
+  amount_ml: number;
+  location: string;
+  pumped_at: string;
+  expired?: boolean;
+  thawed_at?: string | null;
+  warmed_at?: string | null;
+}
+
+/**
+ * A bottle in the stash from what was said: its amount, where it is, the day it was pumped
+ * ("YYYY-MM-DD", household day), or its id. With nothing said and one bottle, that one; else
+ * ask. Expired bottles only match when asked for ("bin the old one": expired true), or by id.
+ */
+export function matchBottle(bottles: Bottle[], hint: { id?: unknown; amount_ml?: unknown; location?: unknown; pumped_on?: unknown; expired?: unknown }, dayOf: (iso: string) => string): Match<Bottle> {
+  const id = String(hint.id ?? "").trim().toLowerCase();
+  if (id) {
+    const b = bottles.find((x) => x.id === id || (id.length >= 6 && x.id.startsWith(id)));
+    return b ? { ok: true, item: b } : { ok: false, error: "unknown", options: bottles };
+  }
+  let list = bottles;
+  if (hint.expired === true) list = list.filter((b) => b.expired);
+  const ml = Number(hint.amount_ml);
+  if (Number.isFinite(ml) && ml > 0) list = list.filter((b) => b.amount_ml === Math.round(ml));
+  const loc = norm(hint.location);
+  if (loc) list = list.filter((b) => b.location === loc);
+  const day = String(hint.pumped_on ?? "").trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) list = list.filter((b) => dayOf(b.pumped_at) === day);
+  if (list.length === 1) return { ok: true, item: list[0] };
+  return { ok: false, error: list.length ? "ambiguous" : "unknown", options: list.length ? list : bottles };
+}
+
+/** What a bottle can be moved to (milk_move's p_action), by the words people use. */
+export function bottleAction(said: unknown): "fridge" | "warmed" | "used" | "binned" | null {
+  const q = norm(said);
+  if (/^(fridge|thaw|thawed|defrost|defrosted|to the fridge|move to fridge)$/.test(q)) return "fridge";
+  if (/^(warm|warmed|warming|heated)$/.test(q)) return "warmed";
+  if (/^(used|use|drank|given|finished|fed)$/.test(q)) return "used";
+  if (/^(bin|binned|throw|thrown|thrown away|discard|discarded|tossed|poured away|expired)$/.test(q)) return "binned";
+  return null;
+}
+
+export interface VaccineItem {
+  id: string;
+  visit: string;
+  vaccine: string;
+  dose?: string | null;
+  status: string;
+  due_on?: string | null;
+}
+
+/**
+ * Which vaccines were given, from what was said: a visit ("4 months", "the 4 month jabs"),
+ * one vaccine by name ("rotavirus"), or nothing (the earliest visit that is due or overdue).
+ * Only vaccines not recorded yet are offered; a visit given in full says so.
+ */
+export function matchVaccines(items: VaccineItem[], said: unknown): { ok: true; visit: string; items: VaccineItem[] } | { ok: false; error: "unknown" | "already_given" | "nothing_due"; visits: string[] } {
+  const open = items.filter((v) => v.status !== "given");
+  const visits = [...new Set(items.map((v) => v.visit))];
+  const q = norm(said).replace(/\b(jabs?|vaccines?|vaccinations?|shots?|visit|the|her|his|check ?up)\b/g, " ").replace(/\s+/g, " ").trim();
+  if (!q) {
+    const firstDue = open.find((v) => v.status === "overdue" || v.status === "due");
+    if (!firstDue) return { ok: false, error: "nothing_due", visits };
+    return { ok: true, visit: firstDue.visit, items: open.filter((v) => v.visit === firstDue.visit) };
+  }
+  // "4 month" / "4 months" / "four months": compare on the number and the unit's first letter.
+  const words: Record<string, string> = { one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", eight: "8", nine: "9", ten: "10", twelve: "12" };
+  const key = (s: string) =>
+    norm(s)
+      .replace(/\b(one|two|three|four|five|six|eight|nine|ten|twelve)\b/g, (w) => words[w])
+      .replace(/\b(\d+)\s*(weeks?|w|wk)\b/g, "$1w")
+      .replace(/\b(\d+)\s*(months?|mo|m)\b/g, "$1m")
+      .replace(/\b(\d+)\s*(years?|y|yr)\b/g, "$1y")
+      .replace(/\s+/g, " ")
+      .trim();
+  const k = key(q);
+  const visit = visits.find((v) => key(v) === k) ?? visits.find((v) => key(v).includes(k) && /\d/.test(k));
+  if (visit) {
+    const left = open.filter((v) => v.visit === visit);
+    return left.length ? { ok: true, visit, items: left } : { ok: false, error: "already_given", visits };
+  }
+  const byName = items.filter((v) => norm(v.vaccine).includes(q) || q.split(" ").some((w) => w.length >= 4 && norm(v.vaccine).includes(w)));
+  if (byName.length) {
+    const left = byName.filter((v) => v.status !== "given");
+    if (!left.length) return { ok: false, error: "already_given", visits };
+    const first = left[0].visit;
+    return { ok: true, visit: first, items: left.filter((v) => v.visit === first) };
+  }
+  return { ok: false, error: "unknown", visits };
+}
+
+export interface EntryNow {
+  occurred_at: string;
+  ended_at: string | null;
+  payload: Record<string, unknown>;
+  note: string | null;
+}
+
+/**
+ * An entry after a change the member asked for, as care_entry_update needs it: that function
+ * writes every column it is given (an end left out would be cleared), so whatever was not
+ * changed is carried over as it is. `ended_at: ""` clears the end ("she's still asleep").
+ * Payload changes merge into the old payload; a key set to null is dropped.
+ */
+export function mergeEntry(now: EntryNow, change: { occurred_at?: string; ended_at?: string | ""; payload?: Record<string, unknown>; note?: string | null }): { ok: true; next: EntryNow; changed: string[] } | { ok: false; error: "end_before_start" | "nothing_changed" } {
+  const payload: Record<string, unknown> = { ...now.payload };
+  delete payload.auto_end;
+  const changed: string[] = [];
+  for (const [k, v] of Object.entries(change.payload ?? {})) {
+    if (v === null || v === "") {
+      if (k in payload) {
+        delete payload[k];
+        changed.push(k);
+      }
+    } else if (String(payload[k]) !== String(v)) {
+      payload[k] = v;
+      changed.push(k);
+    }
+  }
+  const occurred_at = change.occurred_at ?? now.occurred_at;
+  if (change.occurred_at && Date.parse(change.occurred_at) !== Date.parse(now.occurred_at)) changed.push("start");
+  const ended_at = change.ended_at === "" ? null : change.ended_at ?? now.ended_at;
+  if (change.ended_at !== undefined && (ended_at ? Date.parse(ended_at) : null) !== (now.ended_at ? Date.parse(now.ended_at) : null)) changed.push("end");
+  const note = change.note === undefined ? now.note : change.note?.trim() || null;
+  if (change.note !== undefined && (note ?? "") !== (now.note ?? "")) changed.push("note");
+  if (ended_at && Date.parse(ended_at) < Date.parse(occurred_at)) return { ok: false, error: "end_before_start" };
+  if (!changed.length) return { ok: false, error: "nothing_changed" };
+  return { ok: true, next: { occurred_at, ended_at, payload, note }, changed };
+}

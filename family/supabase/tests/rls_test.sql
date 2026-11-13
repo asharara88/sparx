@@ -1667,5 +1667,36 @@ begin
   raise notice 'ok  - shared rows (modules, roles, play ideas, skills, types…) name no family';
 end $$;
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links).'
+-- The helper's write cards (13 November): each card calls the screen's own RPC as the member
+-- who taps it, so each refuses whom the screen refuses. Permissions are set here, not inherited.
+reset role;
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action in ('add', 'edit', 'delete');
+update public.permissions set allowed = true  where role_id = 'family_carer' and module_id = 'lana' and action in ('add', 'edit');
+update public.permissions set allowed = false where role_id = 'family_carer' and module_id = 'lana' and action = 'delete';
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table hc as select ((public.care_entry_log(:lana, 'lana.feed', now() - interval '5 minutes', null, '{"method":"Bottle","amount_ml":120}'::jsonb, 'helper cards test', null))->>'id')::uuid as id;
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.custody_set(:lana, :lilly))->>'error' = 'not_allowed', 'helper card: a member who cannot log for her cannot say who has her');
+select pg_temp.assert((public.care_entry_update((select id from hc), now(), null, '{"method":"Bottle","amount_ml":90}'::jsonb, null))->>'error' = 'not_allowed', 'helper card: nor change an entry');
+select pg_temp.assert((public.care_entry_delete((select id from hc)))->>'error' = 'not_allowed', 'helper card: nor delete one');
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert((public.custody_set(:lana, :wafa))->>'ok' = 'true', 'helper card: Wafa says she has Lana now');
+select pg_temp.assert((public.care_entry_update((select id from hc), (select occurred_at from public.care_entries where id = (select id from hc)), null, '{"method":"Bottle","amount_ml":90}'::jsonb, null))->>'ok' = 'true', 'helper card: Wafa (may edit) changes the bottle to 90 ml');
+select pg_temp.assert((public.care_entry_delete((select id from hc)))->>'error' = 'not_allowed', 'helper card: Wafa (may not delete) cannot delete it');
+reset role;
+select pg_temp.assert((select payload->>'amount_ml' from public.care_entries where id = (select id from hc)) = '90'
+  and (select deleted_at from public.care_entries where id = (select id from hc)) is null, 'the change stuck, and the refused delete left the entry in place');
+select pg_temp.assert((select m.display_name from public.care_custody c join public.members m on m.id = c.member_id where c.subject_id = :lana order by c.since desc, c.id desc limit 1) = 'Wafa', 'who has Lana is now Wafa');
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_delete((select id from hc)))->>'ok' = 'true', 'helper card: an admin deletes it');
+reset role;
+select pg_temp.assert((select deleted_at from public.care_entries where id = (select id from hc)) is not null, 'and it is gone from the log');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

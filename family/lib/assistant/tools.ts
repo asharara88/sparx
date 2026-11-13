@@ -11,6 +11,7 @@ import { ageInDays } from "@/lib/stage";
 import { tipsFor } from "@/lib/child-guide";
 import type { EntryRow } from "@/lib/types";
 import { ambulanceOf } from "@/lib/emergency";
+import { bottleAction, matchBottle, matchMedicine, matchMember, matchVaccines, mergeEntry, type Bottle, type VaccineItem } from "./write-match";
 
 /**
  * The assistant's tools are thin wrappers over the RPCs the screens already use,
@@ -45,8 +46,8 @@ export interface ToolContext {
   types: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
   routines: { name: string; routine: string }[];
-  /** Every active member: first name, role label and relationship ("Mido's mother"), for the prompt. */
-  people: { name: string; role: string; relationship: string | null }[];
+  /** Every active member the asker may see: id (to hand the child over), first name, role label and relationship ("Mido's mother"). */
+  people: { id: string; name: string; role: string; relationship: string | null }[];
   /** What the family told the assistant to remember (and what it noticed itself), the ones that matter for this question. */
   memories: MemoryFact[];
   /** All live facts with ids (for forget_memory). */
@@ -382,7 +383,7 @@ function proposeCareEntry(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "propose_care_entry",
-      description: `Prepare a log entry for the member to confirm with one tap. Call this when asked to log, record or note something for ${writable.map((s) => s.name).join(" or ")}. Fill every required field from what was said; if a required field is missing or ambiguous, ask instead of calling. Times default to now; when the member says "at 3", "an hour ago" or "this morning", set occurred_at (and ended_at for a finished sleep or feed) from that, never now. To end something already running ("she woke up", "feed finished") use propose_end_timer instead. Types and their fields:\n${typeHelp}`,
+      description: `Prepare a log entry for the member to confirm with one tap. Call this when asked to log, record or note something for ${writable.map((s) => s.name).join(" or ")}. Fill every required field from what was said; if a required field is missing or ambiguous, ask instead of calling. Times default to now; when the member says "at 3", "an hour ago" or "this morning", set occurred_at (and ended_at for a finished sleep or feed) from that, never now. To end something already running ("she woke up", "feed finished") use propose_end_timer instead. To fix or remove an entry already saved: propose_entry_change or propose_entry_delete. A dose of a medicine on the child's list: propose_medicine_dose. Who has the child: propose_custody. Milk into the fridge or freezer: propose_milk_add. Types and their fields:\n${typeHelp}`,
       input_schema: obj(
         {
           subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}.` },
@@ -757,7 +758,7 @@ function remember(): AssistantTool {
   return {
     def: {
       name: "propose_memory",
-      description: "Prepare a short fact for the household helper to keep for everyone, after the member confirms: preferences, what works for the child, how someone likes answers. Call this when the member says 'remember that…', 'keep in mind…', 'from now on…'. One plain sentence, under 300 characters, no times or amounts that belong in the log.",
+      description: "Prepare a short fact for the household helper to keep for everyone, after the member confirms: preferences, what works for the child, how someone likes answers. Call this when the member says 'remember that…', 'keep in mind…', 'from now on…'. One plain sentence, under 300 characters, no times or amounts that belong in the log. Never for something another propose tool saves: who has the child (propose_custody), a log entry, milk, a medicine dose or a vaccine.",
       input_schema: obj({ body: { type: "string", description: "The fact, as one plain sentence." } }, ["body"]),
     },
     run: async (input, ctx) => {
@@ -767,6 +768,406 @@ function remember(): AssistantTool {
       const p: AssistantProposal = { id: newId(), kind: "memory", summary: `Remember: ${body}`, memory: { body } };
       ctx.proposals.push(p);
       return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT saved yet." };
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Everything else about the child the screens can write (Mido, 13 November: "I should be able
+// to tell the helper anything related to Lana and log it with my confirmation"). Each is a card
+// the member confirms; the card calls the same RPC as the screen, as that member.
+// ---------------------------------------------------------------------------
+
+/** "120 ml, Bottle" from an entry's payload, as the cards say it. */
+function detailWords(payload: Record<string, unknown>): string {
+  return Object.entries(payload)
+    .filter(([k, v]) => v !== null && v !== "" && v !== undefined && !["auto_end", "checked", "medicine_id", "early", "client_id"].includes(k))
+    .map(([k, v]) => (k === "amount_ml" ? `${v} ml` : k === "amount_g" ? `${v} g` : k === "duration_min" ? `${v} min` : typeof v === "boolean" ? (v ? k.replace(/_/g, " ") : "") : String(v)))
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** One entry in words: "Bottle, 120 ml · 07:10 → 07:30", for the before and after of a change. */
+function entryWords(e: { occurred_at: string; ended_at: string | null; payload: Record<string, unknown>; note?: string | null }, tz: string): string {
+  const d = detailWords(e.payload);
+  const span = `${local(e.occurred_at, tz)?.slice(11)}${e.ended_at ? ` → ${local(e.ended_at, tz)?.slice(11)}` : ""}`;
+  return [d, span, e.note ? `“${e.note}”` : ""].filter(Boolean).join(" · ");
+}
+
+type EntryRowLite = { id: string; subject_id: string; type_id: string; occurred_at: string; ended_at: string | null; payload: Record<string, unknown> | null; note: string | null };
+
+/** A saved entry by the id a read tool gave (care_now, care_entries); RLS decides whether it is visible. */
+async function entryById(ctx: ToolContext, raw: unknown): Promise<{ e: EntryRowLite; s: SubjectInfo; t: EntryType | undefined } | { error: string; message: string }> {
+  const id = String(raw ?? "").trim().replace(/^entry:/, "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { error: "bad_id", message: "Give the entry's full id, as care_now or care_entries returned it. Look the entry up first." };
+  const q = ctx.supabase.from("care_entries").select("id,subject_id,type_id,occurred_at,ended_at,payload,note").eq("id", id).is("deleted_at", null);
+  const { data, error } = await (ctx.signal ? q.abortSignal(ctx.signal) : q).maybeSingle();
+  if (error) return { error: "rpc_failed", message: error.message };
+  const e = data as EntryRowLite | null;
+  if (!e) return { error: "not_found", message: "No such entry (it may have been deleted). Look it up again with care_entries." };
+  const s = ctx.subjects.find((x) => x.id === e.subject_id);
+  if (!s) return { error: "not_found", message: "That entry is not one you can see." };
+  return { e: { ...e, payload: e.payload ?? {} }, s, t: ctx.types.find((x) => x.id === e.type_id) };
+}
+
+function proposeCustody(ctx0: ToolContext): AssistantTool {
+  const writable = ctx0.subjects.filter((s) => can(ctx0.me, s.module_id, "add"));
+  return {
+    def: {
+      name: "propose_custody",
+      description: `Say who has ${writable.map((s) => s.name).join(" or ")} from now on, for the member to confirm with one tap: "Wafa has Lana now", "I'm taking her", "Dana has her", "handing her to Lilly". This is what the Home header shows ("with Wafa") and who later entries are put down to. People: ${ctx0.people.map((p) => p.name).join(", ")}.`,
+      input_schema: obj(
+        {
+          member: { type: "string", description: "Who has the child now: a first name, or \"me\" for the person talking." },
+          subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}. Omit when there is one.` },
+          replaces_previous: { type: "boolean", description: "True when correcting a card not confirmed yet (\"no, Lilly has her\")." },
+        },
+        ["member"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || !can(ctx.me, s.module_id, "add")) return { error: "not_allowed", message: "You cannot change who has that child." };
+      const m = matchMember(ctx.people, input.member, ctx.me.member.id);
+      if (!m.ok) return { error: m.error === "ambiguous" ? "ambiguous_member" : "unknown_member", options: m.options.map((p) => p.name), message: m.error === "ambiguous" ? "More than one person fits: ask which with ask_choice." : "Nobody of that name in the house: ask who, with the names as options." };
+      const r = await rpc(ctx, "home_summary", { p_subject_id: s.id });
+      const custody = r.ok ? (r.custody as { name?: string; since?: string } | null) : null;
+      if (custody?.name === m.item.name) return { ok: true, already: true, message: `${m.item.name} already has ${s.name}, since ${local(custody.since ?? null, ctx.tz)}. Nothing to change: say so in one line.` };
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "custody",
+        summary: `👐 ${m.item.name} has ${s.name} · from ${local(ctx.now.toISOString(), ctx.tz)?.slice(11)}${custody?.name ? ` (was ${custody.name})` : ""}`,
+        custody: { subject_id: s.id, subject_name: s.name, member_id: m.item.id, member_name: m.item.name },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
+      };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT changed yet." };
+    },
+  };
+}
+
+function proposeEntryChange(ctx0: ToolContext): AssistantTool {
+  const editable = ctx0.subjects.filter((s) => can(ctx0.me, s.module_id, "edit"));
+  return {
+    def: {
+      name: "propose_entry_change",
+      description: `Fix an entry already saved in ${editable.map((s) => s.name).join(" or ")}'s log, for the member to confirm with one tap: "that bottle was 90 not 120", "she actually woke at 6:40", "it was a dirty nappy", "the nap started at 1, not 1:30", "she's still asleep" (clears the end). Find the entry first with care_now or care_entries and pass its id. Only what was said changes; the rest stays. Not for a card that is not confirmed yet (propose it again with replaces_previous).`,
+      input_schema: obj(
+        {
+          entry_id: { type: "string", description: "The entry's full id from care_now or care_entries." },
+          occurred_at: { type: "string", description: "New start, 'YYYY-MM-DD HH:MM' household time. Omit to keep." },
+          ended_at: { type: "string", description: "New end, same format. Omit to keep." },
+          clear_end: { type: "boolean", description: "True when the thing is still going after all (\"she's still asleep\"): the end is removed." },
+          payload: { type: "object", description: "Only the fields that change, e.g. {\"amount_ml\":90} or {\"kind\":\"Dirty\"}. A field set to null is removed." },
+          note: { type: "string", description: "A new note, replacing the old one. Omit to keep; empty to clear." },
+          replaces_previous: { type: "boolean", description: "True when correcting a change card not confirmed yet." },
+        },
+        ["entry_id"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const found = await entryById(ctx, input.entry_id);
+      if ("error" in found) return found;
+      const { e, s, t } = found;
+      if (!can(ctx.me, s.module_id, "edit")) return { error: "not_allowed", message: "You cannot change entries for that child: ask an admin." };
+      const changes = (input.payload && typeof input.payload === "object" ? input.payload : {}) as Record<string, unknown>;
+      const bad = (t?.fields ?? []).filter((f) => f.options?.length && changes[f.key] !== undefined && changes[f.key] !== null && !f.options.includes(String(changes[f.key]))).map((f) => ({ field: f.key, options: f.options }));
+      if (bad.length) return { error: "bad_option", bad };
+      const unknownKeys = Object.keys(changes).filter((k) => t && t.fields.length && !t.fields.some((f) => f.key === k));
+      if (unknownKeys.length) return { error: "bad_field", unknown: unknownKeys, fields: t?.fields.map((f) => f.key) };
+      let occurred: string | undefined;
+      if (input.occurred_at !== undefined && input.occurred_at !== null && String(input.occurred_at).trim() !== "") {
+        const o = whenGiven(input.occurred_at, ctx);
+        if ("error" in o) return o;
+        occurred = o.at;
+      }
+      let ended: string | "" | undefined;
+      if (input.clear_end === true) ended = "";
+      else if (input.ended_at !== undefined && input.ended_at !== null && String(input.ended_at).trim() !== "") {
+        const x = whenGiven(input.ended_at, ctx);
+        if ("error" in x) return x;
+        ended = x.at;
+      }
+      const note = input.note === undefined || input.note === null ? undefined : String(input.note);
+      const m = mergeEntry({ occurred_at: e.occurred_at, ended_at: e.ended_at, payload: e.payload ?? {}, note: e.note }, { occurred_at: occurred, ended_at: ended, payload: changes, note });
+      if (!m.ok) return m.error === "end_before_start" ? { error: "end_before_start", message: "That end is before the start: ask the member again." } : { error: "nothing_changed", message: "That is what the entry already says: tell the member nothing needs changing." };
+      const label = t?.label ?? e.type_id;
+      const before = entryWords({ ...e, payload: e.payload ?? {} }, ctx.tz);
+      const after = entryWords(m.next, ctx.tz);
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "entry_change",
+        summary: `✏️ ${label} · ${after} (was ${before})`,
+        entry_change: { entry_id: e.id, subject_name: s.name, type_id: e.type_id, type_label: label, ...m.next, before, after },
+        ...(input.replaces_previous === true ? { replaces: true } : {}),
+      };
+      entryRef(ctx, { id: e.id, type_label: label, occurred_at: e.occurred_at }, s.module_id);
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, changed: m.changed, next: "Tell the member to tap Confirm. It is NOT changed yet." };
+    },
+  };
+}
+
+function proposeEntryDelete(ctx0: ToolContext): AssistantTool {
+  const deletable = ctx0.subjects.filter((s) => can(ctx0.me, s.module_id, "delete"));
+  return {
+    def: {
+      name: "propose_entry_delete",
+      description: `Delete an entry already saved in ${deletable.map((s) => s.name).join(" or ")}'s log, for the member to confirm with one tap: "delete the last nappy, it was a mistake", "that bottle was logged twice, remove one". Find it first with care_now or care_entries and pass its id. When it was logged twice, delete the later one. Only when the member asks for it gone; to fix a time or amount use propose_entry_change.`,
+      input_schema: obj({ entry_id: { type: "string", description: "The entry's full id from care_now or care_entries." } }, ["entry_id"]),
+    },
+    run: async (input, ctx) => {
+      const found = await entryById(ctx, input.entry_id);
+      if ("error" in found) return found;
+      const { e, s, t } = found;
+      if (!can(ctx.me, s.module_id, "delete")) return { error: "not_allowed", message: "You cannot delete entries for that child: ask an admin." };
+      const label = t?.label ?? e.type_id;
+      const what = entryWords({ ...e, payload: e.payload ?? {} }, ctx.tz);
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "entry_delete",
+        summary: `🗑️ Delete · ${label} · ${what}`,
+        entry_delete: { entry_id: e.id, subject_name: s.name, type_id: e.type_id, type_label: label, occurred_at: e.occurred_at, what },
+      };
+      entryRef(ctx, { id: e.id, type_label: label, occurred_at: e.occurred_at }, s.module_id);
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Delete to remove it. It is NOT deleted yet." };
+    },
+  };
+}
+
+function milkStash(): AssistantTool {
+  return {
+    def: {
+      name: "milk_stash",
+      description: "The breast milk stash: every bottle or bag in the fridge and freezer (id, ml, when pumped, when it expires, thawed or warmed) and the totals. Use for 'how much milk is in the freezer', 'which bottle goes first', and before moving a bottle.",
+      input_schema: obj({}),
+    },
+    run: async (_input, ctx) => {
+      const r = await rpc(ctx, "milk_list", {});
+      if (!r.ok) return r;
+      const bottles = ((r.bottles as Record<string, unknown>[]) ?? []).map((b) => ({
+        id: String(b.id).slice(0, 8),
+        ml: b.amount_ml,
+        where: b.location,
+        pumped: local(b.pumped_at as string, ctx.tz),
+        use_by: local(b.expires_at as string, ctx.tz),
+        ...(b.expired ? { expired: true } : {}),
+        ...(b.thawed_at ? { thawed: local(b.thawed_at as string, ctx.tz) } : {}),
+        ...(b.warmed_at ? { warmed: local(b.warmed_at as string, ctx.tz) } : {}),
+      }));
+      return { fridge_ml: r.fridge_ml, fridge_bottles: r.fridge_count, freezer_ml: r.freezer_ml, freezer_bottles: r.freezer_count, note: "Totals leave out expired bottles. Use first: the earliest use_by.", bottles };
+    },
+  };
+}
+
+function proposeMilkAdd(): AssistantTool {
+  return {
+    def: {
+      name: "propose_milk_add",
+      description: "Put a bottle or bag of breast milk in the stash, for the member to confirm with one tap: \"put 120 ml in the freezer\", \"pumped 150, it's in the fridge\". One call per bottle. A pump logged in the log does not add milk to the stash by itself: when the member says where the milk went, propose this too. If they did not say fridge or freezer, ask with ask_choice (Fridge | Freezer).",
+      input_schema: obj(
+        {
+          amount_ml: { type: "integer", description: "Millilitres in this bottle or bag." },
+          location: { type: "string", description: "fridge | freezer" },
+          pumped_at: { type: "string", description: "When it was pumped, 'YYYY-MM-DD HH:MM' household time. Omit for now." },
+          note: { type: "string" },
+        },
+        ["amount_ml", "location"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const ml = Math.round(Number(input.amount_ml));
+      if (!Number.isFinite(ml) || ml < 5 || ml > 1000) return { error: "bad_amount", message: "Ask how many ml are in the bottle (5 to 1000)." };
+      const loc = String(input.location ?? "").trim().toLowerCase();
+      if (loc !== "fridge" && loc !== "freezer") return { error: "missing_location", ask: { options: ["Fridge", "Freezer"] }, message: "Ask with ask_choice whether it went in the fridge or the freezer." };
+      const w = whenGiven(input.pumped_at, ctx);
+      if ("error" in w) return w;
+      if (Date.parse(w.at) > ctx.now.getTime() + 5 * 60_000) return { error: "in_the_future", message: "Milk cannot be pumped later than now: ask when." };
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "milk_add",
+        summary: `${loc === "freezer" ? "🧊" : "🍼"} Put away · ${ml} ml · ${loc} · pumped ${local(w.at, ctx.tz)}`,
+        milk_add: { amount_ml: ml, location: loc, pumped_at: w.at, note: (input.note as string) || null },
+      };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. It is NOT in the stash yet." };
+    },
+  };
+}
+
+function proposeMilkMove(): AssistantTool {
+  return {
+    def: {
+      name: "propose_milk_move",
+      description: "Move one bottle in the milk stash on, for the member to confirm with one tap: thaw a frozen bag (\"took a bag out to thaw\"), warmed for a feed, used, or binned (\"threw away the old 90\", \"binned the expired one\"). Say which bottle by its ml, where it is, the day it was pumped, or its id from milk_stash. A bottle given as a feed already comes out of the stash with the feed's card: do not also mark it used.",
+      input_schema: obj(
+        {
+          action: { type: "string", description: "thaw | warmed | used | binned" },
+          amount_ml: { type: "integer", description: "The bottle's ml, if said." },
+          location: { type: "string", description: "fridge | freezer, if said." },
+          pumped_on: { type: "string", description: "The day it was pumped, YYYY-MM-DD, if said." },
+          expired: { type: "boolean", description: "True for \"the expired one\", \"the old one past its date\"." },
+          bottle_id: { type: "string", description: "The id from milk_stash, when known." },
+        },
+        ["action"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const action = bottleAction(input.action);
+      if (!action) return { error: "bad_action", options: ["thaw", "warmed", "used", "binned"] };
+      const r = await rpc(ctx, "milk_list", {});
+      if (!r.ok) return r;
+      const bottles = ((r.bottles as Bottle[]) ?? []).filter((b) => (action === "fridge" ? b.location === "freezer" : true));
+      if (!bottles.length) return { error: "nothing_there", message: action === "fridge" ? "Nothing is in the freezer to thaw." : "The stash is empty." };
+      const m = matchBottle(bottles, { id: input.bottle_id, amount_ml: input.amount_ml, location: input.location, pumped_on: input.pumped_on, expired: input.expired }, (iso) => local(iso, ctx.tz)?.slice(0, 10) ?? "");
+      if (!m.ok) {
+        return {
+          error: m.error === "ambiguous" ? "which_bottle" : "no_such_bottle",
+          bottles: m.options.slice(0, 6).map((b) => ({ id: b.id.slice(0, 8), ml: b.amount_ml, where: b.location, pumped: local(b.pumped_at, ctx.tz), ...(b.expired ? { expired: true } : {}) })),
+          message: m.error === "ambiguous" ? "More than one bottle fits: ask which with ask_choice (e.g. '180 ml · pumped 31 Oct'), then call again with bottle_id." : "No bottle fits what was said: tell the member what is there and ask which.",
+        };
+      }
+      const b = m.item;
+      const verb = { fridge: "Thaw", warmed: "Warmed", used: "Used", binned: "Bin" }[action];
+      const icon = { fridge: "🧊", warmed: "♨️", used: "🍼", binned: "🗑️" }[action];
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "milk_move",
+        summary: `${icon} ${verb} · ${b.amount_ml} ml · ${b.location} · pumped ${local(b.pumped_at, ctx.tz)}`,
+        milk_move: { bottle_id: b.id, action, amount_ml: b.amount_ml, location: b.location, pumped_at: b.pumped_at },
+      };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. Nothing has moved yet." };
+    },
+  };
+}
+
+type MedicineRow = { id: string; name: string; dose: string | null; min_gap_hours: number; last_at: string | null; last_dose: string | null; next_at: string | null; too_soon: boolean };
+
+function medicinesTool(ctx0: ToolContext): AssistantTool {
+  return {
+    def: {
+      name: "medicines",
+      description: "The child's medicine list: each medicine's usual dose, the minimum hours between doses, the last dose (when and by whom) and when the next is allowed. Use for 'when can she have more Calpol', 'when was her last vitamin D'.",
+      input_schema: obj({ subject: SUBJECT_PROP(ctx0) }),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s) return { error: "unknown_subject", known: ctx.subjects.map((x) => x.name) };
+      const r = await rpc(ctx, "medicines_list", { p_subject_id: s.id });
+      if (!r.ok) return r;
+      return {
+        subject: s.name,
+        now: local(ctx.now.toISOString(), ctx.tz),
+        medicines: ((r.items as MedicineRow[]) ?? []).map((m) => ({ name: m.name, usual_dose: m.dose, min_gap_hours: m.min_gap_hours, last_given: local(m.last_at, ctx.tz), last_dose: m.last_dose, next_allowed: local(m.next_at, ctx.tz), too_soon_now: m.too_soon })),
+      };
+    },
+  };
+}
+
+function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
+  const writable = ctx0.subjects.filter((s) => s.kind === "child" && can(ctx0.me, s.module_id, "add"));
+  return {
+    def: {
+      name: "propose_medicine_dose",
+      description: `Log a dose of a medicine on ${writable.map((s) => s.name).join(" or ")}'s medicine list, for the member to confirm with one tap: "gave her 2.5 ml Calpol", "vitamin D done", "she had her drops at 8". It keeps the medicine's minimum gap between doses. Logging what the member says was given is fine; you still never suggest a medicine or a dose. A medicine not on the list: propose_care_entry with the medication type (name and dose).`,
+      input_schema: obj(
+        {
+          medicine: { type: "string", description: "The medicine's name as said." },
+          dose: { type: "string", description: "The dose given, e.g. '2.5 ml', '1 drop'. Omit for the usual dose." },
+          given_at: { type: "string", description: "When, 'YYYY-MM-DD HH:MM' household time. Omit for now." },
+          given_anyway: { type: "boolean", description: "Only after you told the member it was earlier than the minimum gap and they said it really was given." },
+          subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}. Omit when there is one.` },
+          note: { type: "string" },
+        },
+        ["medicine"],
+      ),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || !can(ctx.me, s.module_id, "add")) return { error: "not_allowed", message: "You cannot log for that child." };
+      const r = await rpc(ctx, "medicines_list", { p_subject_id: s.id });
+      if (!r.ok) return r;
+      const meds = (r.items as MedicineRow[]) ?? [];
+      const m = matchMedicine(meds, input.medicine);
+      if (!m.ok) {
+        return m.error === "ambiguous"
+          ? { error: "which_medicine", options: m.options.map((x) => x.name), message: "Ask which with ask_choice." }
+          : { error: "not_on_the_list", known: meds.map((x) => x.name), message: `Not on ${s.name}'s medicine list. Log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose; an admin can add it to the list on the Medicine screen.` };
+      }
+      const med = m.item;
+      const w = whenGiven(input.given_at, ctx);
+      if ("error" in w) return w;
+      if (Date.parse(w.at) > ctx.now.getTime() + 5 * 60_000) return { error: "in_the_future", message: "A dose is logged once given: ask when it was given." };
+      // The gap is checked against the time it was given, as medicine_give does: a dose logged
+      // late ("she had Calpol at 6") is measured from 6, not from now.
+      const lastBefore = med.last_at && Date.parse(med.last_at) <= Date.parse(w.at) ? med.last_at : null;
+      const nextAt = lastBefore ? Date.parse(lastBefore) + med.min_gap_hours * 3_600_000 : null;
+      const early = nextAt !== null && nextAt > Date.parse(w.at);
+      if (early && input.given_anyway !== true) {
+        const sameDose = lastBefore && Math.abs(Date.parse(lastBefore) - Date.parse(w.at)) < 20 * 60_000;
+        return {
+          error: "too_soon",
+          last_given: local(lastBefore, ctx.tz),
+          last_dose: med.last_dose,
+          next_allowed: local(new Date(nextAt!).toISOString(), ctx.tz),
+          message: sameDose
+            ? `A dose of ${med.name} is already logged at ${local(lastBefore, ctx.tz)?.slice(11)}: ask whether this is the same dose before logging another.`
+            : `This is earlier than the minimum gap of ${med.min_gap_hours} h for ${med.name}. Tell the member when the last dose was and when the next is allowed. Only if they say it really was given, call again with given_anyway true. If they are unsure about safety, they should ask the doctor or pharmacist.`,
+        };
+      }
+      const dose = (typeof input.dose === "string" && input.dose.trim()) || med.dose || null;
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "medicine_dose",
+        summary: `💊 ${med.name}${dose ? ` · ${dose}` : ""} · ${s.name} · ${local(w.at, ctx.tz)}${early ? " · earlier than the usual gap" : ""}`,
+        medicine_dose: { medicine_id: med.id, subject_name: s.name, name: med.name, dose, given_at: w.at, early, note: (input.note as string) || null },
+      };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next_allowed_after: local(new Date(Date.parse(w.at) + med.min_gap_hours * 3_600_000).toISOString(), ctx.tz), next: "Tell the member to tap Confirm. It is NOT logged yet." };
+    },
+  };
+}
+
+function proposeVaccines(ctx0: ToolContext): AssistantTool {
+  const writable = ctx0.subjects.filter((s) => s.kind === "child" && can(ctx0.me, s.module_id, "add"));
+  return {
+    def: {
+      name: "propose_vaccines",
+      description: `Mark vaccines as given in ${writable.map((s) => s.name).join(" or ")}'s vaccine book, for the member to confirm with one tap: "she had her 4 month jabs today", "rotavirus done yesterday at the clinic". Give the visit ("4 months") or one vaccine's name; with neither, the earliest visit that is due. All the visit's vaccines not yet recorded go on one card.`,
+      input_schema: obj(
+        {
+          which: { type: "string", description: "The visit ('8 weeks', '4 months') or a vaccine's name, as said. Omit for the visit that is due." },
+          given_on: { type: "string", description: "The day, YYYY-MM-DD. Omit for today." },
+          place: { type: "string", description: "Where, if said (the clinic's name)." },
+          subject: { type: "string", description: `One of ${writable.map((s) => s.name).join(", ")}. Omit when there is one.` },
+        },
+      ),
+    },
+    run: async (input, ctx) => {
+      const s = findSubject(ctx, input.subject);
+      if (!s || !can(ctx.me, s.module_id, "add")) return { error: "not_allowed", message: "You cannot record vaccines for that child." };
+      const today = todayYmd(ctx.tz, ctx.now);
+      const day = String(input.given_on ?? "").trim().slice(0, 10) || today;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "bad_date", message: "Ask which day, then call again with YYYY-MM-DD." };
+      if (day > today) return { error: "in_the_future", message: "Vaccines are recorded once given: ask which day they were given." };
+      const r = await rpc(ctx, "vaccines_list", { p_subject_id: s.id });
+      if (!r.ok) return r;
+      const items = ((r.items as VaccineItem[]) ?? []).map((v) => ({ id: v.id, visit: v.visit, vaccine: v.vaccine, dose: v.dose, status: v.status, due_on: v.due_on }));
+      const m = matchVaccines(items, input.which);
+      if (!m.ok) {
+        const msg = { unknown: "No visit or vaccine of that name: ask which visit, with the visits as options.", already_given: "Those are already recorded as given: tell the member.", nothing_due: "No visit is due now: ask which visit it was." }[m.error];
+        return { error: m.error, visits: m.visits, message: msg };
+      }
+      const p: AssistantProposal = {
+        id: newId(),
+        kind: "vaccines",
+        summary: `💉 ${m.visit} · ${m.items.map((v) => v.vaccine.replace(/\s*\(.*\)$/, "")).join(", ")} · ${s.name} · given ${day}`,
+        vaccines: { subject_id: s.id, subject_name: s.name, visit: m.visit, given_on: day, place: (typeof input.place === "string" && input.place.trim()) || null, items: m.items.map((v) => ({ schedule_id: v.id, vaccine: v.vaccine })) },
+      };
+      ctx.proposals.push(p);
+      return { ok: true, proposal_id: p.id, shown_as: p.summary, next: "Tell the member to tap Confirm. Nothing is recorded yet." };
     },
   };
 }
@@ -804,9 +1205,16 @@ export function buildTools(ctx: ToolContext): AssistantTool[] {
     list.push(recentChats());
     list.push(dueSoon());
   }
+  // The milk stash belongs to the lana module (milk_list, milk_add and milk_move check lana).
+  const milk = ctx.subjects.some((s) => s.module_id === "lana");
+  if (careSubjects.some((s) => s.kind === "child")) list.push(medicinesTool(ctx));
+  if (milk && can(me, "lana", "view")) list.push(milkStash());
   if (can(me, "assistant", "add")) {
-    if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx), proposeEndTimer(ctx));
-    if (ctx.subjects.some((s) => s.kind === "child" && can(me, s.module_id, "add"))) list.push(proposePlan(ctx));
+    if (ctx.subjects.some((s) => can(me, s.module_id, "add"))) list.push(proposeCareEntry(ctx), proposeEndTimer(ctx), proposeCustody(ctx));
+    if (ctx.subjects.some((s) => s.kind === "child" && can(me, s.module_id, "add"))) list.push(proposePlan(ctx), proposeMedicineDose(ctx), proposeVaccines(ctx));
+    if (ctx.subjects.some((s) => can(me, s.module_id, "edit"))) list.push(proposeEntryChange(ctx));
+    if (ctx.subjects.some((s) => can(me, s.module_id, "delete"))) list.push(proposeEntryDelete(ctx));
+    if (milk && can(me, "lana", "add")) list.push(proposeMilkAdd(), proposeMilkMove());
     if (can(me, "calendar", "add")) list.push(proposeCalendarEvent());
   }
   return list;
@@ -819,12 +1227,12 @@ function roleLabel(roleId: string, roles: { id: string; label: string }[]): stri
 
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null; chat?: string | null } = {}): Promise<ToolContext> {
-  type MemberRow = { display_name: string; routine: string | null; role_id: string; relationship: string | null };
+  type MemberRow = { id: string; display_name: string; routine: string | null; role_id: string; relationship: string | null };
   type SubjectRow = Omit<SubjectInfo, "sex" | "species"> & { profile: Record<string, unknown> | null };
   const [{ data: subjects }, { data: types }, { data: members }, { data: roles }, { data: memData }, { data: skillData }, { data: recapData }] = await Promise.all([
     supabase.from("care_subjects").select("id,name,module_id,kind,birth_date,profile").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
-    supabase.from("members").select("display_name,routine,role_id,relationship").eq("is_active", true).order("display_name"),
+    supabase.from("members").select("id,display_name,routine,role_id,relationship").eq("is_active", true).order("display_name"),
     supabase.from("roles").select("id,label"),
     supabase.rpc("memory_list"),
     supabase.rpc("skill_list", { p_all: false }),
@@ -837,7 +1245,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     species: typeof profile?.species === "string" ? profile.species : null,
     ambulance: ambulanceOf(profile),
   }));
-  const people = ((members as MemberRow[] | null) ?? []).map((m) => ({ name: m.display_name, routine: m.routine, relationship: m.relationship, role: roleLabel(m.role_id, (roles as { id: string; label: string }[] | null) ?? []) }));
+  const people = ((members as MemberRow[] | null) ?? []).map((m) => ({ id: m.id, name: m.display_name, routine: m.routine, relationship: m.relationship, role: roleLabel(m.role_id, (roles as { id: string; label: string }[] | null) ?? []) }));
   // Names are noise when matching memories to a question: the household's subjects and members.
   const names = [...subs.map((s) => s.name), ...people.map((p) => p.name)];
   const facts = (((memData as { ok?: boolean; items?: MemoryFact[] } | null)?.items ?? []) as MemoryFact[]).map((m) => ({ id: m.id, body: m.body, kind: m.kind, status: m.status, about: m.about ?? null, subject: m.subject ?? null, expires_at: m.expires_at ?? null, created_at: m.created_at, by: m.by }));
@@ -862,7 +1270,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     subjects: subs,
     types: (types as EntryType[]) ?? [],
     routines: people.filter((p): p is typeof p & { routine: string } => !!p.routine).map((p) => ({ name: p.name, routine: p.routine })),
-    people: people.map(({ name, role, relationship }) => ({ name, role, relationship })),
+    people: people.map(({ id, name, role, relationship }) => ({ id, name, role, relationship })),
     memories,
     refs: {},
     proposals: [],

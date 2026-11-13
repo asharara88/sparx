@@ -134,6 +134,11 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       const c = p.end_timer;
       return `${c.type_label} ${c.subject_name}, ${spokenWhen(c.since, tz, lang)} ${t(lang, "to")} ${spokenWhen(c.ended_at, tz, lang)}.`;
     }
+    if (p.kind === "medicine_dose" && p.medicine_dose) {
+      const c = p.medicine_dose;
+      return `${c.name}${c.dose ? `, ${c.dose}` : ""}, ${c.subject_name}, ${spokenWhen(c.given_at, tz, lang)}.`;
+    }
+    if (p.kind === "milk_add" && p.milk_add) return `${p.milk_add.amount_ml} ml, ${p.milk_add.location}, ${spokenWhen(p.milk_add.pumped_at, tz, lang)}.`;
     return p.summary.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\s+·\s+/g, ", ").trim();
   }
   /** A card's line as people read it: "🍼 Feed · Bottle, 120 ml · today 14:00", never "2026-11-09 14:00". */
@@ -149,6 +154,36 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         .join(", ");
       const span = c.ended_at ? `${when(c.occurred_at)} to ${fmtTime(c.ended_at, tz)}` : when(c.occurred_at);
       return [`${icon} ${c.type_label}`.trim(), details, span].filter(Boolean).join(" · ");
+    }
+    if (p.kind === "medicine_dose" && p.medicine_dose) {
+      const c = p.medicine_dose;
+      return [`${icon || "💊"} ${c.name}`, c.dose, when(c.given_at), c.early ? "earlier than the usual gap" : ""].filter(Boolean).join(" · ");
+    }
+    if (p.kind === "milk_add" && p.milk_add) {
+      const c = p.milk_add;
+      return `${icon} Put away · ${c.amount_ml} ml · ${c.location} · pumped ${when(c.pumped_at)}`.trim();
+    }
+    if (p.kind === "milk_move" && p.milk_move) {
+      const c = p.milk_move;
+      const verb = { fridge: "Thaw", warmed: "Warmed", used: "Used", binned: "Bin" }[c.action];
+      return `${icon} ${verb} · ${c.amount_ml} ml · ${c.location} · pumped ${when(c.pumped_at)}`.trim();
+    }
+    if (p.kind === "custody" && p.custody) return p.summary;
+    // The day of a saved entry, without the clock (its times are in the before and after).
+    const dayOf = (iso: string) => when(iso).replace(/\s\d{2}:\d{2}$/, "");
+    if (p.kind === "entry_change" && p.entry_change) {
+      const c = p.entry_change;
+      return `${icon || "✏️"} ${c.type_label}, ${dayOf(c.occurred_at)} · ${c.after} (was ${c.before})`;
+    }
+    if (p.kind === "entry_delete" && p.entry_delete) {
+      const c = p.entry_delete;
+      return `${icon || "🗑️"} Delete · ${c.type_label}, ${dayOf(c.occurred_at)} · ${c.what}`;
+    }
+    if (p.kind === "vaccines" && p.vaccines) {
+      const c = p.vaccines;
+      // A day, not a time: dayWord on the day's noon, without the clock.
+      const day = dayWord(`${c.given_on}T12:00`, nowLocal).replace(/\s\d{2}:\d{2}$/, "");
+      return [`${icon || "💉"} ${c.visit}`, c.items.map((v) => v.vaccine.replace(/\s*\(.*\)$/, "")).join(", "), `given ${day}`].join(" · ");
     }
     if (p.kind === "end_timer" && p.end_timer) {
       const e = p.end_timer;
@@ -522,6 +557,14 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
     stopSpeaking();
   }
 
+  /** An RPC's answer when it says ok; otherwise its own message (a refusal, "too soon") as the card's error. */
+  async function rpcOk(call: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<Record<string, unknown>> {
+    const { data, error } = await call;
+    const res = data as ({ ok?: boolean; message?: string; error?: string } & Record<string, unknown>) | null;
+    if (error || !res?.ok) throw new Error(res?.message ?? (res?.error === "not_allowed" ? t(lang, "notAllowed") : error?.message) ?? t(lang, "couldNotSave"));
+    return res;
+  }
+
   // ---- proposals: the one tap that writes
   // Cards being saved or saved: a second tap, or Confirm all reaching a card already tapped, does nothing.
   const claimedRef = useRef(new Set<string>());
@@ -597,6 +640,36 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? t(lang, "couldNotSave"));
         saved("/ask/memory", t(lang, "remembered"));
+      } else if (p.kind === "custody" && p.custody) {
+        const c = p.custody;
+        await rpcOk(supabase.rpc("custody_set", { p_subject_id: c.subject_id, p_member_id: c.member_id }));
+        saved("/", t(lang, "custodySet", { name: c.member_name, child: c.subject_name }));
+      } else if (p.kind === "entry_change" && p.entry_change) {
+        const c = p.entry_change;
+        await rpcOk(supabase.rpc("care_entry_update", { p_id: c.entry_id, p_occurred_at: c.occurred_at, p_ended_at: c.ended_at, p_payload: c.payload, p_note: c.note }));
+        saved(`/entry/${c.entry_id}`, t(lang, "changed"));
+      } else if (p.kind === "entry_delete" && p.entry_delete) {
+        await rpcOk(supabase.rpc("care_entry_delete", { p_id: p.entry_delete.entry_id }));
+        saved(undefined, t(lang, "deleted"));
+      } else if (p.kind === "milk_add" && p.milk_add) {
+        const c = p.milk_add;
+        await rpcOk(supabase.rpc("milk_add", { p_amount_ml: c.amount_ml, p_location: c.location, p_pumped_at: c.pumped_at, p_note: c.note }));
+        saved("/baby/milk", t(lang, c.location === "freezer" ? "inFreezer" : "inFridge"));
+      } else if (p.kind === "milk_move" && p.milk_move) {
+        const c = p.milk_move;
+        await rpcOk(supabase.rpc("milk_move", { p_id: c.bottle_id, p_action: c.action }));
+        saved("/baby/milk", t(lang, c.action === "binned" ? "binned" : c.action === "fridge" ? "thawing" : "saved"));
+      } else if (p.kind === "medicine_dose" && p.medicine_dose) {
+        const c = p.medicine_dose;
+        const out = await rpcOk(supabase.rpc("medicine_give", { p_id: c.medicine_id, p_dose: c.dose, p_occurred_at: c.given_at, p_note: c.note, p_force: c.early }));
+        const next = typeof out.next_at === "string" ? fmtTime(out.next_at, tz) : null;
+        saved(typeof out.id === "string" ? `/entry/${out.id}` : "/baby/medicine", next ? t(lang, "doseLogged", { time: next }) : `${t(lang, "saved")}.`);
+      } else if (p.kind === "vaccines" && p.vaccines) {
+        const c = p.vaccines;
+        // One call per vaccine. vaccine_record keeps one row per vaccine, so Try again after a
+        // half-saved visit records the rest without doubling the ones already in.
+        for (const v of c.items) await rpcOk(supabase.rpc("vaccine_record", { p_subject_id: c.subject_id, p_schedule_id: v.schedule_id, p_given_on: c.given_on, p_place: c.place, p_batch: null, p_note: null }));
+        saved("/baby/vaccines", t(lang, "inVaccineBook"));
       } else {
         throw new Error("I do not know how to save that.");
       }
@@ -748,15 +821,16 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                 ))}
               </div>
             )}
-            {(m.proposals?.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length ?? 0) > 1 && (
+            {/* A delete is always its own tap: it never rides along in Confirm all. */}
+            {(m.proposals?.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending" && p.kind !== "entry_delete").length ?? 0) > 1 && (
               <button type="button" className="btn btn-primary mt-2 min-h-[56px] w-full text-lg" onClick={() => void (async () => {
                 // The whole batch is claimed and shown as saving first, so no card in it can be tapped or dropped meanwhile.
-                const batch = m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending" && !claimedRef.current.has(x.id));
+                const batch = m.proposals!.filter((x) => (pstate[x.id]?.status ?? "pending") === "pending" && x.kind !== "entry_delete" && !claimedRef.current.has(x.id));
                 for (const p of batch) claimedRef.current.add(p.id);
                 setPstate((s) => ({ ...s, ...Object.fromEntries(batch.map((p) => [p.id, { status: "saving" } as ProposalState])) }));
                 for (const p of batch) await confirm(p, true);
               })()}>
-                Confirm all {m.proposals!.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending").length}
+                Confirm all {m.proposals!.filter((p) => (pstate[p.id]?.status ?? "pending") === "pending" && p.kind !== "entry_delete").length}
               </button>
             )}
             {m.proposals?.map((p) => {
@@ -778,8 +852,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
                       <button type="button" className="btn" onClick={() => setPstate((s) => ({ ...s, [p.id]: { status: "dropped" } }))}>
                         {p.plan ? "Not now" : "Not this"}
                       </button>
-                      <button type="button" className="btn btn-primary min-h-[64px] text-lg" onClick={() => void confirm(p)}>
-                        {p.plan ? "Start this plan" : "Confirm"}
+                      <button type="button" className={`btn ${p.kind === "entry_delete" ? "btn-danger" : "btn-primary"} min-h-[64px] text-lg`} onClick={() => void confirm(p)}>
+                        {p.plan ? "Start this plan" : p.kind === "entry_delete" ? "Delete" : "Confirm"}
                       </button>
                     </div>
                   )}

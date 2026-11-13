@@ -58,6 +58,16 @@ const STRINGS = {
     planStarted: "Plan started. Today's step is on Home.",
     forgotten: "Forgotten.",
     remembered: "Remembered.",
+    custodySet: "{name} has {child} now.",
+    changed: "Changed.",
+    deleted: "Deleted.",
+    inFridge: "In the fridge.",
+    inFreezer: "In the freezer.",
+    binned: "Binned.",
+    thawing: "Moved to the fridge to thaw.",
+    doseLogged: "Logged. The next dose is allowed from {time}.",
+    inVaccineBook: "In the vaccine book.",
+    notAllowed: "You are not allowed to do this.",
     couldNotSave: "Could not save.",
     to: "to",
     yesterday: "yesterday",
@@ -188,6 +198,10 @@ export type Key = keyof (typeof STRINGS)["en"] extends infer K ? Exclude<K, `${s
 export interface Vars {
   /** The child's name in this language. */
   child?: string;
+  /** A member's name ("Wafa has Lana now"). */
+  name?: string;
+  /** A clock time, "14:10". */
+  time?: string;
   /** "Girl" or "Boy" (anything else reads as the default form). */
   sex?: string | null;
   [k: string]: string | number | null | undefined;
