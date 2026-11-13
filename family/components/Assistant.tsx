@@ -686,8 +686,20 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
       } else if (p.kind === "medicine_dose" && p.medicine_dose) {
         const c = p.medicine_dose;
         const out = await rpcOk(supabase.rpc("medicine_give", { p_id: c.medicine_id, p_dose: c.dose, p_occurred_at: c.given_at, p_note: c.note, p_force: c.early }));
-        // The card's own time when it has one: it counts a later dose already logged.
-        const nextIso = c.next_at ?? (typeof out.next_at === "string" ? out.next_at : null);
+        // When the next dose is allowed, read again after saving: someone may have logged a later
+        // dose since the card was made, and medicine_give only counts doses up to this one. The
+        // card's own time, then medicine_give's, only when the list cannot be read.
+        let nextIso: string | null = null;
+        if (c.subject_id) {
+          try {
+            const { data: list } = await supabase.rpc("medicines_list", { p_subject_id: c.subject_id });
+            const item = ((list as { items?: { id: string; next_at: string | null }[] } | null)?.items ?? []).find((m) => m.id === c.medicine_id);
+            nextIso = item?.next_at ?? null;
+          } catch {
+            /* no signal: fall back below */
+          }
+        }
+        nextIso ??= c.next_at ?? (typeof out.next_at === "string" ? out.next_at : null);
         const next = nextIso ? dayWord(toLocalInput(nextIso, tz), toLocalInput(new Date().toISOString(), tz)).replace(/^today /, "") : null;
         saved(typeof out.id === "string" ? `/entry/${out.id}` : "/baby/medicine", next ? t(lang, "doseLogged", { time: next }) : `${t(lang, "saved")}.`);
       } else if (p.kind === "vaccines" && p.vaccines) {

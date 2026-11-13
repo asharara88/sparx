@@ -171,8 +171,11 @@ export function matchVaccines(items: VaccineItem[], said: unknown): { ok: true; 
   if (byName.length) {
     const left = byName.filter((v) => v.status !== "given");
     if (!left.length) return { ok: false, error: "already_given", visits };
-    const first = left[0].visit;
-    return { ok: true, visit: first, items: left.filter((v) => v.visit === first) };
+    // A vaccine given at more than one visit (MMR at 12 and 18 months) with more than one still
+    // open: which dose it was is a question, never the first in the schedule.
+    const open = [...new Set(left.map((v) => v.visit))];
+    if (open.length > 1) return { ok: false, error: "which_visit", visits: open };
+    return { ok: true, visit: open[0], items: left.filter((v) => v.visit === open[0]) };
   }
   return { ok: false, error: "unknown", visits };
 }

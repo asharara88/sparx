@@ -1180,7 +1180,7 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
         id: newId(),
         kind: "medicine_dose",
         summary: `💊 ${med.name}${dose ? ` · ${dose}` : ""} · ${s.name} · ${local(w.at, ctx.tz)}${early ? " · earlier than the usual gap" : ""}`,
-        medicine_dose: { medicine_id: med.id, subject_name: s.name, name: med.name, dose, given_at: w.at, early, note: (input.note as string) || null, next_at: nextAllowed },
+        medicine_dose: { medicine_id: med.id, subject_id: s.id, subject_name: s.name, name: med.name, dose, given_at: w.at, early, note: (input.note as string) || null, next_at: nextAllowed },
         ...(input.replaces_previous === true ? { replaces: true } : {}),
       };
       ctx.proposals.push(p);

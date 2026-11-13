@@ -444,6 +444,8 @@ export interface MilkMoveProposal {
 /** "Gave her 2.5 ml Calpol": a dose of a medicine on the child's list (medicine_give, which keeps the gap). */
 export interface MedicineDoseProposal {
   medicine_id: string;
+  /** For reading the medicine list again after saving (older cards have none). */
+  subject_id?: string;
   subject_name: string;
   name: string;
   dose: string | null;

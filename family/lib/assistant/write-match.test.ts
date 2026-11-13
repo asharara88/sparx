@@ -198,3 +198,11 @@ test("mergeEntry: a field the new choice hides goes (Bottle to Breast drops the 
   const r = mergeEntry({ occurred_at: "2026-11-13T03:00:00Z", ended_at: null, payload: { method: "Bottle", amount_ml: 120 }, note: null }, { payload: { method: "Breast", side: "Left" } }, fields);
   assert.deepEqual(r.ok && r.next.payload, { method: "Breast", side: "Left" });
 });
+
+test("matchVaccines: a vaccine open at two visits asks which visit", () => {
+  const r = matchVaccines(schedule, "MMR");
+  assert.equal(!r.ok && r.error, "which_visit");
+  assert.deepEqual(!r.ok && r.visits, ["12 months", "18 months"]);
+  const one = matchVaccines(schedule.map((v) => (v.id === "m12" ? { ...v, status: "given" } : v)), "MMR");
+  assert.equal(one.ok && one.visit, "18 months", "once the first is recorded, the second is the one");
+});
