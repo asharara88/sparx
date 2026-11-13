@@ -5,7 +5,7 @@ import { tintFor } from "@/lib/tints";
 
 /**
  * The child's day in plain words: four tinted totals (sleep, breast, bottles,
- * nappies) and, unless the page lists the day itself, the day's entries newest
+ * diapers) and, unless the page lists the day itself, the day's entries newest
  * first in their feature colour. Two grey 12-hour bars with L/R badges, cut-off
  * millilitres, unlabelled dots and a black "now" line stood here before; nobody
  * could read them.
@@ -56,7 +56,7 @@ export function DayStrip({
     { tint: "sleep", value: sleepMin ? fmtDuration(sleepMin) : "—", label: "sleep" },
     { tint: "feed", value: breastMin ? fmtDuration(breastMin) : breastCount ? `${breastCount}` : "—", label: breastCount === 1 ? "1 breastfeed" : `${breastCount || ""} breastfeeds`.trim() },
     { tint: "milk", value: bottleMl ? `${bottleMl} ml` : bottles ? `${bottles}` : "—", label: bottles === 1 ? "1 bottle" : `${bottles || ""} bottles`.trim() },
-    { tint: "diaper", value: nappies ? `${nappies}` : "—", label: "nappies" },
+    { tint: "diaper", value: nappies ? `${nappies}` : "—", label: "diapers" },
   ];
 
   const rows = entries.filter(inDay).sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));

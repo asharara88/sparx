@@ -1,6 +1,6 @@
 /**
  * Entry checks: the log's own sanity. A timer left running, a sleep that
- * "lasted" through three feeds, two nappies logged in the same minute, a
+ * "lasted" through three feeds, two diapers logged in the same minute, a
  * 400 ml bottle: these are mis-entries, not facts, and they poison every
  * number the app and the helper quote. The checks find them and suggest the
  * fix the data itself supports (end a timer where the next entry proves she
@@ -58,7 +58,7 @@ const hm = (ms: number) => {
 const kind = (e: CheckEntry) => e.type_id.slice(e.type_id.indexOf(".") + 1);
 const checked = (e: CheckEntry) => e.payload.checked === true || e.payload.timer_ok === true || e.payload.timer_capped === true;
 
-/** Feeds and sleeps are timers; a later feed, nappy or sleep proves the earlier one had ended by then. */
+/** Feeds and sleeps are timers; a later feed, diaper or sleep proves the earlier one had ended by then. */
 function isTimer(e: CheckEntry): boolean {
   const k = kind(e);
   if (k === "feed") return e.payload.method !== "Bottle"; // bottles are logged after the fact, with no timer
@@ -143,7 +143,7 @@ export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): Chec
     // 5. Doubles: the same kind twice within two minutes.
     const prev = entries[i - 1];
     if (prev && kind(prev) === k && !isTimer(e) && start - t(prev.occurred_at) <= DOUBLE_WINDOW_MIN * 60_000 && !checked(e)) {
-      push({ kind: "double", entry: e, title: `Two ${k === "diaper" ? "nappies" : `${k} entries`} within ${DOUBLE_WINDOW_MIN} minutes`, detail: `One at ${prev.occurred_at} and this one. A double tap, or two real ones?`, fix: null, suggestDelete: true });
+      push({ kind: "double", entry: e, title: `Two ${k === "diaper" ? "diapers" : `${k} entries`} within ${DOUBLE_WINDOW_MIN} minutes`, detail: `One at ${prev.occurred_at} and this one. A double tap, or two real ones?`, fix: null, suggestDelete: true });
       continue;
     }
 

@@ -22,7 +22,7 @@ export type QuickLog =
 export interface QuickVocab {
   /** The child's first name, lower case, so "Lana had 120 ml" reads. */
   name?: string | null;
-  /** The nappy type's kind options ("Wet", "Dirty", "Both"). */
+  /** The diaper type's kind options ("Wet", "Dirty", "Both"). */
   diaperKinds: string[];
   /** The feed type's milk options; only one named in the words ("formula") is used. */
   milks: string[];
@@ -109,7 +109,7 @@ export function readQuick(message: string, nowLocal: string, vocab: QuickVocab):
   if (!ws.length) return null;
   const all = (set: Set<string>) => ws.every((w) => set.has(w) || COMMON.has(w));
 
-  // A nappy: "wet nappy", "dirty diaper", "changed her nappy" (the kind then asked).
+  // A diaper: "wet nappy", "dirty diaper", "changed her nappy" (the kind then asked).
   if (ws.some((w) => w === "nappy" || w === "diaper" || w === "poo" || w === "poop") && all(DIAPER)) {
     const wet = ws.includes("wet");
     const dirty = ws.some((w) => ["dirty", "poo", "poop", "poopy", "pooey", "soiled"].includes(w));

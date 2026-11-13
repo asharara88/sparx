@@ -87,7 +87,7 @@ export function LanaNow({
   const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
   // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
   const [when, setWhen] = useState<When>(NOW);
-  // The sheet a tile opened (feed, nappy, pump, or a sleep from earlier); closes when the tap saves.
+  // The sheet a tile opened (feed, diaper, pump, or a sleep from earlier); closes when the tap saves.
   const [sheet, setSheet] = useState<"feed" | "diaper" | "pump" | "sleep" | "meal" | null>(null);
   // The Meal sheet: what was eaten, how much, and whether it was new or held an allergen.
   const [meal, setMeal] = useState<{ food: string; amount: string | null; isNew: boolean; allergen: string; reaction: string }>({ food: "", amount: null, isNew: false, allergen: "None", reaction: "None" });
@@ -389,7 +389,7 @@ export function LanaNow({
             action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "play", label: "Start a feed", onClick: () => openSheet("feed") }} />
           <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
             action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
-          <Row tint="diaper" icon="diaper" label="Nappy" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a nappy", onClick: () => openSheet("diaper") }} />
+          <Row tint="diaper" icon="diaper" label="Diaper" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a diaper", onClick: () => openSheet("diaper") }} />
           {fourth === "meal" ? (
             <Row tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} action={{ kind: "plus", label: "Log a meal", onClick: () => openSheet("meal") }} />
           ) : fourth === "pump" ? (
@@ -484,10 +484,10 @@ export function LanaNow({
         </Sheet>
       )}
       {sheet === "diaper" && (
-        <Sheet title="Nappy" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
+        <Sheet title="Diaper" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
           <div className="grid grid-cols-3 gap-2">
             {(diaperType?.fields.find((f) => f.key === "kind")?.options ?? ["Wet", "Dirty", "Both"]).map((k) => (
-              <button key={k} type="button" className="action action-col tint-diaper items-center text-center" disabled={off} onClick={() => run(`Nappy (${k.toLowerCase()}) saved.`, () => start(diaperType, { kind: k }, nowIso))}>
+              <button key={k} type="button" className="action action-col tint-diaper items-center text-center" disabled={off} onClick={() => run(`Diaper (${k.toLowerCase()}) saved.`, () => start(diaperType, { kind: k }, nowIso))}>
                 <span className="icon-disc">
                   <Icon name="diaper" size={22} />
                 </span>

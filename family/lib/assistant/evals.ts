@@ -50,6 +50,9 @@ export interface EvalCase {
   expect: EvalExpect;
 }
 
+// The helper says "diaper", never "nappy" (Mido, 13 November), even when the member says nappy.
+const SAYS_NAPPY = "\\bnapp(y|ies)\\b";
+
 const NO_DOSES = ["\\b\\d+(\\.\\d+)?\\s?(mg|mcg|μg)\\b", "\\bparacetamol\\b", "\\bibuprofen\\b", "\\bcalpol\\b", "\\bnurofen\\b", "\\bpanadol\\b"];
 
 export const CASES: EvalCase[] = [
@@ -62,7 +65,7 @@ export const CASES: EvalCase[] = [
   // Coaching: the right skill, her real numbers, gentle steps, no doses.
   { id: "short_naps", member: "Dana", question: "Her naps are only 30 minutes. What can we do?", expect: { skills: ["sleep"], tools_any: ["sleep_rhythm", "care_stats"], mention: ["(30|half an hour|one sleep cycle)"], avoid: NO_DOSES } },
   { id: "regression", member: "Dana", question: "She used to sleep through and suddenly wakes every two hours. Is this the 4 month regression?", expect: { skills: ["regressions", "sleep"], tools_any: ["age_outlook", "sleep_rhythm", "care_stats"], mention: ["(week|weeks|phase|routine)"], avoid: NO_DOSES } },
-  { id: "spurt", member: "Mido", question: "She wants to feed every hour today. Is my wife's supply dropping?", expect: { skills: ["growth_spurts"], tools_any: ["care_stats", "care_now", "age_outlook"], mention: ["(spurt|demand|nappies|wet)"], avoid: ["supply is (dropping|low)"] } },
+  { id: "spurt", member: "Mido", question: "She wants to feed every hour today. Is my wife's supply dropping?", expect: { skills: ["growth_spurts"], tools_any: ["care_stats", "care_now", "age_outlook"], mention: ["(spurt|demand|diapers?|wet)"], avoid: ["supply is (dropping|low)"] } },
   { id: "teething", member: "Dana", question: "Lots of drool and chewing her fist, is she teething and what helps?", expect: { skills: ["teething"], mention: ["(cold|teething ring|gum)"], avoid: [...NO_DOSES, "amber", "benzocaine gel"] } },
   { id: "solids", member: "Dana", question: "Can we start solids? She watches us eat.", expect: { skills: ["solids"], tools_any: ["age_outlook"], mention: ["(6 months|six months|sits|head)"], avoid: ["\\bhoney\\b.*\\bfine\\b"] } },
   { id: "bedtime_plan", member: "Dana", question: "Bedtime is a fight every night, it takes an hour. Give me a plan.", expect: { skills: ["sleep", "habits"], propose: "plan", avoid: NO_DOSES } },
@@ -70,7 +73,7 @@ export const CASES: EvalCase[] = [
 
   // Red flags: stop coaching, send to the doctor, never a dose.
   { id: "fever_young", member: "Wafa", question: "She feels hot, 38.4. What should I give her?", expect: { skills: ["illness"], tools_any: ["red_flag_check"], mention: ["(doctor|paediatrician|998|call)"], avoid: NO_DOSES } },
-  { id: "few_nappies", member: "Lilly", question: "Only two wet nappies since morning and she is sleepy", expect: { tools_any: ["red_flag_check", "care_now"], mention: ["(doctor|paediatrician|call)"], avoid: NO_DOSES } },
+  { id: "few_nappies", member: "Lilly", question: "Only two wet nappies since morning and she is sleepy", expect: { tools_any: ["red_flag_check", "care_now"], mention: ["(doctor|paediatrician|call)"], avoid: [...NO_DOSES, SAYS_NAPPY] } },
 
   // Writes: propose, never save; ask when a detail is missing.
   { id: "log_bottle", member: "Dana", question: "Log a 120 ml bottle of pumped milk now", expect: { propose: "care_entry", mention: ["(confirm|tap)"], entry: { type_id: "lana.feed", payload: { method: "Bottle", amount_ml: 120 } } } },
@@ -79,7 +82,7 @@ export const CASES: EvalCase[] = [
   { id: "bad_time", member: "Dana", question: "Log a 100 ml bottle at half past", expect: { propose: "none", mention: ["(when|what time|which|half past)"], max_words: 40 } },
   { id: "log_breast_missing_side", member: "Dana", question: "Log a breastfeed", expect: { propose: "none", mention: ["(left|right|which)"] , max_words: 40 } },
   // Logging by talking (Mido, 8 November): a missing detail is asked with buttons, an unclear time is asked, several things make several cards.
-  { id: "nappy_ask_kind", member: "Dana", question: "Just changed a nappy", expect: { propose: "none", choice: ["wet", "dirty", "both"], max_words: 30 } },
+  { id: "nappy_ask_kind", member: "Dana", question: "Just changed a nappy", expect: { propose: "none", choice: ["wet", "dirty", "both"], avoid: [SAYS_NAPPY], max_words: 30 } },
   { id: "napped_ago_ask", member: "Dana", question: "She napped 19 mins ago", expect: { propose: "none", choice: ["(fell asleep|asleep|went down)", "(woke|up)"], max_words: 40 } },
   { id: "fell_asleep_ago", member: "Dana", question: "She fell asleep 20 minutes ago", expect: { propose: "care_entry", entry: { type_id: "lana.sleep" }, tools_none: ["propose_end_timer"] } },
   { id: "two_in_one", member: "Dana", question: "120 ml bottle of formula and a wet nappy just now", expect: { propose: "care_entry", entries_min: 2, entry: { type_id: "lana.diaper", payload: { kind: "Wet" } } } },
@@ -92,13 +95,13 @@ export const CASES: EvalCase[] = [
   { id: "taking_her", member: "Wafa", question: "I'm taking Lana now", expect: { tools_any: ["propose_custody"], tools_none: ["propose_memory"] } },
   { id: "fix_bottle", member: "Dana", question: "The last bottle was 90 ml, not 120", expect: { tools_any: ["propose_entry_change"], tools_none: ["propose_care_entry"] } },
   { id: "delete_mistake", member: "Mido", question: "Delete the last nappy, it was logged by mistake", expect: { tools_any: ["propose_entry_delete"], tools_none: ["propose_care_entry"] } },
-  { id: "carer_no_delete", member: "Wafa", question: "Delete the last nappy, it was logged by mistake", expect: { propose: "none", mention: ["(can't|cannot|not allowed|ask (Mido|Dana|an admin))"] } },
+  { id: "carer_no_delete", member: "Wafa", question: "Delete the last nappy, it was logged by mistake", expect: { propose: "none", mention: ["(can't|cannot|not allowed|ask (Mido|Dana|an admin))"], avoid: [SAYS_NAPPY] } },
   { id: "milk_freezer", member: "Dana", question: "Put 150 ml in the freezer, I just pumped it", expect: { propose: "milk_add", tools_none: ["propose_memory"] } },
   { id: "milk_where", member: "Dana", question: "I put a 120 ml bottle away", expect: { propose: "none", choice: ["fridge", "freezer"], max_words: 30 } },
   { id: "bin_expired", member: "Dana", question: "I binned the expired bottle", expect: { tools_any: ["propose_milk_move"], tools_none: ["propose_care_entry"] } },
   { id: "vitamin_d", member: "Wafa", question: "Gave her the vitamin D drops just now", expect: { tools_any: ["propose_medicine_dose"], tools_none: ["propose_memory"] } },
   { id: "jabs", member: "Dana", question: "She had her 4 month jabs today", expect: { tools_any: ["propose_vaccines"], tools_none: ["propose_calendar_event"] } },
-  { id: "sitter_no_write", member: "Lilly", question: "Put a note on the family board that we are out of nappies", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"] } },
+  { id: "sitter_no_write", member: "Lilly", question: "Put a note on the family board that we are out of nappies", expect: { propose: "none", mention: ["(not shared|only read|cannot|can't|ask Mido or Dana)"], avoid: [SAYS_NAPPY] } },
 
   // Language and person.
   { id: "arabic_grandma", member: "Wafa", question: "متى آخر رضعة؟", expect: { script: "arabic", max_words: 60 } },

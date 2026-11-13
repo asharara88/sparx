@@ -18,14 +18,19 @@ test("readQuick: bottles in ml, with formula named, and when", async () => {
   assert.equal(readQuick("5 ml", NOW, V), null);
 });
 
-test("readQuick: nappies, with the kind asked when not said", async () => {
+test("readQuick: diapers, said as nappy or diaper, with the kind asked when not said", async () => {
   const { readQuick } = await import("./quick-log.ts");
   assert.deepEqual(readQuick("wet nappy", NOW, V), { kind: "diaper", diaper: "Wet", when: { agoMin: 0 } });
+  assert.deepEqual(readQuick("wet diaper", NOW, V), { kind: "diaper", diaper: "Wet", when: { agoMin: 0 } });
   assert.deepEqual(readQuick("dirty diaper 10 mins ago", NOW, V), { kind: "diaper", diaper: "Dirty", when: { agoMin: 10 } });
+  assert.deepEqual(readQuick("dirty nappy 10 mins ago", NOW, V), { kind: "diaper", diaper: "Dirty", when: { agoMin: 10 } });
   assert.deepEqual(readQuick("wet and dirty nappy", NOW, V), { kind: "diaper", diaper: "Both", when: { agoMin: 0 } });
+  assert.deepEqual(readQuick("wet and dirty diaper", NOW, V), { kind: "diaper", diaper: "Both", when: { agoMin: 0 } });
   assert.deepEqual(readQuick("she did a poo", NOW, V), { kind: "diaper", diaper: "Dirty", when: { agoMin: 0 } });
   assert.deepEqual(readQuick("just changed a nappy", NOW, V), { kind: "diaper", diaper: null, when: { agoMin: 0 } });
+  assert.deepEqual(readQuick("just changed a diaper", NOW, V), { kind: "diaper", diaper: null, when: { agoMin: 0 } });
   assert.equal(readQuick("wet nappy and 120 ml", NOW, V), null, "two things at once go to the helper");
+  assert.equal(readQuick("wet diaper and 120 ml", NOW, V), null, "two things at once go to the helper");
 });
 
 test("readQuick: asleep, awake, and a finished sleep", async () => {

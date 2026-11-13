@@ -134,7 +134,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
         <Icon name="history" size={22} className="shrink-0 text-[var(--accent)]" />
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">{hint ?? (pastDay ? "Add something to this day" : "Forgot to log something?")}</span>
-          <span className="muted block text-sm">{hint ? "Add it from earlier in a few taps." : "A feed, a nappy or a nap from earlier, in a few taps."}</span>
+          <span className="muted block text-sm">{hint ? "Add it from earlier in a few taps." : "A feed, a diaper or a nap from earlier, in a few taps."}</span>
         </span>
         <span aria-hidden className="muted">
           ›

@@ -78,7 +78,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
       wk[`${s.name}_play_ideas`] = items.map((a) => `${a.title}: ${a.how}`);
     }
     wk.due_soon = await run("due_soon", { days_ahead: 10 });
-    const askWeek = `Write "This week for ${kids.map((s) => s.name).join(" and ") || "the baby"}" for ${me.member.display_name}: a short weekly note. In this order: 1) what her age usually brings this week (from the week calendar and the age outlook: the week she is in, the stretch it belongs to, what is coming and in how many days or weeks), in two or three plain sentences; 2) how last week went in numbers (feeds, sleep, longest stretch, nappies) and one thing that stands out, citing [entry:ID] only where the data gives ids; 3) one or two gentle things to try this week, from the sleep rhythm and the play ideas given (name the idea); 4) anything due in the next 10 days (vaccines, appointments). Under 160 words, short lines. No diagnoses, no doses. Leave out empty sections.`;
+    const askWeek = `Write "This week for ${kids.map((s) => s.name).join(" and ") || "the baby"}" for ${me.member.display_name}: a short weekly note. In this order: 1) what her age usually brings this week (from the week calendar and the age outlook: the week she is in, the stretch it belongs to, what is coming and in how many days or weeks), in two or three plain sentences; 2) how last week went in numbers (feeds, sleep, longest stretch, diapers) and one thing that stands out, citing [entry:ID] only where the data gives ids; 3) one or two gentle things to try this week, from the sleep rhythm and the play ideas given (name the idea); 4) anything due in the next 10 days (vaccines, appointments). Under 160 words, short lines. No diagnoses, no doses. Leave out empty sections.`;
     const t0w = Date.now();
     const resW = await compose(
       [
@@ -195,7 +195,7 @@ async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh
       bottle_ml: num("bottle_ml"),
       sleep_hours_per_day: days.length ? Math.round((num("sleep_min") / days.length / 60) * 10) / 10 : null,
       longest_stretch_min: Math.max(0, ...days.map((d) => Number(d.longest_stretch_min ?? 0))),
-      nappies: num("diapers_wet") + num("diapers_dirty"),
+      diapers: num("diapers_wet") + num("diapers_dirty"),
       weight_start_kg: firstW,
       weight_end_kg: lastW,
     },
@@ -203,7 +203,7 @@ async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh
     age_now: ageOutlook(ageAtEnd),
     week_now: w ? { week: w.week, stretch: w.band.title, expect: w.band.expect, next: w.next?.title ?? null } : null,
   };
-  const ask = `Write "${kid.name}'s month ${month}" for ${me.member.display_name}: a short keepsake page about this month of her life${span.inProgress ? " so far" : ""}, in the second person plural ("you") to the family. Warm, plain, no baby-talk and no exclamation marks. In this order: 1) her firsts this month, by name and date, if any; 2) how the days went in a few numbers (feeds, sleep, the longest stretch, nappies, weight if given), as a sentence or two, not a list; 3) what you tried together (name two or three of the ideas tried, if any); 4) one or two sentences on what this age usually brings next. Between 120 and 180 words. No diagnoses, no doses, no advice beyond "what comes next". Leave out empty sections without comment.`;
+  const ask = `Write "${kid.name}'s month ${month}" for ${me.member.display_name}: a short keepsake page about this month of her life${span.inProgress ? " so far" : ""}, in the second person plural ("you") to the family. Warm, plain, no baby-talk and no exclamation marks. In this order: 1) her firsts this month, by name and date, if any; 2) how the days went in a few numbers (feeds, sleep, the longest stretch, diapers, weight if given), as a sentence or two, not a list; 3) what you tried together (name two or three of the ideas tried, if any); 4) one or two sentences on what this age usually brings next. Between 120 and 180 words. No diagnoses, no doses, no advice beyond "what comes next". Leave out empty sections without comment.`;
   const t0 = Date.now();
   const res = await compose(
     [

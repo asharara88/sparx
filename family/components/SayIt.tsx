@@ -82,7 +82,7 @@ export function SayIt({ compact = false, icon = false, onHeard }: { compact?: bo
         </button>
         {listening && (
           <p className="say-heard" role="status">
-            {heard ? `“${heard.slice(0, 80)}”` : "Listening… say a feed, a nappy or a sleep"}
+            {heard ? `“${heard.slice(0, 80)}”` : "Listening… say a feed, a diaper or a sleep"}
           </p>
         )}
       </>
@@ -99,7 +99,7 @@ export function SayIt({ compact = false, icon = false, onHeard }: { compact?: bo
   return (
     <button type="button" className={`btn flex w-full items-center justify-center gap-2 ${listening ? "btn-primary" : ""}`} style={{ minHeight: 52 }} onClick={start} aria-pressed={listening}>
       {listening ? <span className="dot dot-danger" /> : <Icon name="mic" size={20} />}
-      {listening ? (heard ? `“${heard}”` : "Listening… say a feed, a nappy or a sleep") : "Say it to log"}
+      {listening ? (heard ? `“${heard}”` : "Listening… say a feed, a diaper or a sleep") : "Say it to log"}
     </button>
   );
 }

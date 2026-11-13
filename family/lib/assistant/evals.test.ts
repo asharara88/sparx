@@ -90,6 +90,10 @@ test("grade: a tap-to-answer question and several cards", async () => {
   const c = { id: "x", member: "Dana", question: "Just changed a nappy", expect: { propose: "none" as const, choice: ["wet", "dirty", "both"] } };
   assert.equal(grade(c, { answer: "Wet, dirty or both?", skills: [], tools: ["ask_choice"], proposals: [], choice: { question: "Wet, dirty or both?", options: ["Wet", "Dirty", "Both"] } }).pass, true);
   assert.equal(grade(c, { answer: "Was it wet?", skills: [], tools: [], proposals: [] }).pass, false, "a typed question is not enough");
+  const ask = CASES.find((x) => x.id === "nappy_ask_kind")!;
+  const choice = { question: "Wet, dirty or both?", options: ["Wet", "Dirty", "Both"] };
+  assert.equal(grade(ask, { answer: "Was the diaper wet, dirty or both?", skills: [], tools: ["ask_choice"], proposals: [], choice }).pass, true);
+  assert.equal(grade(ask, { answer: "Was the nappy wet, dirty or both?", skills: [], tools: ["ask_choice"], proposals: [], choice }).pass, false, "the helper says diaper, even when the member says nappy");
   const two = { id: "y", member: "Dana", question: "bottle and nappy", expect: { entries_min: 2 } };
   assert.equal(grade(two, { answer: "", skills: [], tools: [], proposals: ["care_entry"], care_entries: [{ type_id: "lana.feed", payload: {}, at: "09:00" }] }).pass, false);
 });

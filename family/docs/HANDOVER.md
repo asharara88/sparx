@@ -8,7 +8,7 @@ and their cost, checks before a push, database conventions) and the live facts.
 
 ## What it is
 
-A private app for a household's day: the baby's log (feeds, sleep, nappies,
+A private app for a household's day: the baby's log (feeds, sleep, diapers,
 growth, medicine), who is home, the helper, the milk stash, and a Claude-powered
 assistant that answers questions and proposes entries. In the first household five
 people use it: two parents, two grandmothers and the home carer. It is a Next.js 16
@@ -84,7 +84,7 @@ Done and live:
 - The helper's memory, second pass (2 November, migration `…5600`): memories about the
   home, the child or a person, with expiry and editing; suggestions the helper draws from
   a saved chat (on by default since 2 November; `ASSISTANT_REMEMBER=0` switches it off;
-  one Haiku call per chat read); the situation block grew (awake since, last nappy, last night, the usual day,
+  one Haiku call per chat read); the situation block grew (awake since, last diaper, last night, the usual day,
   who is in the house); earlier turns carry each card's outcome and a long chat's cut
   part comes as a digest. README, "Memory" and "Context", has the detail.
 - Age stages (7 November, migration `…5800`): the app grows with the child. A Meal entry,
@@ -97,7 +97,7 @@ Done and live:
   feeds pink, everywhere.
 - Home is the dashboard (7 November, Mido's ask; the dashboard was 3 and 4 November). The
   first screen: state card, a strip of the day's four numbers (woke, naps against usual,
-  feeds, nappies), one alert (the guide's top tip among the candidates) and the log rows.
+  feeds, diapers), one alert (the guide's top tip among the candidates) and the log rows.
   Below the rows: sleep today, feeds today, food once she eats, pumping while it goes on.
   `/baby/dashboard` sends to `/#today`; Milk's Pumping row goes there too.
 - Branding as elnunu, plum and ivory, self-hosted fonts, icons and manifest.

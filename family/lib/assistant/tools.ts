@@ -451,7 +451,7 @@ function askChoice(): AssistantTool {
   return {
     def: {
       name: "ask_choice",
-      description: "Ask the member one short question whose answer is one of a few options, shown as buttons they tap: which kind of nappy (Wet | Dirty | Both), which breast side (Left | Right), a bottle size (60 ml | 90 ml | 120 ml | 150 ml), whether a time was when she fell asleep or woke up. Use it instead of a typed question whenever the answer is one of 2 to 6 short options; write the same question as your answer, in one line. One per answer.",
+      description: "Ask the member one short question whose answer is one of a few options, shown as buttons they tap: which kind of diaper (Wet | Dirty | Both), which breast side (Left | Right), a bottle size (60 ml | 90 ml | 120 ml | 150 ml), whether a time was when she fell asleep or woke up. Use it instead of a typed question whenever the answer is one of 2 to 6 short options; write the same question as your answer, in one line. One per answer.",
       input_schema: obj(
         {
           question: { type: "string", description: "The question, short, e.g. \"Wet, dirty or both?\"" },
@@ -653,7 +653,7 @@ function redFlagCheck(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "red_flag_check",
-      description: "Scan the last 1 to 3 days of a child's log for warning signs: few wet nappies, few feeds, long gaps, long awake stretches, little sleep. Returns the same red and yellow flags as the app's guide. Run it whenever the question mentions illness, feeding refusal, fewer nappies or unusual sleepiness. Any red flag means: contact the paediatrician.",
+      description: "Scan the last 1 to 3 days of a child's log for warning signs: few wet diapers, few feeds, long gaps, long awake stretches, little sleep. Returns the same red and yellow flags as the app's guide. Run it whenever the question mentions illness, feeding refusal, fewer diapers or unusual sleepiness. Any red flag means: contact the paediatrician.",
       input_schema: obj({ subject: SUBJECT_PROP(ctx0), days: { type: "integer", description: "1 to 3" } }),
     },
     run: async (input, ctx) => {
@@ -868,7 +868,7 @@ function proposeEntryChange(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "propose_entry_change",
-      description: `Fix an entry already saved in ${editable.map((s) => s.name).join(" or ")}'s log, for the member to confirm with one tap: "that bottle was 90 not 120", "she actually woke at 6:40", "it was a dirty nappy", "the nap started at 1, not 1:30", "she's still asleep" (clears the end). Find the entry first with care_now or care_entries and pass its id. Only what was said changes; the rest stays. Not for a card that is not confirmed yet (propose it again with replaces_previous).`,
+      description: `Fix an entry already saved in ${editable.map((s) => s.name).join(" or ")}'s log, for the member to confirm with one tap: "that bottle was 90 not 120", "she actually woke at 6:40", "it was a dirty diaper", "the nap started at 1, not 1:30", "she's still asleep" (clears the end). Find the entry first with care_now or care_entries and pass its id. Only what was said changes; the rest stays. Not for a card that is not confirmed yet (propose it again with replaces_previous).`,
       input_schema: obj(
         {
           entry_id: { type: "string", description: "The entry's full id from care_now or care_entries." },
@@ -934,7 +934,7 @@ function proposeEntryDelete(ctx0: ToolContext): AssistantTool {
   return {
     def: {
       name: "propose_entry_delete",
-      description: `Delete an entry already saved in ${deletable.map((s) => s.name).join(" or ")}'s log, for the member to confirm with one tap: "delete the last nappy, it was a mistake", "that bottle was logged twice, remove one". Find it first with care_now or care_entries and pass its id. When it was logged twice, delete the later one. Only when the member asks for it gone; to fix a time or amount use propose_entry_change.`,
+      description: `Delete an entry already saved in ${deletable.map((s) => s.name).join(" or ")}'s log, for the member to confirm with one tap: "delete the last diaper, it was a mistake", "that bottle was logged twice, remove one". Find it first with care_now or care_entries and pass its id. When it was logged twice, delete the later one. Only when the member asks for it gone; to fix a time or amount use propose_entry_change.`,
       input_schema: obj({ entry_id: { type: "string", description: "The entry's full id from care_now or care_entries." } }, ["entry_id"]),
     },
     run: async (input, ctx) => {

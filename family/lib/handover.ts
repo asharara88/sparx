@@ -10,7 +10,7 @@ export interface WindowStats {
 }
 
 /**
- * What happened between two instants: feeds and nappies by when they happened,
+ * What happened between two instants: feeds and diapers by when they happened,
  * sleep by how much of it fell inside the window. A nap that began before the
  * window counts for the part after `fromIso`; one still running, or ending after
  * `toIso`, counts up to `toIso` only. So "while Mama was at work" neither loses

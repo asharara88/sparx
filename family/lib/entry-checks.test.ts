@@ -60,9 +60,10 @@ test("a timer its limit stopped is shown once, so the guessed end gets a look", 
   assert.equal(checkEntries([mk("feed", 0, 35, { method: "Breast" })], { now: T0 + 3 * 3_600_000 }).length, 0, "a real end that replaced the guess is not flagged");
 });
 
-test("one-second timers and double nappies suggest delete", () => {
+test("one-second timers and double diapers suggest delete", () => {
   const flags = checkEntries([mk("sleep", 0, 0.1), mk("diaper", 10, null, { kind: "Both" }), mk("diaper", 10.5, null, { kind: "Dirty" })], { now: T0 + 60 * 60_000 });
   assert.deepEqual(flags.map((f) => [f.kind, f.suggestDelete]), [["short_timer", true], ["double", true]]);
+  assert.match(flags[1].title, /^Two diapers within \d+ minutes$/);
 });
 
 test("a 400 ml bottle is questioned", () => {

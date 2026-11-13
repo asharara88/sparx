@@ -28,7 +28,7 @@ household*); nothing in the code is tied to these people.
 **Step 2 (this release)**
 
 - Lana's medicine list with a safe gap between doses: "Given" logs it, and asks twice when it
-  is too early (`/lana/medicine`). Her next 12 hours (feeds, nappies, naps) estimated from the
+  is too early (`/lana/medicine`). Her next 12 hours (feeds, diapers, naps) estimated from the
   last week, on Lana's Today tab, the Home screen and today's calendar. Her firsts with photos
   (`/lana/milestones`). A photo of a milk bag label or a bottle fills in the amount and date.
 - Smart care: the next feed depends on how much she took (ten minutes on one side comes back
@@ -55,12 +55,12 @@ household*); nothing in the code is tied to these people.
 - Logging after the fact: every one-tap button on Home and the sleep shortcut has a "When"
   line (now, 15 min to 3 h ago, or a time), so a late tap is still logged at the right
   moment, including "woke up 20 min ago". A "Forgot to log something?" card on Home and on
-  each day in the Lana tab writes a finished feed, nappy, nap or pump into the past in a few
+  each day in the Lana tab writes a finished feed, diaper, nap or pump into the past in a few
   taps (what, started, lasted, the one detail), and nudges when nothing has been fed for
   well past her usual gap. Past days default to that day. The helper's "say it to log"
   takes "at 3" and "an hour ago" too.
 - Entry checks: the log flags its own mis-entries (a sleep or feed timer left running, a
-  timer that ran across later entries, a one-second tap, two nappies in the same minute, a
+  timer that ran across later entries, a one-second tap, two diapers in the same minute, a
   bottle over 240 ml) and offers the fix the data supports: end it at the next entry, trim to
   a normal feed, remove it, or "it was real" so it is never asked again. Home shows the first
   two, Lana's Today shows all; `care_entry_check` is audited like any edit.
@@ -114,19 +114,19 @@ household*); nothing in the code is tied to these people.
 - **Logging by chat and voice, one tap to confirm.** "Log a 120 ml formula bottle" prepares a
   card; nothing is written until you tap **Confirm**, and then it goes through the normal
   entry path (offline queue included). Also calendar entries and running-low items.
-  When a detail the entry needs is missing ("just changed a nappy") the helper asks once, with
+  When a detail the entry needs is missing ("just changed a diaper") the helper asks once, with
   the answers as buttons (Wet / Dirty / Both). It asks only what the entry needs. "Napped 19 min
   ago" gets asked: fell asleep, or woke? Several things in one message ("120 ml bottle and a wet
-  nappy") give one card each and a **Confirm all**. A correction ("no, 90 ml") replaces the
+  diaper") give one card each and a **Confirm all**. A correction ("no, 90 ml") replaces the
   earlier card instead of adding a second one.
 - **Achievements** (`/achievements`, More → Family; migration 5900): badges for the grown-ups,
   never for the baby's numbers. Pumping on goal N days in a row (1, 3, 7, 14, 30), days well
   over the goal (1, 5, 15), the freezer stash (500 ml, 1 l, 2 l). Awarded in the database
   from the log (`achievements_check`, called by Home and the shelf); shown once per person
   with confetti and a medal; a nudge on Home keeps a pumping run going. No model calls.
-- **Plain logs need no model call.** "120 ml bottle", "wet nappy", "fell asleep 10 min ago",
+- **Plain logs need no model call.** "120 ml bottle", "wet diaper", "fell asleep 10 min ago",
   "woke up at 6:40" and "slept 1 to 2:15" are read on the phone (`lib/assistant/quick-log.ts`)
-  and saved at once, with **Undo** for a minute; "changed a nappy" asks Wet / Dirty / Both
+  and saved at once, with **Undo** for a minute; "changed a diaper" asks Wet / Dirty / Both
   there too. No model call, nothing off the daily allowance, and it works offline (the entry
   waits on the phone). The reader is strict: a word it does not know, two things at once, or
   a running sleep in the way, and the message goes to the helper as before. English only;
@@ -147,7 +147,7 @@ household*); nothing in the code is tied to these people.
   questions (one small model call, Haiku by default, `ASSISTANT_REMEMBER_MODEL` to change it)
   and lists what it noticed as suggestions on "What it remembers", where anyone keeps or
   drops them with one tap. `ASSISTANT_REMEMBER=0` on the server switches the reading off.
-- **Context:** the model sees the situation (asleep or awake since when, last feed and nappy,
+- **Context:** the model sees the situation (asleep or awake since when, last feed and diaper,
   today's counts, last night, the usual day lately, who is in the house), the earlier turns
   with what happened to each card (saved or not), a digest of a long chat's cut part, and the
   member's earlier chats' recaps (never the chat in progress).

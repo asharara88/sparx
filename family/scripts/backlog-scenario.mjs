@@ -108,8 +108,8 @@ const clash = await p.locator('.sheet [role="alert"]').innerText().catch(() => "
 await shot("overlap-warning");
 await p.keyboard.press("Escape");
 
-// ---- no keyboard on the Home sheets (Nara's keypad): Nappy and Pump too
-await p.locator("button.log-row-body", { hasText: "Nappy" }).click();
+// ---- no keyboard on the Home sheets (Nara's keypad): Diaper and Pump too
+await p.locator("button.log-row-body", { hasText: "Diaper" }).click();
 const kbNappy = await keyboardInputs();
 await p.keyboard.press("Escape");
 await p.locator("button.log-row-body", { hasText: "Pump" }).click();

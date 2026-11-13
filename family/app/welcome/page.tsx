@@ -14,7 +14,7 @@ import { HashSession } from "@/components/HashSession";
  */
 export const metadata: Metadata = {
   title: "elnunu: care, together",
-  description: "A shared view of your baby's day. Log a feed, a nap or a nappy with one tap, ask the helper in your own words, and everyone who looks after your baby sees the same day.",
+  description: "A shared view of your baby's day. Log a feed, a nap or a diaper with one tap, ask the helper in your own words, and everyone who looks after your baby sees the same day.",
   alternates: { canonical: "/welcome" },
   openGraph: {
     title: "elnunu: care, together",
@@ -50,7 +50,7 @@ export default function Welcome() {
             <p className="tagline text-xl">Care, together.</p>
             <h1 className="welcome-title">Your baby&apos;s day, shared with everyone who looks after them.</h1>
             <p className="welcome-lead">
-              Log a feed, a nap or a nappy with one tap. Parents, grandparents and the nanny see the same day on their own phones, so nobody has to ask &ldquo;when did the baby last eat?&rdquo;
+              Log a feed, a nap or a diaper with one tap. Parents, grandparents and the nanny see the same day on their own phones, so nobody has to ask &ldquo;when did the baby last eat?&rdquo;
             </p>
             <div className="welcome-actions">
               <Link href={SIGN_UP} className="btn btn-primary btn-lg">
@@ -62,7 +62,7 @@ export default function Welcome() {
             </div>
             <p className="muted text-sm">Works on any phone, in the browser. Add it to your home screen like an app.</p>
           </div>
-          <Phone src="/welcome/home.webp" alt="Home: Mia asleep for 26 minutes, today's wake-up, naps, feeds and nappies, and the four log buttons" priority />
+          <Phone src="/welcome/home.webp" alt="Home: Mia asleep for 26 minutes, today's wake-up, naps, feeds and diapers, and the four log buttons" priority />
         </section>
 
         <Feature
@@ -76,7 +76,7 @@ export default function Welcome() {
         </Feature>
 
         <Feature tint="guide" kicker="The helper" title="Just say it" flip visual={<Chat />}>
-          <p>Type or speak the way you would to a person: &ldquo;120 ml bottle 20 min ago&rdquo;, &ldquo;wet nappy&rdquo;, &ldquo;she woke up at 6:40&rdquo;. The everyday ones are saved at once, with Undo.</p>
+          <p>Type or speak the way you would to a person: &ldquo;120 ml bottle 20 min ago&rdquo;, &ldquo;wet diaper&rdquo;, &ldquo;she woke up at 6:40&rdquo;. The everyday ones are saved at once, with Undo.</p>
           <p>Ask &ldquo;how did she sleep last night?&rdquo; or &ldquo;who&apos;s home on Thursday?&rdquo;. Every answer links to the entry it came from. In English, Arabic or Russian.</p>
         </Feature>
 
@@ -84,7 +84,7 @@ export default function Welcome() {
           tint="feed"
           kicker="At a glance"
           title="Know what's next, not just what happened"
-          image={{ src: "/welcome/day.webp", alt: "Mia's day: sleep, breastfeeds, bottles and nappies in four tiles, and today's sleep on one bar" }}
+          image={{ src: "/welcome/day.webp", alt: "Mia's day: sleep, breastfeeds, bottles and diapers in four tiles, and today's sleep on one bar" }}
         >
           <p>Today in four numbers, the week in seven columns, and the next nap window worked out from her own rhythm and her age.</p>
           <p>Gentle tips when something looks off, one at a time, and a plain list of when to call the doctor.</p>
