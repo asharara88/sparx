@@ -1047,6 +1047,8 @@ function proposeMilkMove(): AssistantTool {
       // back in the stash as if it were fine.
       const bottles = action === "binned" ? all : all.filter((b) => !b.expired);
       if (!bottles.length) return { error: "nothing_there", message: action === "fridge" ? "Nothing in the freezer can be thawed." : all.length ? "The only bottles left are past their time: they can only be binned." : "The stash is empty." };
+      // "Warm the expired one" is about a bottle past its time: say so, never pick a fresh one instead.
+      if (action !== "binned" && input.expired === true) return { error: "expired", message: "A bottle past its time can only be binned. Tell the member, and offer to bin it." };
       const hint = { id: input.bottle_id, amount_ml: input.amount_ml, location: input.location, pumped_on: input.pumped_on, expired: action === "binned" ? input.expired : undefined };
       const dayOfBottle = (iso: string) => local(iso, ctx.tz)?.slice(0, 10) ?? "";
       const m = matchBottle(bottles, hint, dayOfBottle);
