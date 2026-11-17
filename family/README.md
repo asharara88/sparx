@@ -242,7 +242,7 @@ project → Integrations → GitHub and set:
 
 - *Supabase directory path*: `family/supabase`, or the default `supabase`: the repo-root
   `supabase` entry is a link to `family/supabase`, so both resolve to the family migrations.
-  (The old sparx pipeline schema now lives in `docs/pipeline-schema/`.)
+  (An old, unrelated pipeline schema once sat there; it was removed with the YouTube studio.)
 - *Production branch*: `main`. Migrations in `family/supabase/migrations` are applied when a
   change lands on `main`, so merge PR #10 (or whatever branch carries them). With Branching on,
   each PR also gets a preview database.

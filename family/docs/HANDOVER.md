@@ -138,7 +138,7 @@ Done and live:
   (`components/GoogleButton.tsx`, through `/auth/callback` like an e-mail link, so invites
   and e-mail linking apply). Works once the Google provider is on in Supabase (README,
   "Auth settings"); until then the button says so.
-- Dependencies: a weekly audit workflow at the repo root checks the three apps and opens
+- Dependencies: a weekly audit workflow at the repo root checks this app and opens
   an issue when something is found; what was upgraded and when is in
   `docs/SECURITY_UPDATES.md` (repo root).
 - Joining by invite link (migration 5300, `docs/MULTI_HOME.md` → Joining): *Send an

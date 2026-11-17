@@ -20,7 +20,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
-const require = createRequire(new URL("../../", import.meta.url)); // Playwright lives at the repo root
+const require = createRequire(import.meta.url); // Playwright: preinstalled in cloud sessions (NODE_PATH); on a laptop, npm i --no-save playwright
 const { chromium } = require("playwright");
 // Test harness only: the browser's Supabase calls go to a placeholder host in screenshot
 // mode, so RPCs are answered here from the same local database, as Dana, row security on.

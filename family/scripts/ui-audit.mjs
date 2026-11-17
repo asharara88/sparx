@@ -12,7 +12,7 @@
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 
-const require = createRequire(new URL("../../", import.meta.url)); // Playwright lives at the repo root
+const require = createRequire(import.meta.url); // Playwright: preinstalled in cloud sessions (NODE_PATH); on a laptop, npm i --no-save playwright
 const { chromium } = require("playwright");
 
 const base = process.env.AUDIT_URL ?? "http://localhost:3000";
