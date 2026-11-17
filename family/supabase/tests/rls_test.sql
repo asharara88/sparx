@@ -47,6 +47,13 @@ select pg_temp.assert((select count(*) from public.members where user_id is not 
 \set lilly '''00000000-0000-4000-8000-000000000005'''
 \set lana  '''00000000-0000-4000-8000-00000000a001'''
 
+-- The checks below are written for a child of about five months (a 3 h feed gap, play ideas for her
+-- age and for the next band, the 4-month vaccines behind her). The test child has a fixed birth date,
+-- 5 June 2026, so the suite used to depend on today's date: it would fail from 5 December 2026, when
+-- the gap becomes 4 h, and again when the play ideas run out. Pin her age instead. Checks that need
+-- another age set it themselves and put it back (see "the feed gap grows with age").
+update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+
 -- ---------------------------------------------------------------- as Mido (admin)
 -- On a Supabase project app_rls cannot use the auth schema (migration 4000's grant was a no-op
 -- there: postgres holds USAGE on auth without the grant option). The local superuser did apply it,
