@@ -78,7 +78,8 @@ select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interva
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '90 minutes', now() - interval '30 minutes', '{"place":"Cot"}', null, null))->>'ok' = 'true', 'Mido logs a nap with an end time');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.medication', now() - interval '1 hour', null, '{"name":"Vitamin D drops","dose":"1 drop"}', null, null))->>'ok' = 'true', 'Mido logs medicine given');
 select pg_temp.assert((public.care_entry_log(:lana, 'lana.nope', now(), null, '{}', null, null))->>'error' = 'bad_type', 'an entry type that does not exist is rejected');
-select pg_temp.assert((select (e->>'by') from jsonb_array_elements((public.home_summary())->'today_entries') e limit 1) = 'Dana', 'entries attribute to whoever has Lana (Dana), not the logger');
+-- The latest feed, not today's list: logged two hours ago, it falls on yesterday between midnight and 2 am in Dubai.
+select pg_temp.assert((public.home_summary())#>>'{last,lana.feed,by}' = 'Dana', 'entries attribute to whoever has Lana (Dana), not the logger');
 select pg_temp.assert((public.home_summary())#>>'{last,lana.feed,next_due}' is not null, 'home summary computes next feed due');
 select pg_temp.assert((public.home_summary())#>>'{custody,name}' = 'Dana', 'home summary shows who has Lana');
 select pg_temp.assert(jsonb_array_length((public.household_today())->'members') = 5, 'admin sees all five members in household_today');
@@ -819,8 +820,10 @@ select pg_temp.assert((select is_active from public.care_entry_types where id = 
 select pg_temp.assert((public.assistant_brief_save(current_date, 'story', 'Month one.', 'test-model', null))->>'ok' = 'true', 'the monthly story is a brief kind');
 create temp table act2 as select x->>'id' as id from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now' limit 1;
 select pg_temp.assert((public.activity_tick(:lana, (select id from act2), true, null))->>'ok' = 'true', 'Dana ticks an idea');
-select pg_temp.assert((public.activity_done_list(:lana, current_date - 30, current_date))->>'ok' = 'true', 'and lists what was tried');
-select pg_temp.assert((select count(*) from jsonb_array_elements((public.activity_done_list(:lana, current_date - 30, current_date))->'items')) >= 1, 'including that one');
+-- To tomorrow by the server's date: the tick is dated by the home's day, which is already
+-- tomorrow in Dubai for the four hours before UTC midnight.
+select pg_temp.assert((public.activity_done_list(:lana, current_date - 30, current_date + 1))->>'ok' = 'true', 'and lists what was tried');
+select pg_temp.assert((select count(*) from jsonb_array_elements((public.activity_done_list(:lana, current_date - 30, current_date + 1))->'items')) >= 1, 'including that one');
 select pg_temp.assert((public.activity_tick(:lana, (select id from act2), false, null))->>'ok' = 'true', 'then unticks it');
 reset role;
 select pg_temp.act_as(:lilly);
@@ -1717,5 +1720,29 @@ select pg_temp.assert((select label from public.care_entry_types where id = 'lan
   and (select label from public.care_entry_types where id = 'lana.medication') = 'Medicine'
   and (select label from public.care_entry_types where id = 'lana.diaper') = 'Diaper', 'entry types match Home''s rows: Diaper, Pump, Medicine');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words).'
+-- Milk past its time can only be binned (migration 6400): no thaw, warm, use or freeze brings it
+-- back, a warmed bottle is not warmed again, and signed-out callers cannot run it at all.
+reset role;
+update public.permissions set allowed = true where role_id = 'admin' and module_id = 'lana' and action = 'add';
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table mf as select
+  ((public.milk_add(91, 'fridge',  now() - interval '5 days',   'fresh test'))->>'id')::uuid as old_fridge,
+  ((public.milk_add(92, 'freezer', now() - interval '7 months', 'fresh test'))->>'id')::uuid as old_bag,
+  ((public.milk_add(93, 'fridge',  now() - interval '1 hour',   'fresh test'))->>'id')::uuid as new_fridge;
+select pg_temp.assert((public.milk_move((select old_fridge from mf), 'warmed'))->>'error' = 'expired', 'expired milk cannot be warmed');
+select pg_temp.assert((public.milk_move((select old_fridge from mf), 'used'))->>'error' = 'expired', 'nor marked used');
+select pg_temp.assert((public.milk_move((select old_fridge from mf), 'freezer'))->>'error' = 'expired', 'nor frozen');
+select pg_temp.assert((public.milk_move((select old_bag from mf), 'fridge'))->>'error' = 'expired', 'an expired frozen bag cannot be thawed');
+select pg_temp.assert((public.milk_move((select new_fridge from mf), 'warmed'))->>'ok' = 'true', 'fresh milk is warmed');
+select pg_temp.assert((public.milk_move((select new_fridge from mf), 'warmed'))->>'error' = 'already_warmed', 'and not warmed twice');
+select pg_temp.assert((public.milk_move((select old_fridge from mf), 'binned'))->>'ok' = 'true', 'expired milk is binned');
+select pg_temp.assert((public.milk_move((select old_bag from mf), 'binned'))->>'ok' = 'true', 'and so is an expired bag');
+reset role;
+select pg_temp.assert((select warmed_at is null and thawed_at is null from public.milk_bottles where id = (select old_bag from mf)), 'a refused thaw left the bag untouched');
+select pg_temp.assert(not has_function_privilege('anon', 'public.milk_move(uuid, text)', 'execute'), 'signed-out callers cannot move milk');
+select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where oid = 'public.milk_move(uuid, text)'::regprocedure)) = 'app_rls', 'milk_move still runs as app_rls');
+update public.milk_bottles set deleted_at = now() where note = 'fresh test' and deleted_at is null;
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
