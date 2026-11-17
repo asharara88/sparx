@@ -24,6 +24,19 @@ short: the date, what was vulnerable, what it became, and how it was checked.
 
 ## Log
 
+### 2026-11-17
+
+- **family and web: next 16.4.2 → 16.4.6** (moderate: a `'use cache'` function called
+  through `unstable_cache()` could leak data across root params, GHSA-mfr8-8qww-v76h).
+  The build's upgrade notice is gone.
+- **family: zod 4.6.5 → 4.6.7 and @vercel/connect 2.4 → 2.9.3** (high: zod could exhaust
+  memory validating oversized constrained collections, GHSA-mrhx-c7xc-m3w5; the old
+  @vercel/connect pulled in a vulnerable zod through @vercel/oidc). `npm audit` is clean in
+  both trees. Typecheck, the 231 unit tests, the database checks and both production
+  builds pass.
+- **Still open: root zod 3.25.** The same zod advisory covers every zod 3; the fix is
+  zod 4, a major upgrade across the studio pipeline's schemas. Left for its own change.
+
 ### 2026-10-23
 
 - **family: next 16.4.0 → 16.4.2** (critical: unauthenticated remote code execution
