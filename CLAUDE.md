@@ -15,9 +15,12 @@ words, honest status, and no spending that is not needed.
 
 The repo once also held a YouTube studio pipeline (the root) and its dashboard (`web/`). They
 were never used and were removed on 17 November 2026 at Mido's ask; git history has them.
-The root keeps only what the family app needs: `BRIEF.md`, `PLAN.md` and `LATER.md` (its
-brief, plan and parked scope), `vercel.json` (deploys `family/` and runs its daily cron) and
-the `supabase` link to `family/supabase` (the path the Supabase GitHub integration reads).
+Vercel builds from `family/` (the project's root directory) and reads `family/vercel.json`
+(the daily cron and the bom1 region). The root keeps the family app's docs and config:
+`BRIEF.md`, `PLAN.md` and `LATER.md` (its brief, plan and parked scope), the `supabase` link to
+`family/supabase` (the path the Supabase GitHub integration reads), `.mcp.json` with
+`docs/MCP-Setup.md`, `docs/SECURITY_UPDATES.md`, and `.agents/` with `skills-lock.json`
+(ElevenLabs agent skills; the app speaks through ElevenLabs).
 
 CI (`.github/workflows/ci.yml`) runs the family job. A weekly audit workflow runs `npm audit`
 in `family/` and opens one issue when something is found; `docs/SECURITY_UPDATES.md` is the

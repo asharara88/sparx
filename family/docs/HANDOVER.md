@@ -23,7 +23,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 
 | Thing | Where |
 |---|---|
-| Code | `asharara88/sparx`, folder `family` (the repo root holds unrelated pipeline work) |
+| Code | `asharara88/sparx`, folder `family` |
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
@@ -34,8 +34,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 
 1. Branch from `main`, change files under `family`, open a pull request.
 2. Vercel builds a preview; the `family` GitHub check runs the typecheck, the unit tests
-   and the whole migrations folder plus the database checks against a fresh Postgres
-   (`test` is the unrelated pipeline at the repo root).
+   and the whole migrations folder plus the database checks against a fresh Postgres.
 3. Merge to `main`. Vercel deploys production.
 4. On that same push the **Supabase GitHub integration** applies any new file in
    `supabase/migrations` to the live database. The check is called
