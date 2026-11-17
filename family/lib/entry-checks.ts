@@ -7,7 +7,13 @@
  * was awake, cap a feed at a normal length, drop a double tap). Nothing is
  * changed until someone taps. Pure, so it is unit-tested; the same rules run
  * for the imported history and for what is logged today.
+ *
+ * From 12 months the limits move (lib/stage): a toddler's night of 11 or 12 hours and a
+ * 300 ml cup-sized bottle are normal, so a sleep is asked about over 13 hours and a bottle
+ * over 350 ml; and only a feed, a diaper or another sleep logged during a sleep says the
+ * timer was left on (a note, a meal or a mood at night says nothing about the sleep).
  */
+import { isToddler, limitsFor } from "./stage.ts";
 
 export interface CheckEntry {
   note?: string | null;
@@ -37,14 +43,18 @@ export interface CheckOptions {
   now?: number;
   /** A normal breastfeed, minutes; feeds past LONG_FEED_MIN are capped to this. */
   keepFeedMin?: number;
+  /** The child's age in days on the home's calendar, null with no birth date (a baby's limits). */
+  ageDays: number | null;
 }
 
 export const LONG_FEED_MIN = 45;
 export const KEEP_FEED_MIN = 20;
+/** A baby's limit; a toddler's is lib/stage's limits.longSleepMin. */
 export const LONG_SLEEP_HOURS = 10;
 export const OPEN_SLEEP_HOURS = 24;
 export const OPEN_FEED_MIN = 60;
 export const OPEN_WAKE_HOURS = 1;
+/** A baby's limit; a toddler's is lib/stage's limits.bigBottleMl. */
 export const BIG_BOTTLE_ML = 240;
 export const DOUBLE_WINDOW_MIN = 2;
 export const SHORT_TIMER_SEC = 45;
@@ -65,9 +75,14 @@ function isTimer(e: CheckEntry): boolean {
   return k === "sleep" || k === "wake";
 }
 
-export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): CheckFlag[] {
+export function checkEntries(input: CheckEntry[], opts: CheckOptions): CheckFlag[] {
   const now = opts.now ?? Date.now();
   const keep = opts.keepFeedMin ?? KEEP_FEED_MIN;
+  const toddler = isToddler(opts.ageDays);
+  const { longSleepMin, bigBottleMl } = limitsFor(opts.ageDays);
+  const longSleepHours = longSleepMin / 60;
+  // What logged during a sleep shows the timer ran on: anything but a night wake for a baby; a feed, diaper or sleep for a toddler.
+  const showsAwake = (k: string, x: CheckEntry) => (toddler && k === "sleep" ? ["feed", "diaper", "sleep"].includes(kind(x)) : !(k === "sleep" && kind(x) === "wake"));
   const entries = [...input].sort((a, b) => t(a.occurred_at) - t(b.occurred_at));
   const flags: CheckFlag[] = [];
   const flagged = new Set<string>();
@@ -115,7 +130,7 @@ export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): Chec
 
     // 3. A timer that ran across later entries: she was logged awake (or fed) while it ran.
     if (isTimer(e) && end != null && !checked(e)) {
-      const during = entries.slice(i + 1).filter((x) => t(x.occurred_at) > start + 10 * 60_000 && t(x.occurred_at) < end - 10 * 60_000 && !(k === "sleep" && kind(x) === "wake"));
+      const during = entries.slice(i + 1).filter((x) => t(x.occurred_at) > start + 10 * 60_000 && t(x.occurred_at) < end - 10 * 60_000 && showsAwake(k, x));
       if (during.length) {
         const first = during[0];
         push({
@@ -135,8 +150,8 @@ export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): Chec
       push({ kind: "long_feed", entry: e, title: `Feed of ${hm(end - start)}`, detail: "Longer than a normal feed; the timer was probably left on.", fix: { label: `Trim to ${keep} min`, ended_at: new Date(start + keep * 60_000).toISOString() }, suggestDelete: false });
       continue;
     }
-    if (k === "sleep" && end != null && !checked(e) && end - start > LONG_SLEEP_HOURS * 3_600_000) {
-      push({ kind: "long_sleep", entry: e, title: `Sleep of ${hm(end - start)}`, detail: `Over ${LONG_SLEEP_HOURS} hours in one go is rare; was the timer left on?`, fix: null, suggestDelete: false });
+    if (k === "sleep" && end != null && !checked(e) && end - start > longSleepMin * 60_000) {
+      push({ kind: "long_sleep", entry: e, title: `Sleep of ${hm(end - start)}`, detail: `Over ${longSleepHours} hours in one go is rare; was the timer left on?`, fix: null, suggestDelete: false });
       continue;
     }
 
@@ -148,8 +163,8 @@ export function checkEntries(input: CheckEntry[], opts: CheckOptions = {}): Chec
     }
 
     // 6. An amount that is not a baby's bottle.
-    if (k === "feed" && Number(e.payload.amount_ml) > BIG_BOTTLE_ML && !checked(e)) {
-      push({ kind: "big_bottle", entry: e, title: `Bottle of ${Number(e.payload.amount_ml)} ml`, detail: `Over ${BIG_BOTTLE_ML} ml in one bottle is unusual at this age. A typo?`, fix: null, suggestDelete: false });
+    if (k === "feed" && Number(e.payload.amount_ml) > bigBottleMl && !checked(e)) {
+      push({ kind: "big_bottle", entry: e, title: `Bottle of ${Number(e.payload.amount_ml)} ml`, detail: `Over ${bigBottleMl} ml in one bottle is unusual at this age. A typo?`, fix: null, suggestDelete: false });
     }
   }
   return flags;

@@ -7,6 +7,8 @@
  * with the child's sex, the string for a boy sits under the same key with `_m`; the default
  * reads for a girl, as the first household's did.
  */
+import { sexOf } from "./names.ts";
+
 export type Lang = "en" | "ar" | "ru";
 
 const STRINGS = {
@@ -48,6 +50,13 @@ const STRINGS = {
     sleepySoon: "Sleepy soon",
     listen: "Listen to today",
     todayText: "Today {child} had {feeds} feeds, {diapers} diaper changes and {sleeps} sleeps.",
+    // From 12 months the line names only what the family logs (F feeds, D diapers, S sleeps).
+    todayF: "Today {child} had {feeds} feeds.",
+    todayD: "Today {child} had {diapers} diaper changes.",
+    todayS: "Today {child} had {sleeps} sleeps.",
+    todayFD: "Today {child} had {feeds} feeds and {diapers} diaper changes.",
+    todayFS: "Today {child} had {feeds} feeds and {sleeps} sleeps.",
+    todayDS: "Today {child} had {diapers} diaper changes and {sleeps} sleeps.",
     asleepNow: "She is asleep now.",
     asleepNow_m: "He is asleep now.",
     awakeNow: "She is awake now.",
@@ -122,6 +131,18 @@ const STRINGS = {
     listen: "اسمعي يوم {child}",
     todayText: "النهارده {child} رضعت {feeds} مرات، واتغير لها البامبرز {diapers} مرات، ونامت {sleeps} مرات.",
     todayText_m: "النهارده {child} رضع {feeds} مرات، واتغير له البامبرز {diapers} مرات، ونام {sleeps} مرات.",
+    todayF: "النهارده {child} رضعت {feeds} مرات.",
+    todayF_m: "النهارده {child} رضع {feeds} مرات.",
+    todayD: "النهارده {child} اتغير لها البامبرز {diapers} مرات.",
+    todayD_m: "النهارده {child} اتغير له البامبرز {diapers} مرات.",
+    todayS: "النهارده {child} نامت {sleeps} مرات.",
+    todayS_m: "النهارده {child} نام {sleeps} مرات.",
+    todayFD: "النهارده {child} رضعت {feeds} مرات، واتغير لها البامبرز {diapers} مرات.",
+    todayFD_m: "النهارده {child} رضع {feeds} مرات، واتغير له البامبرز {diapers} مرات.",
+    todayFS: "النهارده {child} رضعت {feeds} مرات، ونامت {sleeps} مرات.",
+    todayFS_m: "النهارده {child} رضع {feeds} مرات، ونام {sleeps} مرات.",
+    todayDS: "النهارده {child} اتغير لها البامبرز {diapers} مرات، ونامت {sleeps} مرات.",
+    todayDS_m: "النهارده {child} اتغير له البامبرز {diapers} مرات، ونام {sleeps} مرات.",
     asleepNow: "هي نايمة دلوقتي.",
     asleepNow_m: "هو نايم دلوقتي.",
     awakeNow: "هي صاحية دلوقتي.",
@@ -189,6 +210,17 @@ const STRINGS = {
     listen: "Послушать про сегодня",
     todayText: "Сегодня {child} поела {feeds} раз, подгузник меняли {diapers} раз, она спала {sleeps} раз.",
     todayText_m: "Сегодня {child} поел {feeds} раз, подгузник меняли {diapers} раз, он спал {sleeps} раз.",
+    todayF: "Сегодня {child} поела {feeds} раз.",
+    todayF_m: "Сегодня {child} поел {feeds} раз.",
+    todayD: "Сегодня подгузник меняли {diapers} раз.",
+    todayS: "Сегодня {child} спала {sleeps} раз.",
+    todayS_m: "Сегодня {child} спал {sleeps} раз.",
+    todayFD: "Сегодня {child} поела {feeds} раз, подгузник меняли {diapers} раз.",
+    todayFD_m: "Сегодня {child} поел {feeds} раз, подгузник меняли {diapers} раз.",
+    todayFS: "Сегодня {child} поела {feeds} раз и спала {sleeps} раз.",
+    todayFS_m: "Сегодня {child} поел {feeds} раз и спал {sleeps} раз.",
+    todayDS: "Сегодня подгузник меняли {diapers} раз, {child} спала {sleeps} раз.",
+    todayDS_m: "Сегодня подгузник меняли {diapers} раз, {child} спал {sleeps} раз.",
     asleepNow: "Сейчас она спит.",
     asleepNow_m: "Сейчас он спит.",
     awakeNow: "Сейчас она не спит.",
@@ -233,7 +265,7 @@ export interface Vars {
 /** A string in the member's language with the names filled in; falls back to English. */
 export function t(lang: Lang | undefined, key: Key, vars: Vars = {}): string {
   const table = STRINGS[lang ?? "en"] as Record<string, string>;
-  const male = /^(boy|male|m)$/i.test(String(vars.sex ?? ""));
+  const male = sexOf(String(vars.sex ?? "")) === "boy";
   const raw = (male && table[`${key}_m`]) || table[key] || (male && (STRINGS.en as Record<string, string>)[`${key}_m`]) || STRINGS.en[key];
   return raw.replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] == null ? (k === "child" ? "the baby" : m) : String(vars[k])));
 }

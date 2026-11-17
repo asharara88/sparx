@@ -1,11 +1,17 @@
 /**
  * The pure half of the situation snapshot (no "@/" imports, so the unit tests
  * can load it). situation.ts adds the phase line and the loader.
+ *
+ * From 12 months (R11) the snapshot promises no next feed, dates a last feed or diaper that is
+ * not from today and leaves it out after a week, and names a count only when it is above
+ * zero: a family that does not log milk or diapers is not told "0 feeds".
  */
 export interface SituationInput {
   name: string;
   nowLocal: string;
   ageDays: number | null;
+  /** 12 months or older (lib/stage isToddler): the toddler's lines. */
+  toddler: boolean;
   /** Object pronoun for the child: her, him, them. */
   them?: string;
   asleepSince: string | null;
@@ -47,6 +53,7 @@ export function minutesBetween(from: string | null | undefined, to: string | nul
 }
 
 export function formatSituation(s: SituationInput): string {
+  if (s.toddler) return formatToddler(s);
   const them = s.them ?? "her";
   const lines: string[] = [];
   const awakeFor = minutesBetween(s.awakeSince, s.nowLocal);
@@ -59,6 +66,48 @@ export function formatSituation(s: SituationInput): string {
   lines.push(`Today so far: ${s.feedsToday} feeds, ${s.diapersToday} diapers${s.mealsToday != null ? `, ${s.mealsToday} meal${s.mealsToday === 1 ? "" : "s"}` : ""}.${s.whoHas ? ` ${s.whoHas} has ${them}.` : ""}`);
   if (s.lastNight) lines.push(`Last night: ${hm(s.lastNight.sleepMin)} of sleep, longest stretch ${hm(s.lastNight.longestMin)}, ${s.lastNight.wakes} wake-up${s.lastNight.wakes === 1 ? "" : "s"}, ${s.lastNight.feeds} night feed${s.lastNight.feeds === 1 ? "" : "s"}.`);
   if (s.week) lines.push(`Usual day lately (${s.week.days} days): about ${s.week.feeds} feeds${s.week.bottleMl ? ` and ${s.week.bottleMl} ml of bottles` : ""}, ${hm(s.week.sleepMin)} of sleep, ${hm(s.week.nightMin)} of it at night.`);
+  if (s.phase) lines.push(s.phase);
+  if (s.plan) lines.push(`Active plan "${s.plan.goal}", day ${s.plan.day} of ${s.plan.days}${s.plan.todayStep ? `: ${s.plan.todayStep}` : ""} (${s.plan.doneToday ? "ticked done today" : "not ticked yet today"}).`);
+  return lines.join("\n");
+}
+
+/** "2 meals", "1 feed": a count with its word, or null at zero. */
+const count = (n: number | null | undefined, word: string) => (n ? `${n} ${word}${n === 1 ? "" : "s"}` : null);
+
+/**
+ * When a local stamp ("YYYY-MM-DD HH:MM") was, against now: "18:40" today, "yesterday 18:40",
+ * "Saturday 18:40" in the week before (as the Feeds card says it), null when older than that.
+ */
+export function whenThisWeek(stamp: string, nowLocal: string): string | null {
+  const time = stamp.slice(11, 16);
+  const days = Math.round((Date.parse(nowLocal.slice(0, 10)) - Date.parse(stamp.slice(0, 10))) / 86_400_000);
+  if (!Number.isFinite(days) || days <= 0) return time;
+  if (days === 1) return `yesterday ${time}`;
+  if (days > 6) return null;
+  return `${new Date(`${stamp.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })} ${time}`;
+}
+
+/** The snapshot for a child of 12 months or more (see SituationInput). */
+function formatToddler(s: SituationInput): string {
+  const them = s.them ?? "them";
+  const lines: string[] = [];
+  const awakeFor = minutesBetween(s.awakeSince, s.nowLocal);
+  lines.push(`${s.name} right now: ${s.asleepSince ? `asleep since ${s.asleepSince.slice(11)}` : s.awakeSince ? `awake since ${s.awakeSince.slice(11)}${awakeFor != null ? ` (${hm(awakeFor)})` : ""}` : "awake"}.`);
+  const fed = s.lastFeedAt ? whenThisWeek(s.lastFeedAt, s.nowLocal) : null;
+  if (fed) {
+    const what = [s.lastFeedMl ? `${s.lastFeedMl} ml` : null, s.lastFeedKind].filter(Boolean).join(" ");
+    lines.push(`Last feed ${fed}${what ? ` (${what})` : ""}.`);
+  }
+  const changed = s.lastDiaperAt ? whenThisWeek(s.lastDiaperAt, s.nowLocal) : null;
+  if (changed) lines.push(`Last diaper ${changed}${s.lastDiaperKind ? ` (${s.lastDiaperKind.toLowerCase()})` : ""}.`);
+  const today = [count(s.feedsToday, "feed"), count(s.diapersToday, "diaper"), count(s.mealsToday, "meal")].filter(Boolean);
+  const who = s.whoHas ? `${s.whoHas} has ${them}.` : "";
+  if (today.length || who) lines.push([today.length ? `Today so far: ${today.join(", ")}.` : "", who].filter(Boolean).join(" "));
+  if (s.lastNight) lines.push(`Last night: ${hm(s.lastNight.sleepMin)} of sleep, longest stretch ${hm(s.lastNight.longestMin)}, ${s.lastNight.wakes} wake-up${s.lastNight.wakes === 1 ? "" : "s"}${s.lastNight.feeds ? `, ${count(s.lastNight.feeds, "night feed")}` : ""}.`);
+  if (s.week) {
+    const parts = [s.week.feeds ? `about ${count(s.week.feeds, "feed")}${s.week.bottleMl ? ` and ${s.week.bottleMl} ml of bottles` : ""}` : null, s.week.sleepMin ? `${hm(s.week.sleepMin)} of sleep, ${hm(s.week.nightMin)} of it at night` : null].filter(Boolean);
+    if (parts.length) lines.push(`Usual day lately (${s.week.days} days): ${parts.join(", ")}.`);
+  }
   if (s.phase) lines.push(s.phase);
   if (s.plan) lines.push(`Active plan "${s.plan.goal}", day ${s.plan.day} of ${s.plan.days}${s.plan.todayStep ? `: ${s.plan.todayStep}` : ""} (${s.plan.doneToday ? "ticked done today" : "not ticked yet today"}).`);
   return lines.join("\n");

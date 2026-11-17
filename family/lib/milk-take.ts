@@ -16,3 +16,16 @@ export function milkSource(payload: Record<string, unknown>): "fridge" | "freeze
 export function shortLine(where: "fridge" | "freezer", shortMl: number): string | null {
   return shortMl > 0 ? `The ${where} was ${shortMl} ml short.` : null;
 }
+
+/**
+ * The milk chosen for the first bottle in the sheet (X10): the milk of the last bottle when
+ * there is one; else "Morning pumped" as before when the home pumps or keeps milk (a pump ever
+ * logged, a bottle in the stash, a bottle with a milk named this week); else nothing chosen, so
+ * a home that never pumped is not told it gave pumped milk. With nothing chosen the saved
+ * entry has no milk at all.
+ */
+export function defaultMilk(c: { lastMilk: string | null; everPumped: boolean; inStock: boolean; namedMilkThisWeek: boolean }): string | null {
+  const last = c.lastMilk?.trim();
+  if (last) return last;
+  return c.everPumped || c.inStock || c.namedMilkThisWeek ? "Morning pumped" : null;
+}

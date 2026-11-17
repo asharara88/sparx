@@ -8,11 +8,12 @@ import type {
   Suggestion,
 } from "@/lib/types";
 import { can } from "@/lib/types";
-import { addDays, fmtTime, todayYmd } from "@/lib/time";
+import { addDays, fmtDuration, fmtTime, todayYmd } from "@/lib/time";
 import { getBrief } from "@/lib/assistant/brief";
-import { nextNap } from "@/lib/child-insights";
+import { napPattern, nextNap, type NextNap } from "@/lib/child-insights";
 import { birthdayMonth } from "@/lib/story";
-import { ageDays as ageDaysOf } from "@/lib/norms";
+import { ageDays as ageDaysOf, ageWords } from "@/lib/norms";
+import { isToddler } from "@/lib/stage";
 import { draftPlan } from "@/lib/plan/draft";
 import { memberClient, serviceClient } from "@/lib/server/member";
 import { childName, childPronouns } from "@/lib/names";
@@ -29,6 +30,24 @@ import { notifyMember, plain } from "./send";
 interface Target {
   member_id: string;
   user_id: string;
+}
+
+/**
+ * The monthly birthday push's title: "Lana is 5 months old today", "Yusuf is 3 years old
+ * today". The age words every screen uses (lib/norms ageWords); months 1 to 3 keep "1 month"
+ * to "3 months", where those words would still count weeks.
+ */
+export function birthdayTitle(name: string, birthDate: string, today: string, month: number): string {
+  return `${name} is ${month < 4 ? `${month} month${month === 1 ? "" : "s"}` : ageWords(birthDate, today)} old today`;
+}
+
+/**
+ * The nap push's words. A baby's as they always were, in minutes. A toddler's awake times in
+ * hours and minutes (R5). The basis names the child ("her rhythm" for a girl, as before).
+ */
+export function napPushBody(n: Pick<NextNap, "awakeMin" | "windowMin" | "basis">, toddler: boolean, their: string): string {
+  const time = (min: number) => (toddler ? fmtDuration(min) : `${min} min`);
+  return `Awake ${time(n.awakeMin)}; ${their} window is about ${time(n.windowMin)} (${n.basis.replace(/^her /, `${their} `)}). Start the wind-down.`;
 }
 
 async function targets(service: SupabaseClient): Promise<Target[]> {
@@ -190,7 +209,7 @@ export async function runDaily(): Promise<CronReport> {
             const r = await notifyMember(service, t.member_id, {
               kind: "brief",
               key: `story:${m}`,
-              title: `${sum!.ok ? sum!.subject.name : childName(me)} is ${m} month${m === 1 ? "" : "s"} old today`,
+              title: birthdayTitle(sum!.ok ? sum!.subject.name : childName(me), birth!, today, m),
               body: plain(st.brief.content, 160),
               url: `/baby/story/${m}`,
             });
@@ -287,13 +306,18 @@ export async function runOften(): Promise<CronReport> {
         }
       }
       // The next nap, about ten minutes before the awake window closes, for whoever has the child's log.
+      // A baby's from the last 36 hours, as always. A toddler's from the week Home reads, through
+      // the one nap rule (napPattern): no push at all when no nap is expected (R5).
       if (can(me, "lana", "view")) {
         const { data: sumData } = await client.rpc("home_summary");
         const sum = sumData as HomeSummary | RpcError | null;
         if (sum?.ok && sum.subject.birth_date) {
+          const age = ageDaysOf(sum.subject.birth_date, today);
+          const toddler = isToddler(age);
+          const from = now - (toddler ? 7 * 86_400_000 : 36 * 3_600_000);
           const { data: listData } = await client.rpc("care_entries_list", {
             p_subject_id: sum.subject.id,
-            p_from: new Date(now - 36 * 3_600_000).toISOString(),
+            p_from: new Date(from).toISOString(),
             p_to: new Date(now + 3_600_000).toISOString(),
           });
           const entries = ((listData as { entries?: EntryRow[] } | null)
@@ -310,12 +334,11 @@ export async function runOften(): Promise<CronReport> {
               Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60
             );
           };
-          const n = nextNap(
-            entries,
-            ageDaysOf(sum.subject.birth_date, today),
-            now,
-            hourOf,
-          );
+          const pattern = napPattern(entries, age, now, tz, from);
+          const n =
+            toddler && !pattern.expected
+              ? null
+              : nextNap(entries, age, now, hourOf, pattern);
           if (
             n &&
             n.at != null &&
@@ -331,7 +354,7 @@ export async function runOften(): Promise<CronReport> {
               title: n.isBedtime
                 ? `Bedtime around ${fmtTime(new Date(n.at).toISOString(), tz)}`
                 : `Next nap around ${fmtTime(new Date(n.at).toISOString(), tz)}`,
-              body: `Awake ${n.awakeMin} min; ${childPronouns(me).their} window is about ${n.windowMin} min (${n.basis}). Start the wind-down.`,
+              body: napPushBody(n, toddler, childPronouns(me).their),
               url: "/baby",
             });
             if (r.sent) {

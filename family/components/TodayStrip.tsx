@@ -2,14 +2,21 @@ import type { EntryRow, HomeSummary } from "@/lib/types";
 import { sleepDay } from "@/lib/sleep-day";
 import { fmtTime, zonedMidnight } from "@/lib/time";
 import { nightWindow } from "@/lib/night";
-import { range, stageFor } from "@/lib/stage";
+import { stageFor } from "@/lib/stage";
+import { stripCells } from "@/lib/logged";
+
+// Written out in full so Tailwind keeps all three.
+const COLS: Record<number, string> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4" };
 
 /**
- * Home's day in four numbers (DESIGN.md, "Stat strip"): when she woke, naps against what is
- * usual at her age, feeds and diapers so far. One white bar; tapping it goes to the day's
+ * Home's day in up to four numbers (DESIGN.md, "Stat strip"): when she woke, naps against what
+ * is usual at her age, feeds and diapers so far. One white bar; tapping it goes to the day's
  * cards below the log rows. The last of each is on the rows themselves, so not repeated here.
+ * From 12 months a cell shows only for what the family logs (lib/logged.ts, R8): naps while a
+ * nap is expected or one was had today, feeds and diapers when logged lately; with fewer than
+ * two cells there is no strip.
  */
-export function TodayStrip({ summary, entries, day, timezone, nowIso }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string }) {
+export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpected }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string; /** napPattern's answer for today; not read for a baby. */ napExpected: boolean }) {
   const start = zonedMidnight(day, timezone).getTime();
   const now = Date.parse(nowIso);
   const hourOf = (ms: number) => {
@@ -22,17 +29,21 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso }: { summar
   };
   const night = nightWindow(summary.subject.settings);
   const s = sleepDay(entries, start, now, { bedtimeHour: hours(night.from, 19), morningHour: hours(night.to, 7), hourOf });
-  const usual = stageFor(summary.subject.birth_date, now, timezone).naps;
-  const feeds = summary.today_counts?.["lana.feed"] ?? 0;
-  const nappies = summary.today_counts?.["lana.diaper"] ?? 0;
-  const cells = [
-    { value: s.wokeAt ? fmtTime(new Date(s.wokeAt).toISOString(), timezone) : "—", label: "woke" },
-    { value: usual[1] ? `${s.naps} of ${range(usual)}` : `${s.naps}`, label: "naps" },
-    { value: `${feeds}`, label: feeds === 1 ? "feed" : "feeds" },
-    { value: `${nappies}`, label: nappies === 1 ? "diaper" : "diapers" },
-  ];
+  const cells = stripCells({
+    stage: stageFor(summary.subject.birth_date, now, timezone),
+    woke: s.wokeAt ? fmtTime(new Date(s.wokeAt).toISOString(), timezone) : "—",
+    naps: s.naps,
+    napExpected,
+    feeds: summary.today_counts?.["lana.feed"] ?? 0,
+    diapers: summary.today_counts?.["lana.diaper"] ?? 0,
+    lastFeedAt: summary.last["lana.feed"]?.occurred_at ?? null,
+    lastDiaperAt: summary.last["lana.diaper"]?.occurred_at ?? null,
+    today: day,
+    tz: timezone,
+  });
+  if (!cells) return null;
   return (
-    <a href="#today" className="card row-link grid grid-cols-4 gap-1 py-3 text-center no-underline" aria-label="Today so far, more below">
+    <a href="#today" className={`card row-link grid ${COLS[cells.length]} gap-1 py-3 text-center no-underline`} aria-label="Today so far, more below">
       {cells.map((c) => (
         <span key={c.label} className="flex flex-col">
           {/* One line always ("3 of 3–4" broke in two at 320 px); a narrow phone gets a size smaller. */}

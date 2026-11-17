@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { childPronouns } from "@/lib/names";
+import { child, childPronouns } from "@/lib/names";
 import type { DailyStats, EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { dayRange, fmtDate, todayYmd } from "@/lib/time";
-import { ageLabel } from "@/lib/norms";
+import { ageWords } from "@/lib/norms";
 import { currentMonth, storyMonth } from "@/lib/story";
 import { getBrief } from "@/lib/assistant/brief";
 import { reference } from "@/lib/who";
@@ -59,8 +59,8 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
   const weights = days.filter((d) => d.weight_kg != null);
   const w0 = weights[0] ?? null;
   const w1 = weights[weights.length - 1] ?? null;
-  const ageEnd = Math.floor((Date.parse(span.to) - Date.parse(birth)) / 86_400_000);
-  const ref = w1 ? reference("weight_kg", Math.floor((Date.parse(w1.day) - Date.parse(birth)) / 86_400_000)) : null;
+  // The WHO median is a girl's, to 2 years (X4): nothing for anyone else.
+  const ref = w1 ? reference("weight_kg", Math.floor((Date.parse(w1.day) - Date.parse(birth)) / 86_400_000), child(me)?.sex ?? null) : null;
   // Days with anything logged: the stats come back for every day of the month, empty or not.
   const logged = days.filter((d) => d.sleep_min > 0 || d.breast_count + d.bottle_count > 0 || d.diapers > 0 || d.pump_ml > 0 || d.weight_kg != null || d.length_cm != null || d.head_cm != null || d.milestones.length > 0);
   const slept = days.filter((d) => d.sleep_min > 0);
@@ -85,7 +85,7 @@ export default async function StoryPage({ params }: { params: Promise<{ month: s
       <PageHeader
         back="/baby?tab=about"
         title={`${s.name}'s month ${month}`}
-        subtitle={`${fmtDate(`${span.from}T12:00:00Z`, "UTC", { day: "numeric", month: "long", weekday: undefined })} to ${fmtDate(`${span.to}T12:00:00Z`, "UTC", { day: "numeric", month: "long", weekday: undefined })}${span.inProgress ? ", so far" : ""}. ${ageLabel(ageEnd)} old at the end.`}
+        subtitle={`${fmtDate(`${span.from}T12:00:00Z`, "UTC", { day: "numeric", month: "long", weekday: undefined })} to ${fmtDate(`${span.to}T12:00:00Z`, "UTC", { day: "numeric", month: "long", weekday: undefined })}${span.inProgress ? ", so far" : ""}. ${ageWords(birth, span.to)} old at the end.`}
         action={<PrintButton label="Print or save" className="btn btn-secondary" />}
       />
       <nav className="no-print flex items-center justify-between text-sm">

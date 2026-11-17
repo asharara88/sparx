@@ -4,10 +4,13 @@ import type { AssistantChoice, AssistantProposal, AssistantRef, AssistantSkill, 
 import { selectSkills, skillText, type Selection } from "./skills";
 import { MAX_FACTS, selectMemories, type ChatRecap, type MemoryFact } from "./memory";
 import { EVENT_KINDS, can } from "@/lib/types";
-import { addDays, dayRange, parseHouseholdTime, todayYmd, toLocalInput } from "@/lib/time";
-import { sleepCoach, awakeWindow, ageOutlook, daySchedule } from "@/lib/child-insights";
+import { addDays, dayRange, fmtDuration, parseHouseholdTime, todayYmd, toLocalInput } from "@/lib/time";
+import { sleepCoach, awakeWindow, ageOutlook, daySchedule, napPattern, type NapPattern } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
-import { ageInDays } from "@/lib/stage";
+import { ageInDays, isToddler, pumpingActive } from "@/lib/stage";
+import { ageWords } from "@/lib/norms";
+import { kindsLoggedLately } from "@/lib/logged";
+import { pronouns } from "@/lib/names";
 import { tipsFor } from "@/lib/child-guide";
 import type { EntryRow } from "@/lib/types";
 import { ambulanceOf } from "@/lib/emergency";
@@ -35,6 +38,26 @@ export interface SubjectInfo {
   ambulance?: string | null;
 }
 
+/**
+ * What a child's age changes in the helper, worked out once when the context is loaded, so the
+ * prompt depends on these values and never on the clock. From 12 months (R5, R7, R11) the
+ * helper needs the child's own days: whether they still nap, which kinds the family logs, and
+ * whether milk is pumped. For a baby nothing more is read: `naps` and `lately` are null.
+ */
+export interface ChildNow {
+  id: string;
+  /** Days old on the home's calendar; null with no birth date (a baby, as the app has always assumed). */
+  ageDays: number | null;
+  /** 12 months or older (lib/stage isToddler). */
+  toddler: boolean;
+  /** A toddler's nap pattern from the last 7 days, as Home reads it (napPattern); null for a baby. */
+  naps: NapPattern | null;
+  /** A toddler's kinds logged lately (today and the 6 days before: "lana.feed", ...); null for a baby. */
+  lately: string[] | null;
+  /** A toddler's newest pump in the last 14 days (ISO), or null. */
+  lastPumpAt: string | null;
+}
+
 export interface ToolContext {
   supabase: SupabaseClient;
   me: Me;
@@ -43,6 +66,14 @@ export interface ToolContext {
   /** Set when the member ends the conversation: every RPC a tool makes is cut short with it. */
   signal?: AbortSignal;
   subjects: SubjectInfo[];
+  /** One per child in `subjects`: the age and, from 12 months, what the child's own days show. */
+  children: ChildNow[];
+  /**
+   * Milk is kept at home, so the prompt may speak of pumped milk and the stash: always in a
+   * home with a baby; in a toddler's home only with a bottle in stock or a pump in the last
+   * 14 days (R7).
+   */
+  milkKept: boolean;
   types: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
   routines: { name: string; routine: string }[];
@@ -120,6 +151,41 @@ function findSubject(ctx: ToolContext, name: unknown): SubjectInfo | null {
   if (!q) return ctx.subjects[0] ?? null;
   return ctx.subjects.find((s) => s.name.toLowerCase() === q || s.module_id === q) ?? ctx.subjects.find((s) => s.name.toLowerCase().startsWith(q)) ?? null;
 }
+
+/** The child's age facts from the context; a baby's, with nothing read, when the context has none for them. */
+export function childNowOf(ctx: ToolContext, s: SubjectInfo): ChildNow {
+  const ageDays = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz);
+  return ctx.children.find((c) => c.id === s.id) ?? { id: s.id, ageDays, toddler: isToddler(ageDays), naps: null, lately: null, lastPumpAt: null };
+}
+
+/** The hour of an instant on the home's clock, as a fraction (19.5 is 19:30). */
+function hourIn(tz: string): (iso: string) => number {
+  const f = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" });
+  return (iso: string) => {
+    const parts = f.formatToParts(new Date(iso));
+    return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  };
+}
+
+/**
+ * A toddler's naps from their own days, in words: "1 nap a day lately", "no nap lately". Null
+ * for a baby, and when nothing logged says it (no sleep in the week, or a nap expected only
+ * because the child is under 3 and there is too little to go by).
+ */
+export function napsLately(p: NapPattern | null): string | null {
+  if (!p?.toddler || !p.evidenceDays) return null;
+  if (!p.expected) return p.napDays ? `naps on only ${p.napDays} of the last ${p.evidenceDays} days logged` : "no nap lately";
+  return p.napDays ? `${p.perDay} nap${p.perDay === 1 ? "" : "s"} a day lately` : null;
+}
+
+/** A toddler's usual awake time before a nap, in hours and minutes, from the nap pattern (lib/stage, R4). */
+export function awakeWords(ageDays: number, naps: NapPattern | null): string {
+  const [lo, hi] = awakeWindow(ageDays, naps?.perDay ?? null);
+  return `${fmtDuration(lo)} to ${fmtDuration(hi)}`;
+}
+
+/** Said to the helper wherever it might judge a toddler's day by a baby's numbers (R11). */
+export const TODDLER_NO_CHECKS = "No age checks from 12 months: the app does not judge feeds, diapers or sleep at this age. Ask what the parent sees and point to When to call the doctor.";
 
 function entryRef(ctx: ToolContext, e: { id: string; type_label?: string; occurred_at: string }, module: string) {
   ctx.refs[e.id] = { href: `/${module}/entry/${e.id}`, label: `${e.type_label ?? "Entry"} ${local(e.occurred_at, ctx.tz)?.slice(11) ?? ""}`.trim() };
@@ -237,6 +303,8 @@ function careNow(ctx0: ToolContext): AssistantTool {
       if (!s) return { error: "unknown_subject", known: ctx.subjects.map((x) => x.name) };
       const r = await rpc(ctx, "home_summary", { p_subject_id: s.id });
       if (!r.ok) return r;
+      // A toddler's milk, diapers and sleep have no clock (R2), whatever an older database still says.
+      const noClock = childNowOf(ctx, s).toddler ? /\.(feed|diaper|sleep)$/ : null;
       const last = Object.entries((r.last as Record<string, Record<string, unknown>>) ?? {}).map(([type, l]) => {
         const t = ctx.types.find((x) => x.id === type);
         entryRef(ctx, { id: l.id as string, type_label: t?.label, occurred_at: l.occurred_at as string }, s.module_id);
@@ -246,7 +314,7 @@ function careNow(ctx0: ToolContext): AssistantTool {
           label: t?.label ?? type,
           at: local(l.occurred_at as string, ctx.tz),
           ended: local(l.ended_at as string | null, ctx.tz),
-          next_due: local(l.next_due as string | null, ctx.tz),
+          next_due: noClock?.test(type) ? null : local(l.next_due as string | null, ctx.tz),
           details: l.payload,
           note: l.note ?? undefined,
           by: l.by,
@@ -341,9 +409,13 @@ function dueSoon(): AssistantTool {
       // A feed's "interval" row is the last start plus the type's fixed gap; it ignores how
       // long and how full the feed was and the gap for her age, so it would contradict Home.
       // The next feed comes from home_summary, already in the snapshot ("Next feed due").
-      const items = ((r.items as Record<string, unknown>[]) ?? []).filter((d) => !(d.kind === "interval" && String(d.type_id ?? "").endsWith(".feed")));
+      // From 12 months milk, diapers and sleep have no clock at all (R2): the database lists no
+      // such row, and one from before that migration is dropped here too.
+      const toddlers = new Set(ctx.subjects.filter((s) => childNowOf(ctx, s).toddler).map((s) => s.name));
+      const items = ((r.items as Record<string, unknown>[]) ?? []).filter((d) => !(d.kind === "interval" && (String(d.type_id ?? "").endsWith(".feed") || (toddlers.has(String(d.subject)) && /\.(diaper|sleep)$/.test(String(d.type_id ?? ""))))));
+      const anyBaby = !ctx.subjects.length || ctx.subjects.some((s) => !childNowOf(ctx, s).toddler);
       return {
-        note: "The next feed is not listed here: use 'Next feed due' from the snapshot.",
+        ...(anyBaby ? { note: "The next feed is not listed here: use 'Next feed due' from the snapshot." } : {}),
         items: items.map((d) => {
           if (d.entry_id) ctx.refs[d.entry_id as string] = { href: `/${d.module_id}/entry/${d.entry_id}`, label: `${d.label}` };
           return { subject: d.subject, what: d.label, due: local(d.due_at as string, ctx.tz), overdue: d.overdue, entry_id: d.entry_id ?? undefined };
@@ -591,13 +663,26 @@ function sleepRhythm(ctx0: ToolContext): AssistantTool {
       if (!r.ok) return r;
       const entries = ((r.entries as EntryRow[]) ?? []).filter((e) => e.type_id.endsWith(".sleep"));
       const ageDays = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz) ?? 120;
-      const hourOf = (iso: string) => {
-        const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ctx.tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
-        return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+      const hourOf = hourIn(ctx.tz);
+      const few = "not enough sleeps with an end time yet (need 6)";
+      if (!isToddler(ageDays)) {
+        // A baby's reading as it has always been given: the coach's own numbers, in minutes.
+        const c = sleepCoach(entries, ageDays, hourOf, s.sex ?? null, null);
+        const [lo, hi] = awakeWindow(ageDays, null);
+        return { subject: s.name, age_days: ageDays, typical_awake_window_min: `${lo} to ${hi}`, sleeps_logged: entries.length, rhythm: c ? { napMin: c.napMin, bestWindowMin: c.bestWindowMin, bedtime: c.bedtime, naps: c.naps, tip: c.tip } : few };
+      }
+      // A toddler's: the child's own nap pattern, every time in hours and minutes, and with no
+      // daytime nap in the 14 days only the usual bedtime (R5).
+      const p = childNowOf(ctx, s).naps;
+      const c = sleepCoach(entries, ageDays, hourOf, s.sex ?? null, p?.perDay ?? null);
+      return {
+        subject: s.name,
+        age_days: ageDays,
+        usual_awake_before_a_nap: awakeWords(ageDays, p),
+        ...(napsLately(p) ? { naps: napsLately(p) } : {}),
+        sleeps_logged: entries.length,
+        rhythm: c ? { tip: c.tip, ...Object.fromEntries(c.rows.map((x) => [x.label, x.value])), ...(c.naps ? { naps_counted: c.naps } : {}) } : few,
       };
-      const c = sleepCoach(entries, ageDays, hourOf);
-      const [lo, hi] = awakeWindow(ageDays);
-      return { subject: s.name, age_days: ageDays, typical_awake_window_min: `${lo} to ${hi}`, sleeps_logged: entries.length, rhythm: c ?? "not enough sleeps with an end time yet (need 6)" };
     },
   };
 }
@@ -617,16 +702,37 @@ function ageOutlookTool(ctx0: ToolContext): AssistantTool {
       const s = findSubject(ctx, input.subject);
       if (!s || s.kind !== "child") return { error: "unknown_subject" };
       const w = leapWeek(ageDaysOf(ctx, s));
-      return { subject: s.name, ...ageOutlook(ageDaysOf(ctx, s)), week: w ? { week: w.week, stretch: w.band.title, expect: w.band.expect, often_harder: w.band.tough, tip: w.band.tip, next_stretch: w.next?.title ?? null, weeks_to_next: w.weeksToNext } : null };
+      return { subject: s.name, ...outlookOf(ctx, s, ageDaysOf(ctx, s)), week: w ? { week: w.week, stretch: w.band.title, expect: w.band.expect, often_harder: w.band.tough, tip: w.band.tip, next_stretch: w.next?.title ?? null, weeks_to_next: w.weeksToNext } : null };
     },
   };
 }
 
+/**
+ * The phases now and next (lib/child-insights ageOutlook). A baby's as it has always been. A
+ * toddler's says the age in words instead of decimal months, and the awake time before a nap
+ * in hours and minutes from the child's own nap pattern (R4, R5).
+ */
+export function outlookOf(ctx: ToolContext, s: SubjectInfo, ageDays: number): Record<string, unknown> {
+  const o = ageOutlook(ageDays);
+  if (!isToddler(ageDays) || !s.birth_date) return { ...o };
+  const p = childNowOf(ctx, s).naps;
+  return { ageDays, age: ageWords(s.birth_date, addDays(s.birth_date.slice(0, 10), ageDays)), usual_awake_before_a_nap: awakeWords(ageDays, p), ...(napsLately(p) ? { naps: napsLately(p) } : {}), now: o.now, next: o.next };
+}
+
+/** Every child in the context is 12 months or older (and there is one): the toddler's words apply. */
+export function toddlerHome(ctx: ToolContext): boolean {
+  return ctx.children.length > 0 && ctx.children.every((c) => c.toddler);
+}
+
 function dayScheduleTool(ctx0: ToolContext): AssistantTool {
+  // From 12 months there are no feeds to plan and no bottles while a parent is away (R2).
+  const description = toddlerHome(ctx0)
+    ? "A gentle day rhythm (naps and bedtime) from a morning wake time, using the child's best recent awake window when the log shows one, else the age norm, and no more naps than the child's own days show. A guide, not a timetable. Use when asked 'what should the day look like'."
+    : "A gentle day rhythm (naps, feeds, bedtime) from a morning wake time, using the child's best recent awake window when the log shows one, else the age norm. A guide, not a timetable. Use when asked 'what should the day look like' or to plan naps around the breastfeeding parent's hours.";
   return {
     def: {
       name: "day_schedule",
-      description: "A gentle day rhythm (naps, feeds, bedtime) from a morning wake time, using the child's best recent awake window when the log shows one, else the age norm. A guide, not a timetable. Use when asked 'what should the day look like' or to plan naps around the breastfeeding parent's hours.",
+      description,
       input_schema: obj({ subject: SUBJECT_PROP(ctx0), wake_time: { type: "string", description: "HH:MM household time the child woke up or usually wakes." } }, ["wake_time"]),
     },
     run: async (input, ctx) => {
@@ -636,24 +742,39 @@ function dayScheduleTool(ctx0: ToolContext): AssistantTool {
       if (!m) return { error: "bad_time", message: "wake_time as HH:MM" };
       const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - 14 * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
       const entries = r.ok ? (((r.entries as EntryRow[]) ?? []).filter((e) => e.type_id.endsWith(".sleep"))) : [];
-      const hourOf = (iso: string) => {
-        const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ctx.tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(iso));
-        return Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
-      };
+      const hourOf = hourIn(ctx.tz);
       const ageDays = ageDaysOf(ctx, s);
-      const coach = sleepCoach(entries, ageDays, hourOf);
-      const sched = daySchedule(Number(m[1]) * 60 + Number(m[2]), ageDays, coach?.bestWindowMin ?? null);
-      const away = ctx.routines.length ? "The breastfeeding parent's work hours are in the routines above; bottles every 2 h while they are away." : undefined;
-      return { subject: s.name, ...sched, note: away };
+      const p = pronouns(s.sex);
+      // The tag names the child: "her best recent window" for a girl, as it always was.
+      const basis = (b: string) => b.replace(/^her /, `${p.their} `);
+      const wake = Number(m[1]) * 60 + Number(m[2]);
+      if (!isToddler(ageDays)) {
+        const coach = sleepCoach(entries, ageDays, hourOf, s.sex ?? null, null);
+        const sched = daySchedule(wake, ageDays, coach?.bestWindowMin ?? null, null);
+        const away = ctx.routines.length ? "The breastfeeding parent's work hours are in the routines above; bottles every 2 h while they are away." : undefined;
+        return { subject: s.name, ...sched, basedOn: basis(sched.basedOn), note: away };
+      }
+      // A toddler's day plans no more naps than the child's own days show, and none when no nap
+      // is expected (R5, R11). Times read as hours and minutes.
+      const pattern = childNowOf(ctx, s).naps ?? napPattern(entries, ageDays, ctx.now.getTime(), ctx.tz, ctx.now.getTime() - 7 * 86_400_000);
+      const naps = pattern.expected ? (pattern.perDay ?? null) : 0;
+      const coach = sleepCoach(entries, ageDays, hourOf, s.sex ?? null, naps);
+      const sched = daySchedule(wake, ageDays, coach?.bestWindowMin ?? null, naps);
+      if (!naps) return { subject: s.name, lines: sched.lines, note: `No nap planned: ${pattern.evidenceDays ? `${s.name} napped on ${pattern.napDays} of the last ${pattern.evidenceDays} days logged` : "no nap logged lately"}.` };
+      return { subject: s.name, awake_before_a_nap: fmtDuration(sched.awakeWindowMin), basedOn: basis(sched.basedOn), naps_a_day: naps, lines: sched.lines };
     },
   };
 }
 
 function redFlagCheck(ctx0: ToolContext): AssistantTool {
+  // From 12 months the guide judges nothing (R1, R11): only a logged temperature is still a flag.
+  const description = toddlerHome(ctx0)
+    ? `Scan the last 1 to 3 days of a child's log for a logged temperature of 38 °C or more, a red flag. ${TODDLER_NO_CHECKS} Run it whenever the question mentions illness, a temperature or unusual sleepiness. Any red flag means: contact the paediatrician.`
+    : "Scan the last 1 to 3 days of a child's log for warning signs: few wet diapers, few feeds, long gaps, long awake stretches, little sleep. Returns the same red and yellow flags as the app's guide. Run it whenever the question mentions illness, feeding refusal, fewer diapers or unusual sleepiness. Any red flag means: contact the paediatrician.";
   return {
     def: {
       name: "red_flag_check",
-      description: "Scan the last 1 to 3 days of a child's log for warning signs: few wet diapers, few feeds, long gaps, long awake stretches, little sleep. Returns the same red and yellow flags as the app's guide. Run it whenever the question mentions illness, feeding refusal, fewer diapers or unusual sleepiness. Any red flag means: contact the paediatrician.",
+      description,
       input_schema: obj({ subject: SUBJECT_PROP(ctx0), days: { type: "integer", description: "1 to 3" } }),
     },
     run: async (input, ctx) => {
@@ -663,8 +784,10 @@ function redFlagCheck(ctx0: ToolContext): AssistantTool {
       const r = await rpc(ctx, "care_entries_list", { p_subject_id: s.id, p_from: new Date(ctx.now.getTime() - (d + 6) * 86_400_000).toISOString(), p_to: ctx.now.toISOString() });
       if (!r.ok) return r;
       const entries = ((r.entries as EntryRow[]) ?? []);
-      const flags = tipsFor(entries, s.birth_date, ctx.now.getTime(), { timezone: ctx.tz, feedGapMin: ctx.types.find((t) => t.id === `${s.module_id}.feed`)?.due_after_min ?? 180, name: s.name, sex: s.sex }).filter((t) => t.level !== "info");
       const fever = entries.filter((e) => Number(e.payload.temp_c ?? e.payload.temperature) >= 38).map((e) => `temperature ${e.payload.temp_c ?? e.payload.temperature} °C at ${local(e.occurred_at, ctx.tz)}`);
+      // A toddler's log is not held against a baby's numbers: no "ok", only the temperatures.
+      if (childNowOf(ctx, s).toddler) return { subject: s.name, days: d, entries: entries.length, flags: fever.map((f) => ({ level: "red", title: f })), ok: null, note: TODDLER_NO_CHECKS };
+      const flags = tipsFor(entries, s.birth_date, ctx.now.getTime(), { timezone: ctx.tz, feedGapMin: ctx.types.find((t) => t.id === `${s.module_id}.feed`)?.due_after_min ?? 180, name: s.name, sex: s.sex }).filter((t) => t.level !== "info");
       return { subject: s.name, days: d, entries: entries.length, flags: [...flags.map((t) => ({ level: t.level, title: t.title, detail: t.body })), ...fever.map((f) => ({ level: "red", title: f }))], ok: flags.length === 0 && fever.length === 0, note: entries.length <= 5 ? "Too little logged to judge." : undefined };
     },
   };
@@ -1139,7 +1262,7 @@ function proposeMedicineDose(ctx0: ToolContext): AssistantTool {
                 ask: { options: [...meds.map((x) => x.name), "Something else"] },
                 message: `No medicine of that name on ${s.name}'s list, but it may be one of these under another name (a brand name, a shorter name). Ask with ask_choice which it was, the list's names plus "Something else". Only if they pick "Something else", log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose.`,
               }
-            : { error: "not_on_the_list", known: [], message: `${s.name} has no medicines on her list. Log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose; an admin can add it to the list on the Medicine screen.` };
+            : { error: "not_on_the_list", known: [], message: `${s.name} has no medicines on ${pronouns(s.sex).their} list. Log it with propose_care_entry, type ${s.module_id}.medication, with its name and dose; an admin can add it to the list on the Medicine screen.` };
       }
       const med = m.item;
       const w = whenGiven(input.given_at, ctx);
@@ -1291,6 +1414,35 @@ function roleLabel(roleId: string, roles: { id: string; label: string }[]): stri
   return roles.find((r) => r.id === roleId)?.label ?? roleId.replace(/_/g, " ");
 }
 
+/**
+ * A child's ChildNow. A baby's needs no read. A toddler's reads the last 14 days of the log
+ * once: the nap pattern over the week Home reads, the kinds logged lately, the newest pump.
+ */
+async function childNow(supabase: SupabaseClient, s: SubjectInfo, now: Date, tz: string): Promise<ChildNow> {
+  const ageDays = ageInDays(s.birth_date, now.getTime(), tz);
+  if (!isToddler(ageDays)) return { id: s.id, ageDays, toddler: false, naps: null, lately: null, lastPumpAt: null };
+  const { data } = await supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: new Date(now.getTime() - 14 * 86_400_000).toISOString(), p_to: now.toISOString() });
+  const entries = ((data as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
+  const pumps = entries.filter((e) => e.type_id === `${s.module_id}.pump`).map((e) => e.occurred_at).sort();
+  return {
+    id: s.id,
+    ageDays,
+    toddler: true,
+    naps: napPattern(entries, ageDays, now.getTime(), tz, now.getTime() - 7 * 86_400_000),
+    lately: [...kindsLoggedLately(entries, todayYmd(tz, now), tz)],
+    lastPumpAt: pumps[pumps.length - 1] ?? null,
+  };
+}
+
+/** ToolContext.milkKept: true in a home with a baby; a toddler's home needs a pump in 14 days or a bottle in stock (R7). */
+async function milkKeptIn(supabase: SupabaseClient, children: ChildNow[], now: Date): Promise<boolean> {
+  if (!children.length || children.some((c) => !c.toddler)) return true;
+  if (children.some((c) => pumpingActive(c.lastPumpAt, now.getTime(), c.ageDays))) return true;
+  const { data } = await supabase.rpc("milk_list");
+  const m = data as { ok?: boolean; fridge_count?: number; freezer_count?: number } | null;
+  return !!m?.ok && (m.fridge_count ?? 0) + (m.freezer_count ?? 0) > 0;
+}
+
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null; chat?: string | null } = {}): Promise<ToolContext> {
   type MemberRow = { id: string; display_name: string; routine: string | null; role_id: string; relationship: string | null };
@@ -1321,6 +1473,7 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
   const child = subs.find((s) => s.kind === "child" && s.birth_date);
   const ageDays = ageInDays(child?.birth_date, now.getTime(), me.household.timezone);
   const selection = selectSkills(opts.question ?? "", skills, { ageDays, history: opts.history });
+  const children = await Promise.all(subs.filter((s) => s.kind === "child").map((s) => childNow(supabase, s, now, me.household.timezone)));
   return {
     skills,
     selection,
@@ -1334,6 +1487,8 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     tz: me.household.timezone,
     now,
     subjects: subs,
+    children,
+    milkKept: await milkKeptIn(supabase, children, now),
     types: (types as EntryType[]) ?? [],
     routines: people.filter((p): p is typeof p & { routine: string } => !!p.routine).map((p) => ({ name: p.name, routine: p.routine })),
     people: people.map(({ id, name, role, relationship }) => ({ id, name, role, relationship })),

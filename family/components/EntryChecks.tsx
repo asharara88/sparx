@@ -11,15 +11,16 @@ import { childName, possessive } from "@/lib/names";
 /**
  * "Does this look right?" One card per suspicious entry, with the fix the
  * data supports. Shown on Home (the first two) and on the child's Today (all).
- * Every decision is one tap and audited.
+ * Every decision is one tap and audited. `ageDays` is the age Home and the child's page
+ * count with: from 12 months a long night and a big cup are not questioned (R6).
  */
-export function EntryChecks({ entries, timezone, limit, canDelete, compact = false }: { entries: EntryRow[]; timezone: string; limit?: number; canDelete: boolean; compact?: boolean }) {
+export function EntryChecks({ entries, timezone, ageDays, limit, canDelete, compact = false }: { entries: EntryRow[]; timezone: string; /** The child's age in days on the home's calendar; null with no birth date. */ ageDays: number | null; limit?: number; canDelete: boolean; compact?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const all = checkEntries(entries).filter((f) => !hidden.has(f.id));
+  const all = checkEntries(entries, { ageDays }).filter((f) => !hidden.has(f.id));
   const flags = limit ? all.slice(0, limit) : all;
   if (flags.length === 0) return msg && !compact ? <p className="muted text-sm" role="status">{msg}</p> : null;
   // Home: one line, the decisions wait on the child's page where there is room for them.

@@ -1,12 +1,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolContext } from "./tools";
-import { local } from "./tools";
+import { awakeWords, local, napsLately, toddlerHome } from "./tools";
 import { can } from "@/lib/types";
-import { fmtDate } from "@/lib/time";
+import { fmtDate, todayYmd } from "@/lib/time";
 import { childName, possessive } from "@/lib/names";
 import { coreBlock, routedBlock, skillIndex } from "./skills";
 import { memoriesBlock, recapsBlock } from "./memory";
 import { ageInDays, range, stageOf } from "@/lib/stage";
+import { ageWords } from "@/lib/norms";
 
 /**
  * The system prompt has three blocks, longest-lived first so the cache works:
@@ -18,7 +19,14 @@ import { ageInDays, range, stageOf } from "@/lib/stage";
  *     are about). A thread about sleep keeps hitting the same block.
  *  3. volatile (never cached): the time, who is asking, where the child is
  *     right now (the situation snapshot) and which screen they came from.
+ *
+ * From 12 months (docs/AGES.md) the stage line, rule 6 and the milk lines change; they go by
+ * values the context holds (the child's age and nap pattern, the stock, the last pump), so a
+ * baby's home reads exactly as before and the stable block still never reads the clock.
  */
+
+/** The end of a toddler's stage line: nothing a baby's numbers would hold against the day (R11). */
+export const TODDLER_STAGE_END = "No number of milk feeds or wet diapers a day is expected, and no gap between feeds. A low or zero count is not a warning sign; it may only mean it is not logged. The '6 wet diapers' and 'refusing feeds' red flags are for babies under 12 months.";
 
 /** The child's name: from the subjects this member may see, else from me() (visible to everyone). */
 function namesOf(ctx: ToolContext): { child: string } {
@@ -76,6 +84,10 @@ export function stableSystem(ctx: ToolContext): string {
     .join("\n");
   const hasChild = ctx.subjects.some((s) => s.kind === "child");
   const people = ctx.people.map(describePerson).join(", ");
+  const toddler = toddlerHome(ctx);
+  const { child } = namesOf(ctx);
+  // Pumped milk and the stash are spoken of only where milk is kept (R7): always with a baby.
+  const milk = ctx.milkKept;
 
   return `You are the household helper for ${hh.name}. You talk to one member of the household at a time on their phone, often one-handed, sometimes at 3 am, sometimes aged 70. Plain English, short sentences, no jargon, no emojis in sentences. Answer first, detail after.
 
@@ -95,20 +107,24 @@ What you know about the house comes ONLY from the tools and the situation lines 
    - A correction of a card not confirmed yet ("make it 90", "no, dirty"): propose it again with replaces_previous true.
    - Anything else about the child has its own card, never a memory: who has her ("Wafa has Lana now", "I'm taking her"): propose_custody. Fixing or removing something already saved ("that bottle was 90", "delete the last diaper"): find the entry with care_now or care_entries, then propose_entry_change or propose_entry_delete. Milk put in the fridge or freezer: propose_milk_add; a bottle thawed, warmed, used or binned: propose_milk_move. A dose of a medicine on her list: propose_medicine_dose. Vaccines given: propose_vaccines.
    - When the tool for it is not in your list, this member's role cannot do it: say so in one line and that an admin can.
-6. The situation lines in the context already hold the latest state (asleep or awake, last feed, next due, today's counts). Use them for "is the baby asleep" and "when is the next feed" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs.
+${
+    toddler
+      ? `6. The situation lines in the context already hold the latest state (asleep or awake, the last feed and diaper, today's counts). Use them for "is ${child} asleep" and "when did ${child} last have milk" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs. From 12 months milk feeds have no due time: never give a time for the next one.`
+      : `6. The situation lines in the context already hold the latest state (asleep or awake, last feed, next due, today's counts). Use them for "is the baby asleep" and "when is the next feed" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs.`
+  }
 7. Speech is transcribed: "120 mil" means 120 ml, "left boob" means breastfeed on the left, "poo" means a dirty diaper, "both" means wet and dirty. Resolve these quietly. Say "diaper", never "nappy", even when the member or a skill says nappy.
 8. Keep answers under about 80 words unless asked for a summary or coaching. Lists are fine. Never pad. In a conversation, build on what was said before; do not repeat the situation back unless asked.
 9. Health questions: report what the log says and coach from the skills; no diagnoses, and never advise a medicine or a dose (logging a dose the member says was given is fine); red flags go to the doctor.
-10. Match the person: carers and staff get one clear thing to do in their language; the parents and admins get the why too. If a question is outside the skills and the log (the news, a recipe, homework), say in one line that you only help with the house and ${hasChild ? "the baby" : "the family"}.
+10. Match the person: carers and staff get one clear thing to do in their language; the parents and admins get the why too. If a question is outside the skills and the log (the news, a recipe, homework), say in one line that you only help with the house and ${hasChild ? (toddler ? "the child" : "the baby") : "the family"}.
 
 People and logs you may see:
 ${subjects || "- (the child's log is not shared with this role)"}
 Members use their first names${people ? `: ${people}` : ""}.${
     ctx.routines.length ? `\n\nRoutines the family told us (use them for "is someone home", "when are they back"; the log and calendar win if they disagree):\n${ctx.routines.map((r) => `- ${r.name}: ${r.routine}`).join("\n")}` : ""
   }${hh.notes ? `\n\nHousehold notes: ${hh.notes}` : ""}${
-    hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day.` : ""
+    milk && hh.milk_target_ml ? `\nPumped milk: the family wants about ${hh.milk_target_ml} ml in the fridge for the day.` : ""
   }${
-    hasChild
+    milk && hasChild
       ? `\nMilk at home: the Milk screen lists every bottle in the fridge and every bag in the freezer; the situation line "Milk at home" has the totals. A bottle logged with milk "Freezer" takes the oldest bag out of the freezer, a pumped milk takes it out of the fridge, formula or no milk named takes nothing. A bottle or bag put away goes in with propose_milk_add, and one thawed, warmed, used or binned with propose_milk_move; milk_stash lists every bottle. A member without those tools puts milk away on the Milk screen. Answer milk questions in two or three short lines.`
       : ""
   }${hasChild && ctx.selection.core.length ? `\n\n${coreBlock(ctx.selection.core)}` : ""}${hasChild ? `\n\n${skillIndex(ctx.skills)}` : ""}`;
@@ -116,6 +132,20 @@ Members use their first names${people ? `: ${people}` : ""}.${
 
 export function skillsSystem(ctx: ToolContext): string {
   return [routedBlock(ctx.selection.routed), memoriesBlock(ctx.memories, { id: ctx.me.member.id, name: ctx.me.member.display_name })].filter(Boolean).join("\n\n");
+}
+
+/**
+ * A toddler's stage line (R11): the age in words, the naps of the stage and of the child's own
+ * days, the awake time before a nap from R4 in hours and minutes, no milk clock, and the closing
+ * sentence that no count is expected.
+ */
+function toddlerStage(ctx: ToolContext, s: ToolContext["subjects"][number], days: number): string {
+  const st = stageOf(days);
+  const kid = ctx.children.find((c) => c.id === s.id);
+  const naps = st.naps[0] === 0 ? "0 or 1 nap; most still nap until 3" : `${range(st.naps)} nap${st.naps[1] === 1 ? "" : "s"}`;
+  const lately = napsLately(kid?.naps ?? null);
+  const age = s.birth_date ? ageWords(s.birth_date, todayYmd(ctx.tz, ctx.now)) : `${days} days`;
+  return `${s.name} is ${days} days old (${age}); usual now (${st.label}): ${naps}${lately ? ` (${lately})` : ""}, awake ${awakeWords(days, kid?.naps ?? null)} before a nap${st.meals ? `, ${range(st.meals)} meals a day` : ""}. ${TODDLER_STAGE_END}`;
 }
 
 export function volatileSystem(ctx: ToolContext): string {
@@ -129,6 +159,7 @@ export function volatileSystem(ctx: ToolContext): string {
     .map((s) => {
       const days = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz) ?? 0;
       const st = stageOf(days);
+      if (st.toddler) return toddlerStage(ctx, s, days);
       const usual = `usual now (${st.label}): ${range(st.naps)} naps, awake ${st.awake[0]} to ${st.awake[1]} min between sleeps, milk feeds up to about every ${st.feedEveryMin / 60} h${st.meals ? `, ${range(st.meals)} meals a day` : ""}`;
       return `${s.name} is ${days} days old (${Math.floor(days / 7)} weeks, about ${(days / 30.44).toFixed(1)} months); ${usual}.`;
     })

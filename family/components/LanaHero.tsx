@@ -1,5 +1,5 @@
 import type { HomeSummary, Me } from "@/lib/types";
-import { ageDays, ageLabel } from "@/lib/norms";
+import { ageWords } from "@/lib/norms";
 import { Avatar } from "./Avatar";
 import { CustodyToggle } from "./CustodyToggle";
 import { ProfileMenu } from "./ProfileMenu";
@@ -9,7 +9,7 @@ import { Mark } from "./Brand";
 export function LanaHero({ summary, me, today, dateLine }: { summary: HomeSummary; me: Me; today: string; dateLine?: string }) {
   const s = summary.subject;
   const photo = (s.profile?.photo_path as string | undefined) ?? null;
-  const age = s.birth_date ? `${ageLabel(ageDays(s.birth_date, today))} old` : "";
+  const age = s.birth_date ? `${ageWords(s.birth_date, today)} old` : "";
   return (
     <header className="hero">
       <div className="flex items-center gap-3">

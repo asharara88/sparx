@@ -15,21 +15,21 @@ test("the curves rise and keep their order", () => {
 });
 
 test("reference interpolates between points and stops at 24 months", () => {
-  const r6 = reference("weight_kg", 6 * MONTH_DAYS)!;
+  const r6 = reference("weight_kg", 6 * MONTH_DAYS, "Girl")!;
   assert.equal(Number(r6.p50.toFixed(1)), 7.3);
-  const r45 = reference("length_cm", 4.5 * MONTH_DAYS)!;
+  const r45 = reference("length_cm", 4.5 * MONTH_DAYS, "Girl")!;
   assert.ok(r45.p50 > 59.8 && r45.p50 < 65.7);
-  assert.equal(reference("head_cm", 30 * MONTH_DAYS), null);
+  assert.equal(reference("head_cm", 30 * MONTH_DAYS, "Girl"), null);
 });
 
 test("percentileOf puts the median at 50 and the 3rd at about 3", () => {
   const d = 4 * MONTH_DAYS;
-  assert.equal(percentileOf("weight_kg", d, 6.4), 50);
-  const low = percentileOf("weight_kg", d, 5.1)!;
+  assert.equal(percentileOf("weight_kg", d, 6.4, "Girl"), 50);
+  const low = percentileOf("weight_kg", d, 5.1, "Girl")!;
   assert.ok(low >= 2 && low <= 4, String(low));
-  const high = percentileOf("weight_kg", d, 8.1)!;
+  const high = percentileOf("weight_kg", d, 8.1, "Girl")!;
   assert.ok(high >= 96 && high <= 98, String(high));
-  assert.equal(percentileOf("weight_kg", d, 0), null);
+  assert.equal(percentileOf("weight_kg", d, 0, "Girl"), null);
   assert.equal(percentileLabel(50), "about the 50th percentile");
   assert.equal(percentileLabel(42), "about the 42nd percentile");
   assert.equal(percentileLabel(2), "below the 3rd percentile");

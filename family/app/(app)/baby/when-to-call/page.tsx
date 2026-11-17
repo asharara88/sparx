@@ -5,7 +5,9 @@ import type { HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { childPronouns, possessive } from "@/lib/names";
 import { PageHeader } from "@/components/PageHeader";
-import { TOPICS } from "@/lib/child-guide";
+import { topicsFor } from "@/lib/child-guide";
+import { ageDays } from "@/lib/norms";
+import { todayYmd } from "@/lib/time";
 import { meOnce } from "@/lib/server/me";
 import { ambulanceOf } from "@/lib/emergency";
 import { CallBanner } from "@/components/CallBanner";
@@ -37,12 +39,14 @@ export default async function WhenToCallPage() {
   const summary = sumData as HomeSummary | RpcError;
   if (!summary.ok) redirect("/");
   const name = summary.subject.name;
+  const birth = summary.subject.birth_date;
+  const topics = topicsFor(birth ? ageDays(birth, todayYmd(me.household.timezone)) : null);
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby?tab=about" title="When to call the doctor" subtitle="Warning signs from NHS, AAP and NICE guidance." />
       <CallBanner number={ambulanceOf(summary.subject.profile)} their={childPronouns(me).their} />
       <nav aria-label="Topics" className="card flex flex-col p-0">
-        {TOPICS.map((t) => {
+        {topics.map((t) => {
           const look = TOPIC_LOOK[t.id] ?? { icon: "clipboard" as IconName };
           return (
             <Link prefetch={false} key={t.id} id={t.id} href={`/baby/when-to-call/${t.id}`} className="row row-link scroll-mt-4 px-4">

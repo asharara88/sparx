@@ -5,9 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { awayParentOn } from "@/lib/handover";
 import type { DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
-import { childPronouns, type Pronouns } from "@/lib/names";
+import { child, childPronouns, type Pronouns } from "@/lib/names";
 import { addDays, dayRange, fmtDuration, todayYmd } from "@/lib/time";
-import { ageDays, ageLabel } from "@/lib/norms";
+import { ageDays, ageWords, averagesLine, dayAverages } from "@/lib/norms";
+import { napPattern, phaseCard } from "@/lib/child-insights";
 import { AgeCheck } from "@/components/AgeCheck";
 import { LanaGuide } from "@/components/LanaGuide";
 import { AvatarUpload } from "@/components/AvatarUpload";
@@ -61,7 +62,7 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
   if (!summary.ok) redirect("/");
   const s = summary.subject;
   const pr = childPronouns(me);
-  const age = s.birth_date ? `${ageLabel(ageDays(s.birth_date, today))} old` : "";
+  const age = s.birth_date ? `${ageWords(s.birth_date, today)} old` : "";
   const photo = (s.profile?.photo_path as string | undefined) ?? null;
 
   return (
@@ -93,11 +94,14 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
     isToday ? supabase.rpc("suggestions_refresh") : Promise.resolve({ data: null }),
   ]);
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
-  const feedInterval = feedGapFor(stageFor(summary.subject.birth_date, Date.now(), tz), summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
+  const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
+  const feedInterval = feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
+  // The same age Home passes, so "To check" here and there count the same entries (R6).
+  const age = summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
   const stripEntries = ((stripData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const [fromMs, toMs] = [Date.parse(from), Date.parse(to)];
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
-  const checks = isToday ? checkEntries(week).length : 0;
+  const checks = isToday ? checkEntries(week, { ageDays: age }).length : 0;
   const suggestions = (((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).filter((s) => s.kind === "due" || s.kind === "plan");
   // The date, not a second "Today" under the Today tab.
   const label = day === addDays(today, -1) ? "Yesterday" : new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
@@ -113,13 +117,13 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
         </Link>
       </div>
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} />
-      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stageFor(summary.subject.birth_date, Date.now(), tz).naps} href="/baby/sleep" />
+      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stage.naps} href="/baby/sleep" />
       {checks > 0 && can(me, "lana", "edit") && (
         <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
-          <EntryChecks entries={week} timezone={tz} canDelete={can(me, "lana", "delete")} />
+          <EntryChecks entries={week} timezone={tz} ageDays={age} canDelete={can(me, "lana", "delete")} />
         </Fold>
       )}
-      {isToday && <LanaGuide fold entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />}
+      {isToday && <LanaGuide entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />}
       {/* What the data suggests doing (a dose due, a plan for the calendar): useful, not now, so a fold. */}
       {isToday && suggestions.length > 0 && (
         <Fold title="Suggested" icon="calendar" tint="cal" hint={`${suggestions.length}`}>
@@ -131,7 +135,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
       ) : (
         <EntryList entries={entries} types={summary.types} timezone={tz} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} />
       )}
-      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} solids={stageFor(summary.subject.birth_date, Date.now(), tz).solids} />
+      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} milkClock={stage.milkClock} solids={stage.solids} />
     </>
   );
 }
@@ -140,19 +144,30 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
   const [{ data: listData }, { data: statsData }, { data: hhData }, { data: planData }] = await Promise.all([
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: dayRange(days[0], tz).from, p_to: new Date(Date.now() + 3_600_000).toISOString() }),
-    supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: addDays(today, -7), p_to: today }),
+    // One day more than the week: a toddler's first night counts only beside the night before it (X8).
+    supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: addDays(today, -8), p_to: today }),
     supabase.rpc("household_today"),
     supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }),
   ]);
   const entries = ((listData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const stats = statsData as DailyStats | RpcError | null;
-  const all = stats?.ok ? stats.days : [];
+  const fetched = stats?.ok ? stats.days : [];
+  const all = fetched.filter((d) => d.day >= addDays(today, -7));
   const full = all.filter((d) => d.day < today);
   const weekAgo = Date.now() - 7 * 86_400_000;
   const lastWeek = entries.filter((e) => Date.parse(e.occurred_at) >= weekAgo);
   const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
-  const feedInterval = feedGapFor(stageFor(summary.subject.birth_date, Date.now(), tz), summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
-  const mean = (k: "breast_count" | "bottle_count" | "bottle_ml" | "diapers_wet" | "diapers_dirty" | "sleep_min" | "night_sleep_min") => (full.length ? full.reduce((a, d) => a + Number(d[k] ?? 0), 0) / full.length : 0);
+  const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
+  const feedInterval = feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
+  const age = summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
+  // A day's average over the days each kind was logged (X8); from 12 months a kind not logged has no row (R8).
+  const avg = dayAverages(full, fetched.find((d) => d.day === addDays(today, -8)) ?? null, stage.toddler);
+  const listed = !stage.toddler || avg.logged.feed || avg.logged.diaper || avg.logged.sleep;
+  // The nap pattern over the week Home reads, so the rhythm's usual window is the one Home's card uses (R5).
+  const pattern = napPattern(entries, age, Date.now(), tz, Date.now() - 7 * 86_400_000);
+  // Day by day names a kind only when it was logged in the 7 days (R8); a baby's rows are as they were.
+  const byDay = [...all].reverse().slice(0, 7);
+  const dayKinds = { feed: !stage.toddler || byDay.some((d) => d.breast_count + d.bottle_count > 0), diaper: !stage.toddler || byDay.some((d) => d.diapers > 0), sleep: !stage.toddler || byDay.some((d) => d.sleep_min > 0) };
   // Was a parent away at this instant? Each day has its own away parent, so two parents
   // who work on different days each get their day's hours.
   const hh = hhData as HouseholdToday | RpcError | null;
@@ -168,35 +183,47 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   return (
     <>
       <WeekColumns entries={entries} days={days.slice(-7)} prevDays={days.slice(0, 7)} timezone={tz} today={today} />
-      {full.length > 0 && (
+      {full.length > 0 && listed && (
         <Fold title={`Against ${pr.their} age`} icon="trend" hint="a day this week">
           <AgeCheck
             bare
-            totals={{ breast_count: mean("breast_count"), bottle_count: mean("bottle_count"), bottle_ml: mean("bottle_ml"), diapers_wet: mean("diapers_wet"), diapers_dirty: mean("diapers_dirty"), sleep_min: mean("sleep_min"), night_sleep_min: mean("night_sleep_min") }}
+            totals={avg.totals}
+            logged={avg.logged}
             birthDate={summary.subject.birth_date}
             day={full[full.length - 1].day}
+            today={today}
             complete
             title={`This week against ${pr.their} age`}
-            subtitle="A day's average over the last 7 full days."
+            subtitle={averagesLine(avg, "this week") ?? "A day's average over the last 7 full days."}
           />
         </Fold>
       )}
-      <Fold title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
-        <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />
-        <PlanCard plan={plan} />
-      </Fold>
+      {/* From 12 months milk has no clock (R2): no feed, diaper, nap or wake guesses, only the plan when there is one. */}
+      {stage.milkClock ? (
+        <Fold title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
+          <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />
+          <PlanCard plan={plan} />
+        </Fold>
+      ) : (
+        plan &&
+        !plan.over && (
+          <Fold title="Coming up" icon="clock" tint="cal">
+            <PlanCard plan={plan} />
+          </Fold>
+        )
+      )}
       <Fold title="Sleep rhythm" icon="moon" tint="sleep" hint="naps and bedtime">
-        <SleepCoach bare entries={entries} ageDays={summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : 120} timezone={tz} />
+        <SleepCoach bare entries={entries} ageDays={age ?? 120} sex={child(me)?.sex ?? null} napsPerDay={pattern.perDay} timezone={tz} />
       </Fold>
       <MoodPattern entries={entries} days={days} stats={all} timezone={tz} />
-      {all.length > 0 && (
+      {all.length > 0 && (dayKinds.feed || dayKinds.diaper || dayKinds.sleep) && (
         <Fold title="Day by day" icon="calendar" tint="cal" hint="last 7 days">
           <ul className="flex flex-col">
-            {[...all].reverse().slice(0, 7).map((d) => (
+            {byDay.map((d) => (
               <li key={d.day} className="row">
                 <span className="w-24 shrink-0 font-semibold">{dayName(d.day)}</span>
                 <span className="muted min-w-0 flex-1 text-sm">
-                  {d.breast_count + d.bottle_count} feeds{d.bottle_ml ? `, ${d.bottle_ml} ml` : ""} · {fmtDuration(d.sleep_min)} sleep · {d.diapers} diapers
+                  {[dayKinds.feed ? `${d.breast_count + d.bottle_count} feeds${d.bottle_ml ? `, ${d.bottle_ml} ml` : ""}` : null, dayKinds.sleep ? `${fmtDuration(d.sleep_min)} sleep` : null, dayKinds.diaper ? `${d.diapers} diapers` : null].filter(Boolean).join(" · ")}
                 </span>
               </li>
             ))}
@@ -215,6 +242,8 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
 
 function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today: string }) {
   const s = summary.subject;
+  // From 12 months the card is one link to the stretch in Week by week; none after week 156 (R10).
+  const phase = s.birth_date ? phaseCard(s.birth_date, today, s.name) : null;
   // Built like More's settings rows (a glyph, medium weight): a feature's colour only where the
   // row is that feature (medicine), and red for Emergency (DESIGN.md rule 7).
   const groups: { title: string; rows: { href: string; icon: IconName; label: string; tone?: "meds" | "danger"; show?: boolean }[] }[] = [
@@ -249,9 +278,9 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
   ];
   return (
     <>
-      {s.birth_date && (
+      {phase && (
         <Fold title="What this age brings" icon="star" tint="guide">
-          <PhaseCard ageDays={ageDays(s.birth_date, today)} name={s.name} />
+          <PhaseCard card={phase} />
         </Fold>
       )}
       {groups.map((g) => (

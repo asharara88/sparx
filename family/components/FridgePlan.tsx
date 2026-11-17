@@ -6,9 +6,11 @@ import { fmtTime } from "@/lib/time";
  * Planned bottles until the away parent (`name`) is back, against what is in
  * the fridge. One bottle every interval from the next due time, each the size
  * of the last bottle. Says how many freezer bags to thaw if the fridge will run
- * short.
+ * short. A plan on the clock is a baby's: from 12 months milk has no clock, and no plan
+ * (`milkClock` false).
  */
-export function FridgePlan({ milk, lastFeedAt, backAtIso, bottleMl, timezone, name }: { milk: MilkData; lastFeedAt: string | null; backAtIso: string; bottleMl: number; timezone: string; name: string }) {
+export function FridgePlan({ milk, lastFeedAt, backAtIso, bottleMl, timezone, name, milkClock }: { milk: MilkData; lastFeedAt: string | null; backAtIso: string; bottleMl: number; timezone: string; name: string; /** The child's stage has a milk clock (lib/stage, a baby). */ milkClock: boolean }) {
+  if (!milkClock) return null;
   const interval = (milk.bottle_interval_min || 120) * 60_000;
   const now = Date.now();
   const back = Date.parse(backAtIso);

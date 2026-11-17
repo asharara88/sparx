@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ageInDays, awakeWindow, feedGapFor, feedLateMin, range, stageFor, stageOf, SOLIDS_FROM_DAYS } from "./stage.ts";
 
 test("under 6 months nothing moves: the awake windows, the 3 h feed gap and the 4 h / 5 h late feed are as before", () => {
-  assert.deepEqual([41, 42, 83, 84, 119, 120, 154, 179].map(awakeWindow), [[45, 60], [60, 90], [60, 90], [75, 120], [75, 120], [105, 150], [105, 150], [105, 150]]);
+  assert.deepEqual([41, 42, 83, 84, 119, 120, 154, 179].map((d) => awakeWindow(d, null)), [[45, 60], [60, 90], [60, 90], [75, 120], [75, 120], [105, 150], [105, 150], [105, 150]]);
   const lana = stageOf(154);
   assert.equal(lana.band, "3-6");
   assert.equal(lana.feedEveryMin, 180);
@@ -26,7 +26,7 @@ test("the stages after 6 months: longer awake, fewer naps, longer feed gaps, mea
   assert.equal(stageOf(400).band, "12-18");
   assert.equal(stageOf(600).band, "18-24");
   assert.deepEqual(stageOf(600).awake, [300, 360]);
-  assert.equal(stageOf(800).band, "24+");
+  assert.equal(stageOf(800).band, "24-36");
   assert.ok(stageOf(400).awake[1] > stageOf(305).awake[1], "awake time keeps growing past 6 months");
 });
 
@@ -49,7 +49,7 @@ test("the nap count says where the day is against what is usual, never an alarm"
   assert.equal(napsLine(4, [2, 3], true), "4 naps", "past the usual: just the count");
   assert.equal(napsLine(0, [2, 3], true), "no nap yet, usually 2–3");
   assert.equal(napsLine(1, [2, 3], false), "1 nap", "a past day: just the count");
-  assert.equal(napsLine(0, [0, 1], true), "no nap yet");
+  assert.equal(napsLine(0, [0, 1], true), "no nap", "from 2 years a plain count: a child who has stopped is not 'yet' to nap");
 });
 
 test("age goes up at the home's midnight, not at UTC midnight", () => {

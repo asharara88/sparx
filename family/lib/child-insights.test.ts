@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ageOutlook, awakeWindow, daySchedule, growthSpurt, nextNap, sleepCoach } from "./child-insights.ts";
+import { ageOutlook, awakeWindow, daySchedule, growthSpurt, napPattern, nextNap, sleepCoach } from "./child-insights.ts";
 import type { EntryRow } from "./types.ts";
 
 const D = 86_400_000;
@@ -12,8 +12,8 @@ const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const hourOf = (s: string) => new Date(s).getUTCHours() + new Date(s).getUTCMinutes() / 60;
 
 test("awake window grows with age", () => {
-  assert.deepEqual(awakeWindow(30), [45, 60]);
-  assert.deepEqual(awakeWindow(130), [105, 150]);
+  assert.deepEqual(awakeWindow(30, null), [45, 60]);
+  assert.deepEqual(awakeWindow(130, null), [105, 150]);
 });
 
 test("growth spurt: two busy days after five usual ones", () => {
@@ -37,12 +37,12 @@ test("sleep coach finds nap length, best window and bedtime", () => {
     sleeps.push(row("lana.sleep", base + 6 * H, base + 7.5 * H)); // 14:00–15:30, after 2 h awake, long
     sleeps.push(row("lana.sleep", base + 11.5 * H, base + 20 * H)); // 19:30–04:00 night
   }
-  const c = sleepCoach(sleeps, 130, hourOf)!;
+  const c = sleepCoach(sleeps, 130, hourOf, "Girl", null)!;
   assert.equal(c.napMin, 90);
   assert.equal(c.bestWindowMin, 120);
   assert.equal(c.bedtime, "19:30");
   assert.ok(c.naps >= 14);
-  assert.equal(sleepCoach(sleeps.slice(0, 4), 130, hourOf), null);
+  assert.equal(sleepCoach(sleeps.slice(0, 4), 130, hourOf, "Girl", null), null);
 });
 
 test("age outlook: phases now and next", () => {
@@ -55,7 +55,7 @@ test("age outlook: phases now and next", () => {
 });
 
 test("day schedule: naps after the awake window, bedtime between 18:30 and 20:30", () => {
-  const s = daySchedule(7 * 60, 131, 110);
+  const s = daySchedule(7 * 60, 131, 110, null);
   assert.equal(s.awakeWindowMin, 110);
   assert.equal(s.basedOn, "her best recent window");
   assert.equal(s.lines[0].at, "07:00");
@@ -63,7 +63,7 @@ test("day schedule: naps after the awake window, bedtime between 18:30 and 20:30
   const bed = s.lines[s.lines.length - 1];
   assert.equal(bed.what, "asleep for the night");
   assert.ok(bed.at >= "18:30" && bed.at <= "20:30");
-  assert.equal(daySchedule(7 * 60, 131, null).basedOn, "age norm");
+  assert.equal(daySchedule(7 * 60, 131, null, null).basedOn, "age norm");
 });
 
 test("nextNap: last wake-up plus her window; asleep means no prediction; evening means bedtime", () => {
@@ -76,7 +76,9 @@ test("nextNap: last wake-up plus her window; asleep means no prediction; evening
   }
   const lastWake = NOW - 30 * 60_000;
   rows.push(row("lana.sleep", lastWake - 40 * 60_000, lastWake));
-  const n = nextNap(rows, 130, NOW, hourOf)!;
+  // A baby: the pattern is not read, and gives the same window whatever it says.
+  const pattern = (es: EntryRow[], now: number) => napPattern(es, 130, now, "UTC", now - 7 * D);
+  const n = nextNap(rows, 130, NOW, hourOf, pattern(rows, NOW))!;
   assert.equal(n.asleepSince, null);
   assert.equal(n.basis, "her rhythm");
   assert.equal(n.windowMin, 90);
@@ -84,14 +86,16 @@ test("nextNap: last wake-up plus her window; asleep means no prediction; evening
   assert.equal(n.awakeMin, 30);
   assert.equal(n.isBedtime, false);
   // Asleep now: nothing to predict.
-  const asleep = nextNap([...rows, row("lana.sleep", NOW - 10 * 60_000, null)], 130, NOW, hourOf)!;
+  const asleepRows = [...rows, row("lana.sleep", NOW - 10 * 60_000, null)];
+  const asleep = nextNap(asleepRows, 130, NOW, hourOf, pattern(asleepRows, NOW))!;
   assert.equal(asleep.asleepSince, iso(NOW - 10 * 60_000));
   assert.equal(asleep.at, null);
   // No rhythm yet: the age norm, and a wake-up at 17:30 points to bedtime.
   const evening = Date.UTC(2026, 9, 13, 17, 30);
-  const e = nextNap([row("lana.sleep", evening - H, evening)], 130, evening + 10 * 60_000, hourOf)!;
+  const eveningRows = [row("lana.sleep", evening - H, evening)];
+  const e = nextNap(eveningRows, 130, evening + 10 * 60_000, hourOf, pattern(eveningRows, evening + 10 * 60_000))!;
   assert.equal(e.basis, "her age");
   assert.equal(e.windowMin, 128);
   assert.equal(e.isBedtime, true);
-  assert.equal(nextNap([], 130, NOW, hourOf), null);
+  assert.equal(nextNap([], 130, NOW, hourOf, pattern([], NOW)), null);
 });

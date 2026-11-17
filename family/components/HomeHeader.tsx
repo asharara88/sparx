@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { HomeSummary, Me } from "@/lib/types";
 import { can } from "@/lib/types";
-import { ageDays, ageLabel } from "@/lib/norms";
+import { ageWordsShort } from "@/lib/norms";
 import { Avatar } from "./Avatar";
 import { CustodyToggle } from "./CustodyToggle";
 import { Icon } from "./Icon";
@@ -15,7 +15,8 @@ import { Icon } from "./Icon";
 export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: Me; today: string }) {
   const s = summary.subject;
   const photo = (s.profile?.photo_path as string | undefined) ?? null;
-  const age = s.birth_date ? `${ageLabel(ageDays(s.birth_date, today))}` : null;
+  // Whole years from 24 months ("2 years"), so the line still fits beside who has her.
+  const age = s.birth_date ? ageWordsShort(s.birth_date, today) : null;
   return (
     <header className="flex items-center gap-3 pt-2">
       <Avatar name={s.name} path={photo} size={48} />

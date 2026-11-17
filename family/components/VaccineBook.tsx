@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { VaccineItem, VaccinesData } from "@/lib/types";
@@ -11,12 +12,22 @@ import { Icon } from "./Icon";
  * The vaccine book: one card per visit (Birth, 2 months, 4 months...), each
  * dose with its status, "all given on" for a whole visit in one go, and a
  * per-dose date for the odd one given on another day. Undo needs edit rights.
+ * A dose whose window closed before the family joined is "earlier" (the database's X5):
+ * not due and not overdue, only not recorded here. Those visits sit last, in a shut fold,
+ * grey: nothing to do now (R12).
  */
 type Visit = { visit: string; due_on: string | null; items: VaccineItem[]; status: VaccineItem["status"] | "partial" };
 
 function statusOf(items: VaccineItem[]): Visit["status"] {
   const given = items.filter((i) => i.status === "given").length;
   if (given === items.length) return "given";
+  // A visit with a dose from before the family joined: overdue or due if any dose is, else
+  // earlier, whether or not some of it was recorded. Without one, as it always was.
+  if (items.some((i) => i.status === "earlier")) {
+    if (items.some((i) => i.status === "overdue")) return "overdue";
+    if (items.some((i) => i.status === "due")) return "due";
+    if (items.every((i) => i.status === "given" || i.status === "earlier")) return "earlier";
+  }
   if (given > 0) return "partial";
   if (items.some((i) => i.status === "overdue")) return "overdue";
   if (items.some((i) => i.status === "due")) return "due";
@@ -26,7 +37,7 @@ function statusOf(items: VaccineItem[]): Visit["status"] {
 
 const fmt = (ymd: string | null) => (ymd ? dateWords(new Date(`${ymd}T12:00:00Z`), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
 
-export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { subjectId: string; data: VaccinesData; timezone: string; canAdd: boolean; canEdit: boolean }) {
+export function VaccineBook({ subjectId, name, data, timezone, canAdd, canEdit }: { subjectId: string; /** The child's name, for the fold of visits from before the family joined. */ name: string; data: VaccinesData; timezone: string; canAdd: boolean; canEdit: boolean }) {
   void timezone;
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -82,6 +93,7 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
     : s === "due" ? <span className="pill pill-accent">due now</span>
     : s === "overdue" ? <span className="pill pill-danger">overdue</span>
     : s === "unknown" ? <span className="pill">no birth date</span>
+    : s === "earlier" ? <span className="pill">not recorded</span>
     : <span className="pill">later</span>;
 
   // One visit's card: its doses, each with its status, and "all given on one day".
@@ -136,12 +148,13 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
                       className="flex flex-wrap items-end gap-2"
                       onSubmit={(e) => {
                         e.preventDefault();
-                        void record([it.id], date[it.id] ?? it.due_on ?? data.today, place[it.id] ?? "");
+                        void record([it.id], date[it.id] ?? (it.status === "earlier" ? "" : it.due_on ?? data.today), place[it.id] ?? "");
                       }}
                     >
                       <label className="flex flex-col text-sm">
                         Date
-                        <input type="date" className="input" required max={data.today} value={date[it.id] ?? (it.due_on && it.due_on <= data.today ? it.due_on : data.today)} onChange={(e) => setDate({ ...date, [it.id]: e.target.value })} />
+                        {/* A dose from before the family joined was given on a day only they know: no date put in for them. */}
+                        <input type="date" className="input" required max={data.today} value={date[it.id] ?? (it.status === "earlier" ? "" : it.due_on && it.due_on <= data.today ? it.due_on : data.today)} onChange={(e) => setDate({ ...date, [it.id]: e.target.value })} />
                       </label>
                       <label className="flex min-w-[8rem] flex-1 flex-col text-sm">
                         Where (optional)
@@ -162,12 +175,12 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
                     className="flex flex-wrap items-end gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      void record(outstanding.map((i) => i.id), date[key] ?? v.due_on ?? data.today, place[key] ?? "");
+                      void record(outstanding.map((i) => i.id), date[key] ?? (v.status === "earlier" ? "" : v.due_on ?? data.today), place[key] ?? "");
                     }}
                   >
                     <label className="flex flex-col text-sm">
                       All {outstanding.length} given on
-                      <input type="date" className="input" required max={data.today} value={date[key] ?? (v.due_on && v.due_on <= data.today ? v.due_on : data.today)} onChange={(e) => setDate({ ...date, [key]: e.target.value })} />
+                      <input type="date" className="input" required max={data.today} value={date[key] ?? (v.status === "earlier" ? "" : v.due_on && v.due_on <= data.today ? v.due_on : data.today)} onChange={(e) => setDate({ ...date, [key]: e.target.value })} />
                     </label>
                     <label className="flex min-w-[8rem] flex-1 flex-col text-sm">
                       Where (optional)
@@ -181,7 +194,7 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
                     </button>
                   </form>
                 ) : (
-                  <button type="button" className="btn btn-primary w-full" onClick={() => setOpen(key)}>
+                  <button type="button" className={`btn w-full ${v.status === "earlier" ? "" : "btn-primary"}`} onClick={() => setOpen(key)}>
                     <Icon name="check" size={18} /> All {outstanding.length} given on one day
                   </button>
                 )}
@@ -192,15 +205,23 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
       };
   // What matters now first: the visits due or overdue and the next one. Done and later ones fold away.
   // The next visit only when nothing is due: one thing to do at a time.
-  const nextUpcoming = visits.some((v) => v.status !== "given" && v.status !== "upcoming") ? undefined : visits.find((v) => v.status === "upcoming");
-  const isNow = (v: Visit) => v.status !== "given" && (v.status !== "upcoming" || v === nextUpcoming);
+  // A visit from before the family joined is never "now" and never hides the next visit.
+  const nextUpcoming = visits.some((v) => v.status !== "given" && v.status !== "upcoming" && v.status !== "earlier") ? undefined : visits.find((v) => v.status === "upcoming");
+  const isNow = (v: Visit) => v.status !== "given" && v.status !== "earlier" && (v.status !== "upcoming" || v === nextUpcoming);
   const done = visits.filter((v) => v.status === "given");
   const now = visits.filter(isNow);
   const later = visits.filter((v) => v.status === "upcoming" && v !== nextUpcoming);
+  const earlier = visits.filter((v) => v.status === "earlier");
 
   return (
     <div className="flex flex-col gap-3">
-      {!data.birth_date && <p className="notice notice-warn">Add the date of birth on the profile and the dates will fill in.</p>}
+      {!data.birth_date && (
+        <p className="notice notice-warn">
+          <Link prefetch={false} href="/baby/doctor" className="font-semibold underline">
+            Add the date of birth on Doctor, under Health card.
+          </Link>
+        </p>
+      )}
       {/* No summary card: the visit's own card says what is due, once, with its "overdue" pill;
           the count of doses sits on the Given fold. */}
 
@@ -219,6 +240,12 @@ export function VaccineBook({ subjectId, data, timezone, canAdd, canEdit }: { su
       {done.length > 0 && (
         <Fold title="Given" icon="check" tint="meds" hint={`${givenCount} of ${data.items.length} doses`}>
           {done.map(visitCard)}
+        </Fold>
+      )}
+      {earlier.length > 0 && (
+        <Fold wrap title={`From before ${name} was on elnunu`} icon="history" tint="meds" hint={`${earlier.length} ${earlier.length === 1 ? "visit" : "visits"}`}>
+          <p className="muted text-sm">Not recorded here. Tap Given for any {name} had.</p>
+          {earlier.map(visitCard)}
         </Fold>
       )}
       <p className="muted text-xs">Schedule: UAE national programme (DHA). The clinic&apos;s card wins. Not medical advice.</p>

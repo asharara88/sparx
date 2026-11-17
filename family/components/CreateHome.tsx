@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
+import { ageWords } from "@/lib/norms";
+import { todayYmd } from "@/lib/time";
 import { SignOutButton } from "./SignOutButton";
 
 /**
@@ -10,11 +12,13 @@ import { SignOutButton } from "./SignOutButton";
  * another address), so joining comes first: ask for an invite link, or for this e-mail
  * to be put on the Members screen, then "Check again". Starting a new home is the
  * deliberate second step, behind one more tap, so two taps never make two homes.
- * One form, six fields, the baby first: household_create does the rest and me()
+ * One form, six fields, the child first: household_create does the rest and me()
  * answers for the new home from the next render. With `another`, the same fields for a
  * member making a second home from More (Your homes): the page gives the title and the way
  * back, the form seeds their name from this home, and "Create the home" is the bottom
  * button. The account runs as the new home from then on, and Your homes goes back.
+ * The date of birth is asked for in the form (naps, vaccines and what is usual go by age),
+ * but not required by household_create: a home with no birth date works as before.
  */
 export function CreateHome({ email, name, another = false }: { email: string | null; name?: string; another?: boolean }) {
   const router = useRouter();
@@ -42,8 +46,20 @@ export function CreateHome({ email, name, another = false }: { email: string | n
     }
   }, []);
 
+  // The latest birth date is today in the home's time zone; a zone still being typed falls back to this phone's.
+  const latest = (() => {
+    try {
+      return todayYmd(tz);
+    } catch {
+      return todayYmd(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+    }
+  })();
+  const bornOk = /^\d{4}-\d{2}-\d{2}$/.test(born) && born <= latest;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!born) return setMsg("Add your child's date of birth.");
+    if (!bornOk) return setMsg("The date of birth cannot be after today.");
     setBusy(true);
     setMsg(null);
     const { data, error } = await supabaseBrowser().rpc("household_create", {
@@ -121,23 +137,25 @@ export function CreateHome({ email, name, another = false }: { email: string | n
   const fields = (
     <>
       <label className="flex flex-col gap-1">
-        <span className="font-semibold">The baby&apos;s name</span>
+        <span className="font-semibold">Your child&apos;s name</span>
         <input className="input" value={baby} onChange={(e) => setBaby(e.target.value)} required autoComplete="off" autoFocus />
       </label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Born</span>
-          <input className="input" type="date" value={born} onChange={(e) => setBorn(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
-        </label>
-        <div className="flex flex-col gap-1">
-          <span className="font-semibold">Girl or boy</span>
-          <div className="flex gap-2" role="group" aria-label="Girl or boy">
-            {(["Girl", "Boy"] as const).map((s) => (
-              <button key={s} type="button" aria-pressed={sex === s} className="chip" onClick={() => setSex(sex === s ? null : s)}>
-                {s}
-              </button>
-            ))}
-          </div>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">Born</span>
+        <input className="input" type="date" value={born} onChange={(e) => { setBorn(e.target.value); setMsg(null); }} max={latest} aria-describedby="born-hint" />
+        {bornOk && <span className="text-sm">= {ageWords(born, latest)} old</span>}
+        <span id="born-hint" className="muted text-sm">
+          Needed: naps, vaccines and what is usual go by age.
+        </span>
+      </label>
+      <div className="flex flex-col gap-1">
+        <span className="font-semibold">Girl or boy</span>
+        <div className="flex gap-2" role="group" aria-label="Girl or boy">
+          {(["Girl", "Boy"] as const).map((s) => (
+            <button key={s} type="button" aria-pressed={sex === s} className="chip" onClick={() => setSex(sex === s ? null : s)}>
+              {s}
+            </button>
+          ))}
         </div>
       </div>
       <label className="flex flex-col gap-1">

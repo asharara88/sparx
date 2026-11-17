@@ -1,20 +1,22 @@
 import { foodDay, type MealRow } from "@/lib/food-day";
-import { range, type Stage } from "@/lib/stage";
+import type { Stage } from "@/lib/stage";
+import { foodHeadline } from "@/lib/logged";
 import { fmtDate } from "@/lib/time";
 
 /**
  * Food today, on the dashboard once the child eats (lib/stage): one number (meals
- * today, against what is usual at this age), then the week's new foods and the
- * allergens she has had, and the last reaction if there was one. Server-rendered.
+ * today, against what is usual at this age; from 12 months the count alone), then the
+ * week's new foods and the allergens she has had, and the last reaction if there was one.
+ * Server-rendered.
  */
 export function FoodDay({ meals, dayStartMs, dayEndMs, stage, timezone }: { meals: MealRow[]; dayStartMs: number; dayEndMs: number; stage: Stage; timezone: string }) {
   const f = foodDay(meals, dayStartMs, dayEndMs);
-  const usual = stage.meals ? `usually ${range(stage.meals)} a day` : null;
+  const { count, usual } = foodHeadline(stage, f.today);
   return (
     <section className="card tint-food flex flex-col gap-2" aria-labelledby="food-day-h">
       <h2 id="food-day-h" className="section-title">Food today</h2>
       <p className="text-2xl font-bold">
-        {f.today ? `${f.today} meal${f.today === 1 ? "" : "s"}` : "No meal yet"}
+        {count}
         {usual && <span className="muted text-base font-normal"> · {usual}</span>}
       </p>
       {f.newThisWeek.length > 0 && <p className="text-sm">New this week: {f.newThisWeek.join(", ")}</p>}

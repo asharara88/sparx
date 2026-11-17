@@ -1,4 +1,5 @@
 import type { AssistantSkill } from "./skill-types";
+import { isToddler } from "../stage.ts";
 
 /**
  * The skill router. Skills live in the database (assistant_skills) and the
@@ -42,6 +43,9 @@ function inAge(skill: AssistantSkill, ageDays: number | null | undefined): boole
   if (ageDays == null) return true;
   if (skill.age_from_days != null && ageDays < skill.age_from_days - AGE_MARGIN_DAYS) return false;
   if (skill.age_to_days != null && ageDays > skill.age_to_days + AGE_MARGIN_DAYS) return false;
+  // A skill written for babies (its band ends by the first birthday, as safe_sleep's does) is
+  // not carried past it by the margin: a toddler's family is not told "no pillows".
+  if (skill.age_to_days != null && skill.age_to_days <= 365 && isToddler(ageDays)) return false;
   return true;
 }
 

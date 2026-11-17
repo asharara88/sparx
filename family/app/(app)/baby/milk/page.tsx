@@ -12,6 +12,8 @@ import { forecastHint, milkForecast, safeFridgeMl } from "@/lib/milk-insights";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { addDays, dayRange, todayYmd } from "@/lib/time";
+import { pumpingActive, stageFor } from "@/lib/stage";
+import { ageDays } from "@/lib/norms";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +62,12 @@ export default async function MilkPage() {
   const pumps = history.filter((e) => e.type_id === "lana.pump" && e.occurred_at >= evening);
   const pumpedMl = pumps.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
   const target = me.household.milk_target_ml ?? 400;
-  const showPump = !!me.member.breastfeeds || me.role.id === "admin";
+  const birth = summary.ok ? summary.subject.birth_date : null;
+  const stage = stageFor(birth, Date.now(), tz);
+  // Stored milk only where milk is stored (R7): from 12 months a home with no bottle in stock and
+  // no pump in 14 days gets no forecast, no thaw reminder and no pumping bar. A baby's always does.
+  const stored = !stage.toddler || milk.fridge_count + milk.freezer_count > 0 || pumpingActive(summary.ok ? summary.last["lana.pump"]?.occurred_at : null, Date.now(), birth ? ageDays(birth, today) : null);
+  const showPump = (!!me.member.breastfeeds || me.role.id === "admin") && stored;
   // The forecast's answer goes on its bar, where Fridge and Freezer put theirs ("till Sat").
   const safeMl = safeFridgeMl(milk.bottles);
   const lasts = forecastHint(milkForecast(safeMl, history), safeMl, tz);
@@ -69,12 +76,14 @@ export default async function MilkPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Milk" large />
-      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} />}
-      <ThawReminder milk={milk} entries={history} timezone={tz} opts={thaw} />
+      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} milkClock={stage.milkClock} />}
+      {stored && <ThawReminder milk={milk} entries={history} timezone={tz} opts={thaw} />}
       <MilkStash data={milk} timezone={tz} />
-      <Fold title="Fridge lasts" icon="trend" tint="milk" hint={lasts}>
-        <MilkInsights bare milk={milk} entries={history} timezone={tz} thaw={thaw} />
-      </Fold>
+      {stored && (
+        <Fold title="Fridge lasts" icon="trend" tint="milk" hint={lasts}>
+          <MilkInsights bare milk={milk} entries={history} timezone={tz} thaw={thaw} toddler={stage.toddler} />
+        </Fold>
+      )}
       {showPump && <FoldLink href="/#today" title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${target} ml`} />}
       <MilkPutAway timezone={tz} canScan={can(me, "lana", "add")} />
     </div>

@@ -1,15 +1,17 @@
 import type { EntryRow } from "@/lib/types";
-import { normsForAge } from "@/lib/norms";
-import { nextFeedAt } from "@/lib/forecast";
-import { ageOutlook, growthSpurt } from "@/lib/child-insights";
-import { cap, possessive, pronouns } from "@/lib/names";
-import { ageInDays, feedGapFor, feedLateMin, stageOf } from "@/lib/stage";
+import { normsForAge } from "./norms.ts";
+import { nextFeedAt } from "./forecast.ts";
+import { ageOutlook, growthSpurt } from "./child-insights.ts";
+import { cap, possessive, pronouns } from "./names.ts";
+import { ageInDays, feedGapFor, feedLateMin, isToddler, stageOf } from "./stage.ts";
 
 /**
  * The child's guide: the last 24 hours against what is usual for their age, as
  * short tips. Totals are only judged once the log covers most of the day, so a
  * quiet log does not look like a sick baby. Ranges come from lib/norms (NHS, AAP,
- * National Sleep Foundation); wake windows and feed gaps from lib/stage.
+ * National Sleep Foundation); wake windows and feed gaps from lib/stage. From 12
+ * months the guide is silent: there is no usual number of feeds or diapers to hold a
+ * toddler's day against, and a low count may only mean it was not logged.
  */
 export type Tip = { level: "red" | "yellow" | "info"; title: string; body: string; topic: "nappies" | "poo" | "feeds" | "sleep" | "fever" };
 export type GuideOptions = {
@@ -27,9 +29,12 @@ export const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(m 
 
 export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Date.now(), opts: GuideOptions = {}): Tip[] {
   const days = ageInDays(birthDate, now, opts.timezone ?? "UTC") ?? 120;
+  if (isToddler(days)) return [];
   const name = opts.name?.trim() || "the baby";
   const pr = pronouns(opts.sex);
-  const n = normsForAge(days);
+  const norms = normsForAge(days);
+  // A baby's rows always carry a usual number.
+  const n = { wet: norms.wet!, feeds: norms.feeds!, sleepMin: norms.sleepMin };
   const stage = stageOf(days);
   const [wakeLo, wakeHi] = stage.awake;
   const gapMin = feedGapFor(stage, opts.feedGapMin);
@@ -102,8 +107,8 @@ export function tipsFor(entries: EntryRow[], birthDate: string | null, now = Dat
 }
 
 export type Topic = { id: Tip["topic"]; title: string; normal: string; call: string[]; emergency: string[]; src: string[] };
-/** When to call the doctor: warning signs from NHS, AAP and NICE guidance. */
-export const TOPICS: Topic[] = [
+/** When to call the doctor: warning signs from NHS, AAP and NICE guidance, as written for a baby. */
+const TOPICS: Topic[] = [
   {
     id: "nappies", title: "Wet diapers and dehydration",
     normal: "After the first week, 6 or more heavy wet diapers a day with pale, clear wee.",
@@ -140,3 +145,42 @@ export const TOPICS: Topic[] = [
     src: ["NHS: Fever in children; NICE fever guideline NG143", "AAP: Fever and your baby"],
   },
 ];
+
+/** Lines for a baby only: a toddler's page leaves them out. */
+const BABY_ONLY = new Set(["Fewer than 6 wet diapers in 24 hours, or very light ones", "3 to 6 months: temperature of 39 °C or higher", "Under 3 months: any temperature of 38 °C or higher"]);
+/** From 24 months the soft spot has closed and most children are out of diapers by day. */
+const FROM_TWO: Record<string, string> = {
+  "Sunken soft spot on top of the head or sunken eyes": "Sunken eyes",
+  "Stiff neck, bulging soft spot, or high-pitched cry": "Stiff neck or high-pitched cry",
+  "No wet diaper for 12 hours or more": "No wee for 12 hours or more",
+};
+
+/**
+ * When to call the doctor, for the child's age in days (null: no birth date). For a baby
+ * the text as written, with the first sentence of Feeding taken from the child's own row
+ * of lib/norms when the birth date is known. From 12 months only by taking away: the
+ * "normal" lines of diapers, poo, feeding and sleep go (an empty line is not drawn), the
+ * lines for babies go, and "the baby" reads "your child"; from 24 months the soft spot and
+ * the wet diaper go from the lines that name them. Nothing is added.
+ */
+export function topicsFor(ageDays: number | null): Topic[] {
+  if (ageDays == null) return TOPICS;
+  if (!isToddler(ageDays)) {
+    const row = normsForAge(ageDays);
+    const feeds = row.feeds!;
+    const plus = feeds.note ? `, ${feeds.note.replace(/\.$/, "").toLowerCase()}` : "";
+    const first = `${row.label}: usually ${feeds.low} to ${feeds.high} feeds in 24 hours${plus}.`;
+    return TOPICS.map((t) => (t.id === "feeds" ? { ...t, normal: t.normal.replace(/^[^.]*\./, first) } : t));
+  }
+  const two = ageDays / 30.4375 >= 24;
+  const words = (line: string) => {
+    const said = line.replace(/^The baby\b/, "Your child").replace(/\bthe baby\b/g, "your child");
+    return two ? (FROM_TWO[said] ?? said) : said;
+  };
+  return TOPICS.map((t) => ({
+    ...t,
+    normal: t.id === "fever" ? t.normal : "",
+    call: t.call.filter((l) => !BABY_ONLY.has(l)).map(words),
+    emergency: t.emergency.filter((l) => !BABY_ONLY.has(l)).map(words),
+  }));
+}

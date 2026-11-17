@@ -196,6 +196,7 @@ export interface LastEntry {
   payload: Record<string, unknown>;
   note: string | null;
   by: string | null;
+  /** When it is due again; always null for a toddler's feed, diaper and sleep (milk has no clock from 12 months). */
   next_due: string | null;
   /** Feeds only: how full the last feed was, 0 to 1 (same rule as the database). */
   fullness?: number | null;
@@ -632,7 +633,8 @@ export interface VaccineItem {
   due_age_days: number;
   window_days: number;
   due_on: string | null;
-  status: "given" | "due" | "overdue" | "upcoming" | "unknown";
+  /** "earlier": its window closed before the family joined and nothing is recorded; never due or overdue. */
+  status: "given" | "due" | "overdue" | "upcoming" | "unknown" | "earlier";
   given: VaccineGiven | null;
 }
 export interface VaccinesData {

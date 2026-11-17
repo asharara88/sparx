@@ -14,7 +14,10 @@ Milk, More, with today's Home beside it). When this file and the mockup disagree
 ## Who it is for
 
 A parent at 3 am with the baby in one arm. A grandmother reading at 19 px. A helper who
-reads English as a second language. Each of them opens the app for one reason, taps once or
+reads English as a second language. Since 17 November 2026, also the family of a toddler of
+one to three, who may log a nap, meals and bedtime and no milk or diapers at all: from 12
+months the app never holds a day against a baby's numbers, and never shows a kind the family
+does not log (`docs/AGES.md`). Each of them opens the app for one reason, taps once or
 twice, and puts the phone down. Design for that person, holding a phone in one hand, not for
 someone exploring the app on a desk.
 
@@ -43,7 +46,7 @@ What people tap often lives low; what they tap rarely (or must not tap by accide
 Emergency) lives high.
 
 **Home's first screen holds what is needed now, without scrolling**: her state, the day in
-four numbers, one alert and the log rows at the thumb. The day's picture (what the dashboard
+up to four numbers, one alert and the log rows at the thumb. The day's picture (what the dashboard
 held until 7 November) sits below the log card, for whoever scrolls. Every other screen should
 fit in two; a reference page that is longer is split into rows that open their own screen.
 
@@ -55,7 +58,7 @@ fit in two; a reference page that is longer is split into rows that open their o
 | **Sheet** (slides up from the bottom) | Logging, editing, choosing; anything with options and a Save | A new page; a form in the middle of a screen |
 | **Segmented control** | Two or three views of the same thing (Breast / Bottle, Today / Week) | Tabs that scroll sideways; a row of chips |
 | **One bottom button** | The screen's main action | Buttons scattered through the page |
-| **Stat strip** | Up to four numbers in one white bar, each a value over one word | A grid of number cards |
+| **Stat strip** | Two to four numbers in one white bar, each a value over one word; one number alone is not a strip | A grid of number cards |
 | **Log row** (Huckleberry's) | The few things logged all day: icon, name, how long ago, and a round start/stop/+ button on the right | A grid of tiles; a button per option |
 | **Timer sheet** | Starting something now or saying it already happened: a big round *now* button, then "or it already happened" and clock times | A form with a time field first |
 
@@ -108,7 +111,8 @@ sources at the bottom.
    things (Coming up) takes none of theirs. The freezer is sky beside the mint fridge, so the
    two read apart at a glance (the one exception: Milk and the freezer stash). Amber means *needs a look*,
    red means *act now*; neither is decoration. Green is not used to mean "fine": fine is
-   the absence of colour.
+   the absence of colour. Grey (muted words, a plain pill) means *nothing to do now*: the
+   vaccine book's doses from before the family joined, "not recorded" (17 November).
 8. **Big targets, few of them.** Every tap target is at least 44 px tall. A card has at
    most two buttons; a third action goes in a sheet or on the detail screen. Destroying
    something is a word ("Bin", "Delete"), never a lone ×, and never the first button.
@@ -240,15 +244,30 @@ bottom bar as a grid of tiles.
    Over an hour past it a nap was most likely not logged, so the card says when she last
    woke instead. Asleep: "Asleep 42 min, since 13:10". Feeding: "Feeding 9 min". With no
    sleep in 12 hours, plain "Awake for", or nothing (rule 6).
-3. **Today strip**: four numbers in one white bar (woke 06:10 · naps 1 of 3–4 · feeds 5 ·
+   From 12 months the window follows the child's own week (`napPattern` in
+   `lib/child-insights.ts`, 17 November): one nap a day gives one window, then **Bedtime**
+   once today's naps are done, whatever the hour. A child who has stopped napping gets no
+   window at all, only "Awake for 5 h 20 min, since 07:00", held for 16 hours instead of 12
+   (a child with no nap is up 12 to 13 hours); never "Past the window". More than an hour past
+   a bedtime window it is the plain "Awake for", never "if she napped since".
+3. **Today strip**: up to four numbers in one white bar (woke 06:10 · naps 1 of 3–4 · feeds 5 ·
    diapers 4); tapping it scrolls to the day's cards below the log card. The last of each is on
    the rows, so the strip gives the day's totals instead. Each number stays on one line, a size
-   smaller on a 320 px screen.
+   smaller on a 320 px screen. From 12 months it holds only what the family logs (17 November,
+   `stripCells` in `lib/logged.ts`): feeds and diapers only when that kind was logged in the
+   last 7 days (today and the 6 days before); naps while a nap is expected or one was had
+   today, "1 of 1–2" as before, or a plain count ("1" over "nap") once the usual range starts
+   at 0. Two to four cells; with fewer than two there is no strip.
 4. **Now**: one notice on one slim line (48 px, words cut with … rather than wrapping), the top
    of the order in rule 3, or nothing. Beside it, a small "+2" opens the rest; never a link on a
    line of its own.
    The guide's most pressing tip is a candidate: a red one right after an overdue vaccine, a
    yellow one after "feed due". The nap is no longer a notice: the card says it.
+   From 12 months there is no "feed due" and no guide tip (the guide is silent: no usual
+   number of feeds or diapers to hold the day against). A toddler's slot keeps rule 3's order
+   without them: an overdue vaccine first, then the plan or the handover, entries to check and
+   a vaccine that is due; the thaw reminder and "Fridge is low" only where milk is kept. A dose
+   from before the home began (the vaccine book's grey "not recorded") is never a notice.
 5. **Log**, one white card at the thumb (Mido, 9 November: the helper is becoming the main
    way to log). On top, four **rows** (Feed, Sleep, Diaper, and a fourth that grows with
    the child: Meal once she eats, from 24 weeks; before that Pump while the parent who pumps
@@ -267,6 +286,11 @@ bottom bar as a grid of tiles.
    today (the bar from midnight, without its sums line, which the strip already says), Feeds
    today (when the next is due, what went in, what is usual at her age), Food today once she
    eats, and pumping for the member who breastfeeds and admins while it goes on.
+   From 12 months Feeds today shows only when a milk feed was logged in the last 7 days
+   (`feedCard` in `lib/logged.ts`), and says no time and no usual number: "Feeding now"; fed
+   today, the day's sum ("180 ml in 1 bottle", "2 breastfeeds") over "Last at 18:40."; none
+   today, "None today" over "Last: yesterday 18:40.". Never "yet", "due" or "usual". Food
+   today is the count alone ("4 meals"): a snack logged as a meal is not a fourth of three.
 
 **Timer sheets.** Feed: *When*, then Breast / Bottle as a segmented control (it opens on the
 method of the last feed). Breast: Left and Right as two big buttons, the running side marked,
@@ -343,11 +367,31 @@ Week / About her.
   midnight at the top, sleep as lilac blocks, feeds as ticks, a line for now, today outlined.
   The title is the answer ("Longest sleep 6 h 40 min, up from 5 h"). A whole day's column is
   the tap target and opens that day (feed ticks and short naps are far under 44 px, so they
-  are not taps of their own). Then folds: against her age (a day's average),
-  coming up, sleep rhythm, day by day, the helper. Mood sits under the pattern.
+  are not taps of their own). Then folds: against her age (a day's average over the days
+  logged, each kind over the days it was logged: `dayAverages` in `lib/norms.ts`), coming up,
+  sleep rhythm, day by day, the helper. Mood sits under the pattern. From 12 months a kind
+  shows in "against her age" and "day by day" only when it was logged that week, and with
+  nothing to list the fold is not drawn. "Coming up" lists no feed, diaper, nap or wake (milk
+  has no clock): it holds the plan card only, and is not drawn without a plan.
 - **About her**: what this age brings (a fold), then three groups of rows: Health (doctor,
   when to call, vaccines, medicine, emergency, for the doctor), Growing (growth and trends,
-  firsts, week by week, play, story), Care (handover, ask about her).
+  firsts, week by week, play, story), Care (handover, ask about her). The name, the birth date
+  and girl or boy are changed on Doctor, in the health card's edit form, by an admin; a new
+  birth date asks once before saving, since everything that goes by age changes with it.
+
+### The vaccine book (`/baby/vaccines`)
+
+One card per visit. A visit takes the first state that fits: every dose given, *given*; any
+dose overdue, *overdue* (red); any due, *due*; the rest from before the family joined, with
+or without some recorded, *earlier*; then *unknown* and *upcoming*. A dose whose window closed
+before the child's row was made (migration 6500, 17 November) is earlier: never due, never
+overdue, never a Now notice, a push or a line in the helper's due list. Earlier visits sit last,
+in one closed fold, "From before {Name} was on elnunu", hint "3 visits", with one line inside:
+"Not recorded here. Tap Given for any {Name} had." Each card has the plain pill "not recorded"
+and no sentence; its all-given button is a plain button, and the date box starts empty, never
+on the scheduled date. Earlier visits are never "now", and the next upcoming visit ignores
+them. The doctor's printout says "not recorded" for such a dose, never "due {date}". Grey
+here means nothing to do now (rule 7).
 
 Handover is its own screen (`/baby/handover`); old links to the Patterns, Handover and Ask
 tabs go to Week, that screen and Ask.
@@ -368,6 +412,8 @@ nothing. Such a bottle has no Undo (deleting it would not put the milk back); it
 from its entry. The plan for the day shows only on a day someone is away; how long the fridge will last
 is a fold. Pumping is a bar like Fridge and Freezer (`FoldLink`: "Pumping · 250 / 400 ml ›") that
 opens Home's day cards; the forecast bar gives its answer in the hint ("Fridge lasts · till Sat").
+From 12 months, in a home with no bottle in stock and no pump in 14 days, neither the fold nor
+the bar shows, and a toddler's Milk screen never says supply is lower than last week.
 
 ### The day's cards (Home, below the log card; `/baby/dashboard` goes there)
 
@@ -377,7 +423,9 @@ evening, the bar to the goal, how many pumps), the bottles at home as two tiles 
 freezer: bottles and ml), and "A usual day" (the average of the last seven days' pumping
 days, one small bar per day with today beside them, one line on how today compares). The
 pumping part shows to the member who breastfeeds and to admins, and fades two weeks after
-the last pump unless bottles are in stock.
+the last pump unless bottles are in stock. A baby's home that never pumped still sees it (a
+new parent may start). From 12 months it needs a pump in the last two weeks or bottles in
+stock; without either there is no pumping part, no bottle tiles and no "Fridge is low".
 
 ### The Sleep and Feeds sections (`/baby/sleep`, `/baby/feed`)
 
@@ -388,6 +436,8 @@ tip. Top to bottom: now (Sleep: the big Asleep / Woke up button with the time ty
 Breastfeed for the parent who does, Log a bottle), today's card, last night, every entry of
 the week (today open, each earlier day a fold; tapping one opens the edit sheet), and the
 week against what is usual at her age, folded. A list page: its numbers are the entries'.
+From 12 months the Feeds section's fold has no "usually" hint, and its "Last night" card
+shows only when a night feed was logged.
 
 ### Sleep today (Home's day cards and the child's Today tab)
 
@@ -447,11 +497,11 @@ Use these; extend one before adding a new one, and add any new one here.
 | Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` ▶ / ■ / ＋ on the right; the row opens its sheet. Tint = the feature. |
 | Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. |
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle) | Two or three words; the chosen one raised. |
-| Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. |
+| Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. From 12 months only while a nap is expected (`topCard`). |
 | Week columns | `WeekColumns` | The shape of a week | Seven columns, midnight at the top; a column is one tap target. |
 | Log form | `EntryForm` (`/baby/log/…`, `/baby/entry/…`) | Anything less common than Home's rows, and editing in full | One card, a row per question, the When line first; two or three answers as a segmented control, a question with one possible answer not asked; photo and note in a second card; Save as the bottom button; Delete a word that asks twice. No helper button on it. |
 | Edit sheet | `EntrySheet` from `EntryList` | Changing or deleting an entry | Time picker, end chips, field chips, Save, Delete with a second tap. |
-| Stat strip | `DayStrip` tiles | A day's sums | Four at most, a dash for none. |
+| Stat strip | `TodayStrip` (Home), `DayStrip` tiles (the child's page) | A day's sums | Four at most, a dash for none. Home's from 12 months: two to four cells, only the kinds the family logs. |
 | Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |
 | Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `className="fold-flat"` makes folds the rows of one white list (earlier days on Sleep and Feeds, Week by week). |
@@ -490,7 +540,8 @@ Use these; extend one before adding a new one, and add any new one here.
   Never print a raw computed number.
 - Times: 24-hour, the household's time zone. Today and yesterday by name ("today 08:00",
   "yesterday 23:10"); older as "Sat 19 Sept".
-- Nothing logged: a dash ("—"), not "0 min" and not a sentence.
+- Nothing logged: a dash ("—"), not "0 min" and not a sentence. From 12 months a kind the
+  family does not log at all (milk, diapers) is left out, not shown as a dash or a zero.
 - No charts on Home. Elsewhere a chart answers one question, has a title that states the
   answer, and labels itself in words, not a colour legend.
 
