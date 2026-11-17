@@ -6,7 +6,7 @@ Anthropic designed and open-sourced the [Model Context Protocol (MCP)](https://m
 
 | Server | Transport | Purpose |
 | --- | --- | --- |
-| `supabase` | HTTP | The "sparx studio" Supabase project. Authenticate once via `/mcp` in an interactive Claude Code session. |
+| `supabase` | HTTP | The family app's Supabase project (`home`, ref `qjqekazawirrpwnwgbhd`). Authenticate once via `/mcp` in an interactive Claude Code session. |
 | `claude-in-chrome` | Extension | Supervised browser control via the Claude in Chrome extension. |
 | `filesystem` | stdio (`npx @modelcontextprotocol/server-filesystem`) | File read/search/write, sandboxed to this repo. |
 | `github` | stdio (`npx @modelcontextprotocol/server-github`) | Repos, issues, and PRs via a personal access token. |
@@ -80,4 +80,4 @@ Combining the filesystem MCP with a sequential-thinking or command-runner MCP tu
 
 ### C. Bridge LLMs (Claude & Gemini)
 
-To let Claude drive Google's video/image models (Veo, Imagen), build or run a custom Python/Node MCP server that wraps the Google Gen AI SDK. Once it's configured in the JSON, Claude can generate videos/images inline during chats — relevant here if we ever want the studio pipeline to compare providers.
+To let Claude drive Google's video/image models (Veo, Imagen), build or run a custom Python/Node MCP server that wraps the Google Gen AI SDK. Once it's configured in the JSON, Claude can generate videos/images inline during chats.

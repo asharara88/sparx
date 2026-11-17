@@ -6,12 +6,11 @@ short: the date, what was vulnerable, what it became, and how it was checked.
 ## How this stays automatic
 
 - **Weekly audit** (`.github/workflows/security-audit.yml`): every Monday, and on
-  demand from the Actions tab, `npm audit --audit-level=high` runs in the three package
-  trees (the root app, `family/`, `web/`). If anything is found the workflow opens (or
-  refreshes) the issue *Security audit: vulnerable dependencies* with the report, and
-  closes it once the audit is clean. The fix is a pull request made by hand: `npm audit
-  fix` in the app named, or the upgrade the advisory names; merge when CI is green and
-  add a line below.
+  demand from the Actions tab, `npm audit --audit-level=high` runs in `family/` (the only
+  app since 17 November 2026). If anything is found the workflow opens (or refreshes) the
+  issue *Security audit: vulnerable dependencies* with the report, and closes it once the
+  audit is clean. The fix is a pull request made by hand: `npm audit fix`, or the upgrade
+  the advisory names; merge when CI is green and add a line below.
 - **No Dependabot.** It was added on 2026-10-23 and removed the same day: for a
   one-maintainer app its weekly pull requests (each with a preview build and a CI run)
   cost more attention than they save, and the audit above already catches what matters.
@@ -34,8 +33,9 @@ short: the date, what was vulnerable, what it became, and how it was checked.
   @vercel/connect pulled in a vulnerable zod through @vercel/oidc). `npm audit` is clean in
   both trees. Typecheck, the 231 unit tests, the database checks and both production
   builds pass.
-- **Still open: root zod 3.25.** The same zod advisory covers every zod 3; the fix is
-  zod 4, a major upgrade across the studio pipeline's schemas. Left for its own change.
+- **Root zod 3.25 (the same advisory): closed by removal.** The YouTube studio at the root
+  and its dashboard in `web/` were never used and were removed from the repo the same day,
+  so their dependencies, CI jobs and audit steps are gone. Only `family/` remains.
 
 ### 2026-10-23
 

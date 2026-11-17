@@ -20,7 +20,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
-const require = createRequire(new URL("../../", import.meta.url)); // Playwright lives at the repo root
+const require = createRequire(import.meta.url); // Playwright: preinstalled in cloud sessions (NODE_PATH); on a laptop, npm i --no-save playwright
 const { chromium } = require("playwright");
 // Test harness only: the browser's Supabase calls go to a placeholder host in screenshot
 // mode, so RPCs are answered here from the same local database, as Dana, row security on.
@@ -41,7 +41,7 @@ const LAG = Number(process.env.SCENARIO_LAG ?? 0);
 const lag = () => new Promise((r) => setTimeout(r, LAG));
 const base = process.env.SCENARIO_URL ?? "http://localhost:3000";
 mkdirSync(out, { recursive: true });
-const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+const b = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/opt/pw-browsers/chromium" });
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, timezoneId: "Asia/Dubai" });
 await ctx.addCookies([{ name: "shot_as", value: DANA, domain: new URL(base).hostname, path: "/" }]);
 // The page refreshes it asks for after a tap take the same time as the taps' own requests.

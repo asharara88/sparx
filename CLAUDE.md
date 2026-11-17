@@ -11,15 +11,21 @@ words, honest status, and no spending that is not needed.
 
 | Tree | What | Checks a contributor runs |
 |---|---|---|
-| `/` | YouTube studio pipeline (TypeScript, vitest 5, node 22.12+) | `npm run typecheck`, `npm test` |
 | `family/` | elnunu, the family app (Next.js 16 PWA, Supabase Postgres) | `npx tsc --noEmit`, `npm test`, `npm run db:test`, `npm run build` |
-| `web/` | Studio dashboard (Next.js 16, mounted under `/studio` on Vercel) | `npm run typecheck`, `npm run build` |
 
-CI (`.github/workflows/ci.yml`) runs one job per tree. The root job takes ffmpeg as a static
-GPL build from GitHub releases, never through apt (apt hung silently three times in one
-day). A weekly audit workflow runs `npm audit` in all three trees and opens one issue when
-something is found; `docs/SECURITY_UPDATES.md` is the record of what was upgraded and when.
-Dependabot was added and removed on purpose: do not bring it back.
+The repo once also held a YouTube studio pipeline (the root) and its dashboard (`web/`). They
+were never used and were removed on 17 November 2026 at Mido's ask; git history has them.
+Vercel builds from `family/` (the project's root directory) and reads `family/vercel.json`
+(the daily cron and the bom1 region). The root keeps the family app's docs and config:
+`BRIEF.md`, `PLAN.md` and `LATER.md` (its brief, plan and parked scope), the `supabase` link to
+`family/supabase` (the path the Supabase GitHub integration reads), `.mcp.json` with
+`docs/MCP-Setup.md`, `docs/SECURITY_UPDATES.md`, and `.agents/` with `skills-lock.json`
+(ElevenLabs agent skills; the app speaks through ElevenLabs).
+
+CI (`.github/workflows/ci.yml`) runs the family job. A weekly audit workflow runs `npm audit`
+in `family/` and opens one issue when something is found; `docs/SECURITY_UPDATES.md` is the
+record of what was upgraded and when. Dependabot was added and removed on purpose: do not
+bring it back.
 
 ## Branch and pull request rules
 
@@ -83,10 +89,10 @@ Dependabot was added and removed on purpose: do not bring it back.
   build the database (`run-local.sh` steps or the stub, the migrations,
   `tests/01_test_household.sql`, `tests/demo_data.sql`), start
   `FAMILY_LOCAL_DB=<db> npx next dev` with the two example env values above, and
-  open pages with a `shot_as=<member uuid>` cookie. Playwright lives at the repo root
-  (`/home/user/sparx/node_modules/playwright`); launch Chromium with
-  `executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"` (do not run
-  `playwright install`). A sweep of every route as admin, carer and an account in no
+  open pages with a `shot_as=<member uuid>` cookie. Playwright is preinstalled in cloud
+  sessions (found through `NODE_PATH`; on a laptop, `npm i --no-save playwright` in
+  `family/`); launch Chromium with `executablePath: "/opt/pw-browsers/chromium"` (do not
+  run `playwright install`). A sweep of every route as admin, carer and an account in no
   home is cheap and found a real crash; client-side taps do not work in this mode.
 - The sandbox cannot reach `elnunu.com` or `*.supabase.co` directly (curl answers 000);
   the Supabase MCP works, the Vercel MCP needs team scope the connector may lack.
