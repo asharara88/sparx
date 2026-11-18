@@ -18,9 +18,9 @@ import { TimeBox } from "@/components/TimeBox";
 import { NOW, type When, whenToIso, isEarlier, recallWhen } from "@/lib/when";
 import { fromLocalInput, toLocalInput } from "@/lib/time";
 import { bottleChoices, napLengths, overlappingSleep, runningTimers } from "@/lib/backlog";
-import { possessive } from "@/lib/names";
+import { cap, possessive, pronouns } from "@/lib/names";
 import { isNightAt } from "@/lib/night";
-import { pumpingActive, stageFor } from "@/lib/stage";
+import { ageInDays, pumpingActive, stageFor } from "@/lib/stage";
 
 /**
  * Home's log (DESIGN.md, "Home"): one row per activity, Huckleberry-style. Each row says
@@ -42,7 +42,7 @@ export function LanaNow({
   recent,
   timezone,
   clockIso,
-  lastMilk,
+  defaultMilk,
   lastFeedMethod,
   lastPumpAt = null,
   tell = null,
@@ -54,7 +54,8 @@ export function LanaNow({
   timezone: string;
   /** The server's clock when the page was made: the first paint counts from it, this phone's clock after. */
   clockIso: string;
-  lastMilk: string | null;
+  /** The milk a bottle starts on (lib/milk-take defaultMilk, X10); null picks none, and the bottle is saved with no milk. */
+  defaultMilk: string | null;
   /** How the last feed went ("Bottle", "Breast"), however long ago: the Feed sheet opens on it. */
   lastFeedMethod: string | null;
   /** When the last pump was logged, however long ago: the Pump row fades two weeks after it. */
@@ -84,7 +85,7 @@ export function LanaNow({
   const [editing, setEditing] = useState<EntryRow | null>(null);
   // A sleep from earlier: when she woke, typed ("Woke up at 21:30"), as well as the length chips.
   const [wokeTyped, setWokeTyped] = useState<{ start: string; at: string } | null>(null);
-  const [milk, setMilk] = useState<string>(lastMilk ?? "Morning pumped");
+  const [milk, setMilk] = useState<string | null>(defaultMilk);
   // "When": now by default; a clock time when the tap comes late. Every tap in a sheet honours it.
   const [when, setWhen] = useState<When>(NOW);
   // The sheet a tile opened (feed, diaper, pump, or a sleep from earlier); closes when the tap saves.
@@ -138,6 +139,8 @@ export function LanaNow({
   const pumpType = types.find((t) => t.key === "pump");
   const mealType = types.find((t) => t.key === "meal");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
+  // "She", "he" or "they", as the child's card says (X3).
+  const p = pronouns(typeof subject.profile?.sex === "string" ? subject.profile.sex : null);
   // The last bottle's amount is the usual one: marked on the sheet, and always a chip.
   const bottle = bottleChoices((feedType?.fields.find((f) => f.key === "amount_ml")?.quick ?? [60, 90, 120, 150]) as number[], Number(seen.find((e) => e.type_id === feedType?.id && e.payload.method === "Bottle")?.payload.amount_ml) || null);
   const milkOptions = (feedType?.fields.find((f) => f.key === "milk")?.options ?? []) as string[];
@@ -319,7 +322,7 @@ export function LanaNow({
         if (nightWake) {
           const wokeAt = Date.parse(nightWake.occurred_at);
           if (from >= wokeAt) await end(nightWake);
-          else if (endIso == null || to > wokeAt) throw new Error(`She was awake from ${fmtTime(nightWake.occurred_at, timezone)}. Pick a time after that.`);
+          else if (endIso == null || to > wokeAt) throw new Error(`${cap(p.they)} ${p.was} awake from ${fmtTime(nightWake.occurred_at, timezone)}. Pick a time after that.`);
         }
         await start(sleepType, {}, endIso);
       },
@@ -353,7 +356,7 @@ export function LanaNow({
   // The fourth row grows with the child (DESIGN.md, "Home"): Meal once she eats (lib/stage),
   // before that Pump for the parent who pumps while pumping goes on, else Medicine.
   const stage = stageFor(subject.birth_date, clock, timezone);
-  const fourth: "meal" | "pump" | "meds" = stage.solids && mealType ? "meal" : breastfeeds && pumpType && pumpingActive(lastPumpAt, clock) ? "pump" : "meds";
+  const fourth: "meal" | "pump" | "meds" = stage.solids && mealType ? "meal" : breastfeeds && pumpType && pumpingActive(lastPumpAt, clock, ageInDays(subject.birth_date, clock, timezone)) ? "pump" : "meds";
   const lastMeal = lastOf(mealType?.id);
   const mealSub = lastMeal && ago(mealType?.id, "") !== "" ? `${ago(mealType?.id, "")}${lastMeal.payload.food ? ` · ${String(lastMeal.payload.food).toLowerCase()}` : ""}` : "What was eaten";
   const lastPump = lastOf(pumpType?.id);
@@ -463,10 +466,10 @@ export function LanaNow({
                     disabled={off}
                     onClick={() =>
                       run(`Bottle ${ml} ml saved.`, async () => {
-                        const saved = await start(feedType, { method: "Bottle", milk, amount_ml: ml }, nowIso);
+                        const saved = await start(feedType, { method: "Bottle", ...(milk ? { milk } : {}), amount_ml: ml }, nowIso);
                         // The stash is best effort: it is skipped while the feed waits on the phone. Freezer
                         // milk comes out of the freezer, pumped milk out of the fridge (lib/milk-take.ts).
-                        const from = milkSource({ method: "Bottle", milk, amount_ml: ml });
+                        const from = milkSource({ method: "Bottle", ...(milk ? { milk } : {}), amount_ml: ml });
                         if (saved.status === "saved" && from) {
                           const r = await rpc("milk_consume", { p_ml: ml, p_note: null, p_location: from });
                           const short = shortLine(from, Number((r as { short_ml?: number }).short_ml ?? 0));
@@ -598,7 +601,7 @@ export function LanaNow({
                     );
                   })}
                 </div>
-                <TimeBox key={whenIso} label="or woke at" value={null} timezone={timezone} min={toLocalInput(whenIso, timezone)} minWord="she fell asleep" yesterday={false} day={null} disabled={off} onChange={(at) => setWokeTyped(at ? { start: whenIso, at } : null)} />
+                <TimeBox key={whenIso} label="or woke at" value={null} timezone={timezone} min={toLocalInput(whenIso, timezone)} minWord={`${p.they} fell asleep`} yesterday={false} day={null} disabled={off} onChange={(at) => setWokeTyped(at ? { start: whenIso, at } : null)} />
                 {/* Only against the start it was typed for, and only after it: a changed start empties it. */}
                 {wokeTyped && wokeTyped.start === whenIso && wokeTyped.at > toLocalInput(whenIso, timezone) && (
                   <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => logSleep(Math.round((Date.parse(fromLocalInput(wokeTyped.at, timezone)) - Date.parse(whenIso)) / 60_000))}>

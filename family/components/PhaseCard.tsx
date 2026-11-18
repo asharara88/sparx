@@ -1,38 +1,37 @@
 import Link from "next/link";
-import { ageOutlook } from "@/lib/child-insights";
-import { leapWeek } from "@/lib/leaps";
+import type { PhaseCardText } from "@/lib/child-insights";
 
-/** What the child's age usually brings now, and what comes next. */
-export function PhaseCard({ ageDays, name }: { ageDays: number; name: string }) {
-  const o = ageOutlook(ageDays);
-  const w = leapWeek(ageDays);
+/**
+ * What the child's age usually brings now, and what comes next (lib/child-insights,
+ * phaseCard). From 12 months it is the heading, one link to the stretch in Week by week,
+ * and the line that every child differs.
+ */
+export function PhaseCard({ card }: { card: PhaseCardText }) {
+  // A baby's card has the phases (or a quieter stretch); a toddler's has neither.
+  const baby = card.now.length > 0 || card.quiet != null;
+  const link = card.link && (
+    <Link prefetch={false} href="/baby/weeks" className="mt-1 flex min-h-[44px] items-center text-sm font-semibold text-[var(--accent)] no-underline">
+      {card.link}
+    </Link>
+  );
   return (
     <section className="card" aria-labelledby="phase-h">
       <h2 id="phase-h" className="font-semibold">
-        What to expect at {o.ageMonths} months
+        {card.heading}
       </h2>
-      {o.now.length > 0 ? (
+      {card.now.length > 0 ? (
         <ul className="mt-1 flex flex-col gap-1 text-sm">
-          {o.now.map((w) => (
+          {card.now.map((w) => (
             <li key={w}>{w}</li>
           ))}
         </ul>
       ) : (
-        <p className="muted mt-1 text-sm">A quieter stretch: no big change is usual right now.</p>
+        card.quiet && <p className="muted mt-1 text-sm">{card.quiet}</p>
       )}
-      {o.next.length > 0 && (
-        <p className="muted mt-2 text-sm">
-          Coming up: {o.next.map((n) => `${n.what.split(":")[0].toLowerCase()} in about ${n.inAboutDays} days`).join("; ")}.
-        </p>
-      )}
-      <p className="muted mt-1 text-xs">
-        Usual awake window {o.awakeWindowMin[0]} to {o.awakeWindowMin[1]} min. Every baby differs; {name} sets the pace.
-      </p>
-      {w && (
-        <Link prefetch={false} href="/baby/weeks" className="mt-1 flex min-h-[44px] items-center text-sm font-semibold text-[var(--accent)] no-underline">
-          Week {w.week}: {w.band.title.toLowerCase()} ›
-        </Link>
-      )}
+      {card.coming && <p className="muted mt-2 text-sm">{card.coming}</p>}
+      {!baby && link}
+      <p className="muted mt-1 text-xs">{card.foot}</p>
+      {baby && link}
     </section>
   );
 }

@@ -41,7 +41,7 @@ export default async function DoctorPage() {
       {/* No floating Vaccines button: "Coming up" below already links to them. */}
       <PageHeader back="/baby?tab=about" title="Doctor" />
       <DoctorCard subject={s} canEdit={can(me, "lana", "edit")} />
-      <ChildCard subject={s} canEdit={can(me, "lana", "edit")} />
+      <ChildCard subject={s} canEdit={can(me, "lana", "edit")} isAdmin={me.role.id === "admin"} today={today} />
 
       <section className="card flex flex-col gap-2">
         <h2 className="section-title">Coming up</h2>
@@ -51,7 +51,8 @@ export default async function DoctorPage() {
             <span className="flex-1">
               <span className="font-semibold">{nextVisit.visit} vaccines</span>
               <span className="muted block text-sm">
-                {nextVisit.status === "overdue" ? "Window closed, book it" : `Due around ${fmtDate(`${nextVisit.due_on}T12:00:00Z`, "UTC", { day: "numeric", month: "long" })}`}
+                {/* A visit years away (school entry, after the earlier doses) says its year; a baby's next one is always this side of a year. */}
+                {nextVisit.status === "overdue" ? "Window closed, book it" : `Due around ${fmtDate(`${nextVisit.due_on}T12:00:00Z`, "UTC", Math.abs(Date.parse(nextVisit.due_on) - Date.parse(today)) > 300 * 86_400_000 ? { day: "numeric", month: "long", year: "numeric" } : { day: "numeric", month: "long" })}`}
               </span>
             </span>
             <Icon name="forward" size={18} className="muted shrink-0" />

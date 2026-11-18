@@ -23,7 +23,7 @@ export default async function VaccinesPage() {
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby?tab=about" title="Vaccines" subtitle={`Dated from ${childPronouns(me).their} birthday.`} />
       {vax.ok ? (
-        <VaccineBook subjectId={summary.subject.id} data={vax} timezone={me.household.timezone} canAdd={can(me, "lana", "add")} canEdit={can(me, "lana", "edit")} />
+        <VaccineBook subjectId={summary.subject.id} name={summary.subject.name} data={vax} timezone={me.household.timezone} canAdd={can(me, "lana", "add")} canEdit={can(me, "lana", "edit")} />
       ) : (
         <p className="card">{"message" in vax ? vax.message : "Could not load."}</p>
       )}

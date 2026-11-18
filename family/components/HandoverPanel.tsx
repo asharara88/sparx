@@ -1,11 +1,19 @@
 import type { BagItem, HomeSummary } from "@/lib/types";
-import { ago, describePayload, fmtTime } from "@/lib/time";
+import { ago, describePayload, fmtTime, todayYmd } from "@/lib/time";
+import { ageInDays, isToddler } from "@/lib/stage";
+import { loggedLately } from "@/lib/logged";
 import { BagChecklist } from "./BagChecklist";
 
-/** One screen for whoever takes over: last feed, nap, diaper, anything given today, the bag. */
+/**
+ * One screen for whoever takes over: last feed, nap, diaper, anything given today, the bag.
+ * From 12 months a feed or diaper row only when the family logged one lately, as on Home's
+ * "Since {name} left" (R8): a kind nobody logs is not "nothing yet".
+ */
 export function HandoverPanel({ summary: s, bag }: { summary: HomeSummary; bag: BagItem[] }) {
   const tz = s.timezone;
   const now = new Date();
+  const toddler = isToddler(ageInDays(s.subject.birth_date, now.getTime(), tz));
+  const shows = (typeId: string) => !toddler || loggedLately(s.last[typeId]?.occurred_at, todayYmd(tz), tz);
   const meds = s.today_entries.filter((e) => e.type_id === "lana.medication");
   const notes = s.today_entries.filter((e) => e.type_id === "lana.note");
   // A list row (DESIGN.md): what on the first line, how long ago, the detail and who under it, the time on the right.
@@ -35,9 +43,9 @@ export function HandoverPanel({ summary: s, bag }: { summary: HomeSummary; bag: 
       <section className="card">
         <p className="muted">{s.custody?.name ? `${s.custody.name} has ${s.subject.name} right now.` : `Nobody is marked as having ${s.subject.name}.`}</p>
         <ul className="mt-1 flex flex-col">
-          <Row label="Feed" typeId="lana.feed" />
+          {shows("lana.feed") && <Row label="Feed" typeId="lana.feed" />}
           <Row label="Nap" typeId="lana.sleep" />
-          <Row label="Diaper" typeId="lana.diaper" />
+          {shows("lana.diaper") && <Row label="Diaper" typeId="lana.diaper" />}
         </ul>
       </section>
       <section className="card">

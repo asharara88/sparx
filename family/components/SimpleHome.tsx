@@ -7,13 +7,14 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sendOrQueue, type QueuedOp } from "@/lib/offline";
-import { fmtTime } from "@/lib/time";
+import { fmtTime, todayYmd } from "@/lib/time";
 import { dirOf, fmtAgo, optionLabel, speechLang, t, type Lang } from "@/lib/i18n";
 import { child, childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
 import { ListenButton } from "@/components/ListenButton";
 import { awakeWindow } from "@/lib/child-insights";
-import { ageInDays } from "@/lib/stage";
+import { ageInDays, isToddler, pumpingActive } from "@/lib/stage";
+import { loggedLately } from "@/lib/logged";
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 function recognitionCtor(): (new () => Recognition) | null {
@@ -25,7 +26,9 @@ function recognitionCtor(): (new () => Recognition) | null {
 /**
  * The simple screen for a grandmother: what the child is doing, and four huge buttons.
  * Bottle (three amounts), Diaper (wet / dirty / both), Asleep or Woke up, Note (spoken or typed).
- * Every label in the member's language; Arabic reads right to left.
+ * Every label in the member's language; Arabic reads right to left. From 12 months it says
+ * nothing about a kind the family does not log (R8), no "hungry" or "sleepy" guess (R5), and
+ * the fridge only where milk is kept (R7).
  */
 export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null }) {
   const me = useMe();
@@ -78,23 +81,38 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const lastDiaper = last["lana.diaper"];
   const now = Date.now();
   const minutesSince = (iso: string) => (now - new Date(iso).getTime()) / 60000;
-  // Likely hungry (from how much the child took last time) and likely sleepy (awake window for the age).
+  const age = ageInDays(subject.birth_date, now, timezone);
+  const toddler = isToddler(age);
+  // Likely hungry (from how much the child took last time) and likely sleepy (awake window for the age): a baby's only.
   const hints: string[] = [];
-  const due = lastFeed?.next_due ? Date.parse(lastFeed.next_due) : null;
+  const due = !toddler && lastFeed?.next_due ? Date.parse(lastFeed.next_due) : null;
   if (due != null) {
     const m = (due - now) / 60000;
     if (m <= 0 && m > -90) hints.push(L("hungryNow"));
     else if (m > 0 && m <= 30) hints.push(L("hungrySoon"));
   }
-  if (!openSleep && lastSleep?.ended_at && subject.birth_date) {
+  if (!toddler && !openSleep && lastSleep?.ended_at && subject.birth_date) {
     const awake = minutesSince(lastSleep.ended_at);
-    const [lo, hi] = awakeWindow(ageInDays(subject.birth_date, now, timezone) ?? 120);
+    const [lo, hi] = awakeWindow(age ?? 120, null);
     if (awake >= lo && awake <= 360) hints.push(L("sleepyNow"));
     else if (awake >= lo - 30 && awake < lo) hints.push(L("sleepySoon"));
     void hi;
   }
   const todayCount = (id: string | undefined) => (id ? (summary.today_counts[id] ?? 0) : 0);
-  const todayText = `${L("todayText").replace("{feeds}", String(todayCount(feedType?.id))).replace("{diapers}", String(todayCount(diaperType?.id))).replace("{sleeps}", String(todayCount(sleepType?.id)))} ${openSleep ? L("asleepNow") : L("awakeNow")}`;
+  // A toddler's line names only the kinds logged lately; a baby's (or all three logged) is the whole sentence.
+  const day = todayYmd(timezone);
+  const lately = (id: string | undefined) => !toddler || (!!id && loggedLately(last[id]?.occurred_at, day, timezone));
+  // A toddler's sleeps are said only once one started today: a child who sleeps only at night
+  // has had "0 sleeps" all day by the count, which reads as if the night did not happen.
+  const sleptToday = !toddler || todayCount(sleepType?.id) > 0;
+  const said = `${lately(feedType?.id) ? "F" : ""}${lately(diaperType?.id) ? "D" : ""}${lately(sleepType?.id) && sleptToday ? "S" : ""}`;
+  const countsKey = said === "FDS" ? "todayText" : said ? (`today${said}` as "todayF" | "todayD" | "todayS" | "todayFD" | "todayFS" | "todayDS") : null;
+  const counts = countsKey ? L(countsKey).replace("{feeds}", String(todayCount(feedType?.id))).replace("{diapers}", String(todayCount(diaperType?.id))).replace("{sleeps}", String(todayCount(sleepType?.id))) : null;
+  const todayText = `${counts ? `${counts} ` : ""}${openSleep ? L("asleepNow") : L("awakeNow")}`;
+  // From 12 months a last feed or diaper older than a day is not news, so it is not said.
+  const fresh = (iso: string) => !toddler || minutesSince(iso) <= 24 * 60;
+  // The fridge only where milk is kept: from 12 months, a bottle in stock or a pump in 14 days.
+  const showMilk = !!milk && (!toddler || milk.fridge_count + milk.freezer_count > 0 || pumpingActive(last["lana.pump"]?.occurred_at ?? null, now, age));
 
   async function log(type: EntryType | undefined, payload: Record<string, unknown>, ended: boolean, noteText: string | null = null) {
     if (!type) return;
@@ -171,9 +189,9 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
         </div>
         <p className="text-xl">{status}</p>
         {/* How long ago, one fact a line, as Home's rows say it: a clock time alone read as today. */}
-        {lastFeed && <p className="muted">{`${L("lastFeed")} ${fmtAgo(lang, minutesSince(lastFeed.ended_at ?? lastFeed.occurred_at))}`}</p>}
-        {lastDiaper && <p className="muted">{`${L("lastDiaper")} ${fmtAgo(lang, minutesSince(lastDiaper.occurred_at))}`}</p>}
-        {milk && <p className="muted">{milk.fridge_ml} ml {L("milkInFridge")}</p>}
+        {lastFeed && fresh(lastFeed.ended_at ?? lastFeed.occurred_at) && <p className="muted">{`${L("lastFeed")} ${fmtAgo(lang, minutesSince(lastFeed.ended_at ?? lastFeed.occurred_at))}`}</p>}
+        {lastDiaper && fresh(lastDiaper.occurred_at) && <p className="muted">{`${L("lastDiaper")} ${fmtAgo(lang, minutesSince(lastDiaper.occurred_at))}`}</p>}
+        {milk && showMilk && <p className="muted">{milk.fridge_ml} ml {L("milkInFridge")}</p>}
       </header>
       {msg && (
         <p role="status" className={`notice ${msg === L("saved") ? "notice-ok" : "notice-danger"} text-center text-lg font-semibold`}>

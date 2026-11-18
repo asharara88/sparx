@@ -4,11 +4,14 @@
  * monthly; length and head are at three-month points and interpolated. The
  * values are the published simplified field tables rounded to one decimal;
  * the doctor's chart is the reference and this is the picture beside it.
+ * Only the girls' tables are here, so a boy, a child with no recorded sex and a
+ * girl past 24 months get no curve and no percentile, and one line saying why.
  */
+import { sexOf } from "./names.ts";
 
 export type GrowthKind = "weight_kg" | "length_cm" | "head_cm";
 
-interface Curve {
+export interface Curve {
   months: number[];
   p3: number[];
   p50: number[];
@@ -50,11 +53,28 @@ function at(months: number[], values: number[], m: number): number {
   return values[i - 1] + f * (values[i] - values[i - 1]);
 }
 
-/** The three reference values at an age in days. Null past 24 months. */
-export function reference(kind: GrowthKind, ageDays: number): { p3: number; p50: number; p97: number } | null {
+/** The curves for a child's recorded sex: the girls' tables for a girl, null for anyone else. */
+export function curvesFor(sex: string | null | undefined): Record<GrowthKind, Curve> | null {
+  return sexOf(sex) === "girl" ? GIRLS : null;
+}
+
+/**
+ * The line in place of the curve, or null when the curve shows (a girl up to 24 months).
+ * `ageDays` is the child's age today.
+ */
+export function curveNote(sex: string | null | undefined, ageDays: number): string | null {
+  const s = sexOf(sex);
+  if (s === "boy") return "No WHO curve for boys here yet. The doctor's chart is the reference.";
+  if (s === null) return "Add girl or boy on the health card to see the WHO curves.";
+  return ageDays / MONTH_DAYS > 24 ? "The WHO curves here stop at 2 years." : null;
+}
+
+/** The three reference values at an age in days, for a girl up to 24 months; null otherwise. */
+export function reference(kind: GrowthKind, ageDays: number, sex: string | null | undefined): { p3: number; p50: number; p97: number } | null {
   const m = ageDays / MONTH_DAYS;
-  if (m < 0 || m > 24.5) return null;
-  const c = GIRLS[kind];
+  const curves = curvesFor(sex);
+  if (!curves || m < 0 || m > 24) return null;
+  const c = curves[kind];
   return { p3: at(c.months, c.p3, m), p50: at(c.months, c.p50, m), p97: at(c.months, c.p97, m) };
 }
 
@@ -69,10 +89,11 @@ function cdf(z: number): number {
 /**
  * Roughly which percentile a measurement sits on, treating the gap from the
  * median to the 3rd or 97th percentile as 1.88 standard deviations. Good
- * enough to say "about the 40th"; the doctor's chart gives the exact one.
+ * enough to say "about the 40th"; the doctor's chart gives the exact one. Null
+ * where reference is null.
  */
-export function percentileOf(kind: GrowthKind, ageDays: number, value: number): number | null {
-  const r = reference(kind, ageDays);
+export function percentileOf(kind: GrowthKind, ageDays: number, value: number, sex: string | null | undefined): number | null {
+  const r = reference(kind, ageDays, sex);
   if (!r || !(value > 0)) return null;
   const z = value <= r.p50 ? (-1.88 * (r.p50 - value)) / (r.p50 - r.p3) : (1.88 * (value - r.p50)) / (r.p97 - r.p50);
   return Math.round(Math.min(99, Math.max(1, cdf(z) * 100)));

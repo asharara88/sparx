@@ -118,7 +118,10 @@ export function readQuick(message: string, nowLocal: string, vocab: QuickVocab):
     if (want && !diaper) return null;
     return { kind: "diaper", diaper, when };
   }
-  // Asleep: "fell asleep", "went down for a nap", "she is sleeping".
+  // Asleep: "fell asleep", "went down for a nap", "she is sleeping". A fall with no sleep word in
+  // it ("she fell down") is not a sleep: the helper takes it.
+  const fell = ws.some((w) => w === "fell" || w === "fall" || w === "fallen");
+  if (fell && !ws.some((w) => w === "asleep" || w === "sleeping" || w === "sleep" || w === "nap" || w === "napping")) return null;
   if (ws.some((w) => w === "asleep" || w === "sleeping" || w === "napping" || w === "down") && all(ASLEEP)) return { kind: "sleep_start", when };
   // Awake: "woke up", "she is awake".
   if (ws.some((w) => w === "woke" || w === "awake" || w === "woken") && all(AWAKE)) return { kind: "wake", when };

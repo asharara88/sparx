@@ -24,7 +24,7 @@ const LASTED: Record<string, readonly number[]> = { sleep: NAP_LENGTHS, feed: [5
  * and its heading, for inside a sheet that already says what it is. A bottle starts on
  * the last amount; a sleep on top of one already logged asks before it is saved.
  */
-export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, defaultOpen = false, bare = false, onSaved }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; defaultOpen?: boolean; bare?: boolean; onSaved?: () => void }) {
+export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, milkClock, defaultOpen = false, bare = false, onSaved }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; /** The child's stage has a milk clock (lib/stage): from 12 months no feed is "missed" (R2). */ milkClock: boolean; defaultOpen?: boolean; bare?: boolean; onSaved?: () => void }) {
   const me = useMe();
   const router = useRouter();
   const flags = me.member as unknown as Record<string, boolean>;
@@ -61,7 +61,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
 
   // A nudge: nothing fed for well over the usual gap while the child was awake.
   const hint = useMemo(() => {
-    if (pastDay || !feedType) return null;
+    if (pastDay || !feedType || !milkClock) return null;
     const now = Date.now();
     const feeds = entries.filter((e) => e.type_id === feedType.id).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
     const asleep = entries.some((e) => e.type_id === "lana.sleep" && !e.ended_at);
@@ -70,7 +70,7 @@ export function Backfill({ subjectId, types, timezone, day, entries = [], feedIn
     const gapMin = Math.floor((now - Date.parse(last.occurred_at)) / 60_000);
     if (gapMin < feedIntervalMin + 45 || gapMin > 12 * 60) return null;
     return `Nothing fed since ${fmtTime(last.occurred_at, timezone)}, ${Math.round(gapMin / 60 * 10) / 10} h ago. Missed one?`;
-  }, [entries, feedType, feedIntervalMin, pastDay, timezone]);
+  }, [entries, feedType, feedIntervalMin, milkClock, pastDay, timezone]);
 
   const choice = choices.find((c) => c.key === what) ?? null;
   const nowMs = Date.now();

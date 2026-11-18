@@ -2,16 +2,36 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Brief, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { addDays, todayYmd, ymdInZone } from "@/lib/time";
-import { ageInDays } from "@/lib/stage";
+import { ageInDays, isToddler } from "@/lib/stage";
 import { ageOutlook } from "@/lib/child-insights";
 import { leapWeek } from "@/lib/leaps";
 import { storyMonth } from "@/lib/story";
-import { buildTools, loadContext } from "./tools";
+import { ageWords } from "@/lib/norms";
+import { pronouns } from "@/lib/names";
+import { buildTools, childNowOf, loadContext, outlookOf, toddlerHome, type ToolContext } from "./tools";
 import { stableSystem, volatileSystem } from "./prompt";
 import { assistantConfigured, compose, MODEL } from "./run";
 import { checkAllowance } from "./allowance";
 
 export type BriefKind = "morning" | "evening" | "week" | "story";
+
+/** Said to the model in every toddler's brief: there is no usual count to hold the day against (R11). */
+const NO_USUAL = "Do not hold any count against a usual number: from 12 months there is none, and a low or zero count may only mean it was not logged.";
+
+/**
+ * What a toddler's brief may count, in the order the brief names them: a kind only when the
+ * family logged it lately (lib/logged), so a family that does not log diapers is never told
+ * "0 diapers". `words` gives each kind's wording; the empty list means nothing is counted.
+ */
+function loggedKinds(ctx: ToolContext, words: Partial<Record<"feed" | "sleep" | "meal" | "diaper" | "medication", string>>): string[] {
+  const lately = new Set(ctx.subjects.filter((s) => s.kind === "child").flatMap((s) => (childNowOf(ctx, s).lately ?? []).map((t) => t.replace(`${s.module_id}.`, ""))));
+  return Object.entries(words).filter(([k]) => lately.has(k)).map(([, w]) => w as string);
+}
+
+/** A toddler's milk part of the morning brief: only while pumping goes on (lib/stage pumpingActive, R7). */
+function pumping(ctx: ToolContext): boolean {
+  return ctx.children.some((c) => c.lastPumpAt != null);
+}
 
 /** The morning brief is for today; the evening digest is "what happened today". */
 export function briefKindNow(tz: string, now = new Date()): BriefKind {
@@ -67,7 +87,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
     const wk: Record<string, unknown> = {};
     for (const s of kids) {
       const ageDays = ageInDays(s.birth_date, now.getTime(), tz);
-      wk[`${s.name}_age`] = ageDays != null ? ageOutlook(ageDays) : null;
+      wk[`${s.name}_age`] = ageDays != null ? outlookOf(ctx, s, ageDays) : null;
       const lw = ageDays != null ? leapWeek(ageDays) : null;
       wk[`${s.name}_week`] = lw ? { week: lw.week, stretch: lw.band.title, expect: lw.band.expect, often_harder: lw.band.tough, tip: lw.band.tip, next: lw.next?.title ?? null, weeks_to_next: lw.weeksToNext } : null;
       wk[`${s.name}_last_week`] = await run("care_stats", { subject: s.name, from: addDays(today, -7), to: addDays(today, -1) });
@@ -78,7 +98,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
       wk[`${s.name}_play_ideas`] = items.map((a) => `${a.title}: ${a.how}`);
     }
     wk.due_soon = await run("due_soon", { days_ahead: 10 });
-    const askWeek = `Write "This week for ${kids.map((s) => s.name).join(" and ") || "the baby"}" for ${me.member.display_name}: a short weekly note. In this order: 1) what her age usually brings this week (from the week calendar and the age outlook: the week she is in, the stretch it belongs to, what is coming and in how many days or weeks), in two or three plain sentences; 2) how last week went in numbers (feeds, sleep, longest stretch, diapers) and one thing that stands out, citing [entry:ID] only where the data gives ids; 3) one or two gentle things to try this week, from the sleep rhythm and the play ideas given (name the idea); 4) anything due in the next 10 days (vaccines, appointments). Under 160 words, short lines. No diagnoses, no doses. Leave out empty sections.`;
+    const askWeek = weekAsk(ctx, kids);
     const t0w = Date.now();
     const resW = await compose(
       [
@@ -114,10 +134,7 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
     }
   }
 
-  const ask =
-    kind === "morning"
-      ? `Write this morning's brief for ${me.member.display_name}. Cover, in this order and only if there is something to say: how the night went for the baby (sleep stretches, night feeds, wake-ups; what is still running now); milk for the day if the log shows pumping (ml pumped since last evening against the household target of ${me.household.milk_target_ml ?? 400} ml, and what has already gone into bottles); who is home today and who is working; what is on today's calendar; anything due or overdue (treatments, next meal). Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. If a section has nothing, leave it out rather than saying "nothing".`
-      : `Write this evening's digest of what happened today for ${me.member.display_name}: the baby's day in numbers (feeds and ml or minutes, naps and total sleep, diapers, medicine) and anything unusual against the week; what is on tomorrow's calendar and who is home; what is due tomorrow. Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. Leave out empty sections.`;
+  const ask = dayAsk(ctx, kind === "morning" ? "morning" : "evening");
 
   const t0 = Date.now();
   const res = await compose(
@@ -133,6 +150,56 @@ export async function getBrief(supabase: SupabaseClient, me: Me, kind: BriefKind
   await audit(supabase, { p_question: `${kind} brief ${day}`, p_answer: content, p_usage: usage, p_tools: Object.keys(data).map((name) => ({ name, ok: true })) });
   const id = ((saved as { id?: string } | null)?.id ?? "") as string;
   return { ok: true, fresh: true, brief: { id, day, kind, content, created_at: new Date().toISOString(), model: MODEL, refs: ctx.refs } };
+}
+
+/** What the morning brief or the evening digest asks of the model. A baby's home as it always was. */
+export function dayAsk(ctx: ToolContext, kind: "morning" | "evening"): string {
+  if (toddlerHome(ctx)) return toddlerAsk(ctx, kind);
+  const me = ctx.me;
+  return kind === "morning"
+    ? `Write this morning's brief for ${me.member.display_name}. Cover, in this order and only if there is something to say: how the night went for the baby (sleep stretches, night feeds, wake-ups; what is still running now); milk for the day if the log shows pumping (ml pumped since last evening against the household target of ${me.household.milk_target_ml ?? 400} ml, and what has already gone into bottles); who is home today and who is working; what is on today's calendar; anything due or overdue (treatments, next meal). Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. If a section has nothing, leave it out rather than saying "nothing".`
+    : `Write this evening's digest of what happened today for ${me.member.display_name}: the baby's day in numbers (feeds and ml or minutes, naps and total sleep, diapers, medicine) and anything unusual against the week; what is on tomorrow's calendar and who is home; what is due tomorrow. Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. Leave out empty sections.`;
+}
+
+/**
+ * What the weekly note asks of the model. The pronouns follow the child (X3; a girl's as
+ * before). From 12 months only the kinds the family logs, and nothing held against a usual number.
+ */
+export function weekAsk(ctx: ToolContext, kids: ToolContext["subjects"]): string {
+  const p = pronouns(kids[0]?.sex);
+  const counted = toddlerHome(ctx) ? loggedKinds(ctx, { feed: "milk feeds", sleep: "sleep, longest stretch", meal: "meals", diaper: "diapers" }).join(", ") : "feeds, sleep, longest stretch, diapers";
+  return `Write "This week for ${kids.map((s) => s.name).join(" and ") || "the baby"}" for ${ctx.me.member.display_name}: a short weekly note. In this order: 1) what ${p.their} age usually brings this week (from the week calendar and the age outlook: the week ${p.they} ${p.is} in, the stretch it belongs to, what is coming and in how many days or weeks), in two or three plain sentences; 2) how last week went in numbers (${counted || "what was logged"}) and one thing that stands out, citing [entry:ID] only where the data gives ids; 3) one or two gentle things to try this week, from the sleep rhythm and the play ideas given (name the idea); 4) anything due in the next 10 days (vaccines, appointments). Under 160 words, short lines. No diagnoses, no doses. Leave out empty sections.${toddlerHome(ctx) ? ` ${NO_USUAL}` : ""}`;
+}
+
+/**
+ * What the monthly story asks of the model. A month that ended before the first birthday is
+ * written as a baby's month always was; a toddler's month names only the numbers it has.
+ */
+export function storyAsk(ctx: ToolContext, kid: ToolContext["subjects"][number], month: number, inProgress: boolean, numbers: { feeds: boolean; sleep: boolean; diapers: boolean } | null): string {
+  const p = pronouns(kid.sex);
+  const counted = numbers ? [numbers.feeds ? "milk feeds" : null, numbers.sleep ? "sleep, the longest stretch" : null, numbers.diapers ? "diapers" : null, "weight if given"].filter(Boolean).join(", ") : "feeds, sleep, the longest stretch, diapers, weight if given";
+  return `Write "${kid.name}'s month ${month}" for ${ctx.me.member.display_name}: a short keepsake page about this month of ${p.their} life${inProgress ? " so far" : ""}, in the second person plural ("you") to the family. Warm, plain, no baby-talk and no exclamation marks. In this order: 1) ${p.their} firsts this month, by name and date, if any; 2) how the days went in a few numbers (${counted}), as a sentence or two, not a list; 3) what you tried together (name two or three of the ideas tried, if any); 4) one or two sentences on what this age usually brings next. Between 120 and 180 words. No diagnoses, no doses, no advice beyond "what comes next". Leave out empty sections without comment.`;
+}
+
+/**
+ * A toddler's morning brief and evening digest (R11): the child's name, not "the baby"; no
+ * night feeds; milk for the day only while pumping goes on; a kind counted only when the
+ * family logs it; nothing held against a usual number.
+ */
+function toddlerAsk(ctx: ToolContext, kind: "morning" | "evening"): string {
+  const name = ctx.subjects.filter((s) => s.kind === "child").map((s) => s.name).join(" and ");
+  const who = ctx.me.member.display_name;
+  if (kind === "morning") {
+    const milk = pumping(ctx) ? ` milk for the day if the log shows pumping (ml pumped since last evening against the household target of ${ctx.me.household.milk_target_ml ?? 400} ml, and what has already gone into bottles);` : "";
+    return `Write this morning's brief for ${who}. Cover, in this order and only if there is something to say: how the night went for ${name} (sleep stretches, wake-ups; what is still running now);${milk} who is home today and who is working; what is on today's calendar; anything due or overdue (treatments, appointments). Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. If a section has nothing, leave it out rather than saying "nothing". ${NO_USUAL}`;
+  }
+  const counted = loggedKinds(ctx, { feed: "milk feeds and ml", sleep: "naps and total sleep", meal: "meals", diaper: "diapers", medication: "medicine" }).join(", ");
+  return `Write this evening's digest of what happened today for ${who}: ${possessiveOf(name)} day in numbers (${counted || "what was logged"}) and anything that stands out; what is on tomorrow's calendar and who is home; what is due tomorrow. Under 150 words. Short lines or bullets. Cite with [entry:ID] / [event:ID] as instructed. Leave out empty sections. ${NO_USUAL}`;
+}
+
+/** "Maya's", "Yusuf's", "James'". */
+function possessiveOf(name: string): string {
+  return /s$/i.test(name) ? `${name}'` : `${name}'s`;
 }
 
 /**
@@ -182,6 +249,20 @@ async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh
   const { data: doneData } = await supabase.rpc("activity_done_list", { p_subject_id: kid.id, p_from: span.from, p_to: span.to });
   const tried = (((doneData as { items?: { title: string; done_on: string; done_by: string | null }[] } | null)?.items ?? []) as { title: string; done_on: string; done_by: string | null }[]).map((a) => `${a.title} (${a.done_on}${a.done_by ? `, ${a.done_by}` : ""})`);
   const w = leapWeek(ageAtEnd);
+  // The month as it was: a month that ended before the first birthday is a baby's month.
+  const toddler = isToddler(ageAtEnd);
+  const numbers = {
+    breastfeeds: num("breast_count"),
+    bottles: num("bottle_count"),
+    bottle_ml: num("bottle_ml"),
+    sleep_hours_per_day: days.length ? Math.round((num("sleep_min") / days.length / 60) * 10) / 10 : null,
+    longest_stretch_min: Math.max(0, ...days.map((d) => Number(d.longest_stretch_min ?? 0))),
+    diapers: num("diapers_wet") + num("diapers_dirty"),
+    weight_start_kg: firstW,
+    weight_end_kg: lastW,
+  };
+  // A toddler's month names only what the family logged: no "0 bottles" in a keepsake (R8, R11).
+  const shown = toddler ? Object.fromEntries(Object.entries(numbers).filter(([, v]) => v)) : numbers;
   const data = {
     month,
     from: span.from,
@@ -189,21 +270,12 @@ async function getStory(supabase: SupabaseClient, me: Me, month: number, refresh
     in_progress: span.inProgress,
     days_logged: days.length,
     firsts: days.flatMap((d) => ((d.milestones as string[] | undefined) ?? []).map((m) => ({ day: d.day, what: m }))),
-    numbers: {
-      breastfeeds: num("breast_count"),
-      bottles: num("bottle_count"),
-      bottle_ml: num("bottle_ml"),
-      sleep_hours_per_day: days.length ? Math.round((num("sleep_min") / days.length / 60) * 10) / 10 : null,
-      longest_stretch_min: Math.max(0, ...days.map((d) => Number(d.longest_stretch_min ?? 0))),
-      diapers: num("diapers_wet") + num("diapers_dirty"),
-      weight_start_kg: firstW,
-      weight_end_kg: lastW,
-    },
+    numbers: shown,
     tried,
-    age_now: ageOutlook(ageAtEnd),
+    age_now: toddler ? { ageDays: ageAtEnd, age: ageWords(kid.birth_date, span.to), now: ageOutlook(ageAtEnd).now, next: ageOutlook(ageAtEnd).next } : ageOutlook(ageAtEnd),
     week_now: w ? { week: w.week, stretch: w.band.title, expect: w.band.expect, next: w.next?.title ?? null } : null,
   };
-  const ask = `Write "${kid.name}'s month ${month}" for ${me.member.display_name}: a short keepsake page about this month of her life${span.inProgress ? " so far" : ""}, in the second person plural ("you") to the family. Warm, plain, no baby-talk and no exclamation marks. In this order: 1) her firsts this month, by name and date, if any; 2) how the days went in a few numbers (feeds, sleep, the longest stretch, diapers, weight if given), as a sentence or two, not a list; 3) what you tried together (name two or three of the ideas tried, if any); 4) one or two sentences on what this age usually brings next. Between 120 and 180 words. No diagnoses, no doses, no advice beyond "what comes next". Leave out empty sections without comment.`;
+  const ask = storyAsk(ctx, kid, month, span.inProgress, toddler ? { feeds: !!(numbers.breastfeeds || numbers.bottles), sleep: !!numbers.sleep_hours_per_day, diapers: !!numbers.diapers } : null);
   const t0 = Date.now();
   const res = await compose(
     [

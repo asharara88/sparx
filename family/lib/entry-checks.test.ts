@@ -8,14 +8,14 @@ let n = 0;
 const mk = (type: string, start: number, end: number | null = null, payload: Record<string, unknown> = {}): CheckEntry => ({ id: `e${++n}`, type_id: `lana.${type}`, occurred_at: at(start), ended_at: end == null ? null : at(end), payload });
 
 test("a clean day raises nothing", () => {
-  const flags = checkEntries([mk("feed", 0, 15, { method: "Breast", side: "Left" }), mk("diaper", 20, null, { kind: "Wet" }), mk("sleep", 30, 90), mk("feed", 100, null, { method: "Bottle", amount_ml: 120 })], { now: T0 + 110 * 60_000 });
+  const flags = checkEntries([mk("feed", 0, 15, { method: "Breast", side: "Left" }), mk("diaper", 20, null, { kind: "Wet" }), mk("sleep", 30, 90), mk("feed", 100, null, { method: "Bottle", amount_ml: 120 })], { ageDays: 165, now: T0 + 110 * 60_000 });
   assert.deepEqual(flags, []);
 });
 
 test("a sleep with feeds logged during it is a timer left on; the fix ends it at the first feed", () => {
   const sleep = mk("sleep", 0, 11 * 60);
   const feed = mk("feed", 180, 195, { method: "Breast", side: "Right" });
-  const flags = checkEntries([sleep, feed, mk("diaper", 200, null, { kind: "Wet" })], { now: T0 + 12 * 3_600_000 });
+  const flags = checkEntries([sleep, feed, mk("diaper", 200, null, { kind: "Wet" })], { ageDays: 165, now: T0 + 12 * 3_600_000 });
   assert.equal(flags.length, 1);
   assert.equal(flags[0].kind, "overlap");
   assert.equal(flags[0].entry.id, sleep.id);
@@ -24,54 +24,54 @@ test("a sleep with feeds logged during it is a timer left on; the fix ends it at
 
 test("a two-hour feed on one side is trimmed to 20 minutes", () => {
   const feed = mk("feed", 0, 120, { method: "Breast", side: "Left" });
-  const flags = checkEntries([feed], { now: T0 + 3 * 3_600_000 });
+  const flags = checkEntries([feed], { ageDays: 165, now: T0 + 3 * 3_600_000 });
   assert.equal(flags[0].kind, "long_feed");
   assert.equal(flags[0].fix?.ended_at, at(20));
-  assert.equal(checkEntries([{ ...feed, payload: { ...feed.payload, timer_ok: true } }]).length, 0, "once confirmed real it is not asked again");
+  assert.equal(checkEntries([{ ...feed, payload: { ...feed.payload, timer_ok: true } }], { ageDays: 165 }).length, 0, "once confirmed real it is not asked again");
 });
 
 test("a sleep over 10 hours with nothing logged during it is flagged without a fix", () => {
-  const flags = checkEntries([mk("sleep", 0, 11 * 60)], { now: T0 + 14 * 3_600_000 });
+  const flags = checkEntries([mk("sleep", 0, 11 * 60)], { ageDays: 165, now: T0 + 14 * 3_600_000 });
   assert.equal(flags[0].kind, "long_sleep");
   assert.equal(flags[0].fix, null);
-  assert.equal(checkEntries([mk("sleep", 0, 9 * 60)], { now: T0 + 14 * 3_600_000 }).length, 0, "nine hours is a good night");
+  assert.equal(checkEntries([mk("sleep", 0, 9 * 60)], { ageDays: 165, now: T0 + 14 * 3_600_000 }).length, 0, "nine hours is a good night");
 });
 
 test("a sleep timer still running after a day is ended at the next entry; a feed after an hour", () => {
   const sleep = mk("sleep", 0, null);
   const diaper = mk("diaper", 8 * 60, null, { kind: "Dirty" });
-  const flags = checkEntries([sleep, diaper], { now: T0 + 25 * 3_600_000 });
+  const flags = checkEntries([sleep, diaper], { ageDays: 165, now: T0 + 25 * 3_600_000 });
   assert.equal(flags[0].kind, "open_timer");
   assert.equal(flags[0].fix?.ended_at, diaper.occurred_at);
-  const feedOpen = checkEntries([mk("feed", 0, null, { method: "Breast" })], { now: T0 + 90 * 60_000 });
+  const feedOpen = checkEntries([mk("feed", 0, null, { method: "Breast" })], { ageDays: 165, now: T0 + 90 * 60_000 });
   assert.equal(feedOpen[0].fix?.label, "End it at 20 min");
-  assert.equal(checkEntries([mk("sleep", 0, null)], { now: T0 + 20 * 3_600_000 }).length, 0, "twenty hours asleep is within the day");
-  assert.equal(checkEntries([mk("feed", 0, null, { method: "Breast" })], { now: T0 + 50 * 60_000 }).length, 0, "fifty minutes feeding is within the hour");
+  assert.equal(checkEntries([mk("sleep", 0, null)], { ageDays: 165, now: T0 + 20 * 3_600_000 }).length, 0, "twenty hours asleep is within the day");
+  assert.equal(checkEntries([mk("feed", 0, null, { method: "Breast" })], { ageDays: 165, now: T0 + 50 * 60_000 }).length, 0, "fifty minutes feeding is within the hour");
 });
 
 test("a timer its limit stopped is shown once, so the guessed end gets a look", () => {
   const stopped = { ...mk("feed", 0, 20, { method: "Breast", auto_end: true }), note: "Timer left on; end set to 20 min." };
-  const flags = checkEntries([stopped], { now: T0 + 3 * 3_600_000 });
+  const flags = checkEntries([stopped], { ageDays: 165, now: T0 + 3 * 3_600_000 });
   assert.equal(flags.length, 1);
   assert.equal(flags[0].kind, "timer_limit");
   assert.match(flags[0].title, /Feed stopped at its limit/);
   const corrected = { ...mk("feed", 0, 40, { method: "Breast" }), note: "Timer left on; end set to 20 min." };
-  assert.equal(checkEntries([corrected], { now: T0 + 3 * 3_600_000 }).length, 0, "a hand that saved the sheet cleared the flag; the note alone is not a flag");
-  assert.equal(checkEntries([mk("feed", 0, 35, { method: "Breast" })], { now: T0 + 3 * 3_600_000 }).length, 0, "a real end that replaced the guess is not flagged");
+  assert.equal(checkEntries([corrected], { ageDays: 165, now: T0 + 3 * 3_600_000 }).length, 0, "a hand that saved the sheet cleared the flag; the note alone is not a flag");
+  assert.equal(checkEntries([mk("feed", 0, 35, { method: "Breast" })], { ageDays: 165, now: T0 + 3 * 3_600_000 }).length, 0, "a real end that replaced the guess is not flagged");
 });
 
 test("one-second timers and double diapers suggest delete", () => {
-  const flags = checkEntries([mk("sleep", 0, 0.1), mk("diaper", 10, null, { kind: "Both" }), mk("diaper", 10.5, null, { kind: "Dirty" })], { now: T0 + 60 * 60_000 });
+  const flags = checkEntries([mk("sleep", 0, 0.1), mk("diaper", 10, null, { kind: "Both" }), mk("diaper", 10.5, null, { kind: "Dirty" })], { ageDays: 165, now: T0 + 60 * 60_000 });
   assert.deepEqual(flags.map((f) => [f.kind, f.suggestDelete]), [["short_timer", true], ["double", true]]);
   assert.match(flags[1].title, /^Two diapers within \d+ minutes$/);
 });
 
 test("a 400 ml bottle is questioned", () => {
-  const flags = checkEntries([mk("feed", 0, null, { method: "Bottle", amount_ml: 400 })]);
+  const flags = checkEntries([mk("feed", 0, null, { method: "Bottle", amount_ml: 400 })], { ageDays: 165 });
   assert.equal(flags[0].kind, "big_bottle");
 });
 
 test("a night wake during a sleep does not count as an overlap", () => {
-  const flags = checkEntries([mk("sleep", 0, 10 * 60), mk("wake", 240, 255)], { now: T0 + 11 * 3_600_000 });
+  const flags = checkEntries([mk("sleep", 0, 10 * 60), mk("wake", 240, 255)], { ageDays: 165, now: T0 + 11 * 3_600_000 });
   assert.deepEqual(flags, []);
 });

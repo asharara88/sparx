@@ -398,12 +398,18 @@ New kind of Lana entry (solids, teething…): insert a row in `care_entry_types`
 
 **Age stages** (`lib/stage.ts`, migration `…5800`): one table, from the birth date, of what is
 usual now: awake window, naps, the longest gap between milk feeds (3 h under 6 months, 4 h to
-12, 5 h after; `home_summary`'s next feed due uses the same), and meals. Home's fourth row is
+12; `home_summary`'s next feed due uses the same; from 12 months milk has no due time), and meals. Home's fourth row is
 Meal from 24 weeks; the + menu offers Meal from then (or once one was logged); Home's day cards
 (below the log rows) show "Food today" (meals, new foods this week, allergens tried, the last reaction) and "N of
 M naps"; the guide's "last feed" warning moves with the stage; the helper is told the stage
 and today's meals. Pumping fades on its own: the Pump row and Home's pumping cards go
 two weeks after the last pump (the part stays while bottles are in stock).
+
+**From 12 months** (`docs/AGES.md`, migration `…6500`): no daily count is judged, milk has no
+clock, and a kind shows only when the family logs it; under 12 months nothing changes.
+`lib/golden-baby.test.ts` holds a baby's results to main's, stored in
+`lib/fixtures/golden-baby.json` (never regenerated: a stored value changes by hand, for a named
+exception). `supabase/tests/toddler_homes.sql` adds four toddler homes for screenshot mode.
 
 ## 3a. Another family
 
@@ -452,7 +458,8 @@ supabase/migrations/   20261010000100_foundation.sql   members, roles, permissio
                        20261010000400_step2.sql        timers, calendar, photos bucket (and shopping, dropped in 4600)
                        …                                one file per release since; 3500 = any household
 supabase/tests/        rls_test.sql (the database checks), 01_test_household.sql (the household the
-                       checks act as), run-local.sh, local auth stub, demo_data.sql
+                       checks act as), run-local.sh, local auth stub, demo_data.sql,
+                       toddler_homes.sql (four homes at 12 to 36 months, screenshot mode only)
 app/(app)/             home, baby/, calendar, send (the carer's Today), members/, audit, me
 components/            EntryForm (renders `fields`), LanaNow (the child's one-tap screen), CustodyToggle…
 lib/                   supabase clients, offline queue, names (the child from data), time helpers, types
@@ -470,7 +477,7 @@ household.example.json the household file to copy and fill in
   rolls back a denied write). Everything the app does goes through the RPC functions, which
   do audit denials. Supabase's own API logs record the raw request.
 - Family chat: one shared stream of messages and photos for everyone at home (`/chat`); the assistant and photos are on for every role.
-- Lana's day page and Trends compare her feeds, diapers and sleep with typical ranges for her exact age and flag a short day.
+- Lana's day page and Trends compare her feeds, diapers and sleep with typical ranges for her exact age and flag a short day; from 12 months they give a plain count of what was logged and judge nothing.
 - Vaccine book (`/lana/vaccines`): the UAE childhood schedule dated from her birthday, record what was given and where, next visit on the home screen and the calendar, and in the doctor's export.
 - Paediatrician card (`/lana/doctor`): doctor, hospital, call, book, directions, questions for the next visit, upcoming vaccines and appointments, past visits.
 - Screenshot mode: build a local database with `supabase/tests/run-local.sh`, load `supabase/tests/demo_data.sql`, then run the app with `FAMILY_LOCAL_DB=<database>`. Pages read that database through psql as the member named by a `shot_as` cookie (defaults to Mido). Never set in production.

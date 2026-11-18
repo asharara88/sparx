@@ -64,7 +64,7 @@ export default async function SleepPage() {
       )}
       <DayEntries entries={sleeps} types={summary.types} timezone={tz} today={today} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} noun={["sleep", "sleeps"]} />
       {days.length > 0 && (
-        <Fold title="The week" icon="moon" tint="sleep" hint={`usually ${range(stage.naps)} naps`}>
+        <Fold title="The week" icon="moon" tint="sleep" hint={`usually ${range(stage.naps)} ${stage.naps[1] === 1 && stage.naps[0] === 1 ? "nap" : "naps"}`}>
           <ul className="flex flex-col">
             {[...days].reverse().map((d) => (
               <li key={d.day} className="row">

@@ -3,11 +3,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Subject } from "@/lib/types";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { sexOf } from "@/lib/names";
+import { ageWords } from "@/lib/norms";
 
 /**
  * The facts a clinic asks for, readable in five seconds: blood group,
  * allergies, hospital file, insurance, how the child was born. Plain keys on
- * the child's profile, editable by anyone who can edit the log.
+ * the child's profile, editable by anyone who can edit the log. An admin's form
+ * begins with the child's name, birth date and girl or boy (X2): naps, vaccines and
+ * what is usual go by the age, so a changed date asks once before it is saved.
  */
 const FIELDS: { key: string; label: string; unit?: string }[] = [
   { key: "blood_group", label: "Blood group" },
@@ -26,20 +30,33 @@ const FIELDS: { key: string; label: string; unit?: string }[] = [
   { key: "nationality", label: "Nationality" },
 ];
 
-export function ChildCard({ subject, canEdit }: { subject: Subject; canEdit: boolean }) {
+export function ChildCard({ subject, canEdit, isAdmin, today }: { subject: Subject; canEdit: boolean; /** Only an admin changes the name, birth date and girl or boy. */ isAdmin: boolean; /** The home's today: the latest birth date, and the age read back. */ today: string }) {
   const router = useRouter();
   const p = (subject.profile ?? {}) as Record<string, string | undefined>;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, string>>(Object.fromEntries(FIELDS.map((f) => [f.key, p[f.key] ?? ""])));
+  const recorded = sexOf(p.sex) === "girl" ? "Girl" : sexOf(p.sex) === "boy" ? "Boy" : null;
+  const [name, setName] = useState(subject.name);
+  const [born, setBorn] = useState(subject.birth_date ?? "");
+  const [sex, setSex] = useState<"Girl" | "Boy" | null>(recorded);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const filled = FIELDS.filter((f) => p[f.key]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    // The old profile always goes back whole; the sex key is written only when it was changed.
+    const profile: Record<string, unknown> = { ...(subject.profile ?? {}), ...form };
+    if (isAdmin && sex !== recorded) {
+      if (sex) profile.sex = sex;
+      else delete profile.sex;
+    }
+    const newName = isAdmin && name.trim() && name.trim() !== subject.name ? name.trim() : null;
+    const newBorn = isAdmin && born && born !== subject.birth_date ? born : null;
+    if (newBorn && !window.confirm(`${newName ?? subject.name} will be ${ageWords(newBorn, today)} old. Everything that goes by age changes. Save?`)) return;
     setBusy(true);
     setMsg(null);
-    const { data, error } = await supabaseBrowser().rpc("subject_profile_save", { p_subject_id: subject.id, p_profile: { ...(subject.profile ?? {}), ...form }, p_birth_date: null, p_name: null });
+    const { data, error } = await supabaseBrowser().rpc("subject_profile_save", { p_subject_id: subject.id, p_profile: profile, p_birth_date: newBorn, p_name: newName });
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
@@ -51,6 +68,29 @@ export function ChildCard({ subject, canEdit }: { subject: Subject; canEdit: boo
     return (
       <form onSubmit={save} className="card flex flex-col gap-3">
         <h2 className="text-xl font-bold">Edit {subject.name}'s health card</h2>
+        {isAdmin && (
+          <>
+            <label className="flex flex-col gap-1">
+              <span className="font-semibold">Name</span>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="off" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-semibold">Born</span>
+              <input className="input" type="date" value={born} max={today} required={!!subject.birth_date} onChange={(e) => setBorn(e.target.value)} />
+              {born && born <= today && <span className="muted text-sm">= {ageWords(born, today)} old</span>}
+            </label>
+            <div className="flex flex-col gap-1">
+              <span className="font-semibold">Girl or boy</span>
+              <div className="flex gap-2" role="group" aria-label="Girl or boy">
+                {(["Girl", "Boy"] as const).map((x) => (
+                  <button key={x} type="button" aria-pressed={sex === x} className="chip" onClick={() => setSex(sex === x ? null : x)}>
+                    {x}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
         {FIELDS.map((f) => (
           <label key={f.key} className="flex flex-col gap-1">
             <span className="font-semibold">

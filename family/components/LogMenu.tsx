@@ -18,7 +18,7 @@ import { onLogHere, takeLogFrom } from "@/lib/log-bus";
  * it from anywhere (it lands here with ?log=1); on a past day the page's own bottom button
  * opens "Add to this day". Home keeps the four most common as rows.
  */
-export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin, solids = true }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number; /** Meals are offered once the child eats (lib/stage), or once one was logged. */ solids?: boolean }) {
+export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin, milkClock, solids = true }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number; /** The child's stage has a milk clock (lib/stage, a baby): "From earlier" may say a feed looks missed. */ milkClock: boolean; /** Meals are offered once the child eats (lib/stage), or once one was logged. */ solids?: boolean }) {
   const me = useMe();
   const router = useRouter();
   const path = usePathname();
@@ -90,7 +90,7 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
       )}
       {open === "earlier" && (
         <Sheet title={isToday ? "From earlier" : "Add to this day"} onClose={close}>
-          <Backfill bare defaultOpen onSaved={close} subjectId={subjectId} types={types} timezone={timezone} day={day} entries={entries} feedIntervalMin={feedIntervalMin} />
+          <Backfill bare defaultOpen onSaved={close} subjectId={subjectId} types={types} timezone={timezone} day={day} entries={entries} feedIntervalMin={feedIntervalMin} milkClock={milkClock} />
         </Sheet>
       )}
     </>

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { EntryRow, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
 import { dayRange, fmtDate } from "@/lib/time";
-import { ageDays, ageLabel } from "@/lib/norms";
+import { ageWords } from "@/lib/norms";
 import { Photo } from "@/components/Photo";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
@@ -43,7 +43,7 @@ export default async function MilestonesPage() {
           {entries.map((e) => {
             const photo = photoOf.get(e.id) ?? null;
             const day = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(e.occurred_at));
-            const age = s.birth_date ? ageLabel(ageDays(s.birth_date, day)) : null;
+            const age = s.birth_date ? ageWords(s.birth_date, day) : null;
             return (
               <li key={e.id}>
                 <Link prefetch={false} href={`/baby/entry/${e.id}`} className="row row-link px-4">

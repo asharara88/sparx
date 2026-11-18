@@ -73,7 +73,7 @@ test("next feed comes sooner after a small feed, never under an hour", () => {
   assert.equal(full.at, NOW - H + 25 * 60_000 + 3 * H);
   const sips = nextFeedAt([feedRow(NOW, { method: "Breast", side: "Left" }, NOW + 5 * 60_000)], { gapMin: 180 })!;
   assert.equal(sips.at, NOW + 5 * 60_000 + 1.5 * H);
-  assert.equal(shortFeedHint(sips.last, sips.fullness), "Short feed on the left · she may want the right side soon");
+  assert.equal(shortFeedHint(sips.last, sips.fullness, "she"), "Short feed on the left · she may want the right side soon");
   const capped = nextFeedAt([feedRow(NOW, { method: "Bottle", amount_ml: 120 })], { gapMin: 180, awayCapMin: 120, away: () => true })!;
   assert.equal(capped.at, NOW + 2 * H);
   assert.equal(nextFeedAt([], { gapMin: 180 }), null);

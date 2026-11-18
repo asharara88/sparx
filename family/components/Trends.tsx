@@ -2,15 +2,19 @@
 import { GrowthChart } from "@/components/GrowthChart";
 import { useMemo, useState } from "react";
 import type { DailyStats, DayStats } from "@/lib/types";
-import { dateWords, fmtDuration } from "@/lib/time";
+import { addDays, dateWords, fmtDuration } from "@/lib/time";
 import { useMe } from "@/lib/me-context";
-import { childName, childPronouns } from "@/lib/names";
+import { child, childName, childPronouns } from "@/lib/names";
+import { ageDays, ageWords, averagesLine, dayAverages, type AverageKey } from "@/lib/norms";
+import { isToddler } from "@/lib/stage";
+import { curveNote } from "@/lib/who";
 import { AgeCheck } from "./AgeCheck";
 
 /**
  * The child's trends: sleep, nights, feeds, diapers and weight, one bar per day.
  * Plain SVG, no chart library. Nights belong to the day they start on. Each chart's title
  * says the answer; colours are the features' own, named in words, not in a key (DESIGN.md).
+ * From 12 months a kind the family does not log has no chart and no row (R8).
  */
 const RANGES = [
   { key: "2w", label: "2 weeks", days: 14 },
@@ -36,16 +40,25 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
   const done = days.filter((d) => d.day < today);
   const thisWeek = all.filter((d) => d.day < today).slice(-7);
   const ageWeeks = (day: string) => (birthDate ? Math.floor((Date.parse(day) - Date.parse(birthDate)) / 86_400_000 / 7) : null);
-
-  const weekTotals = {
-    breast_count: mean(thisWeek, "breast_count"),
-    bottle_count: mean(thisWeek, "bottle_count"),
-    bottle_ml: mean(thisWeek, "bottle_ml"),
-    diapers_wet: mean(thisWeek, "diapers_wet"),
-    diapers_dirty: mean(thisWeek, "diapers_dirty"),
-    sleep_min: mean(thisWeek, "sleep_min"),
-    night_sleep_min: mean(thisWeek, "night_sleep_min"),
-  };
+  const toddler = !!birthDate && isToddler(ageDays(birthDate, today));
+  const sex = child(me)?.sex ?? null;
+  // A day's average over the days each kind was logged (X8); the day before the week lets a toddler's first night count.
+  const week = dayAverages(thisWeek, thisWeek.length ? (all.find((d) => d.day === addDays(thisWeek[0].day, -1)) ?? null) : null, toddler);
+  // A toddler's growth rows say the age in words; a baby's in weeks, as always (X7).
+  const ageAt = (day: string) => (birthDate && toddler ? `${ageWords(birthDate, day)} old` : ageWeeks(day) != null ? `${ageWeeks(day)} weeks old` : null);
+  // From 12 months a chart's average is over the days its kind was logged, like the card above:
+  // a family that began last week does not read as half a night's sleep. A baby's as it was.
+  const logged = toddler && done.length ? dayAverages(done, all.find((d) => d.day === addDays(done[0].day, -1)) ?? null, true) : null;
+  const per = (k: AverageKey) => (logged ? logged.mean(k) : mean(done, k));
+  // A toddler's sleep average needs two nights in a row (R3). Before there are two (a family's
+  // second day, or naps logged and no nights) the titles use the days with any sleep, or say no
+  // number: never "0 min" over bars that show the sleep.
+  const sleepDays = done.filter((d) => d.sleep_min + d.night_sleep_min > 0);
+  const perSleep = (k: AverageKey): number | null => (logged && logged.counted.sleep === 0 ? (sleepDays.length ? mean(sleepDays, k) : null) : per(k));
+  const sleepAvg = perSleep("sleep_min");
+  const stretchAvg = perSleep("longest_stretch_min");
+  const fed = !toddler || days.some((d) => d.breast_count + d.bottle_count > 0);
+  const changed = !toddler || days.some((d) => d.diapers > 0);
   const weights = all.filter((d) => d.weight_kg != null);
   const lengths = all.filter((d) => d.length_cm != null);
   const heads = all.filter((d) => d.head_cm != null);
@@ -53,14 +66,16 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
 
   return (
     <div className="flex flex-col gap-4">
-      {thisWeek.length > 0 && (
+      {thisWeek.length > 0 && (!toddler || week.logged.feed || week.logged.diaper || week.logged.sleep) && (
         <AgeCheck
-          totals={weekTotals}
+          totals={week.totals}
+          logged={week.logged}
           birthDate={birthDate}
           day={thisWeek[thisWeek.length - 1].day}
+          today={today}
           complete
           title={`This week against ${childPronouns(me).their} age`}
-          subtitle="Average per day over the last 7 full days."
+          subtitle={averagesLine(week, "this week") ?? "Average per day over the last 7 full days."}
           name={childName(me)}
         />
       )}
@@ -74,7 +89,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
       </div>
 
       <Chart
-        title={`Sleep: ${h(mean(done, "sleep_min"))} a day`}
+        title={sleepAvg == null ? "Sleep" : `Sleep: ${h(sleepAvg)} a day`}
         subtitle={`The night (${stats.night_from.slice(0, 5)} to ${stats.night_to.slice(0, 5)}) darker, naps lighter.`}
         days={days}
         max={16 * 60}
@@ -86,15 +101,15 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
         ]}
       />
       <Chart
-        title={`Longest stretch: ${h(mean(done, "longest_stretch_min"))} a night`}
+        title={stretchAvg == null ? "Longest stretch" : `Longest stretch: ${h(stretchAvg)} a night`}
         days={days}
         max={12 * 60}
         ticks={[3 * 60, 6 * 60, 9 * 60, 12 * 60]}
         fmt={(v) => `${v / 60} h`}
         series={[{ key: "longest_stretch_min", color: "var(--sleep-fg)", label: "longest stretch" }]}
       />
-      <Chart
-        title={`Feeds: ${n1(Math.round((mean(done, "breast_count") + mean(done, "bottle_count")) * 10) / 10)} a day`}
+      {fed && <Chart
+        title={`Feeds: ${n1(Math.round((per("breast_count") + per("bottle_count")) * 10) / 10)} a day`}
         subtitle="Breastfeeds darker, bottles lighter."
         days={days}
         max={Math.max(12, ...days.map((d) => d.breast_count + d.bottle_count))}
@@ -104,7 +119,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           { key: "breast_count", color: "var(--feed-fg)", label: "breastfeeds" },
           { key: "bottle_count", color: "var(--feed)", stroke: "var(--feed-fg)", label: "bottles" },
         ]}
-      />
+      />}
       {days.some((d) => d.bottle_ml > 0) && (
         <Chart
           title={`Bottle: ${Math.round(mean(done.filter((d) => d.bottle_ml > 0), "bottle_ml"))} ml on bottle days`}
@@ -117,8 +132,8 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           line={days.some((d) => d.pump_ml > 0) ? { key: "pump_ml", color: "var(--pump-fg)", label: "pumped" } : undefined}
         />
       )}
-      <Chart
-        title={`Diapers: ${n1(Math.round(mean(done, "diapers") * 10) / 10)} a day`}
+      {changed && <Chart
+        title={`Diapers: ${n1(Math.round(per("diapers") * 10) / 10)} a day`}
         subtitle="Dirty darker, wet lighter."
         days={days}
         max={Math.max(8, ...days.map((d) => d.diapers_wet + d.diapers_dirty))}
@@ -128,7 +143,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           { key: "diapers_dirty", color: "var(--diaper-fg)", label: "dirty" },
           { key: "diapers_wet", color: "var(--diaper)", stroke: "var(--diaper-fg)", label: "wet" },
         ]}
-      />
+      />}
 
       {weights.length > 0 && (() => {
         const rows = (
@@ -141,7 +156,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
                 <li key={w.day} className="row">
                   <span className="min-w-0 flex-1">
                     <span className="block">{longDay(w.day)}</span>
-                    {ageWeeks(w.day) != null && <span className="muted block text-sm">{ageWeeks(w.day)} weeks old</span>}
+                    {ageAt(w.day) != null && <span className="muted block text-sm">{ageAt(w.day)}</span>}
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block font-semibold tabular-nums">{w.weight_kg} kg</span>
@@ -154,7 +169,7 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
         // With a birth date the WHO chart is the weight card (its own title says the latest);
         // without one, a plain line.
         return birthDate ? (
-          <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate}>
+          <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate} sex={sex} today={today}>
             {rows}
           </GrowthChart>
         ) : (
@@ -169,10 +184,11 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           </section>
         );
       })()}
-      {birthDate && lengths.length > 0 && <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} />}
-      {birthDate && heads.length > 0 && <GrowthChart kind="head_cm" points={heads.map((d) => ({ day: d.day, value: Number(d.head_cm) }))} birthDate={birthDate} />}
+      {birthDate && lengths.length > 0 && <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} sex={sex} today={today} />}
+      {birthDate && heads.length > 0 && <GrowthChart kind="head_cm" points={heads.map((d) => ({ day: d.day, value: Number(d.head_cm) }))} birthDate={birthDate} sex={sex} today={today} />}
+      {/* The WHO curves are a girl's to 2 years (X4); for anyone else one line says why there is none. */}
       {birthDate && (weights.length > 0 || lengths.length > 0 || heads.length > 0) && (
-        <p className="muted text-sm">Shaded: the 3rd to 97th percentile for girls (WHO Child Growth Standards, 2006); dashed: the median. The doctor&apos;s chart is the reference.</p>
+        <p className="muted text-sm">{curveNote(sex, ageDays(birthDate, today)) ?? "Shaded: the 3rd to 97th percentile for girls (WHO Child Growth Standards, 2006); dashed: the median. The doctor's chart is the reference."}</p>
       )}
 
       {milestones.length > 0 && (

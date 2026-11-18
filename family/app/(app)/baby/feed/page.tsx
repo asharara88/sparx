@@ -11,6 +11,7 @@ import { DayEntries } from "@/components/DayEntries";
 import { Fold } from "@/components/Fold";
 import { ageDays, normsForAge } from "@/lib/norms";
 import { dayLabel } from "@/lib/by-day";
+import { stageFor } from "@/lib/stage";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
  * Feeds, all of them in one place (Mido, 7 November): reached from every pink card. Now
  * (start a breastfeed or log a bottle), today (when the next is due, what went in), last
  * night, every feed of the week to fix or delete, and the week's feeds against what is usual
- * at her age.
+ * at her age. From 12 months there is no usual number of feeds (lib/norms): no "usually" hint,
+ * last night only when a night feed was logged, and the week only when feeds were logged.
  */
 export default async function FeedPage() {
   const supabase = await createClient();
@@ -41,7 +43,10 @@ export default async function FeedPage() {
   const feeds = entries.filter((e) => e.type_id === feedType.id);
   const days = (((statsData as { days?: DayStats[] } | null)?.days ?? []) as DayStats[]).filter((d) => d.day < today);
   const lastNight = days.find((d) => d.day === addDays(today, -1));
-  const norms = summary.subject.birth_date ? normsForAge(ageDays(summary.subject.birth_date, today)) : null;
+  const usual = summary.subject.birth_date ? normsForAge(ageDays(summary.subject.birth_date, today)).feeds : null;
+  const toddler = stageFor(summary.subject.birth_date, Date.now(), tz).toddler;
+  // From 12 months a kind the family does not log reads as nothing, not as a row of zeros (R8).
+  const fedThisWeek = !toddler || days.some((d) => d.breast_count + d.bottle_count > 0);
   const flag = feedType.settings?.timer_flag;
   const breastfeeds = !!flag && !!(me.member as unknown as Record<string, unknown>)[flag];
   const canAdd = can(me, "lana", "add");
@@ -62,7 +67,7 @@ export default async function FeedPage() {
         </div>
       )}
       <FeedDay summary={summary} entries={entries} dayStartMs={Date.parse(dayRange(today, tz).from)} dayEndMs={Date.parse(dayRange(today, tz).to)} timezone={tz} nowIso={new Date().toISOString()} today={today} />
-      {lastNight && (lastNight.night_feeds > 0 || lastNight.night_sleep_min > 0) && (
+      {lastNight && (lastNight.night_feeds > 0 || (lastNight.night_sleep_min > 0 && !toddler)) && (
         <section className="card tint-feed flex flex-col gap-1" aria-labelledby="night-feeds-h">
           <h2 id="night-feeds-h" className="section-title">Last night</h2>
           <p className="text-2xl font-bold">
@@ -71,8 +76,8 @@ export default async function FeedPage() {
         </section>
       )}
       <DayEntries entries={feeds} types={summary.types} timezone={tz} today={today} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} noun={["feed", "feeds"]} />
-      {days.length > 0 && (
-        <Fold title="The week" icon="bottle" tint="feed" hint={norms ? `usually ${norms.feeds.low} to ${norms.feeds.high} a day` : null}>
+      {days.length > 0 && fedThisWeek && (
+        <Fold title="The week" icon="bottle" tint="feed" hint={usual ? `usually ${usual.low} to ${usual.high} a day` : null}>
           <ul className="flex flex-col">
             {[...days].reverse().map((d) => {
               const n = d.breast_count + d.bottle_count;

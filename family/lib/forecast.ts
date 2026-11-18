@@ -2,7 +2,8 @@ import type { EntryRow } from "@/lib/types";
 
 /**
  * The child's next 12 hours, estimated from the last 7 days. Nothing here is logged:
- * it is a plan to glance at ("a feed around 15:10, a nap around 16:00").
+ * it is a plan to glance at ("a feed around 15:10, a nap around 16:00"). A baby's only:
+ * from 12 months milk has no clock, and the list is not drawn.
  *
  * Feeds: the median gap between feeds over the last week, bounded to 1.5–4 h,
  * measured separately for the hours the breastfeeding parent is at work (bottles come closer
@@ -83,10 +84,9 @@ export function nextFeedAt(entries: EntryRow[], opts: { gapMin: number; awayCapM
 
 /**
  * "Short feed on the left · she may want the right side soon", or null after a
- * proper feed. `they` is the child's pronoun (childPronouns(me).they); callers
- * should pass it, the default only keeps older call sites and tests unchanged.
+ * proper feed. `they` is the child's pronoun (childPronouns(me).they).
  */
-export function shortFeedHint(last: Pick<EntryRow, "payload" | "occurred_at" | "ended_at">, fullness: number, they = "she"): string | null {
+export function shortFeedHint(last: Pick<EntryRow, "payload" | "occurred_at" | "ended_at">, fullness: number, they: string): string | null {
   if (fullness >= 0.75) return null;
   const side = last.payload.side;
   if (last.payload.method === "Breast" && (side === "Left" || side === "Right")) return `Short feed on the ${String(side).toLowerCase()} · ${they} may want the ${side === "Left" ? "right" : "left"} side soon`;

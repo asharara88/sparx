@@ -27,7 +27,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 53 files, applied in filename order |
+| Migrations | `supabase/migrations`, 65 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -150,6 +150,24 @@ Done and live:
   window from `me.subjects[].night_from/night_to`, migration 5000; per phone switch on
   the Me screen), and the "Feed" home-screen shortcut opens `/baby/quick/feed`: the two
   boobs, one tap to start a side, the other to switch, the lit one to finish.
+- Honest for a toddler, step 1 of the ages plan (17 November, migration `…6500`;
+  `docs/AGES.md` has the plan, the decisions and the steps still to come). From 12 months
+  (day 366; a child with no birth date counts as a baby) the app says nothing false: the
+  guide is silent, milk, diapers and sleep have no due time (in `home_summary`,
+  `care_due_list`, Home, the helper and the briefs), nothing reads zero for a kind the
+  family does not log (Home's strip, the Feeds card, the week's averages, the snapshot),
+  the nap card and the nap push follow the child's own week and stop for a child who has
+  stopped napping, entry checks allow a 13 h night and a 350 ml bottle, stored-milk lines
+  show only where milk is kept, "When to call the doctor" only takes baby lines away, and
+  vaccine doses whose window closed before the family joined are "not recorded", never
+  overdue. Some changes reach every age: the child's sex in every sentence (she, he,
+  they), the age in calendar months and years, WHO curves for girls only and to 2 years,
+  name, birth date and sex editable on Doctor, the mood label "Mood", and "she fell down"
+  no longer saved as a sleep. The rule that holds it together: **under 12 months nothing
+  changes**. `lib/golden-baby.test.ts` checks that against main's results stored in
+  `lib/fixtures/golden-baby.json`; that file is never regenerated, and a stored value
+  changes only by hand, for an exception the step names. Four toddler homes (12, 18, 24
+  and 36 months) for screenshot mode are in `supabase/tests/toddler_homes.sql`.
 
 Open:
 

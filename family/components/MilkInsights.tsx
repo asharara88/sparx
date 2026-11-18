@@ -8,9 +8,10 @@ import { Icon } from "@/components/Icon";
  * Milk sense on the Milk page: when the fridge runs out at this pace, how the
  * pumping is going morning versus night and week on week, and tonight's thaw
  * plan. All estimates from the last 7 to 14 days; nothing is written. `bare` is the flat
- * version inside a fold, without the thaw reminder (the page shows that on its own).
+ * version inside a fold, without the thaw reminder (the page shows that on its own). From
+ * 12 months (`toddler`) supply is not watched: no "lower than last week" line.
  */
-export function MilkInsights({ milk, entries, timezone, thaw, bare = false }: { milk: MilkData; entries: EntryRow[]; timezone: string; thaw: Parameters<typeof thawPlan>[2]; bare?: boolean }) {
+export function MilkInsights({ milk, entries, timezone, thaw, toddler, bare = false }: { milk: MilkData; entries: EntryRow[]; timezone: string; thaw: Parameters<typeof thawPlan>[2]; toddler: boolean; bare?: boolean }) {
   const f = milkForecast(safeFridgeMl(milk.bottles), entries);
   const p = pumpInsights(entries, timezone);
   const soon = f.until != null && f.until - Date.now() < 2 * 86_400_000;
@@ -62,7 +63,7 @@ export function MilkInsights({ milk, entries, timezone, thaw, bare = false }: { 
               This week {p.lastDay} ml a day
               {p.prevDay ? ` · last week ${p.prevDay} ml` : ""}
             </p>
-            {p.dropping && <p className={bare ? "text-sm font-semibold text-[var(--warn)]" : "notice notice-warn text-sm"}>Supply is a bit lower than last week. Rest, water and not skipping pumps usually help. If it keeps dropping, a lactation consultant can help.</p>}
+            {p.dropping && !toddler && <p className={bare ? "text-sm font-semibold text-[var(--warn)]" : "notice notice-warn text-sm"}>Supply is a bit lower than last week. Rest, water and not skipping pumps usually help. If it keeps dropping, a lactation consultant can help.</p>}
           </div>
         )}
       </section>

@@ -19,7 +19,7 @@ test("names come from the subjects, in the member's language when given", () => 
 test("possessive and pronouns", () => {
   assert.equal(possessive("Lana"), "Lana's");
   assert.equal(possessive("James"), "James'");
-  assert.deepEqual(pronouns("Girl"), { they: "she", them: "her", their: "her", is: "is" });
+  assert.deepEqual(pronouns("Girl"), { they: "she", them: "her", their: "her", is: "is", was: "was", s: "s" });
   assert.equal(childPronouns(me).they, "he");
   assert.equal(pronouns(null).they, "they");
   assert.equal(pronouns(undefined).is, "are");

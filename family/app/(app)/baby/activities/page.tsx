@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActivitiesData, HomeSummary, Me, RpcError } from "@/lib/types";
 import { can } from "@/lib/types";
-import { ageLabel } from "@/lib/norms";
+import { ageLabel, ageWords } from "@/lib/norms";
+import { todayYmd } from "@/lib/time";
 import { Activities } from "@/components/Activities";
 import { PageHeader } from "@/components/PageHeader";
 import { meOnce } from "@/lib/server/me";
@@ -20,7 +21,9 @@ export default async function ActivitiesPage() {
   const { data } = await supabase.rpc("activities_list", { p_subject_id: summary.subject.id });
   const acts = data as ActivitiesData | RpcError | null;
   const items = acts && acts.ok ? acts.items : [];
-  const age = acts && acts.ok && acts.age_days != null ? `${ageLabel(acts.age_days)} old` : "";
+  // With a birth date the age in calendar months and years, as every other screen says it (X7).
+  const birth = summary.subject.birth_date;
+  const age = birth ? `${ageWords(birth, todayYmd(me.household.timezone))} old` : acts && acts.ok && acts.age_days != null ? `${ageLabel(acts.age_days)} old` : "";
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/baby?tab=about" title="Play" subtitle={`Short things to do with ${summary.subject.name}${age ? `, ${age}` : ""}. A few a week is plenty.`} />

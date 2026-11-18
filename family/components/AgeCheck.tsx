@@ -1,24 +1,34 @@
-import type { DayTotals } from "@/lib/norms";
-import { ageDays, ageLabel, checkDay } from "@/lib/norms";
+import Link from "next/link";
+import type { DayTotals, LoggedKinds } from "@/lib/norms";
+import { ageDays, ageWords, checkDay, normsSource } from "@/lib/norms";
+import { isToddler } from "@/lib/stage";
 import { Icon } from "./Icon";
 
 /**
  * The child's totals against what is typical for the age, one row per measure:
  * what was logged on the right, the usual range under the name, a red pill only
  * where a finished day fell short. A list, not a table: four columns do not fit a phone.
+ * From 12 months nothing is judged and a kind with no logged day has no row (lib/norms);
+ * with no row at all the card is not drawn.
  */
 export function AgeCheck({
   totals,
+  logged,
   birthDate,
   day,
+  today,
   complete,
   title,
   subtitle,
   bare = false,
 }: {
   totals: DayTotals;
+  /** Which kinds have a logged day in the period (dayAverages' logged); read from 12 months only. */
+  logged: LoggedKinds;
   birthDate: string | null;
   day: string;
+  /** The home's today: a child who is a toddler today is judged as one, though `day` (the last whole day) may fall on the first birthday. */
+  today: string;
   complete: boolean;
   title: string;
   subtitle?: string;
@@ -31,22 +41,31 @@ export function AgeCheck({
     return (
       <section className="card">
         <h2 className="section-title">{title}</h2>
-        <p className="muted text-sm">Add the date of birth on the profile to compare with what is typical for the age.</p>
+        <p className="muted text-sm">
+          <Link prefetch={false} href="/baby/doctor" className="font-semibold text-[var(--accent)]">
+            Add the date of birth on Doctor, under Health card.
+          </Link>
+        </p>
       </section>
     );
   }
   const days = ageDays(birthDate, day);
-  const rows = checkDay(totals, days, complete);
+  const now = ageDays(birthDate, today);
+  // The day after the first birthday the rest of the screen is a toddler's: so is this card.
+  const judged = isToddler(now) ? now : days;
+  const rows = checkDay(totals, judged, complete, logged);
+  if (rows.length === 0) return null;
   const short = rows.filter((r) => r.verdict === "short");
+  const age = `${ageWords(birthDate, day)} old`;
   return (
     <section className={bare ? "flex flex-col gap-2" : "card flex flex-col gap-2"} aria-label={bare ? title : undefined}>
       {!bare && (
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="section-title">{title}</h2>
-          <span className="muted shrink-0 text-sm">{ageLabel(days)} old</span>
+          <span className="muted shrink-0 text-sm">{age}</span>
         </div>
       )}
-      {(subtitle || bare) && <p className="muted text-sm">{[subtitle, bare ? `${ageLabel(days)} old` : null].filter(Boolean).join(" ")}</p>}
+      {(subtitle || bare) && <p className="muted text-sm">{[subtitle, bare ? age : null].filter(Boolean).join(" ")}</p>}
       {/* Inside a fold the red "short" pills on the rows say it; no box in a box. */}
       {short.length > 0 && !bare && (
         <p className="notice notice-warn flex items-center gap-2">
@@ -70,7 +89,7 @@ export function AgeCheck({
           </li>
         ))}
       </ul>
-      <p className="muted text-xs">Ranges from the NHS, the AAP and the National Sleep Foundation. Only what was logged counts. Not medical advice.</p>
+      <p className="muted text-xs">{normsSource(judged)}</p>
     </section>
   );
 }

@@ -51,8 +51,10 @@ select pg_temp.assert((select count(*) from public.members where user_id is not 
 -- age and for the next band, the 4-month vaccines behind her). The test child has a fixed birth date,
 -- 5 June 2026, so the suite used to depend on today's date: it would fail from 5 December 2026, when
 -- the gap becomes 4 h, and again when the play ideas run out. Pin her age instead. Checks that need
--- another age set it themselves and put it back (see "the feed gap grows with age").
-update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+-- another age set it themselves and put it back (see "the feed gap grows with age"). Her row is dated
+-- the day before her birth, so she was in the home from birth: vaccines from before a family joined
+-- are left out (migration 6500), and the checks below are about a family that was there throughout.
+update public.care_subjects set birth_date = current_date - 160, created_at = now() - interval '161 days' where id = :lana;
 
 -- ---------------------------------------------------------------- as Mido (admin)
 -- On a Supabase project app_rls cannot use the auth schema (migration 4000's grant was a no-op
@@ -817,6 +819,8 @@ update public.assistant_memories set deleted_at = now() where body in ('Lana nap
 select pg_temp.act_as(:dana);
 set role authenticated;
 select pg_temp.assert((select is_active from public.care_entry_types where id = 'lana.mood'), 'the mood type is on');
+select pg_temp.assert((select f->>'label' from public.care_entry_types t, jsonb_array_elements(t.fields) f where t.id = 'lana.mood' and f->>'key' = 'mood') = 'Mood',
+  'its question reads Mood, not "How is she" (migration 6500)');
 select pg_temp.assert((public.assistant_brief_save(current_date, 'story', 'Month one.', 'test-model', null))->>'ok' = 'true', 'the monthly story is a brief kind');
 create temp table act2 as select x->>'id' as id from jsonb_array_elements((public.activities_list(:lana))->'items') x where x->>'band' = 'now' limit 1;
 select pg_temp.assert((public.activity_tick(:lana, (select id from act2), true, null))->>'ok' = 'true', 'Dana ticks an idea');
@@ -1076,6 +1080,193 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000
 set role authenticated;
 select pg_temp.assert((select count(*) from public.care_entries where type_id = 'lana.meal') = 0, 'another home does not see her meals');
 reset role;
+
+-- Migration 6500: after the first birthday. A toddler from day 366 on the home's calendar; no clock on
+-- a toddler's milk, diapers and sleep; vaccines from before a family joined; the child's name in
+-- vaccine_record; the mood label (with the Sprouty checks); safe sleep stops at 12 months.
+-- The edge on the home's date, as the feed gap's (migration 6100): at UTC+14 the home's date is ahead
+-- of UTC for most of the day, so a check there tells the two apart. Then the same on UTC.
+create temp table tz6500 as select h.id, h.timezone from public.household h join public.members m on m.household_id = h.id where m.id = :mido;
+create temp table lana6500 as select birth_date, created_at from public.care_subjects where id = :lana;
+update public.household set timezone = 'Pacific/Kiritimati' where id = (select id from tz6500);
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(not private.is_toddler((now() at time zone 'Pacific/Kiritimati')::date - 365)
+  and private.is_toddler((now() at time zone 'Pacific/Kiritimati')::date - 366), 'a toddler from day 366 on the home''s calendar; day 365 is a baby (home on UTC+14)');
+reset role;
+update public.household set timezone = 'UTC' where id = (select id from tz6500);
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(not private.is_toddler((now() at time zone 'UTC')::date - 365)
+  and private.is_toddler((now() at time zone 'UTC')::date - 366), 'and the same with the home on UTC');
+select pg_temp.assert(not private.is_toddler(null), 'with no birth date, never a toddler');
+reset role;
+update public.household h set timezone = t.timezone from tz6500 t where h.id = t.id;
+select pg_temp.assert(not has_function_privilege('anon', 'private.is_toddler(date)', 'execute')
+  and has_function_privilege('authenticated', 'private.is_toddler(date)', 'execute') and has_function_privilege('app_rls', 'private.is_toddler(date)', 'execute'),
+  'anon cannot call is_toddler; members and app_rls can');
+
+-- One feed, one diaper and one sleep: each has a next due at 300 days and with no birth date, none at
+-- 400 days (the key stays, with null); the due list's interval rows go the same way.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '3 minutes', null, '{"method":"Bottle","amount_ml":120}', 'after one test', null))->>'ok' = 'true', 'Mido logs a bottle');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.diaper', now() - interval '2 minutes', null, '{"kind":"Wet"}', 'after one test', null))->>'ok' = 'true', 'a diaper');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '40 minutes', now() - interval '4 minutes', '{"place":"Cot"}', 'after one test', null))->>'ok' = 'true', 'and a nap');
+reset role;
+update public.care_subjects set birth_date = current_date - 300 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table clock300 as select public.home_summary(:lana) as s, public.care_due_list(1) as d;
+reset role;
+update public.care_subjects set birth_date = null where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table clock_none as select public.home_summary(:lana) as s, public.care_due_list(1) as d;
+reset role;
+update public.care_subjects set birth_date = current_date - 400 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table clock400 as select public.home_summary(:lana) as s, public.care_due_list(1) as d;
+reset role;
+update public.care_subjects set birth_date = (select birth_date from lana6500) where id = :lana;
+update public.care_entries set deleted_at = now() where note = 'after one test' and deleted_at is null;
+select pg_temp.assert((select s#>>'{last,lana.feed,next_due}' is not null and s#>>'{last,lana.diaper,next_due}' is not null and s#>>'{last,lana.sleep,next_due}' is not null from clock300),
+  'at 300 days the last feed, diaper and sleep each have a next due');
+select pg_temp.assert((select s#>>'{last,lana.feed,next_due}' is not null and s#>>'{last,lana.diaper,next_due}' is not null and s#>>'{last,lana.sleep,next_due}' is not null from clock_none),
+  'and with no birth date');
+select pg_temp.assert((select s#>>'{last,lana.feed,next_due}' is null and s#>>'{last,lana.diaper,next_due}' is null and s#>>'{last,lana.sleep,next_due}' is null from clock400),
+  'at 400 days none has a next due');
+select pg_temp.assert((select s->'last'->'lana.feed' ? 'next_due' and s->'last'->'lana.diaper' ? 'next_due' and s->'last'->'lana.sleep' ? 'next_due' from clock400),
+  'though the key is still there');
+select pg_temp.assert((select (s->'last'->'lana.feed') - 'next_due' from clock400) = (select (s->'last'->'lana.feed') - 'next_due' from clock300),
+  'and the rest of the last feed is the same at both ages');
+select pg_temp.assert((select count(*) from clock300, jsonb_array_elements(d->'items') x where x->>'kind' = 'interval' and x->>'type_id' in ('lana.feed', 'lana.diaper', 'lana.sleep')) = 3,
+  'the due list has a feed, a diaper and a sleep row at 300 days');
+select pg_temp.assert((select count(*) from clock_none, jsonb_array_elements(d->'items') x where x->>'kind' = 'interval') = 3, 'and with no birth date');
+select pg_temp.assert((select count(*) from clock400, jsonb_array_elements(d->'items') x where x->>'kind' = 'interval') = 0, 'and none at 400 days');
+
+-- Vaccines from before a family joined, on the test child. The shape of the live child: her row made on
+-- day 127, after the 2-month window closed and five days after the 4-month date, her 4-month doses not
+-- recorded, now 165 days old. Birth and 2 months are earlier, except the dose recorded (it stays given);
+-- the 4-month doses stay due, never overdue, and are listed.
+update public.care_subjects set birth_date = current_date - 165,
+  created_at = ((current_date - 165 + 127)::timestamp + interval '12 hours') at time zone (select timezone from tz6500) where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table book127 as select x from jsonb_array_elements((public.vaccines_list(:lana))->'items') x;
+create temp table due127 as select x from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine';
+reset role;
+select pg_temp.assert((select string_agg(x->>'id' || ' ' || (x->>'status'), ', ' order by (x->>'due_age_days')::int, x->>'id') from book127 where (x->>'due_age_days')::int <= 122)
+  = 'bcg_1 earlier, hepb_1 earlier, hexa_1 given, pcv_1 earlier, rota_1 earlier, hexa_2 due, pcv_2 due, rota_2 due',
+  'joined on day 127: Birth and 2 months earlier but the dose recorded, 4 months due (its date was before the row, its window open)');
+select pg_temp.assert(not exists (select 1 from due127 where x->>'visit' in ('Birth', '2 months')), 'Birth and 2 months are not in the due list');
+select pg_temp.assert((select x->>'count' = '3' and x->>'overdue' = 'false' from due127 where x->>'visit' = '4 months'), 'the 4-month visit is, with its three doses, and not overdue at 165 days');
+-- A family that was there on the dose's date (row made on day 120): the 4-month doses are overdue as before.
+update public.care_subjects set created_at = ((current_date - 165 + 120)::timestamp + interval '12 hours') at time zone (select timezone from tz6500) where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table book120 as select x from jsonb_array_elements((public.vaccines_list(:lana))->'items') x;
+create temp table due120 as select x from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine';
+reset role;
+select pg_temp.assert((select bool_and(x->>'status' = 'overdue') from book120 where x->>'visit' = '4 months'), 'joined on day 120, before the 4-month date: those doses are overdue at 165 days');
+select pg_temp.assert((select x->>'count' = '3' and x->>'overdue' = 'true' from due120 where x->>'visit' = '4 months'), 'and listed as overdue');
+-- One visit with a 28-day and a 60-day dose (the flu dose, switched on here), the row made between the two
+-- closing days (211 and 243): the 60-day dose is still listed, alone, and the visit is not overdue.
+update public.vaccine_schedule set is_active = true where id = 'flu_1';
+update public.care_subjects set birth_date = current_date - 230,
+  created_at = ((current_date - 230 + 220)::timestamp + interval '12 hours') at time zone (select timezone from tz6500) where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table book220 as select x from jsonb_array_elements((public.vaccines_list(:lana))->'items') x;
+create temp table due220 as select x from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine';
+reset role;
+update public.vaccine_schedule set is_active = false where id = 'flu_1';
+update public.care_subjects set birth_date = (select birth_date from lana6500), created_at = (select created_at from lana6500) where id = :lana;
+select pg_temp.assert((select string_agg(x->>'id' || ' ' || (x->>'status'), ', ' order by x->>'id') from book220 where x->>'visit' = '6 months') = 'bopv_1 earlier, flu_1 due, hexa_3 earlier, pcv_3 earlier',
+  'per dose: the 28-day doses of the visit are earlier, the 60-day dose is due');
+select pg_temp.assert((select x->>'count' = '1' and x->>'label' = 'Vaccines, 6 months: Flu (seasonal) (1)' and x->>'overdue' = 'false' from due220 where x->>'visit' = '6 months'),
+  'and the due list keeps that one dose, not overdue');
+select pg_temp.assert((select birth_date = (select birth_date from lana6500) and created_at = (select created_at from lana6500) from public.care_subjects where id = :lana)
+  and not (select is_active from public.vaccine_schedule where id = 'flu_1'), 'her age, her row''s date and the schedule are put back');
+
+-- A late joiner: a new account makes a home for a child of 400 days. Birth to 12 months are earlier and
+-- out of the due list; the 18-month visit is upcoming. Recording one earlier dose leaves the rest earlier.
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c651', 'late400@test.local') on conflict do nothing;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c651","role":"authenticated"}', false);
+set role authenticated;
+create temp table late400 as select public.household_create('Late at 400', 'Asia/Dubai', 'Omar', current_date - 400, 'Boy', 'Rami') as r;
+select r->>'subject_id' as omar, r->>'household_id' as omar_home from late400 \gset
+create temp table book400 as select x from jsonb_array_elements((public.vaccines_list(:'omar'))->'items') x;
+create temp table due400 as select x from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine';
+reset role;
+select pg_temp.assert((select r->>'ok' from late400) = 'true', 'a family joins with a child of 400 days');
+select pg_temp.assert((select count(*) = 13 and bool_and(x->>'status' = 'earlier') from book400 where (x->>'due_age_days')::int <= 365),
+  'its Birth to 12-month doses (13) are all earlier');
+select pg_temp.assert((select count(*) = 3 and bool_and(x->>'status' = 'upcoming') from book400 where x->>'visit' = '18 months'), 'the 18-month visit is upcoming');
+select pg_temp.assert(not exists (select 1 from due400 where x->>'visit' in ('Birth', '2 months', '4 months', '6 months', '12 months')), 'none of the earlier visits is in the due list');
+select pg_temp.assert((select x->>'overdue' = 'false' from due400 where x->>'visit' = '18 months'), 'the 18-month visit is, looking far enough ahead, and not overdue');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c651","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.vaccine_record(:'omar', 'bcg_1', current_date - 400, 'Hospital', null, null))->>'ok' = 'true', 'the family records BCG, given before they joined');
+select pg_temp.assert((public.vaccine_record(:'omar', 'hepb_1', current_date - 401, null, null, null))->>'message' = 'That is before Omar was born.', 'a date before the birth names the child');
+create temp table book400b as select x from jsonb_array_elements((public.vaccines_list(:'omar'))->'items') x;
+create temp table due400b as select x from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'kind' = 'vaccine';
+-- Another home's member is refused as before, both ways.
+select pg_temp.assert((public.vaccines_list(:lana))->>'error' = 'not_found' and (public.vaccine_record(:lana, 'pcv_2', current_date, null, null, null))->>'error' = 'not_found',
+  'the new family can neither read nor write Lana''s vaccine book');
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'subject' <> 'Omar'), 'and its due list has only Omar');
+reset role;
+select pg_temp.assert((select string_agg(x->>'id' || ' ' || (x->>'status'), ', ' order by x->>'id') from book400b where x->>'visit' = 'Birth') = 'bcg_1 given, hepb_1 earlier',
+  'the recorded dose is given and the other stays earlier');
+select pg_temp.assert(not exists (select 1 from due400b where x->>'visit' = 'Birth'), 'the Birth visit stays out of the due list');
+select pg_temp.assert((select count(*) from public.vaccinations where subject_id = :'omar' and deleted_at is null) = 1, 'one dose was recorded');
+select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where oid = 'public.vaccine_record(uuid, text, date, text, text, text)'::regprocedure)) = 'app_rls',
+  'vaccine_record still runs as app_rls');
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.vaccines_list(:'omar'))->>'error' = 'not_found' and (public.vaccine_record(:'omar', 'hepb_1', current_date, null, null, null))->>'error' = 'not_found',
+  'nor can Mido read or write Omar''s');
+select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.care_due_list(400))->'items') x where x->>'subject' = 'Omar'), 'nor see him in his due list');
+reset role;
+
+-- A child of 380 days: the 12-month date was before the family joined, its window still open. Those doses
+-- are due and listed, and stay due (never overdue) when her birth date and join date both move back 30 days.
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-00000000c652', 'late380@test.local') on conflict do nothing;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c652","role":"authenticated"}', false);
+set role authenticated;
+create temp table late380 as select public.household_create('Late at 380', 'Asia/Dubai', 'Noor', current_date - 380, 'Girl', 'Huda') as r;
+select r->>'subject_id' as noor, r->>'household_id' as noor_home from late380 \gset
+create temp table book380 as select x from jsonb_array_elements((public.vaccines_list(:'noor'))->'items') x;
+create temp table due380 as select x from jsonb_array_elements((public.care_due_list(30))->'items') x where x->>'kind' = 'vaccine';
+reset role;
+create temp table noor6500 as select birth_date, created_at from public.care_subjects where id = :'noor';
+update public.care_subjects set birth_date = birth_date - 30, created_at = created_at - interval '30 days' where id = :'noor';
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c652","role":"authenticated"}', false);
+set role authenticated;
+create temp table book410 as select x from jsonb_array_elements((public.vaccines_list(:'noor'))->'items') x;
+create temp table due410 as select x from jsonb_array_elements((public.care_due_list(30))->'items') x where x->>'kind' = 'vaccine';
+reset role;
+update public.care_subjects s set birth_date = n.birth_date, created_at = n.created_at from noor6500 n where s.id = :'noor';
+select pg_temp.assert((select r->>'ok' from late380) = 'true', 'a family joins with a child of 380 days');
+select pg_temp.assert((select count(*) = 2 and bool_and(x->>'status' = 'due') from book380 where x->>'visit' = '12 months'), 'her 12-month doses are due');
+select pg_temp.assert((select x->>'count' = '2' and x->>'overdue' = 'false' from due380 where x->>'visit' = '12 months'), 'and listed');
+select pg_temp.assert((select count(*) = 2 and bool_and(x->>'status' = 'due') from book410 where x->>'visit' = '12 months'), 'thirty days on, past the window, still due, not overdue');
+select pg_temp.assert((select x->>'count' = '2' and x->>'overdue' = 'false' from due410 where x->>'visit' = '12 months'), 'and still listed, not overdue');
+select pg_temp.assert((select s.birth_date = n.birth_date and s.created_at = n.created_at from public.care_subjects s, noor6500 n where s.id = :'noor'), 'her dates are put back');
+
+-- The two late homes go, by their admins, through the app's own call.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c651","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.household_delete(:'omar_home', 'Late at 400'))->>'ok' = 'true', 'the 400-day home is deleted');
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000c652","role":"authenticated"}', false);
+set role authenticated;
+select pg_temp.assert((public.household_delete(:'noor_home', 'Late at 380'))->>'ok' = 'true', 'and the 380-day home');
+reset role;
+
+-- The safe sleep skill is for a baby: it stops at 12 months.
+select pg_temp.assert((select age_to_days from public.assistant_skills where id = 'safe_sleep') = 365, 'the safe sleep skill stops at 12 months');
 
 -- An e-mail an admin listed joins that home at the first sign-in (making one of their own is a later, deliberate step: migration 4300, below).
 select pg_temp.act_as(:mido);
@@ -1744,5 +1935,5 @@ select pg_temp.assert(not has_function_privilege('anon', 'public.milk_move(uuid,
 select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where oid = 'public.milk_move(uuid, text)'::regprocedure)) = 'app_rls', 'milk_move still runs as app_rls');
 update public.milk_bottles set deleted_at = now() where note = 'fresh test' and deleted_at is null;
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time).'
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

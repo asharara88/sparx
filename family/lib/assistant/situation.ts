@@ -1,7 +1,8 @@
 import { ageInDays, SOLIDS_FROM_DAYS } from "@/lib/stage";
 import type { ToolContext } from "./tools";
-import { local } from "./tools";
+import { awakeWords, childNowOf, local } from "./tools";
 import { ageOutlook } from "@/lib/child-insights";
+import { leapWeek } from "@/lib/leaps";
 import { can } from "@/lib/types";
 import { addDays, todayYmd } from "@/lib/time";
 import { pronouns } from "@/lib/names";
@@ -15,6 +16,9 @@ import { formatHome, formatMilk, formatSituation, type HomeNow } from "./situati
  * actually is: right now, last night, and the usual day lately. Built from the
  * same RPCs the screens use, under the member's own permissions; a failed read
  * leaves its line out rather than failing the answer.
+ *
+ * From 12 months: no next feed, the phase is the week by week stretch with the same awake
+ * time as the stage line, and the milk line only where milk is kept (R7, R11).
  */
 
 type DayRow = { day: string; breast_count?: number; bottle_count?: number; bottle_ml?: number; sleep_min?: number; night_sleep_min?: number; night_wakes?: number; night_feeds?: number; longest_stretch_min?: number };
@@ -31,6 +35,14 @@ function weekAverages(rows: DayRow[], today: string): { days: number; feeds: num
   if (full.length < 3) return null;
   const avg = (f: (r: DayRow) => number) => Math.round(full.reduce((n, r) => n + f(r), 0) / full.length);
   return { days: full.length, feeds: avg((r) => (r.breast_count ?? 0) + (r.bottle_count ?? 0)), bottleMl: avg((r) => r.bottle_ml ?? 0), sleepMin: avg((r) => r.sleep_min ?? 0), nightMin: avg((r) => r.night_sleep_min ?? 0) };
+}
+
+/** A toddler's phase line: the week by week stretch and what comes next, and the awake time the stage line gives. */
+function toddlerPhase(ageDays: number, naps: ReturnType<typeof childNowOf>["naps"]): string {
+  const w = leapWeek(ageDays);
+  const n = w?.weeksToNext ?? 0;
+  const stretch = w ? `Phase: ${w.band.title}${w.next ? `; next: ${w.next.title.split(":")[0].toLowerCase()} in about ${n} week${n === 1 ? "" : "s"}` : ""}. ` : "";
+  return `${stretch}Usual awake time before a nap ${awakeWords(ageDays, naps)}.`;
 }
 
 /** One snapshot per child the member may see, then who is in the house. Empty when there is none. */
@@ -57,8 +69,9 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
     const last = ((histData as { ok?: boolean; plans?: { goal: string; status: string; done: number; days?: number; to?: string; notes?: string[] }[] } | null)?.plans ?? [])[0];
     const lastLine = !p && last && last.status !== "active" ? `Last plan "${last.goal}" ended ${last.to ?? ""} (${last.status}, ${last.done} days ticked${last.notes?.length ? `; notes: ${last.notes.slice(0, 2).join("; ")}` : ""}).` : null;
     const ageDays = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz);
+    const kid = childNowOf(ctx, s);
     const o = ageDays != null ? ageOutlook(ageDays) : null;
-    const phase = o ? `Phase: ${o.now.length ? o.now.map((w) => w.split(":")[0]).join("; ") : "a quiet stretch"}${o.next[0] ? `; next: ${o.next[0].what.split(":")[0].toLowerCase()} in about ${o.next[0].inAboutDays} days` : ""}. Usual awake window ${o.awakeWindowMin[0]} to ${o.awakeWindowMin[1]} min.` : null;
+    const phase = o ? (kid.toddler ? toddlerPhase(o.ageDays, kid.naps) : `Phase: ${o.now.length ? o.now.map((w) => w.split(":")[0]).join("; ") : "a quiet stretch"}${o.next[0] ? `; next: ${o.next[0].what.split(":")[0].toLowerCase()} in about ${o.next[0].inAboutDays} days` : ""}. Usual awake window ${o.awakeWindowMin[0]} to ${o.awakeWindowMin[1]} min.`) : null;
     const stats = statsData as { ok?: boolean; days?: DayRow[]; night_to?: string } | null;
     const rows = (stats?.days ?? []) as DayRow[];
     // A day's row holds the night that starts that evening. Yesterday's is last night once the
@@ -74,13 +87,15 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
         them: pronouns(s.sex).them,
         nowLocal: local(ctx.now.toISOString(), ctx.tz) ?? "",
         ageDays,
+        toddler: kid.toddler,
         phase,
         asleepSince: sleep ? local(sleep.occurred_at, ctx.tz) : null,
         awakeSince: !sleep && lastSleep?.ended_at ? local(lastSleep.ended_at, ctx.tz) : null,
         lastFeedAt: feed ? local(feed.occurred_at, ctx.tz) : null,
         lastFeedMl: feed?.payload?.amount_ml ? Number(feed.payload.amount_ml) : null,
         lastFeedKind: feed?.payload?.kind ? String(feed.payload.kind) : feed?.payload?.side ? `breast ${feed.payload.side}` : null,
-        nextFeedDue: feed?.next_due ? local(feed.next_due, ctx.tz) : null,
+        // A toddler's milk has no clock (R2), whatever an older database still says.
+        nextFeedDue: feed?.next_due && !kid.toddler ? local(feed.next_due, ctx.tz) : null,
         lastDiaperAt: diaper ? local(diaper.occurred_at, ctx.tz) : null,
         lastDiaperKind: diaper?.payload?.kind ? String(diaper.payload.kind) : null,
         feedsToday: r.today_counts?.[`${s.module_id}.feed`] ?? 0,
@@ -96,7 +111,7 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
   if (milkP) {
     const { data } = await milkP;
     const m = data as { ok?: boolean; fridge_ml: number; fridge_count: number; freezer_ml: number; freezer_count: number } | null;
-    const line = m?.ok ? formatMilk(m) : null;
+    const line = m?.ok && ctx.milkKept ? formatMilk(m) : null;
     if (line) parts.push(line);
   }
   if (homeP) {
