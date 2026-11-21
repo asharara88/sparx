@@ -27,7 +27,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 65 files, applied in filename order |
+| Migrations | `supabase/migrations`, 66 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -168,6 +168,16 @@ Done and live:
   `lib/fixtures/golden-baby.json`; that file is never regenerated, and a stored value
   changes only by hand, for an exception the step names. Four toddler homes (12, 18, 24
   and 36 months) for screenshot mode are in `supabase/tests/toddler_homes.sql`.
+- Who the child is belongs to the admins, in the database too (21 November, migration
+  `…6600`). Until then only the screen held it. `private.is_admin()` answers for the home
+  on screen; a guard on `care_subjects` lets a signed-in member who is not an admin change
+  the health card (`profile`) and nothing else on the row: not the name, the birth date,
+  girl or boy, the name in other languages, the day the row was made, its order or whether
+  it is active, and no adding or removing a child. `subject_profile_save` refuses a new
+  name or birth date from anyone else, saying who to ask, and keeps the stored girl or boy
+  when an old page sends another (the answer and the audit row say what was kept). The
+  database's own roles (a migration, the setup script's service key, deleting a home) are
+  not held. CI also makes a production build now.
 
 Open:
 

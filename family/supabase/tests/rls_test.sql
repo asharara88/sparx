@@ -1935,5 +1935,134 @@ select pg_temp.assert(not has_function_privilege('anon', 'public.milk_move(uuid,
 select pg_temp.assert(pg_get_userbyid((select proowner from pg_proc where oid = 'public.milk_move(uuid, text)'::regprocedure)) = 'app_rls', 'milk_move still runs as app_rls');
 update public.milk_bottles set deleted_at = now() where note = 'fresh test' and deleted_at is null;
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday).'
+-- The child's facts (migration 6600): only an admin of the home on screen changes the name, the birth
+-- date, girl or boy or the name in other languages, through the save or through the table itself;
+-- nobody else adds or removes a child; a carer still edits the rest of the health card. Permissions
+-- are set here, not inherited, and everything the checks change is put back at the end.
+reset role;
+update public.permissions set allowed = true  where role_id in ('admin', 'family_carer') and module_id = 'lana' and action in ('view', 'edit');
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action = 'edit';
+-- True only for a refusal (42501: the guard, or row security); any other error stops the suite.
+create or replace function pg_temp.refused(p_sql text) returns boolean language plpgsql as $$
+begin
+  execute p_sql;
+  return false;
+exception when insufficient_privilege then
+  return true;
+end $$;
+create temp table facts6600 as select name, birth_date, profile, settings, sort, is_active, created_at from public.care_subjects where id = :lana;
+select birth_date as zayd_birth from public.care_subjects where id = :zayd \gset
+select pg_temp.assert((select profile->>'sex' = 'Girl' and not (profile ? 'names') from facts6600), 'the test child starts as a girl with no other names');
+insert into public.care_subjects (id, household_id, module_id, kind, name, is_active, sort)
+select '00000000-0000-4000-8000-00000000a066', household_id, 'lana', 'child', 'Spare', false, 90 from public.care_subjects where id = :lana;
+select pg_temp.assert(not has_function_privilege('anon', 'private.is_admin()', 'execute') and has_function_privilege('authenticated', 'private.is_admin()', 'execute')
+  and pg_get_userbyid((select proowner from pg_proc where oid = 'private.is_admin()'::regprocedure)) = 'app_rls', 'is_admin runs as app_rls; members can ask it, anon cannot');
+select pg_temp.assert(not has_function_privilege('anon', 'public.subject_profile_save(uuid, jsonb, date, text)', 'execute')
+  and not (select prosecdef from pg_proc where oid = 'public.subject_profile_save(uuid, jsonb, date, text)'::regprocedure),
+  'signed-out callers cannot save a profile, and the save runs as the caller, so the guard on the table holds it too');
+
+-- Wafa, a family carer who may edit the log: the health card is hers to edit, the facts are not.
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert(not private.is_admin(), 'Wafa is not an admin');
+select pg_temp.assert(r->>'ok' = 'true' and not (r ? 'kept'), 'Wafa saves a health card line, sending the profile back whole')
+  from (select public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) || '{"blood_group": "O+"}'::jsonb, null, null) as r) x;
+select pg_temp.assert(r->>'error' = 'not_allowed' and r->>'message' like 'Ask % to change the name or the birth date.' and r->>'message' ~ 'Mido' and r->>'message' ~ 'Dana',
+  'a new birth date from her is refused, naming the admins to ask')
+  from (select public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana), current_date - 30, null) as r) x;
+select pg_temp.assert((public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana), null, 'Hacked'))->>'error' = 'not_allowed', 'and so is a new name');
+select pg_temp.assert((public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana), (select birth_date from public.care_subjects where id = :lana), (select name from public.care_subjects where id = :lana)))->>'ok' = 'true',
+  'the name and date she was shown, sent back unchanged, are not a change');
+select pg_temp.assert(r->>'ok' = 'true' and r->'kept' = '["sex", "names"]'::jsonb, 'a save carrying another sex and other names saves the rest and says what it kept')
+  from (select public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) || '{"sex": "Boy", "names": {"ar": "x"}, "allergies": "None known"}'::jsonb, null, null) as r) x;
+select pg_temp.assert((public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) - 'sex', null, null))->'kept' = '["sex"]'::jsonb,
+  'a page from before girl or boy was set does not take it away');
+-- The same through the table itself (PostgREST): the guard answers, whoever asks.
+with u as (update public.care_subjects set profile = profile || '{"hospital_number": "H-1"}' where id = :lana returning 1) select count(*) as n_card from u \gset
+select pg_temp.assert(:n_card = 1, 'Wafa''s direct write of a health card line goes through');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set name = %L where id = %L', 'Hacked', :lana)), 'her direct write of the name is refused');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set birth_date = current_date - 30 where id = %L', :lana)), 'of the birth date');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set birth_date = null where id = %L', :lana)), 'or clearing it');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set profile = profile || %L where id = %L', '{"sex": "Boy"}', :lana)), 'of girl or boy');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set profile = profile - %L where id = %L', 'sex', :lana)), 'or dropping it');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set profile = profile || %L where id = %L', '{"names": {"ar": "x"}}', :lana)), 'of the name in another language');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set created_at = now() where id = %L', :lana)), 'of the day she joined, which the vaccine book counts from');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set sort = 1, is_active = false, settings = %L where id = %L', '{}', :lana)), 'and of the rest of the row');
+select pg_temp.assert(pg_temp.refused($q$insert into public.care_subjects (module_id, kind, name, sort) values ('lana', 'child', 'Second', 1)$q$), 'she cannot add a second child, which a lower sort would put first');
+select pg_temp.assert(pg_temp.refused(format('delete from public.care_subjects where id = %L', '00000000-0000-4000-8000-00000000a066')), 'nor remove one');
+reset role;
+select pg_temp.assert((select s.name = f.name and s.birth_date = f.birth_date and s.created_at = f.created_at and s.sort = f.sort and s.is_active and s.settings = f.settings
+  and s.profile->>'sex' = 'Girl' and not (s.profile ? 'names')
+  and s.profile->>'blood_group' = 'O+' and s.profile->>'allergies' = 'None known' and s.profile->>'hospital_number' = 'H-1'
+  from public.care_subjects s, facts6600 f where s.id = :lana), 'her name, age and sex are as they were; the health card lines were saved');
+select pg_temp.assert(exists (select 1 from public.care_subjects where id = '00000000-0000-4000-8000-00000000a066')
+  and (select count(*) from public.care_subjects where household_id = (select household_id from public.care_subjects where id = :lana)) = 2, 'the spare row is still there and no row was added');
+select pg_temp.assert(exists (select 1 from public.audit_log where actor_member = :wafa and target_table = 'care_subjects' and not allowed and detail->'facts' ? 'birth_date')
+  and exists (select 1 from public.audit_log where actor_member = :wafa and target_table = 'care_subjects' and allowed and detail->'kept' ? 'sex'), 'the audit log has the refused birth date and the kept sex');
+
+-- Lilly may see the log but not edit it: the older rule still answers first.
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.subject_profile_save(:lana, '{}'::jsonb, null, null))->>'message' = 'You are not allowed to change this profile.', 'a member who may not edit the log cannot save the card at all');
+reset role;
+
+-- A role that may edit but not view: the write policy is "for all", so the save can read the row it changes.
+update public.permissions set allowed = false where role_id = 'family_carer' and module_id = 'lana' and action = 'view';
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert(public.has_permission('lana', 'edit') and not public.has_permission('lana', 'view'), 'Wafa may edit but not view, for the check');
+select pg_temp.assert((public.subject_profile_save(:lana, '{"sex": "Girl", "emergency_ambulance": "998", "insurance": "Card 7"}'::jsonb, null, null))->>'ok' = 'true', 'she still saves the health card');
+select pg_temp.assert((public.subject_profile_save(:lana, '{}'::jsonb, current_date - 30, null))->>'error' = 'not_allowed', 'and is refused the birth date like any carer');
+reset role;
+update public.permissions set allowed = true where role_id = 'family_carer' and module_id = 'lana' and action = 'view';
+select pg_temp.assert((select profile->>'insurance' = 'Card 7' and profile->>'sex' = 'Girl' from public.care_subjects where id = :lana), 'the card was written');
+
+-- An admin at home is a carer in the Khans' home: there the facts are not his to change.
+select pg_temp.act_as(:mido);
+select set_config('request.headers', jsonb_build_object('x-home', :khan_home)::text, false);
+set role authenticated;
+select pg_temp.assert(not private.is_admin(), 'Mido is not an admin of the home on screen, the Khans''');
+select pg_temp.assert((public.subject_profile_save(:zayd, '{}'::jsonb, current_date - 30, null))->>'message' = 'Ask Haitham to change the name or the birth date.', 'so a new birth date for Zayd is refused, naming that home''s admin');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set birth_date = current_date - 30 where id = %L', :zayd)), 'through the table too');
+reset role;
+select set_config('request.headers', '', false);
+select pg_temp.assert((select birth_date from public.care_subjects where id = :zayd) = :'zayd_birth'::date, 'Zayd''s birth date is as it was');
+
+-- View-as is read only (migration 3600), also when the member viewed is an admin.
+select pg_temp.preview_as(:mido, :dana);
+set role authenticated;
+select pg_temp.assert((public.subject_profile_save(:lana, '{}'::jsonb, current_date - 30, 'Hacked'))->>'error' = 'not_allowed', 'viewing as an admin, nothing about the child is saved');
+with u as (update public.care_subjects set birth_date = current_date - 30 where id = :lana returning 1) select count(*) as n_preview from u \gset
+select pg_temp.assert(:n_preview = 0, 'and a direct write in a preview changes no row');
+reset role;
+
+-- An admin changes all three, through the save and through the table; the server's own key is not held.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(private.is_admin(), 'Mido is an admin at home');
+select pg_temp.assert(r->>'ok' = 'true' and not (r ? 'kept'), 'Mido corrects the name, the birth date and girl or boy in one save')
+  from (select public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) || '{"sex": "Boy"}'::jsonb, current_date - 200, 'Layla') as r) x;
+reset role;
+select pg_temp.assert((select name = 'Layla' and birth_date = current_date - 200 and profile->>'sex' = 'Boy' and profile->>'insurance' = 'Card 7' from public.care_subjects where id = :lana), 'all three are stored, the card with them');
+select pg_temp.assert(exists (select 1 from public.audit_log where actor_member = :mido and target_table = 'care_subjects' and allowed and detail->'facts' @> '["name", "birth_date", "sex"]'), 'and the audit row names the facts that changed');
+select pg_temp.act_as(:mido);
+set role authenticated;
+with u as (update public.care_subjects set birth_date = current_date - 201 where id = :lana returning 1) select count(*) as n_admin from u \gset
+select pg_temp.assert(:n_admin = 1, 'an admin''s direct write is not held either');
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+set role service_role;
+with u as (update public.care_subjects set birth_date = current_date - 202 where id = :lana returning 1) select count(*) as n_server from u \gset
+select pg_temp.assert(:n_server = 1, 'nor is the server''s own key (the setup script)');
+reset role;
+
+-- Put back: her pinned age (the top of this file), her card, and the spare row.
+update public.care_subjects s set name = f.name, birth_date = f.birth_date, profile = f.profile, settings = f.settings, sort = f.sort, is_active = f.is_active, created_at = f.created_at
+  from facts6600 f where s.id = :lana;
+delete from public.care_subjects where id = '00000000-0000-4000-8000-00000000a066';
+select pg_temp.assert((select (s.name, s.birth_date, s.profile, s.settings, s.sort, s.is_active, s.created_at) is not distinct from (f.name, f.birth_date, f.profile, f.settings, f.sort, f.is_active, f.created_at)
+  from public.care_subjects s, facts6600 f where s.id = :lana)
+  and not exists (select 1 from public.care_subjects where id = '00000000-0000-4000-8000-00000000a066'), 'her name, her age and her card are put back, and the spare row is gone');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday, the child''s facts).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;
