@@ -1,7 +1,7 @@
 # The elnunu family app in family/: typecheck, the unit tests, and the whole
 # Supabase schema (family/supabase/migrations/*.sql) applied in order to a fresh
 # Postgres followed by supabase/tests/rls_test.sql, the Step 1 to 6 database
-# checks. The Supabase GitHub integration applies those migrations to the
+# checks, then a production build. The Supabase GitHub integration applies those migrations to the
 # household's project when a change lands on main, so a migration that does not
 # apply, or a policy that lets the wrong role read, has to fail here first.
 # (The YouTube studio and its dashboard, which had their own jobs, were removed on
@@ -54,3 +54,11 @@ jobs:
           PGPASSWORD: postgres
           PSQL: psql -h localhost -U postgres
         run: npm run db:test
+      # The production build Vercel runs on every push, so a page or route that does not
+      # compile fails the check a merge waits for. The two values are placeholders (the
+      # ones CLAUDE.md names for a local build); the build reads no secret.
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_localscreenshotsonly000
+        run: npm run build
