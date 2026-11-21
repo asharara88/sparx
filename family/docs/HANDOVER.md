@@ -182,9 +182,11 @@ Done and live:
   answer for the transaction; it kept it under the question, not under who asked, so several
   calls in one transaction (never the app's own requests, which are one call each) could
   carry an admin's "yes" from a home just made back to the caller's real home. The kept
-  answer now counts only for the member it was worked out for. And `household_create` takes
-  over a home with no member rows only on a deployment with nobody in it yet: an emptied
-  home is no longer handed, child and log, to the next person who makes one.
+  answer now counts only for the member and the question it was worked out for. And
+  `household_create` takes over a home only on a deployment with nobody in it yet, and only
+  a home with nothing in it (no child, no log): an emptied home is no longer handed, child
+  and log, to the next person who makes one. It stays, in the nightly backup, until the
+  setup script names it by id or it is removed in SQL.
 
 Open:
 

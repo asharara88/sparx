@@ -8,9 +8,12 @@
 --      household_create and member_invite_accept set another. So several calls in ONE transaction
 --      could make a home (its admin), ask "may I edit members" (yes, kept), switch back, and be
 --      answered yes at home, then make themselves an admin there. The kept value is now
---      '<member uuid>:t' or ':f' and counts only while 'fam.m.member' is that member; otherwise the
---      answer is worked out again, as before. The fast path is still two settings read and two
---      string operations: no query, no function call.
+--      '<member uuid>:<module>:<action>:t' or ':f' and counts only when it is, whole, the current
+--      member's answer to this question; otherwise the answer is worked out again, as before.
+--      Naming the question as well as the member closes a second way to a borrowed answer: setting
+--      names do not tell upper case from lower, or 'a.b' + 'c' from 'a' + 'b.c', so a question
+--      spelled another way read the real one's answer. The fast path is still two settings read
+--      and a few string operations: no query, no function call.
 --      What this does not do: a caller who could run raw SQL as the signed-in role could set these
 --      settings by hand, as before (no such path exists for a member: the API exposes the app's own
 --      schema only, and set_config is not in it). A role or a permission changed in mid-transaction
@@ -21,7 +24,10 @@
 --      home for the caller, with its child and its whole log. That was written for a fresh
 --      deployment's seeded home (migration 3900); an admin who deleted every member row of a home
 --      by hand left it for the next person who made one. It now happens only when there are no
---      member rows anywhere. Everything else in the function is as in migration 5700.
+--      member rows anywhere AND that home has nothing in it, no child and no log: "nobody
+--      anywhere" alone is the same thing as "nobody here" on a deployment with one home. An
+--      emptied home stays where it is (and in the nightly backup) until the setup script names it
+--      by id or it is removed in SQL. Everything else in the function is as in migration 5700.
 -- Both functions keep their owner (postgres: they read the token) and their grants.
 
 -- ---------------------------------------------------------------------------
@@ -33,9 +39,13 @@ declare
   v_key text := 'fam.p.' || coalesce(p_module, '') || '.' || coalesce(p_action, '');
   v text := current_setting(v_key, true);
   v_m text := current_setting('fam.m.member', true);
+  v_q text := ':' || coalesce(p_module, '') || ':' || coalesce(p_action, '') || ':';
   v_me uuid; v_ok boolean;
 begin
-  if v is not null and v <> '' and v_m is not null and v_m <> '' and left(v, 36) = v_m then return right(v, 1) = 't'; end if;
+  -- The kept answer, whole: this member, this question. Anything else is worked out again.
+  if v_m <> '' then
+    if v = v_m || v_q || 't' then return true; elsif v = v_m || v_q || 'f' then return false; end if;
+  end if;
   v_me := public.current_member_id();
   if v_me is null then return false; end if;
   v_ok := (private.preview_member_id() is null or p_action = 'view' or coalesce(auth.jwt()->>'preview_mode', '') = 'full') and exists (
@@ -43,7 +53,7 @@ begin
     from public.members m
     join public.permissions p on p.role_id = m.role_id
     where m.id = v_me and m.is_active and p.module_id = p_module and p.action = p_action and p.allowed);
-  perform set_config(v_key, v_me::text || case when v_ok then ':t' else ':f' end, true);
+  perform set_config(v_key, v_me::text || v_q || case when v_ok then 't' else 'f' end, true);
   return v_ok;
 end $$;
 
@@ -79,9 +89,12 @@ begin
   end if;
   select lower(email) into v_email from auth.users where id = v_uid;
 
-  -- Only a deployment with nobody in it yet hands over its seeded home (migration 6700).
+  -- Only a deployment with nobody in it yet hands over its seeded home, and only a home with
+  -- nothing in it: no child, no log (migration 6700).
   select h.id into v_home from public.household h
    where not exists (select 1 from public.members)
+     and not exists (select 1 from public.care_subjects s where s.household_id = h.id)
+     and not exists (select 1 from public.care_entries e where e.household_id = h.id)
    order by h.created_at limit 1;
   if v_home is not null then
     update public.household set name = btrim(p_name), timezone = v_tz, updated_at = now() where id = v_home;
