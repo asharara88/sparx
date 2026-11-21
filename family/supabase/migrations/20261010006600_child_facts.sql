@@ -11,7 +11,8 @@
 --      may change the health card (profile) and nothing else on the row: not the name, the
 --      birth date, profile.sex or profile.names (the name in other languages), not the day the
 --      row was made (vaccines from before a family joined count from it, migration 6500), its
---      order, its settings or whether it is active; and may neither add a child nor remove one.
+--      order, its settings or whether it is active; may not turn the card into anything but a
+--      card (a JSON object); and may neither add a child nor remove one.
 --      A second row with a lower sort would be shown as the child, and removing the row takes
 --      the whole log with it, so a guard on an update of three columns would not hold the rule.
 --      Database roles (a migration, the SQL editor, the server's service role, a definer
@@ -56,7 +57,10 @@ begin
          or (new.profile->'names') is distinct from (old.profile->'names') then
         raise exception 'Only an admin can change the name, the birth date or girl or boy.' using errcode = '42501';
       end if;
-      if (to_jsonb(new) - array['name', 'birth_date', 'profile', 'updated_at'])
+      -- Every other column, compared whole. A stored generated column added to this table later
+      -- must join the list below: a before trigger sees it as null in the new row.
+      if jsonb_typeof(new.profile) is distinct from 'object'
+         or (to_jsonb(new) - array['name', 'birth_date', 'profile', 'updated_at'])
          is distinct from (to_jsonb(old) - array['name', 'birth_date', 'profile', 'updated_at']) then
         raise exception 'Only an admin can change this part of the child''s record.' using errcode = '42501';
       end if;
@@ -91,8 +95,10 @@ begin
     return private.denied('You are not allowed to change this profile.');
   end if;
   if jsonb_typeof(v_profile) <> 'object' then return jsonb_build_object('ok', false, 'error', 'bad_profile'); end if;
-  -- Locked while it is read, so the facts compared here are the facts the write meets.
-  select * into v_old from public.care_subjects where id = p_subject_id for update;
+  -- Locked while it is read, so the facts compared here are the facts the write meets. The lock
+  -- an update of these columns takes anyway: "for update" would make every new log entry for the
+  -- child (its foreign key reads this row) wait for a save.
+  select * into v_old from public.care_subjects where id = p_subject_id for no key update;
   if not found then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
 
   if v_name is not null and v_name is distinct from v_old.name then v_facts := array_append(v_facts, 'name'); end if;
@@ -109,7 +115,7 @@ begin
     -- Girl or boy and the other names stay as stored, whatever the profile sent back says.
     foreach k in array array['sex', 'names'] loop
       if (v_profile->k) is distinct from (v_old.profile->k) then v_kept := array_append(v_kept, k); end if;
-      v_profile := case when v_old.profile ? k then jsonb_set(v_profile, array[k], v_old.profile->k) else v_profile - k end;
+      v_profile := case when (v_old.profile->k) is not null then jsonb_set(v_profile, array[k], v_old.profile->k) else v_profile - k end;
     end loop;
   end if;
 
@@ -129,4 +135,5 @@ end $$;
 revoke execute on function public.subject_profile_save(uuid, jsonb, date, text) from public, anon;
 grant execute on function public.subject_profile_save(uuid, jsonb, date, text) to authenticated, service_role;
 -- The refusal names who to ask: said in a grant, not left to the default.
+revoke execute on function private.admin_names() from public, anon;
 grant execute on function private.admin_names() to authenticated, service_role, app_rls;

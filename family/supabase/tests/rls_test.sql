@@ -1938,7 +1938,7 @@ update public.milk_bottles set deleted_at = now() where note = 'fresh test' and 
 -- The child's facts (migration 6600): only an admin of the home on screen changes the name, the birth
 -- date, girl or boy or the name in other languages, through the save or through the table itself;
 -- nobody else adds or removes a child; a carer still edits the rest of the health card. Permissions
--- are set here, not inherited, and everything the checks change is put back at the end.
+-- are set here, not inherited, and the child's row is put back at the end.
 reset role;
 update public.permissions set allowed = true  where role_id in ('admin', 'family_carer') and module_id = 'lana' and action in ('view', 'edit');
 update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action = 'edit';
@@ -1960,6 +1960,10 @@ select pg_temp.assert(not has_function_privilege('anon', 'private.is_admin()', '
 select pg_temp.assert(not has_function_privilege('anon', 'public.subject_profile_save(uuid, jsonb, date, text)', 'execute')
   and not (select prosecdef from pg_proc where oid = 'public.subject_profile_save(uuid, jsonb, date, text)'::regprocedure),
   'signed-out callers cannot save a profile, and the save runs as the caller, so the guard on the table holds it too');
+select pg_temp.assert(not has_function_privilege('public', 'private.admin_names()', 'execute') and has_function_privilege('authenticated', 'private.admin_names()', 'execute'),
+  'the admins'' names are for signed-in members, by a named grant');
+select pg_temp.assert((select prosrc ~ 'for no key update;' and prosrc !~ 'for update;' from pg_proc where oid = 'public.subject_profile_save(uuid, jsonb, date, text)'::regprocedure),
+  'the save takes the lock an update takes, so a new log entry for the child does not wait on it');
 
 -- Wafa, a family carer who may edit the log: the health card is hers to edit, the facts are not.
 select pg_temp.act_as(:wafa);
@@ -2017,6 +2021,20 @@ reset role;
 update public.permissions set allowed = true where role_id = 'family_carer' and module_id = 'lana' and action = 'view';
 select pg_temp.assert((select profile->>'insurance' = 'Card 7' and profile->>'sex' = 'Girl' from public.care_subjects where id = :lana), 'the card was written');
 
+-- A child who has her name in other languages: a carer's save keeps them as stored. And the health
+-- card stays a card, also on a row with no facts to keep (the spare one).
+update public.care_subjects set profile = profile || '{"names": {"ar": "A", "ru": "B"}}'::jsonb where id = :lana;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert(r->>'ok' = 'true' and r->'kept' = '["names"]'::jsonb, 'a save carrying another name in another language keeps the stored ones and says so')
+  from (select public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) || '{"names": {"ar": "x"}}'::jsonb, null, null) as r) x;
+select pg_temp.assert((public.subject_profile_save(:lana, (select profile from public.care_subjects where id = :lana) - 'names', null, null))->'kept' = '["names"]'::jsonb, 'and a save with none does not take them away');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set profile = jsonb_set(profile, %L, %L) where id = %L', '{names,ar}', '"x"', :lana)), 'her direct write of one of them is refused');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set profile = %L where id = %L', '["sex"]', '00000000-0000-4000-8000-00000000a066')), 'and she cannot turn a health card into a list');
+reset role;
+select pg_temp.assert((select profile->'names' = '{"ar": "A", "ru": "B"}'::jsonb and profile->>'insurance' = 'Card 7' from public.care_subjects where id = :lana)
+  and (select jsonb_typeof(profile) = 'object' from public.care_subjects where id = '00000000-0000-4000-8000-00000000a066'), 'the stored names and both cards are as they were');
+
 -- An admin at home is a carer in the Khans' home: there the facts are not his to change.
 select pg_temp.act_as(:mido);
 select set_config('request.headers', jsonb_build_object('x-home', :khan_home)::text, false);
@@ -2049,6 +2067,9 @@ select pg_temp.act_as(:mido);
 set role authenticated;
 with u as (update public.care_subjects set birth_date = current_date - 201 where id = :lana returning 1) select count(*) as n_admin from u \gset
 select pg_temp.assert(:n_admin = 1, 'an admin''s direct write is not held either');
+with i as (insert into public.care_subjects (module_id, kind, name, is_active, sort) values ('lana', 'child', 'Third', false, 99) returning id) select id as third_id from i \gset
+with d as (delete from public.care_subjects where id = :'third_id' returning 1) select count(*) as n_third from d \gset
+select pg_temp.assert(:n_third = 1, 'and an admin still adds and removes a child row through the table');
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', false);
 set role service_role;
