@@ -2085,5 +2085,71 @@ select pg_temp.assert((select (s.name, s.birth_date, s.profile, s.settings, s.so
   from public.care_subjects s, facts6600 f where s.id = :lana)
   and not exists (select 1 from public.care_subjects where id = '00000000-0000-4000-8000-00000000a066'), 'her name, her age and her card are put back, and the spare row is gone');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday, the child''s facts).'
+-- The answer follows the member (migration 6700). has_permission keeps its answer for the transaction;
+-- it now counts only for the member it was worked out for. The app's requests are one call each, so
+-- they never met this; several calls in ONE transaction did: make a home (its admin), ask, switch
+-- back, and the admin's answer still answered. Everything here is rolled back.
+select pg_temp.act_as(:wafa);
+begin;
+set local role authenticated;
+select (public.household_create('Wafa''s flat', 'Asia/Dubai', 'Test', null, null, 'Wafa'))->>'household_id' as wafa_flat \gset
+select pg_temp.assert(:'wafa_flat'::uuid <> :'our_home'::uuid and public.has_permission('members', 'edit'), 'one transaction: Wafa makes a home and is its admin');
+select pg_temp.assert((public.home_switch(:'our_home'))->>'ok' = 'true' and public.current_member_id() = :wafa, 'and switches back to her real home');
+select pg_temp.assert(not public.has_permission('members', 'edit'), 'where the admin''s answer from the other home does not follow her');
+with u as (update public.members set role_id = 'admin' where id = :wafa returning 1)
+select pg_temp.assert(count(*) = 0, 'so she cannot make herself an admin at home') from u;
+select pg_temp.assert(not public.has_permission('members', 'edit') and public.has_permission('lana', 'edit'), 'asked again, the answers are still hers');
+select pg_temp.assert(current_setting('fam.p.lana.edit', true) = :wafa::text || ':lana:edit:t' and current_setting('fam.p.members.edit', true) = :wafa::text || ':members:edit:f',
+  'the kept answers name the member and the question');
+select pg_temp.assert((select count(*) from generate_series(1, 2000) g where public.has_permission('lana', case when g > 0 then 'edit' end)) = 2000, '2000 asks in one statement are answered from it');
+select pg_temp.assert(not public.has_permission('LANA', 'edit') and public.has_permission('lana', 'edit') and not public.has_permission('lana', 'EDIT') and public.has_permission('lana', 'edit'),
+  'and a question spelled another way does not borrow the answer, nor spoil it');
+rollback;
+select pg_temp.assert((select role_id from public.members where id = :wafa) = 'family_carer' and not exists (select 1 from public.household where name = 'Wafa''s flat'), 'and nothing of it stayed');
+
+-- A home whose member rows are gone is nobody's to move into (migration 6700). household_create took
+-- the oldest home with no members, child and log included; that was meant for a fresh deployment's
+-- seeded home, and now happens only when there are no member rows anywhere.
+select user_id as wafa_user from public.members where id = :wafa \gset
+begin;
+delete from public.members where household_id = :khan_home;
+select count(*) as homes_before from public.household \gset
+select pg_temp.act_as(:wafa);
+set local role authenticated;
+select (public.household_create('Wafa''s flat', 'Asia/Dubai', 'Test', null, null, 'Wafa'))->>'household_id' as wafa_flat \gset
+reset role;
+select pg_temp.assert((select count(*) from public.household) = :homes_before + 1 and :'wafa_flat'::uuid <> :khan_home::uuid, 'Wafa gets a new home, not the one left without members');
+select pg_temp.assert((select count(*) from public.members where household_id = :khan_home) = 0 and (select name from public.household where id = :khan_home) = 'The Khans'
+  and exists (select 1 from public.care_subjects where id = :zayd and household_id = :khan_home and name = 'Zayd'), 'which keeps its name and its child, and stays empty');
+rollback;
+select pg_temp.assert((select count(*) from public.members where household_id = :khan_home) > 0 and not exists (select 1 from public.household where name = 'Wafa''s flat'), 'and nothing of it stayed');
+-- The one peopled home emptied, which is every deployment with a single family: it has a child and a
+-- log, so it is still nobody's to move into.
+begin;
+delete from public.members;
+select count(*) as homes_before from public.household \gset
+select set_config('request.jwt.claims', jsonb_build_object('sub', :'wafa_user', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select (public.household_create('Someone else', 'Asia/Dubai', 'Test', null, null, 'Wafa'))->>'household_id' as else_home \gset
+reset role;
+select pg_temp.assert((select count(*) from public.household) = :homes_before + 1 and :'else_home'::uuid not in (:'our_home'::uuid, :khan_home::uuid),
+  'with every member row gone, a newcomer still gets a new home');
+select pg_temp.assert((select count(*) from public.care_subjects where household_id = :'our_home') = 1 and (select name from public.household where id = :'our_home') = 'Our home'
+  and not exists (select 1 from public.members where household_id = :'our_home'), 'and the first home keeps its name, its one child and nobody in it');
+rollback;
+-- A deployment with nobody in it and a home with nothing in it: the first to arrive moves in.
+begin;
+delete from public.members;
+insert into public.household (name, timezone, created_at) values ('Seeded', 'Asia/Dubai', '2000-01-01') returning id as seeded_home \gset
+select count(*) as homes_before from public.household \gset
+select set_config('request.jwt.claims', jsonb_build_object('sub', :'wafa_user', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select (public.household_create('First family', 'Asia/Dubai', 'Test', null, null, 'Wafa'))->>'household_id' as first_home \gset
+reset role;
+select pg_temp.assert((select count(*) from public.household) = :homes_before and :'first_home'::uuid = :'seeded_home'::uuid and (select name from public.household where id = :'seeded_home') = 'First family',
+  'a deployment with nobody in it: the first to arrive still moves into the home with nothing in it');
+rollback;
+select pg_temp.assert((select count(*) from public.members) > 5 and not exists (select 1 from public.household where name in ('First family', 'Seeded', 'Someone else')), 'and the members are all back');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday, the child''s facts, the answer follows the member).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

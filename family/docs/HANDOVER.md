@@ -27,7 +27,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 66 files, applied in filename order |
+| Migrations | `supabase/migrations`, 67 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -178,6 +178,15 @@ Done and live:
   when an old page sends another (the answer and the audit row say what was kept). The
   database's own roles (a migration, the setup script's service key, deleting a home) are
   not held. CI also makes a production build now.
+- The answer follows the member (21 November, migration `…6700`). `has_permission` keeps its
+  answer for the transaction; it kept it under the question, not under who asked, so several
+  calls in one transaction (never the app's own requests, which are one call each) could
+  carry an admin's "yes" from a home just made back to the caller's real home. The kept
+  answer now counts only for the member and the question it was worked out for. And
+  `household_create` takes over a home only on a deployment with nobody in it yet, and only
+  a home with nothing in it (no child, no log): an emptied home is no longer handed, child
+  and log, to the next person who makes one. It stays, in the nightly backup, until the
+  setup script names it by id or it is removed in SQL.
 
 Open:
 
