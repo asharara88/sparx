@@ -94,6 +94,10 @@ bring it back.
   `family/`); launch Chromium with `executablePath: "/opt/pw-browsers/chromium"` (do not
   run `playwright install`). A sweep of every route as admin, carer and an account in no
   home is cheap and found a real crash; client-side taps do not work in this mode.
+- `family/scripts/walk/` does that sweep on two builds side by side (`main` and the branch), as
+  Lana's demo home and four toddler homes, and prints what differs: run it before any change
+  that must leave a baby's home alone (its README says how). It runs production builds, where
+  taps work.
 - The sandbox cannot reach `elnunu.com` or `*.supabase.co` directly (curl answers 000);
   the Supabase MCP works, the Vercel MCP needs team scope the connector may lack.
 

@@ -8,6 +8,7 @@
 import { addDays, dateWords, fmtTime, ymdInZone } from "./time.ts";
 import { isToddler, range, type Stage } from "./stage.ts";
 import { normsForAge } from "./norms.ts";
+import type { CellKey } from "./day.ts";
 
 /**
  * Logged lately: an entry on the home's `today` or on one of the 6 calendar days before it,
@@ -43,6 +44,10 @@ export interface StripCell {
  *
  * Naps read "1 of 1–2" while the usual range starts at 1 or more, and a plain count when it
  * starts at 0 ("1" over "nap", "2" over "naps").
+ *
+ * `plan` is for a home with a saved day (lib/day.ts dayPlan): the day names the cells, the
+ * usual naps are the family's answer, and meals and potty may take a place. Without it, or
+ * with its `cells` null, and for a baby always, the strip is as described above.
  */
 export function stripCells(c: {
   stage: Pick<Stage, "toddler" | "naps">;
@@ -60,13 +65,21 @@ export function stripCells(c: {
   lastDiaperAt: string | null;
   today: string;
   tz: string;
+  /** dayPlan's cells and usualNaps, with today's meals and today's potty entries that count (lib/day.ts pottyCount). */
+  plan?: { cells: readonly CellKey[] | null; usualNaps: [number, number] | null; meals: number; potty: number };
 }): StripCell[] | null {
-  const usual = c.stage.naps;
+  const said = !c.stage.toddler ? null : (c.plan?.cells ?? null);
+  const usual = (said && c.plan?.usualNaps) || c.stage.naps;
   const naps: StripCell = usual[0] > 0 ? { value: `${c.naps} of ${range(usual)}`, label: "naps" } : usual[1] ? { value: `${c.naps}`, label: c.stage.toddler && c.naps === 1 ? "nap" : "naps" } : { value: `${c.naps}`, label: "naps" };
   const feeds: StripCell = { value: `${c.feeds}`, label: c.feeds === 1 ? "feed" : "feeds" };
   const diapers: StripCell = { value: `${c.diapers}`, label: c.diapers === 1 ? "diaper" : "diapers" };
   const woke: StripCell = { value: c.woke, label: "woke" };
   if (!c.stage.toddler) return [woke, naps, feeds, diapers];
+  if (said) {
+    // The plan has already asked what was logged lately; here each cell only gets its number.
+    const all: Record<CellKey, StripCell> = { woke, naps, feeds, diapers, potty: { value: `${c.plan!.potty}`, label: "potty" }, meals: { value: `${c.plan!.meals}`, label: c.plan!.meals === 1 ? "meal" : "meals" } };
+    return said.length >= 2 ? said.map((k) => all[k]) : null;
+  }
   const cells = [woke];
   if (c.napExpected || c.naps > 0) cells.push(naps);
   if (loggedLately(c.lastFeedAt, c.today, c.tz)) cells.push(feeds);
@@ -92,6 +105,11 @@ export interface FeedCardText {
  * A toddler's milk has no clock and no usual number: "Feeding now" while a feed runs; fed
  * today, the day's sum ("180 ml in 1 bottle", "2 breastfeeds") over "Last at 18:40."; none
  * today, "None today" over "Last: yesterday 18:40.". Never "yet", "due" or "usual".
+ *
+ * `day` is for a toddler's home with a saved day (lib/day.ts dayPlan's feedCard): the day
+ * says whether the card is drawn, and a family that keeps the feed clock gets the baby's
+ * headline back ("Feed due now", "Next feed about 15:10"), still with no usual number.
+ * Without it, and for a baby always, the card is as described above.
  */
 export function feedCard(c: {
   /** The child's age in days on the home's calendar; null with no birth date. */
@@ -107,6 +125,8 @@ export function feedCard(c: {
   today: string;
   tz: string;
   now: number;
+  /** dayPlan's feedCard; null or absent for no day. */
+  day?: { show: boolean; clock: boolean } | null;
 }): FeedCardText {
   const bottles = c.todayFeeds.filter((e) => e.payload.method === "Bottle");
   const ml = bottles.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
@@ -122,7 +142,9 @@ export function feedCard(c: {
       usual: norms ? `Usual at this age: ${norms.low} to ${norms.high} feeds a day.` : null,
     };
   }
-  const show = loggedLately(c.lastFeedAt, c.today, c.tz);
+  const show = c.day ? c.day.show : loggedLately(c.lastFeedAt, c.today, c.tz);
+  // On the clock, with a due time to go by: the next feed. Without one, the day's sum as below.
+  if (c.day?.clock && c.nextDue && !c.feeding) return { show, headline: Date.parse(c.nextDue) <= c.now ? "Feed due now" : `Next feed about ${fmtTime(c.nextDue, c.tz)}`, line: parts || "Nothing yet today.", usual: null };
   if (c.feeding) return { show, headline: "Feeding now", line: parts, usual: null };
   if (parts && c.lastFeedAt) return { show, headline: parts, line: `Last at ${fmtTime(c.lastFeedAt, c.tz)}.`, usual: null };
   return { show, headline: "None today", line: c.lastFeedAt ? `Last: ${dayWord(c.lastFeedAt, c.today, c.tz)} ${fmtTime(c.lastFeedAt, c.tz)}.` : "", usual: null };

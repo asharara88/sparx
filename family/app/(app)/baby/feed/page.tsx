@@ -12,6 +12,8 @@ import { Fold } from "@/components/Fold";
 import { ageDays, normsForAge } from "@/lib/norms";
 import { dayLabel } from "@/lib/by-day";
 import { stageFor } from "@/lib/stage";
+import { napPattern } from "@/lib/child-insights";
+import { dayFacts, dayPlan, readDay } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,8 @@ export const dynamic = "force-dynamic";
  * night, every feed of the week to fix or delete, and the week's feeds against what is usual
  * at her age. From 12 months there is no usual number of feeds (lib/norms): no "usually" hint,
  * last night only when a night feed was logged, and the week only when feeds were logged.
+ * With a saved day (lib/day.ts) today's card follows it: the next feed again for a family
+ * that keeps the clock, "Milk today" where milk is a drink.
  */
 export default async function FeedPage() {
   const supabase = await createClient();
@@ -50,6 +54,13 @@ export default async function FeedPage() {
   const flag = feedType.settings?.timer_flag;
   const breastfeeds = !!flag && !!(me.member as unknown as Record<string, unknown>)[flag];
   const canAdd = can(me, "lana", "add");
+  // The family's day, when one is saved and counts at this age; with none today's card is as before.
+  // Only the card's two keys are read from the plan here: the page does not read the milk stash.
+  const now = Date.now();
+  const age = summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
+  const day = readDay(summary.subject.settings, age, summary.subject.birth_date);
+  const pattern = napPattern(entries, age, now, tz, now - 7 * 86_400_000, day?.naps ?? null);
+  const { feedCard, milk } = dayPlan(day, age, dayFacts(summary, { now, today, tz, breastfeeds: !!me.member.breastfeeds, inStock: false, week: entries, pattern }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -66,7 +77,7 @@ export default async function FeedPage() {
           </Link>
         </div>
       )}
-      <FeedDay summary={summary} entries={entries} dayStartMs={Date.parse(dayRange(today, tz).from)} dayEndMs={Date.parse(dayRange(today, tz).to)} timezone={tz} nowIso={new Date().toISOString()} today={today} />
+      <FeedDay summary={summary} entries={entries} dayStartMs={Date.parse(dayRange(today, tz).from)} dayEndMs={Date.parse(dayRange(today, tz).to)} timezone={tz} nowIso={new Date().toISOString()} today={today} plan={{ feedCard, milk }} />
       {lastNight && (lastNight.night_feeds > 0 || (lastNight.night_sleep_min > 0 && !toddler)) && (
         <section className="card tint-feed flex flex-col gap-1" aria-labelledby="night-feeds-h">
           <h2 id="night-feeds-h" className="section-title">Last night</h2>

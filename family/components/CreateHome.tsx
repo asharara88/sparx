@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, supabaseBrowser } from "@/lib/supabase/client";
-import { ageWords } from "@/lib/norms";
+import { ageDays, ageWords } from "@/lib/norms";
 import { todayYmd } from "@/lib/time";
+import { isToddler } from "@/lib/stage";
 import { SignOutButton } from "./SignOutButton";
 
 /**
@@ -19,6 +20,8 @@ import { SignOutButton } from "./SignOutButton";
  * button. The account runs as the new home from then on, and Your homes goes back.
  * The date of birth is asked for in the form (naps, vaccines and what is usual go by age),
  * but not required by household_create: a home with no birth date works as before.
+ * A home made for a child of 12 months or more opens on "{Name}'s day" once, filled in by
+ * age: what a toddler's family logs is theirs to say. Leaving it loses nothing.
  */
 export function CreateHome({ email, name, another = false }: { email: string | null; name?: string; another?: boolean }) {
   const router = useRouter();
@@ -75,6 +78,9 @@ export function CreateHome({ email, name, another = false }: { email: string | n
       setBusy(false);
       return setMsg(res?.message ?? error?.message ?? "Could not create the home.");
     }
+    // From 12 months the new home opens on the child's day, once. The age is counted to the
+    // day the form held the birth date against.
+    const first = isToddler(ageDays(born, latest)) ? "/baby/day?first=1" : null;
     // A second home: this device switches to it (the cookie every request carries), then the whole app
     // reloads for it. The form stays busy until the reload, so a slow switch cannot be submitted twice.
     // If the switch does not go through, this device would reload showing the old home, so say so instead.
@@ -88,8 +94,11 @@ export function CreateHome({ email, name, another = false }: { email: string | n
           return setMsg(`${homeName.trim() || "The home"} is made, but this phone could not switch to it. Pick it from Your homes, under More.`);
         }
       }
-      return window.location.assign("/");
+      // Only once this device runs as the new home: the day belongs to its child.
+      return window.location.assign(res.household_id && first ? first : "/");
     }
+    // A full load, as for a second home: the app starts for the new home on that screen.
+    if (first) return window.location.assign(first);
     setBusy(false);
     router.refresh();
   }

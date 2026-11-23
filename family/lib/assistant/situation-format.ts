@@ -4,7 +4,8 @@
  *
  * From 12 months (R11) the snapshot promises no next feed, dates a last feed or diaper that is
  * not from today and leaves it out after a week, and names a count only when it is above
- * zero: a family that does not log milk or diapers is not told "0 feeds".
+ * zero: a family that does not log milk or diapers is not told "0 feeds". A family that keeps
+ * the feed clock in the child's day gets the next feed back on the last-feed line.
  */
 export interface SituationInput {
   name: string;
@@ -21,6 +22,12 @@ export interface SituationInput {
   lastFeedMl: number | null;
   lastFeedKind: string | null;
   nextFeedDue: string | null;
+  /**
+   * From 12 months: the family keeps the feed clock ("{Name}'s day") and milk is still logged,
+   * so the last-feed line may name the next one. Absent or false: no next feed, whatever
+   * `nextFeedDue` holds. Not read for a baby.
+   */
+  milkClock?: boolean;
   lastDiaperAt?: string | null;
   lastDiaperKind?: string | null;
   feedsToday: number;
@@ -96,7 +103,10 @@ function formatToddler(s: SituationInput): string {
   const fed = s.lastFeedAt ? whenThisWeek(s.lastFeedAt, s.nowLocal) : null;
   if (fed) {
     const what = [s.lastFeedMl ? `${s.lastFeedMl} ml` : null, s.lastFeedKind].filter(Boolean).join(" ");
-    lines.push(`Last feed ${fed}${what ? ` (${what})` : ""}.`);
+    // On the family's clock the line ends as a baby's does, with a due time of today or later
+    // only: this line also carries a feed from days ago, and its due time would read as tonight.
+    const due = s.milkClock && s.nextFeedDue && s.nextFeedDue.slice(0, 10) >= s.nowLocal.slice(0, 10) ? `, next due about ${s.nextFeedDue.slice(11)}` : "";
+    lines.push(`Last feed ${fed}${what ? ` (${what})` : ""}${due}.`);
   }
   const changed = s.lastDiaperAt ? whenThisWeek(s.lastDiaperAt, s.nowLocal) : null;
   if (changed) lines.push(`Last diaper ${changed}${s.lastDiaperKind ? ` (${s.lastDiaperKind.toLowerCase()})` : ""}.`);

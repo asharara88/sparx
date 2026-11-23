@@ -21,12 +21,16 @@ import { ageWords } from "@/lib/norms";
  *     right now (the situation snapshot) and which screen they came from.
  *
  * From 12 months (docs/AGES.md) the stage line, rule 6 and the milk lines change; they go by
- * values the context holds (the child's age and nap pattern, the stock, the last pump), so a
- * baby's home reads exactly as before and the stable block still never reads the clock.
+ * values the context holds (the child's age and nap pattern, the stock, the last pump, the
+ * family's own answers in the child's day), so a baby's home reads exactly as before and the
+ * stable block still never reads the clock.
  */
 
+/** A toddler's closing sentences. With `clock` (the family keeps the feed clock) the words that deny a gap between feeds are left out. */
+const stageEnd = (clock: boolean) => `No number of milk feeds or wet diapers a day is expected${clock ? "" : ", and no gap between feeds"}. A low or zero count is not a warning sign; it may only mean it is not logged. The '6 wet diapers' and 'refusing feeds' red flags are for babies under 12 months.`;
+
 /** The end of a toddler's stage line: nothing a baby's numbers would hold against the day (R11). */
-export const TODDLER_STAGE_END = "No number of milk feeds or wet diapers a day is expected, and no gap between feeds. A low or zero count is not a warning sign; it may only mean it is not logged. The '6 wet diapers' and 'refusing feeds' red flags are for babies under 12 months.";
+export const TODDLER_STAGE_END = stageEnd(false);
 
 /** The child's name: from the subjects this member may see, else from me() (visible to everyone). */
 function namesOf(ctx: ToolContext): { child: string } {
@@ -85,6 +89,8 @@ export function stableSystem(ctx: ToolContext): string {
   const hasChild = ctx.subjects.some((s) => s.kind === "child");
   const people = ctx.people.map(describePerson).join(", ");
   const toddler = toddlerHome(ctx);
+  // A toddler whose day keeps the feed clock has a next feed: rule 6 must not forbid naming it.
+  const clock = ctx.children.some((c) => c.toddler && c.milkClock);
   const { child } = namesOf(ctx);
   // Pumped milk and the stash are spoken of only where milk is kept (R7): always with a baby.
   const milk = ctx.milkKept;
@@ -109,7 +115,7 @@ What you know about the house comes ONLY from the tools and the situation lines 
    - When the tool for it is not in your list, this member's role cannot do it: say so in one line and that an admin can.
 ${
     toddler
-      ? `6. The situation lines in the context already hold the latest state (asleep or awake, the last feed and diaper, today's counts). Use them for "is ${child} asleep" and "when did ${child} last have milk" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs. From 12 months milk feeds have no due time: never give a time for the next one.`
+      ? `6. The situation lines in the context already hold the latest state (asleep or awake, the last feed and diaper, today's counts). Use them for "is ${child} asleep" and "when did ${child} last have milk" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs.${clock ? "" : " From 12 months milk feeds have no due time: never give a time for the next one."}`
       : `6. The situation lines in the context already hold the latest state (asleep or awake, last feed, next due, today's counts). Use them for "is the baby asleep" and "when is the next feed" without a tool call, but cite nothing from them; call care_now when you need an id to cite or more detail. Use care_entries for a day or a night, care_stats for a week or trends. Do not call more tools than the question needs.`
   }
 7. Speech is transcribed: "120 mil" means 120 ml, "left boob" means breastfeed on the left, "poo" means a dirty diaper, "both" means wet and dirty. Resolve these quietly. Say "diaper", never "nappy", even when the member or a skill says nappy.
@@ -136,8 +142,8 @@ export function skillsSystem(ctx: ToolContext): string {
 
 /**
  * A toddler's stage line (R11): the age in words, the naps of the stage and of the child's own
- * days, the awake time before a nap from R4 in hours and minutes, no milk clock, and the closing
- * sentence that no count is expected.
+ * days (or the family's answer), the awake time before a nap from R4 in hours and minutes, no
+ * milk clock unless the family keeps one, and the closing sentence that no count is expected.
  */
 function toddlerStage(ctx: ToolContext, s: ToolContext["subjects"][number], days: number): string {
   const st = stageOf(days);
@@ -145,7 +151,7 @@ function toddlerStage(ctx: ToolContext, s: ToolContext["subjects"][number], days
   const naps = st.naps[0] === 0 ? "0 or 1 nap; most still nap until 3" : `${range(st.naps)} nap${st.naps[1] === 1 ? "" : "s"}`;
   const lately = napsLately(kid?.naps ?? null);
   const age = s.birth_date ? ageWords(s.birth_date, todayYmd(ctx.tz, ctx.now)) : `${days} days`;
-  return `${s.name} is ${days} days old (${age}); usual now (${st.label}): ${naps}${lately ? ` (${lately})` : ""}, awake ${awakeWords(days, kid?.naps ?? null)} before a nap${st.meals ? `, ${range(st.meals)} meals a day` : ""}. ${TODDLER_STAGE_END}`;
+  return `${s.name} is ${days} days old (${age}); usual now (${st.label}): ${naps}${lately ? ` (${lately})` : ""}, awake ${awakeWords(days, kid?.naps ?? null)} before a nap${st.meals ? `, ${range(st.meals)} meals a day` : ""}. ${stageEnd(!!kid?.milkClock)}`;
 }
 
 export function volatileSystem(ctx: ToolContext): string {

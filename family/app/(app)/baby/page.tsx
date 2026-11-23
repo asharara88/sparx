@@ -5,10 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { awayParentOn } from "@/lib/handover";
 import type { DailyStats, EntryRow, HomeSummary, HouseholdToday, Me, RpcError, Suggestion } from "@/lib/types";
 import { can } from "@/lib/types";
-import { child, childPronouns, type Pronouns } from "@/lib/names";
+import { child, childPronouns, possessive, type Pronouns } from "@/lib/names";
 import { addDays, dayRange, fmtDuration, todayYmd } from "@/lib/time";
 import { ageDays, ageWords, averagesLine, dayAverages } from "@/lib/norms";
-import { napPattern, phaseCard } from "@/lib/child-insights";
+import { napPattern, phaseCard, type NapPattern } from "@/lib/child-insights";
+import { bandOf, dayFacts, dayOffer, dayPlan, readDay, type DayPlan, type SavedDay } from "@/lib/day";
 import { AgeCheck } from "@/components/AgeCheck";
 import { LanaGuide } from "@/components/LanaGuide";
 import { AvatarUpload } from "@/components/AvatarUpload";
@@ -84,20 +85,41 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
 
 type SB = Awaited<ReturnType<typeof createClient>>;
 
+/**
+ * The child's day as this page reads it (lib/day.ts): the nap pattern with the family's own
+ * answer in it, and the plan the tabs draw from. With no saved day (`day` null) both are the
+ * rules from before the day existed. `week` is the last 7 days of entries, or more. The page
+ * does not read the milk stash, so the plan's two stored-milk answers are not handed on:
+ * they would be wrong here.
+ */
+function planFor(me: Me, summary: HomeSummary, day: SavedDay | null, age: number | null, week: EntryRow[], today: string, tz: string): { pattern: NapPattern; plan: Omit<DayPlan, "storesMilk" | "milkNotices"> } {
+  const now = Date.now();
+  // The nap pattern over the week Home reads, so the usual window is the one Home's card uses (R5).
+  const pattern = napPattern(week, age, now, tz, now - 7 * 86_400_000, day?.naps ?? null);
+  // This page fetches no stock: the two stored-milk keys are left out of what it returns.
+  const plan = dayPlan(day, age, dayFacts(summary, { now, today, tz, breastfeeds: !!me.member.breastfeeds, inStock: false, week, pattern }));
+  return { pattern, plan };
+}
+
 async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: SB; me: Me; summary: HomeSummary; day: string; today: string; tz: string }) {
   const { from, to } = dayRange(day, tz);
   const isToday = day === today;
+  // The same age Home passes, so "To check" here and there count the same entries (R6).
+  const age = summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
+  // "{Name}'s day", when a parent has saved one and it counts at this age (lib/day.ts); null
+  // for a baby and for a home that has not saved one, and then the tab is as it was.
+  const saved = readDay(summary.subject.settings, age, summary.subject.birth_date);
   const [{ data: stripData }, { data: weekData }, { data: sugData }] = await Promise.all([
     // From 12 hours before the day, so a sleep that began last night counts towards it.
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(new Date(from).getTime() - 12 * 3600 * 1000).toISOString(), p_to: to }),
-    isToday ? supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : Promise.resolve({ data: null }),
+    // The week is today's; with a saved day a past day reads it too, for the totals the family logs lately.
+    isToday || saved ? supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : Promise.resolve({ data: null }),
     isToday ? supabase.rpc("suggestions_refresh") : Promise.resolve({ data: null }),
   ]);
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
   const feedInterval = feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
-  // The same age Home passes, so "To check" here and there count the same entries (R6).
-  const age = summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
+  const { plan } = planFor(me, summary, saved, age, week, today, tz);
   const stripEntries = ((stripData as { entries?: EntryRow[] })?.entries ?? []) as EntryRow[];
   const [fromMs, toMs] = [Date.parse(from), Date.parse(to)];
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
@@ -116,8 +138,8 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
           <Icon name="forward" size={22} />
         </Link>
       </div>
-      <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} />
-      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={stage.naps} href="/baby/sleep" />
+      <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} tiles={plan.tiles} />
+      <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={plan.usualNaps ?? stage.naps} href="/baby/sleep" />
       {checks > 0 && can(me, "lana", "edit") && (
         <Fold title="To check" icon="clipboard" tint="meds" hint={`${checks}`}>
           <EntryChecks entries={week} timezone={tz} ageDays={age} canDelete={can(me, "lana", "delete")} />
@@ -135,7 +157,7 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
       ) : (
         <EntryList entries={entries} types={summary.types} timezone={tz} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} />
       )}
-      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} milkClock={stage.milkClock} solids={stage.solids} />
+      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={day} isToday={isToday} entries={isToday ? week : []} todayEntries={isToday ? entries : []} feedIntervalMin={feedInterval} milkClock={plan.milkClock} solids={stage.solids} plan={{ milk: plan.milk, diapers: plan.diapers, on: plan.on }} />
     </>
   );
 }
@@ -163,8 +185,9 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   // A day's average over the days each kind was logged (X8); from 12 months a kind not logged has no row (R8).
   const avg = dayAverages(full, fetched.find((d) => d.day === addDays(today, -8)) ?? null, stage.toddler);
   const listed = !stage.toddler || avg.logged.feed || avg.logged.diaper || avg.logged.sleep;
-  // The nap pattern over the week Home reads, so the rhythm's usual window is the one Home's card uses (R5).
-  const pattern = napPattern(entries, age, Date.now(), tz, Date.now() - 7 * 86_400_000);
+  // The nap pattern over the week Home reads, so the rhythm's usual window is the one Home's card uses (R5);
+  // with a saved day (lib/day.ts) the naps are the family's answer and the feed clock theirs to keep.
+  const { pattern, plan: kid } = planFor(me, summary, readDay(summary.subject.settings, age, summary.subject.birth_date), age, entries, today, tz);
   // Day by day names a kind only when it was logged in the 7 days (R8); a baby's rows are as they were.
   const byDay = [...all].reverse().slice(0, 7);
   const dayKinds = { feed: !stage.toddler || byDay.some((d) => d.breast_count + d.bottle_count > 0), diaper: !stage.toddler || byDay.some((d) => d.diapers > 0), sleep: !stage.toddler || byDay.some((d) => d.sleep_min > 0) };
@@ -198,10 +221,11 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
           />
         </Fold>
       )}
-      {/* From 12 months milk has no clock (R2): no feed, diaper, nap or wake guesses, only the plan when there is one. */}
-      {stage.milkClock ? (
+      {/* From 12 months milk has no clock (R2): no feed, diaper, nap or wake guesses, only the plan when there is one.
+          A toddler whose day keeps the feed clock gets the feeds back, and only those. */}
+      {kid.milkClock ? (
         <Fold title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
-          <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} />
+          <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} only={stage.toddler ? ["feed"] : undefined} />
           <PlanCard plan={plan} />
         </Fold>
       ) : (
@@ -244,9 +268,14 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
   const s = summary.subject;
   // From 12 months the card is one link to the stretch in Week by week; none after week 156 (R10).
   const phase = s.birth_date ? phaseCard(s.birth_date, today, s.name) : null;
+  // "{Name}'s day" is a parent's, from 12 months, and not while viewing as someone else: its
+  // screen sends anyone else back here. While Home offers it (lib/day.ts dayOffer) the row says
+  // "look" and opens the same offer.
+  const parent = me.role.id === "admin" && !me.preview && bandOf(s.birth_date ? ageDays(s.birth_date, today) : null) != null;
+  const offer = parent ? dayOffer({ settings: s.settings, birthDate: s.birth_date, createdAt: s.created_at ?? null, today, tz: me.household.timezone, name: s.name, their: childPronouns(me).their }) : null;
   // Built like More's settings rows (a glyph, medium weight): a feature's colour only where the
   // row is that feature (medicine), and red for Emergency (DESIGN.md rule 7).
-  const groups: { title: string; rows: { href: string; icon: IconName; label: string; tone?: "meds" | "danger"; show?: boolean }[] }[] = [
+  const groups: { title: string; rows: { href: string; icon: IconName; label: string; tone?: "meds" | "danger"; show?: boolean; pill?: string }[] }[] = [
     {
       title: "Health",
       rows: [
@@ -271,6 +300,7 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
     {
       title: "Care",
       rows: [
+        { href: offer ? "/baby/day?offer=1" : "/baby/day", icon: "sun", label: `${possessive(s.name)} day`, show: parent, pill: offer ? "look" : undefined },
         { href: "/baby/handover", icon: "users", label: "Handover" },
         { href: "/ask?from=child", icon: "chat", label: `Ask about ${s.name}`, show: can(me, "assistant", "view") },
       ],
@@ -295,6 +325,7 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
                     <Icon name={r.icon} size={20} />
                   </span>
                   <span className="flex-1 font-medium">{r.label}</span>
+                  {r.pill && <span className="pill">{r.pill}</span>}
                   <Icon name="forward" size={18} className="muted" />
                 </Link>
               ))}

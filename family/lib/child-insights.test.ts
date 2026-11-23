@@ -99,3 +99,45 @@ test("nextNap: last wake-up plus her window; asleep means no prediction; evening
   assert.equal(e.isBedtime, true);
   assert.equal(nextNap([], 130, NOW, hourOf, pattern([], NOW)), null);
 });
+
+test("napPattern with the family's answer: it stands in for the pattern; the counts stay the log's", () => {
+  // A week of one nap a day (10:00 to 11:00 UTC) and the nights, and one nap already had today.
+  const rows: EntryRow[] = [];
+  for (let d = 6; d >= 1; d--) {
+    const base = NOW - d * D - 2 * H;
+    rows.push(row("lana.sleep", base, base + H), row("lana.sleep", base + 9 * H, base + 20 * H));
+  }
+  rows.push(row("lana.sleep", NOW - 2 * H, NOW - H));
+  const pattern = (age: number, said?: 0 | 1 | 2 | null) => napPattern(rows, age, NOW, "UTC", NOW - 7 * D, said);
+  const log = pattern(400);
+  assert.deepEqual(log, { toddler: true, expected: true, perDay: 1, usualNaps: 1, evidenceDays: 6, napDays: 6, napsToday: 1 });
+  assert.deepEqual(pattern(400, 2), { ...log, perDay: 2, usualNaps: 2, said: true });
+  assert.deepEqual(pattern(400, 1), { ...log, said: true });
+  assert.deepEqual(pattern(400, 0), { ...log, expected: false, perDay: 0, usualNaps: 0, said: true });
+  // No answer is the log's pattern as before, with no flag on it.
+  assert.deepEqual(pattern(400, null), log);
+  assert.deepEqual(pattern(400, undefined), log);
+  assert.ok(!("said" in pattern(400, null)) && !("said" in napPattern(rows, 400, NOW, "UTC", NOW - 7 * D)));
+  // With nothing logged at all the answer still decides: at 3 years the log alone expects no nap.
+  const empty = (said?: 0 | 1 | 2) => napPattern([], 1111, NOW, "UTC", NOW - 7 * D, said);
+  assert.deepEqual([empty().expected, empty(1).expected, empty(1).perDay, empty(0).expected], [false, true, 1, false]);
+  // The next nap follows it: none planned for "none", bedtime once the said naps are had.
+  assert.equal(nextNap(rows, 400, NOW, hourOf, pattern(400, 0))!.at, null);
+  assert.equal(nextNap(rows, 400, NOW, hourOf, pattern(400, 1))!.isBedtime, true);
+  assert.equal(nextNap(rows, 400, NOW, hourOf, pattern(400, 2))!.isBedtime, false);
+});
+
+test("napPattern for a baby does not read the family's answer", () => {
+  const rows: EntryRow[] = [];
+  for (let d = 3; d >= 1; d--) rows.push(row("lana.sleep", NOW - d * D - 2 * H, NOW - d * D - H));
+  for (const age of [null, 0, 130, 365]) {
+    const base = napPattern(rows, age, NOW, "UTC", NOW - 7 * D);
+    assert.deepEqual(base, { toddler: false, expected: true, perDay: null, usualNaps: null, evidenceDays: 3, napDays: 3, napsToday: 0 }, `day ${age}`);
+    for (const said of [0, 1, 2, null] as const) {
+      const p = napPattern(rows, age, NOW, "UTC", NOW - 7 * D, said);
+      assert.deepEqual(p, base, `day ${age} said ${said}`);
+      assert.ok(!("said" in p));
+      assert.equal(JSON.stringify(p), JSON.stringify(base));
+    }
+  }
+});

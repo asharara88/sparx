@@ -4,6 +4,7 @@ import { fmtTime, zonedMidnight } from "@/lib/time";
 import { nightWindow } from "@/lib/night";
 import { stageFor } from "@/lib/stage";
 import { stripCells } from "@/lib/logged";
+import { pottyCount, type DayPlan } from "@/lib/day";
 
 // Written out in full so Tailwind keeps all three.
 const COLS: Record<number, string> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4" };
@@ -14,9 +15,10 @@ const COLS: Record<number, string> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "g
  * cards below the log rows. The last of each is on the rows themselves, so not repeated here.
  * From 12 months a cell shows only for what the family logs (lib/logged.ts, R8): naps while a
  * nap is expected or one was had today, feeds and diapers when logged lately; with fewer than
- * two cells there is no strip.
+ * two cells there is no strip. With a saved day (lib/day.ts) the day names the cells: the naps
+ * are held against the family's answer, and meals or the potty may take a place.
  */
-export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpected }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string; /** napPattern's answer for today; not read for a baby. */ napExpected: boolean }) {
+export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpected, plan = null }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string; /** napPattern's answer for today; not read for a baby. */ napExpected: boolean; /** The home's plan (lib/day.ts dayPlan). Absent, or with no saved day, the strip is as it always was. */ plan?: Pick<DayPlan, "cells" | "usualNaps"> | null }) {
   const start = zonedMidnight(day, timezone).getTime();
   const now = Date.parse(nowIso);
   const hourOf = (ms: number) => {
@@ -40,6 +42,8 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpecte
     lastDiaperAt: summary.last["lana.diaper"]?.occurred_at ?? null,
     today: day,
     tz: timezone,
+    // Today's meals and potty by the same day as the counts above (home_summary's today).
+    plan: plan ? { cells: plan.cells, usualNaps: plan.usualNaps, meals: summary.today_counts?.["lana.meal"] ?? 0, potty: pottyCount(summary.today_entries ?? []) } : undefined,
   });
   if (!cells) return null;
   return (

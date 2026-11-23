@@ -86,6 +86,12 @@ export interface SubjectName {
   /** The child's night, "hh:mm" (settings night_from/night_to, with the defaults 19:00 and 07:00). */
   night_from: string;
   night_to: string;
+  /**
+   * "{Name}'s day" as stored, when it counts (from 12 months, read whole, saved at that age);
+   * null otherwise and for a member who may not view the child. Absent from older sessions.
+   * Read it through lib/day.ts (milkTab), never key by key.
+   */
+  day?: unknown;
 }
 
 export interface Me {
@@ -169,6 +175,8 @@ export interface EntryTypeSettings {
   timer_choice?: { key: string; options: string[] };
   timer_flag?: string;
   end_if?: Record<string, string>;
+  /** Offered only in a home whose day turns it on ("potty"); absent for every other type (lib/day.ts typesOn). */
+  needs?: string;
 }
 
 export interface OngoingEntry {
@@ -186,7 +194,10 @@ export interface Subject {
   name: string;
   birth_date: string | null;
   profile: Record<string, unknown>;
+  /** night_from and night_to; from 12 months also "{Name}'s day" (day, day_asked, day_asked_on), read through lib/day.ts. */
   settings: Record<string, unknown> & { night_from?: string; night_to?: string };
+  /** When the child's row was made (the day the family joined), ISO; home_summary sends the whole row. */
+  created_at?: string;
 }
 
 export interface LastEntry {
