@@ -10,10 +10,16 @@ import type {
 import { can } from "@/lib/types";
 import { addDays, fmtDuration, fmtTime, todayYmd } from "@/lib/time";
 import { getBrief } from "@/lib/assistant/brief";
-import { napPattern, nextNap, type NextNap } from "@/lib/child-insights";
+import {
+  napPattern,
+  nextNap,
+  type NapPattern,
+  type NextNap,
+} from "@/lib/child-insights";
 import { birthdayMonth } from "@/lib/story";
 import { ageDays as ageDaysOf, ageWords } from "@/lib/norms";
 import { isToddler } from "@/lib/stage";
+import { readDay } from "@/lib/day";
 import { draftPlan } from "@/lib/plan/draft";
 import { memberClient, serviceClient } from "@/lib/server/member";
 import { childName, childPronouns } from "@/lib/names";
@@ -48,6 +54,43 @@ export function birthdayTitle(name: string, birthDate: string, today: string, mo
 export function napPushBody(n: Pick<NextNap, "awakeMin" | "windowMin" | "basis">, toddler: boolean, their: string): string {
   const time = (min: number) => (toddler ? fmtDuration(min) : `${min} min`);
   return `Awake ${time(n.awakeMin)}; ${their} window is about ${time(n.windowMin)} (${n.basis.replace(/^her /, `${their} `)}). Start the wind-down.`;
+}
+
+/**
+ * The nap pattern the nap push goes by (napPattern). Where the family said how many naps in
+ * "{Name}'s day", their answer stands in for the week: no push when it says no nap, and one
+ * when it says a nap though none was logged lately. A baby's, and a toddler's with no day,
+ * is the log's as before.
+ */
+export function napPushPattern(
+  entries: EntryRow[],
+  subject: Pick<HomeSummary["subject"], "birth_date" | "settings">,
+  age: number,
+  now: number,
+  tz: string,
+  from: number,
+): NapPattern {
+  const day = readDay(subject.settings, age, subject.birth_date);
+  return napPattern(entries, age, now, tz, from, day?.naps ?? null);
+}
+
+/**
+ * What the nap push goes by: the next nap, or null where none is sent. A toddler with no nap
+ * expected (by the child's own week, or because the family says no nap) gets no push at all.
+ */
+export function napPushNext(
+  entries: EntryRow[],
+  subject: Pick<HomeSummary["subject"], "birth_date" | "settings">,
+  age: number,
+  now: number,
+  tz: string,
+  from: number,
+  hourOf: (iso: string) => number,
+): NextNap | null {
+  const pattern = napPushPattern(entries, subject, age, now, tz, from);
+  return isToddler(age) && !pattern.expected
+    ? null
+    : nextNap(entries, age, now, hourOf, pattern);
 }
 
 async function targets(service: SupabaseClient): Promise<Target[]> {
@@ -307,7 +350,8 @@ export async function runOften(): Promise<CronReport> {
       }
       // The next nap, about ten minutes before the awake window closes, for whoever has the child's log.
       // A baby's from the last 36 hours, as always. A toddler's from the week Home reads, through
-      // the one nap rule (napPattern): no push at all when no nap is expected (R5).
+      // the one nap rule (napPattern): no push at all when no nap is expected (R5), by the
+      // child's own week or by the family's answer (napPushPattern).
       if (can(me, "lana", "view")) {
         const { data: sumData } = await client.rpc("home_summary");
         const sum = sumData as HomeSummary | RpcError | null;
@@ -334,11 +378,15 @@ export async function runOften(): Promise<CronReport> {
               Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60
             );
           };
-          const pattern = napPattern(entries, age, now, tz, from);
-          const n =
-            toddler && !pattern.expected
-              ? null
-              : nextNap(entries, age, now, hourOf, pattern);
+          const n = napPushNext(
+            entries,
+            sum.subject,
+            age,
+            now,
+            tz,
+            from,
+            hourOf,
+          );
           if (
             n &&
             n.at != null &&

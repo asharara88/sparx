@@ -8,9 +8,11 @@ import { Icon } from "@/components/Icon";
 /**
  * Admin: the kinds of entry the child's log accepts. Rename, reorder, switch off,
  * set "due again after N minutes" (what the home screen counts down), and edit the fields
- * each entry asks for (a JSON list, same shape as the seed).
+ * each entry asks for (a JSON list, same shape as the seed). `taken` holds the ids of kinds
+ * that exist but are not listed in this home (one a home turns on in the child's day): a
+ * new type with such a key would save over that row for every home, so it is refused.
  */
-export function EntryTypesAdmin({ types, modules }: { types: EntryType[]; modules: { id: string; label: string }[] }) {
+export function EntryTypesAdmin({ types, modules, taken = [] }: { types: EntryType[]; modules: { id: string; label: string }[]; taken?: string[] }) {
   const router = useRouter();
   const blank = { id: null as string | null, module_id: modules[0]?.id ?? "lana", key: "", label: "", icon: "", sort: 100, has_end: false, due_after_min: "" as string | number, fields: "[]", show_on_home: false, is_active: true };
   const [f, setF] = useState(blank);
@@ -22,6 +24,7 @@ export function EntryTypesAdmin({ types, modules }: { types: EntryType[]; module
   }
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (!f.id && taken.includes(`${f.module_id}.${f.key.trim()}`)) return setMsg("That key is taken.");
     setBusy(true);
     setMsg(null);
     let fields: unknown;

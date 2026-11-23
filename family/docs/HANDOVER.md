@@ -27,7 +27,7 @@ and Vercel project from the same repo (README, "A copy for another family").
 | Hosting | Vercel project `sparx-tsom`, team `ahmedmsharara-4731s-projects`, root directory `family` |
 | Address | `https://elnunu.com` (attached in Vercel; `sparx-tsom.vercel.app` still works) |
 | Database | Supabase project `home`, ref `qjqekazawirrpwnwgbhd` |
-| Migrations | `supabase/migrations`, 67 files, applied in filename order |
+| Migrations | `supabase/migrations`, 68 files, applied in filename order |
 | Brand page | https://claude.ai/artifact/9nf3jNvH7sNWoF34YTPZcA |
 
 ## How changes reach production
@@ -187,6 +187,24 @@ Done and live:
   a home with nothing in it (no child, no log): an emptied home is no longer handed, child
   and log, to the next person who makes one. It stays, in the nightly backup, until the
   setup script names it by id or it is removed in SQL.
+- The child's day (23 November, migration `…6800`; `docs/AGES.md`, step 2, first half). From
+  12 months a parent says what age and the log cannot: milk on a clock, as a drink or not
+  logged; naps; diapers; bedtime and morning; whether milk is stored. It lives in
+  `care_subjects.settings` (`day`, `day_asked`, with the home's date each was given on), is
+  saved by `subject_day_save` (an admin of the home on screen, a child of 12 months or
+  more) and read through one rule on each side: `private.subject_day` in SQL and `readDay`
+  in `lib/day.ts`, which test the same things. `lib/day.ts` `dayPlan` then answers for every
+  screen: Home's rows, the strip, the child's tiles, the tab bar, the + menu, the fridge
+  notices, the helper and the nap push. With no saved day each of them does exactly what it
+  did before, so a baby's home and a toddler's home that has not saved a day are unchanged;
+  an answer counts only if the child, by the birth date stored now, was already 12 months
+  on the day it was given. `home_summary` leaves out an entry type whose `settings.needs` the
+  day has not turned on (none exists yet; Potty will be the first). The helper keeps two
+  type lists: `types` for new entries, `allTypes` for labels and edits of saved ones.
+  `scripts/walk/` holds the side-by-side walk that shows a change leaves Lana's home alone,
+  `scripts/day-scenario.mjs` signs a 13-month-old up and reads Home after each save, and
+  `supabase/tests/toddler_days.sql` gives the four toddler test homes a saved day. CI loads
+  the three seed files after the suite.
 
 Open:
 

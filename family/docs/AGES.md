@@ -66,6 +66,18 @@ screen and the helper's voice), achievements for families that do not pump.
    follow it. New entries: Cup and Cow's milk on a feed, which meal and how much was eaten on a meal,
    Potty. The vaccine question. Story starts at the month a family joined. **Must be live before 5
    June 2027, when Lana turns one.**
+   *First half built (23 November, migration 6800):* the day itself. It is stored on the child's
+   row and saved by a parent through `subject_day_save`; `lib/day.ts` answers for Home's rows, the
+   strip, the tiles, the tab bar, the + menu, the stored-milk notices, the helper and the nap
+   push; the screen is `/baby/day`; a new home for a child of 12 months or more lands on it once;
+   Home offers it at 12, 18, 24 and 36 months for 30 days (ahead of "A vaccine is due" for the
+   first 7, behind it after). What the review added to the plan: an answer counts only if the
+   child, by the birth date stored now, was already 12 months on the day it was given (a year
+   mistyped at sign-up never rearranges a baby's home later); an answer turns a kind on, but a
+   count shows only once that kind was logged in the last 7 days; nothing new goes into the milk
+   stash while the day says no milk is stored. Until a parent saves, every home is as step 1
+   left it. *Second half, next:* Potty, Cup and Cow's milk, which meal and how much, the vaccine
+   question, Story from the month a family joined.
 3. **Everyone reads the same day.** The simple screen, Handover, the Week tab, Trends, Story and the
    doctor's printout count meals, snacks and potty (the daily numbers gain them). Typed and spoken
    meal, cup and potty lines save on the phone at no cost. The helper's prompt and briefs are built

@@ -17,8 +17,9 @@ import { formatHome, formatMilk, formatSituation, type HomeNow } from "./situati
  * same RPCs the screens use, under the member's own permissions; a failed read
  * leaves its line out rather than failing the answer.
  *
- * From 12 months: no next feed, the phase is the week by week stretch with the same awake
- * time as the stage line, and the milk line only where milk is kept (R7, R11).
+ * From 12 months: no next feed, except where the family's day keeps the feed clock; the
+ * phase is the week by week stretch with the same awake time as the stage line; and the milk
+ * line only where milk is kept (R7, R11).
  */
 
 type DayRow = { day: string; breast_count?: number; bottle_count?: number; bottle_ml?: number; sleep_min?: number; night_sleep_min?: number; night_wakes?: number; night_feeds?: number; longest_stretch_min?: number };
@@ -94,8 +95,10 @@ export async function loadSituation(ctx: ToolContext): Promise<string> {
         lastFeedAt: feed ? local(feed.occurred_at, ctx.tz) : null,
         lastFeedMl: feed?.payload?.amount_ml ? Number(feed.payload.amount_ml) : null,
         lastFeedKind: feed?.payload?.kind ? String(feed.payload.kind) : feed?.payload?.side ? `breast ${feed.payload.side}` : null,
-        // A toddler's milk has no clock (R2), whatever an older database still says.
-        nextFeedDue: feed?.next_due && !kid.toddler ? local(feed.next_due, ctx.tz) : null,
+        // A toddler's milk has no clock (R2), whatever an older database still says, unless the
+        // family's day keeps it and milk is still being logged.
+        nextFeedDue: feed?.next_due && kid.milkClock ? local(feed.next_due, ctx.tz) : null,
+        milkClock: kid.milkClock,
         lastDiaperAt: diaper ? local(diaper.occurred_at, ctx.tz) : null,
         lastDiaperKind: diaper?.payload?.kind ? String(diaper.payload.kind) : null,
         feedsToday: r.today_counts?.[`${s.module_id}.feed`] ?? 0,

@@ -13,7 +13,8 @@
 -- (00000000-0000-4000-8000-000000001200, ...1800, ...2400, ...3600).
 -- The homes are in Asia/Dubai unless a zone is given: -v tz=Pacific/Auckland puts them where it
 -- is afternoon when it is morning in the Gulf, so "today" has something in it.
--- Screenshot mode only: nothing in CI loads this file. Running it twice does nothing the second time.
+-- CI loads it after the suite, with demo_data.sql and toddler_days.sql, so a migration that breaks
+-- it fails there. Running it twice does nothing the second time.
 \set ON_ERROR_STOP on
 \set QUIET on
 \if :{?tz}

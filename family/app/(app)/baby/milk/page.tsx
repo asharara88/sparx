@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { awayParent, awayParentOn } from "@/lib/handover";
@@ -12,9 +13,13 @@ import { forecastHint, milkForecast, safeFridgeMl } from "@/lib/milk-insights";
 import type { EntryRow, HomeSummary, HouseholdToday } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { addDays, dayRange, todayYmd } from "@/lib/time";
-import { pumpingActive, stageFor } from "@/lib/stage";
+import { stageFor } from "@/lib/stage";
 import { ageDays } from "@/lib/norms";
 import { meOnce } from "@/lib/server/me";
+import { napPattern } from "@/lib/child-insights";
+import { dayFacts, dayPlan, readDay } from "@/lib/day";
+import { possessive } from "@/lib/names";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -66,8 +71,19 @@ export default async function MilkPage() {
   const stage = stageFor(birth, Date.now(), tz);
   // Stored milk only where milk is stored (R7): from 12 months a home with no bottle in stock and
   // no pump in 14 days gets no forecast, no thaw reminder and no pumping bar. A baby's always does.
-  const stored = !stage.toddler || milk.fridge_count + milk.freezer_count > 0 || pumpingActive(summary.ok ? summary.last["lana.pump"]?.occurred_at : null, Date.now(), birth ? ageDays(birth, today) : null);
-  const showPump = (!!me.member.breastfeeds || me.role.id === "admin") && stored;
+  // The plan holds that rule (lib/day.ts, milkNotices); with a saved day the family must also
+  // have said that milk is stored, and the feed clock is theirs to keep.
+  const age = birth ? ageDays(birth, today) : null;
+  const day = summary.ok ? readDay(summary.subject.settings, age, birth) : null;
+  const pattern = napPattern(history, age, now.getTime(), tz, now.getTime() - 7 * 86_400_000, day?.naps ?? null);
+  const plan = dayPlan(day, age, dayFacts(summary.ok ? summary : null, { now: now.getTime(), today, tz, breastfeeds: !!me.member.breastfeeds, inStock: milk.fridge_count + milk.freezer_count > 0, week: history, pattern }));
+  const showPump = (!!me.member.breastfeeds || me.role.id === "admin") && plan.milkNotices;
+  // The day says no milk is stored: nothing new goes into the stash until a parent says
+  // otherwise. A bag already here can still be warmed, used or binned from the list.
+  const closed = plan.saved && !plan.storesMilk && summary.ok;
+  const whose = summary.ok ? possessive(summary.subject.name) : "";
+  // As the database names them when it refuses ("Ask Mido or Dana ...").
+  const admins = (hh.ok ? hh.members.filter((m) => m.role_id === "admin").map((m) => m.name) : []).join(" or ") || "an admin";
   // The forecast's answer goes on its bar, where Fridge and Freezer put theirs ("till Sat").
   const safeMl = safeFridgeMl(milk.bottles);
   const lasts = forecastHint(milkForecast(safeMl, history), safeMl, tz);
@@ -76,16 +92,31 @@ export default async function MilkPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Milk" large />
-      {away && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} milkClock={stage.milkClock} />}
-      {stored && <ThawReminder milk={milk} entries={history} timezone={tz} opts={thaw} />}
+      {away && plan.milkNotices && <FridgePlan milk={milk} lastFeedAt={lastFeedAt} backAtIso={backAt} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} milkClock={plan.milkClock} />}
+      {plan.milkNotices && <ThawReminder milk={milk} entries={history} timezone={tz} opts={thaw} />}
       <MilkStash data={milk} timezone={tz} />
-      {stored && (
+      {plan.milkNotices && (
         <Fold title="Fridge lasts" icon="trend" tint="milk" hint={lasts}>
           <MilkInsights bare milk={milk} entries={history} timezone={tz} thaw={thaw} toddler={stage.toddler} />
         </Fold>
       )}
       {showPump && <FoldLink href="/#today" title="Pumping" icon="droplet" tint="pump" hint={`${pumpedMl} / ${target} ml`} />}
-      <MilkPutAway timezone={tz} canScan={can(me, "lana", "add")} />
+      {!closed && <MilkPutAway timezone={tz} canScan={can(me, "lana", "add")} />}
+      {/* In its place, for whoever could have put a bottle away: a parent gets the way to the day, anyone else whom to ask. */}
+      {closed &&
+        can(me, "lana", "add") &&
+        (me.role.id === "admin" && !me.preview ? (
+          <Link prefetch={false} href="/baby/day" className="notice row-link flex items-center gap-2 no-underline">
+            <span className="flex-1">
+              {whose} day says no milk is stored. A parent turns it on in {whose} day.
+            </span>
+            <Icon name="forward" size={18} className="shrink-0" />
+          </Link>
+        ) : (
+          <p className="notice">
+            {whose} day says no milk is stored. Ask {admins}.
+          </p>
+        ))}
     </div>
   );
 }

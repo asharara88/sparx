@@ -409,7 +409,7 @@ two weeks after the last pump (the part stays while bottles are in stock).
 clock, and a kind shows only when the family logs it; under 12 months nothing changes.
 `lib/golden-baby.test.ts` holds a baby's results to main's, stored in
 `lib/fixtures/golden-baby.json` (never regenerated: a stored value changes by hand, for a named
-exception). `supabase/tests/toddler_homes.sql` adds four toddler homes for screenshot mode.
+exception). `supabase/tests/toddler_homes.sql` adds four toddler homes for screenshot mode, and `toddler_days.sql` gives each its saved day (CI loads both after the suite).
 
 ## 3a. Another family
 
@@ -459,7 +459,7 @@ supabase/migrations/   20261010000100_foundation.sql   members, roles, permissio
                        …                                one file per release since; 3500 = any household
 supabase/tests/        rls_test.sql (the database checks), 01_test_household.sql (the household the
                        checks act as), run-local.sh, local auth stub, demo_data.sql,
-                       toddler_homes.sql (four homes at 12 to 36 months, screenshot mode only)
+                       toddler_homes.sql (four homes at 12 to 36 months), toddler_days.sql (their saved days)
 app/(app)/             home, baby/, calendar, send (the carer's Today), members/, audit, me
 components/            EntryForm (renders `fields`), LanaNow (the child's one-tap screen), CustodyToggle…
 lib/                   supabase clients, offline queue, names (the child from data), time helpers, types

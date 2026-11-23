@@ -137,6 +137,8 @@ export interface NapPattern {
   napDays: number;
   /** Naps already finished today. */
   napsToday: number;
+  /** True when the family's answer ("{Name}'s day") set expected, perDay and usualNaps; absent when the log did. */
+  said?: boolean;
 }
 
 /**
@@ -151,8 +153,13 @@ export interface NapPattern {
  * is under 3 years. Naps a day: the median of the nap days (2 or more is two); with no nap
  * day to go by, two before 15 months and one from 15 months. The bedtime count
  * (`usualNaps`) is the same median without the stop at two.
+ *
+ * `said` is the family's own answer in "{Name}'s day" (0, 1 or 2 naps a day; lib/day.ts).
+ * The family can say what the log cannot, so for a toddler it stands in for the pattern:
+ * a nap is expected when it is above 0, and it is the naps a day. The counts are still the
+ * log's. It is not read for a baby.
  */
-export function napPattern(entries: readonly Pick<EntryRow, "type_id" | "occurred_at" | "ended_at">[], ageDays: number | null, nowMs: number, tz: string, fromMs: number): NapPattern {
+export function napPattern(entries: readonly Pick<EntryRow, "type_id" | "occurred_at" | "ended_at">[], ageDays: number | null, nowMs: number, tz: string, fromMs: number, said?: 0 | 1 | 2 | null): NapPattern {
   const dayOf = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
   const hourFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" });
   const hourOf = (iso: string) => {
@@ -177,6 +184,7 @@ export function napPattern(entries: readonly Pick<EntryRow, "type_id" | "occurre
   const napCounts = [...perDayNaps.values()].filter((n) => n > 0);
   const napDays = napCounts.length;
   if (!isToddler(ageDays)) return { toddler: false, expected: true, perDay: null, usualNaps: null, evidenceDays, napDays, napsToday };
+  if (said != null) return { toddler: true, expected: said > 0, perDay: said, usualNaps: said, evidenceDays, napDays, napsToday, said: true };
   const under3 = ageDays! / 30.4375 < 36;
   const expected = napDays >= 3 || (evidenceDays > 0 && napDays * 2 >= evidenceDays) || (evidenceDays < 3 && under3);
   const usualNaps = !expected ? 0 : napDays ? median(napCounts) : defaultNaps(ageDays!);
