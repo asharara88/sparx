@@ -2353,6 +2353,12 @@ select pg_temp.assert(r->>'error' = 'milk_in_stock' and r->>'message' = 'Use or 
 rollback;
 select pg_temp.assert((select prosecdef and pg_get_userbyid(proowner) = 'app_rls' and prosrc !~ 'auth\.' and has_function_privilege('authenticated', oid, 'execute') from pg_proc where oid = 'public.milk_add(integer, text, timestamptz, text)'::regprocedure),
   'milk_add still runs as app_rls, names no auth table, and signed-in members may call it as before');
+-- The two cannot pass each other: the save locks the child's row before it looks at the stash, and
+-- milk_add reads the day under the lock that waits for that one (two sessions cannot be run from
+-- here; the refusals above show the locked read still finds the row for a parent and a carer).
+select pg_temp.assert((select prosrc ~ 'for share;' from pg_proc where oid = 'public.milk_add(integer, text, timestamptz, text)'::regprocedure)
+  and (select prosrc ~ 'for no key update;' and position('for no key update;' in prosrc) < position('milk_bottles' in prosrc) from pg_proc where oid = 'public.subject_day_save(uuid, jsonb, text, text)'::regprocedure),
+  'milk_add reads the day under a share lock on the child''s row, and subject_day_save locks that row before it reads the stash');
 
 -- A good save. What is stored is built again from the checked answers: a key that is not an answer,
 -- and a version, a date and a name that were sent, are not kept, and 1.0 naps is one nap.

@@ -326,7 +326,12 @@ declare
 begin
   if not private.authz('lana', 'add', 'milk_bottles') then return private.denied(); end if;
   if p_location not in ('fridge', 'freezer') then return jsonb_build_object('ok', false, 'error', 'bad_location'); end if;
-  select * into v_child from public.care_subjects where id = private.default_subject('child');
+  -- Read under a lock that waits for a save of the day in flight, and makes one wait for this:
+  -- subject_day_save holds "for no key update" on this row from before it looks at the stash, and
+  -- "for share" is the lock that conflicts with it. So of a bottle put away and "no stored milk"
+  -- saved in the same instant, the second always sees the first and one of them is refused.
+  -- Logging for the child does not wait on it (its foreign key takes "for key share").
+  select * into v_child from public.care_subjects where id = private.default_subject('child') for share;
   if (private.subject_day(v_child.settings, v_child.birth_date)->'stores_milk') = 'false'::jsonb then
     v_whose := v_child.name || case when v_child.name ~* 's$' then '''' else '''s' end;
     return jsonb_build_object('ok', false, 'error', 'no_stored_milk',
