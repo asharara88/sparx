@@ -31,6 +31,12 @@
 --      morning when given, or settles the question as it is (no day given). It runs as the
 --      caller, so row security and the guard hold it too. A baby is refused: the day opens at 12
 --      months. The day is built again from the checked answers; nothing is stored as it was sent.
+--   7. public.milk_add, the one way a bottle enters the stash, is as in migration 1300 with one
+--      check: it refuses while the day that counts says no milk is stored. A Milk screen or a
+--      helper card opened before the parent answered, and an older build on someone's phone, can
+--      then add nothing, so "no stored milk" and a bottle in the stash are never both true and the
+--      Milk tab never hides live stock. With no day (a baby's home, every home today) it adds as
+--      it always did.
 -- Signed-in members only: execute is taken from public and anon (functions are public by default).
 
 -- ---------------------------------------------------------------------------
@@ -304,3 +310,31 @@ begin
 end $$;
 revoke execute on function public.subject_day_save(uuid, jsonb, text, text) from public, anon;
 grant execute on function public.subject_day_save(uuid, jsonb, text, text) to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 7. The stash's one door honours the day
+-- ---------------------------------------------------------------------------
+-- As in migration 1300, with the check before the insert. The child is the home's child, found
+-- as home_summary finds it; with no child, or no day that counts, nothing is refused. The words
+-- are the helper's own (lib/assistant/tools.ts, propose_milk_add) and each screen shows them.
+create or replace function public.milk_add(p_amount_ml integer, p_location text default 'fridge', p_pumped_at timestamptz default now(), p_note text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_id    uuid;
+  v_child public.care_subjects;
+  v_whose text;
+begin
+  if not private.authz('lana', 'add', 'milk_bottles') then return private.denied(); end if;
+  if p_location not in ('fridge', 'freezer') then return jsonb_build_object('ok', false, 'error', 'bad_location'); end if;
+  select * into v_child from public.care_subjects where id = private.default_subject('child');
+  if (private.subject_day(v_child.settings, v_child.birth_date)->'stores_milk') = 'false'::jsonb then
+    v_whose := v_child.name || case when v_child.name ~* 's$' then '''' else '''s' end;
+    return jsonb_build_object('ok', false, 'error', 'no_stored_milk',
+      'message', v_whose || ' day says no milk is stored. A parent turns it on in ' || v_whose || ' day.');
+  end if;
+  insert into public.milk_bottles (amount_ml, pumped_at, location, note, created_by)
+  values (p_amount_ml, coalesce(p_pumped_at, now()), p_location, nullif(btrim(p_note), ''), public.current_member_id())
+  returning id into v_id;
+  return jsonb_build_object('ok', true, 'id', v_id);
+end $$;
+alter function public.milk_add(integer, text, timestamptz, text) owner to app_rls;

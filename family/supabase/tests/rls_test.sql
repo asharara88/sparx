@@ -2323,12 +2323,36 @@ select pg_temp.assert((public.milk_add(100, 'fridge', now() - interval '5 days',
 select pg_temp.assert((select (m->>'fridge_count')::int + (m->>'freezer_count')::int = 0 and jsonb_array_length(m->'bottles') = 1 from (select public.milk_list() as m) x), 'the milk list holds it and counts nothing in stock');
 select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": false}'::jsonb, '17:00', '04:00'))->>'ok' = 'true',
   'with only that bottle "no stored milk" is saved, with the earliest bedtime and morning');
-select pg_temp.assert((public.milk_add(120, 'fridge', now() - interval '1 hour', 'day test'))->>'ok' = 'true', 'he puts away one that is in date');
-select pg_temp.assert(r->>'error' = 'milk_in_stock' and r->>'message' = 'Use or bin the bottles on Milk first.', 'now "no stored milk" is refused: use or bin the bottles first')
-  from (select public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": false}'::jsonb) as r) x;
+-- While the day says no milk is stored, the stash's one door is shut for every caller (a Milk
+-- screen or a helper card opened before the parent answered, an older build): milk_add refuses,
+-- for the parent and for a carer, in the words every screen shows, and nothing is added.
+select pg_temp.assert((public.milk_add(120, 'fridge', now() - interval '1 hour', 'day test'))
+  = '{"ok": false, "error": "no_stored_milk", "message": "Lana''s day says no milk is stored. A parent turns it on in Lana''s day."}'::jsonb,
+  'with "no stored milk" saved, a bottle is not put away: the answer says where a parent turns it on');
+reset role;
+select pg_temp.act_as(:wafa);
+set local role authenticated;
+select pg_temp.assert((public.milk_add(90, 'freezer', now(), 'day test'))->>'error' = 'no_stored_milk', 'nor by Wafa, who may add to the log');
+reset role;
+select pg_temp.assert((select count(*) = 1 from public.milk_bottles where note = 'day test'), 'nothing went into the stash');
+-- A day that does not count shuts nothing: the same child a baby again, by the birth date.
+update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+select pg_temp.act_as(:mido);
+set local role authenticated;
+select pg_temp.assert((public.milk_add(60, 'fridge', now() - interval '1 hour', 'day test baby'))->>'ok' = 'true', 'for a baby the stored day is no day: the bottle is put away');
+reset role;
+update public.milk_bottles set deleted_at = now() where note = 'day test baby';
+update public.care_subjects set birth_date = current_date - 600 where id = :lana;
+select pg_temp.act_as(:mido);
+set local role authenticated;
 select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": true}'::jsonb, '23:45', '10:00'))->>'ok' = 'true',
-  'and "stored milk: yes" is saved, with the latest bedtime and morning');
+  '"stored milk: yes" is saved, with the latest bedtime and morning');
+select pg_temp.assert((public.milk_add(120, 'fridge', now() - interval '1 hour', 'day test'))->>'ok' = 'true', 'and now he puts away a bottle that is in date');
+select pg_temp.assert(r->>'error' = 'milk_in_stock' and r->>'message' = 'Use or bin the bottles on Milk first.', 'with it in stock "no stored milk" is refused: use or bin the bottles first')
+  from (select public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": false}'::jsonb) as r) x;
 rollback;
+select pg_temp.assert((select prosecdef and pg_get_userbyid(proowner) = 'app_rls' and prosrc !~ 'auth\.' and has_function_privilege('authenticated', oid, 'execute') from pg_proc where oid = 'public.milk_add(integer, text, timestamptz, text)'::regprocedure),
+  'milk_add still runs as app_rls, names no auth table, and signed-in members may call it as before');
 
 -- A good save. What is stored is built again from the checked answers: a key that is not an answer,
 -- and a version, a date and a name that were sent, are not kept, and 1.0 naps is one nap.

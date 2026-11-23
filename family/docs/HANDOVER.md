@@ -199,7 +199,9 @@ Done and live:
   did before, so a baby's home and a toddler's home that has not saved a day are unchanged;
   an answer counts only if the child, by the birth date stored now, was already 12 months
   on the day it was given. `home_summary` leaves out an entry type whose `settings.needs` the
-  day has not turned on (none exists yet; Potty will be the first). The helper keeps two
+  day has not turned on (none exists yet; Potty will be the first). `milk_add`, the one way
+  a bottle enters the stash, refuses while the day says no milk is stored, so a screen opened
+  before a parent answered cannot leave stock the Milk tab no longer shows. The helper keeps two
   type lists: `types` for new entries, `allTypes` for labels and edits of saved ones.
   `scripts/walk/` holds the side-by-side walk that shows a change leaves Lana's home alone,
   `scripts/day-scenario.mjs` signs a 13-month-old up and reads Home after each save, and
