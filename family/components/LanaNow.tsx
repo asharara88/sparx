@@ -48,6 +48,7 @@ export function LanaNow({
   lastFeedMethod,
   lastPumpAt = null,
   tell = null,
+  section = null,
 }: {
   subject: Subject;
   types: EntryType[];
@@ -64,6 +65,10 @@ export function LanaNow({
   lastPumpAt?: string | null;
   /** Home's "Tell me" bar, at the bottom of the log card. */
   tell?: React.ReactNode;
+  /** On the Feeds section (24 November): its two buttons, or the feed that is running, in place
+   *  of Home's rows. The sheet, the taps, Undo and Recent are Home's own, so logging there works
+   *  as it does on Home and nobody leaves the section to log. */
+  section?: "feed" | null;
 }) {
   const me = useMe();
   const router = useRouter();
@@ -399,6 +404,39 @@ export function LanaNow({
           sheet, the round button is the one tap. A solid button acts at once (▶ starts the
           sleep timer, the dark ■ stops a timer); a soft ＋ opens the row's sheet. Full-width
           rows, so the line under each name fits instead of being cut to "2 h 41 min ago · 13…". */}
+      {section === "feed" && feedEntry && (
+        <div className="card tint-feed flex flex-col gap-3" role="group" aria-label="Feeding now">
+          <button type="button" className="now-open" onClick={() => openSheet("feed")} disabled={!canAdd} aria-label={`${feedSub}. Open the feed sheet`}>
+            <span className="flex items-baseline justify-between gap-2">
+              <span className="text-[0.95rem] font-bold">
+                <span className="live-dot" aria-hidden="true" />
+                Feeding{feedSide ? `, ${feedSide.toLowerCase()}` : ""}
+              </span>
+              <span className="text-[0.95rem] opacity-80">since {fmtTime(feedEntry.occurred_at, timezone)}</span>
+            </span>
+            <span className="font-[family-name:var(--font-display)] text-[2.4rem] font-semibold leading-[1.05] tabular-nums">{elapsed(feedEntry.occurred_at)}</span>
+          </button>
+          <button type="button" className="btn btn-lg btn-stop" onClick={() => finishFeed(feedEntry)} disabled={!canAdd}>
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" />
+            </svg>
+            Done feeding
+          </button>
+        </div>
+      )}
+      {section === "feed" && !feedEntry && (
+        <div className={`grid ${breastfeeds ? "grid-cols-2" : "grid-cols-1"} gap-2`} role="group" aria-label="Log a feed">
+          {breastfeeds && (
+            <button type="button" className="btn btn-primary btn-lg" disabled={!canAdd} onClick={() => { setFeedTab("breast"); openSheet("feed"); }}>
+              Breastfeed
+            </button>
+          )}
+          <button type="button" className={`btn btn-lg ${breastfeeds ? "" : "btn-primary"}`} disabled={!canAdd} onClick={() => { setFeedTab("bottle"); openSheet("feed"); }}>
+            Log a bottle
+          </button>
+        </div>
+      )}
+      {!section && (
       <div className="card log-card">
         <ul aria-label="Log">
           {rows.map((k) =>
@@ -427,6 +465,7 @@ export function LanaNow({
         </ul>
         {tell && <div className="log-card-tell">{tell}</div>}
       </div>
+      )}
 
       {sheet === "feed" && (
         <Sheet title={feedName} onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>

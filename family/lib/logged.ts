@@ -90,6 +90,14 @@ export function stripCells(c: {
   return cells.length >= 2 ? cells : null;
 }
 
+/** A day's feeds as one line: "250 ml in 2 bottles · 2 breastfeeds"; "" for none. */
+export function feedSums(feeds: readonly { payload: Record<string, unknown> }[]): string {
+  const bottles = feeds.filter((e) => e.payload.method === "Bottle");
+  const ml = bottles.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
+  const breast = feeds.length - bottles.length;
+  return [bottles.length ? `${ml ? `${ml} ml in ` : ""}${bottles.length} ${bottles.length === 1 ? "bottle" : "bottles"}` : null, breast ? `${breast} ${breast === 1 ? "breastfeed" : "breastfeeds"}` : null].filter(Boolean).join(" · ");
+}
+
 /** The Feeds card (components/FeedDay.tsx) in words. */
 export interface FeedCardText {
   /** Drawn at all: always for a baby; for a toddler only when a milk feed was logged lately. */
@@ -131,10 +139,7 @@ export function feedCard(c: {
   /** dayPlan's feedCard; null or absent for no day. */
   day?: { show: boolean; clock: boolean } | null;
 }): FeedCardText {
-  const bottles = c.todayFeeds.filter((e) => e.payload.method === "Bottle");
-  const ml = bottles.reduce((a, e) => a + (Number(e.payload.amount_ml) || 0), 0);
-  const breast = c.todayFeeds.length - bottles.length;
-  const parts = [bottles.length ? `${ml ? `${ml} ml in ` : ""}${bottles.length} ${bottles.length === 1 ? "bottle" : "bottles"}` : null, breast ? `${breast} ${breast === 1 ? "breastfeed" : "breastfeeds"}` : null].filter(Boolean).join(" · ");
+  const parts = feedSums(c.todayFeeds);
   if (!isToddler(c.ageDays)) {
     const due = c.nextDue;
     const norms = c.ageDays == null ? null : normsForAge(c.ageDays).feeds;

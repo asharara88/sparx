@@ -25,7 +25,8 @@ export function EntryList({ entries, types, timezone, canEdit, canDelete, bare =
           const key = e.type_id.split(".")[1];
           const icon = iconFor(key);
           const detail = entryDetail(e.payload, !!len);
-          const running = !e.ended_at && e.type_id === "lana.sleep";
+          // A timer still going: a sleep, or a breastfeed (a bottle is logged with its end).
+          const running = !e.ended_at && (e.type_id === "lana.sleep" || e.type_id === "lana.feed");
           return (
             <li key={e.id} className={bare ? "row" : "row px-4"}>
               {/* DESIGN.md, list rows: the time and what, the detail and who under it ("Left breast ·
