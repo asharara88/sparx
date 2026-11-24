@@ -67,8 +67,24 @@ export function HomeState({ summary, stage, timezone, clockIso, nap }: { summary
     </section>
   );
 
-  if (card.kind === "feeding") return wrap(big("Feeding", fmtDuration(mins(card.since)), "tint-feed"));
-  if (card.kind === "asleep") return wrap(big("Asleep", fmtDuration(mins(card.since)), "tint-sleep", `since ${fmtTime(card.since, timezone)}`));
+  // A running timer (24 November): a dot beside the word, when it began on the same line, and
+  // the way to its section said in words at the foot. The card is as tall as it was.
+  const running = (label: string, value: string, tint: string, since: string, out: string) => (
+    <section aria-label="Right now" aria-live="polite" className={`card ${tint} flex flex-col gap-1`}>
+      <p className="flex items-baseline justify-between gap-2">
+        <span className="text-[0.95rem] font-bold">
+          <span className="live-dot" aria-hidden="true" />
+          {label}
+        </span>
+        <span className="text-[0.95rem] opacity-80">{since}</span>
+      </p>
+      <p className="font-[family-name:var(--font-display)] text-[2.4rem] font-semibold leading-[1.05] tabular-nums">{value}</p>
+      <p className="state-out">{out} ›</p>
+    </section>
+  );
+
+  if (card.kind === "feeding") return wrap(running("Feeding", fmtDuration(mins(card.since)), "tint-feed", `since ${fmtTime(card.since, timezone)}`, "All feeds"));
+  if (card.kind === "asleep") return wrap(running("Asleep", fmtDuration(mins(card.since)), "tint-sleep", `since ${fmtTime(card.since, timezone)}`, "All sleep"));
   // Over an hour past the window, a nap was most likely not logged: say when she woke, not "late by 5 h".
   if (card.kind === "last_woke") return wrap(big("Last woke", fmtTime(card.woke, timezone), "", `If ${p.they} napped since, log it below.`));
   if (card.kind === "window" && nap) {

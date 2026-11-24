@@ -30,8 +30,9 @@ export function kindsLoggedLately(entries: readonly { type_id: string; occurred_
   return out;
 }
 
-/** One cell of Home's strip: the number, and the word under it. */
+/** One cell of Home's strip: which sum it is, the number, and the word under it. */
 export interface StripCell {
+  kind: CellKey;
   value: string;
   label: string;
 }
@@ -41,6 +42,8 @@ export interface StripCell {
  * far today. A baby always gets the four cells. A toddler gets "woke"; the naps while a nap is
  * expected (napPattern) or one was had today; feeds and diapers only when that kind was
  * logged lately. With fewer than two cells there is no strip: null.
+ * Since 24 November the strip draws three of them at most (naps, feeds, diapers, as plain
+ * counts); "woke" still counts towards the two, and is said on the Sleep today card below.
  *
  * Naps read "1 of 1–2" while the usual range starts at 1 or more, and a plain count when it
  * starts at 0 ("1" over "nap", "2" over "naps").
@@ -70,14 +73,14 @@ export function stripCells(c: {
 }): StripCell[] | null {
   const said = !c.stage.toddler ? null : (c.plan?.cells ?? null);
   const usual = (said && c.plan?.usualNaps) || c.stage.naps;
-  const naps: StripCell = usual[0] > 0 ? { value: `${c.naps} of ${range(usual)}`, label: "naps" } : usual[1] ? { value: `${c.naps}`, label: c.stage.toddler && c.naps === 1 ? "nap" : "naps" } : { value: `${c.naps}`, label: "naps" };
-  const feeds: StripCell = { value: `${c.feeds}`, label: c.feeds === 1 ? "feed" : "feeds" };
-  const diapers: StripCell = { value: `${c.diapers}`, label: c.diapers === 1 ? "diaper" : "diapers" };
-  const woke: StripCell = { value: c.woke, label: "woke" };
+  const naps: StripCell = usual[0] > 0 ? { kind: "naps", value: `${c.naps} of ${range(usual)}`, label: "naps" } : usual[1] ? { kind: "naps", value: `${c.naps}`, label: c.stage.toddler && c.naps === 1 ? "nap" : "naps" } : { kind: "naps", value: `${c.naps}`, label: "naps" };
+  const feeds: StripCell = { kind: "feeds", value: `${c.feeds}`, label: c.feeds === 1 ? "feed" : "feeds" };
+  const diapers: StripCell = { kind: "diapers", value: `${c.diapers}`, label: c.diapers === 1 ? "diaper" : "diapers" };
+  const woke: StripCell = { kind: "woke", value: c.woke, label: "woke" };
   if (!c.stage.toddler) return [woke, naps, feeds, diapers];
   if (said) {
     // The plan has already asked what was logged lately; here each cell only gets its number.
-    const all: Record<CellKey, StripCell> = { woke, naps, feeds, diapers, potty: { value: `${c.plan!.potty}`, label: "potty" }, meals: { value: `${c.plan!.meals}`, label: c.plan!.meals === 1 ? "meal" : "meals" } };
+    const all: Record<CellKey, StripCell> = { woke, naps, feeds, diapers, potty: { kind: "potty", value: `${c.plan!.potty}`, label: "potty" }, meals: { kind: "meals", value: `${c.plan!.meals}`, label: c.plan!.meals === 1 ? "meal" : "meals" } };
     return said.length >= 2 ? said.map((k) => all[k]) : null;
   }
   const cells = [woke];

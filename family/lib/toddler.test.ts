@@ -387,6 +387,7 @@ const strip = (over: Partial<Parameters<typeof stripCells>[0]>) =>
 
 test("the strip from 12 months: cells only for what the family logs; fewer than two, no strip", () => {
   assert.deepEqual(strip({ stage: stageOf(120), napExpected: false }), ["07:00 woke", "0 of 3–4 naps", "0 feeds", "0 diapers"], "a baby: the four cells as on main");
+  assert.deepEqual(stripCells({ stage: stageOf(120), woke: "07:00", naps: 0, napExpected: false, feeds: 0, diapers: 0, lastFeedAt: null, lastDiaperAt: null, today: TODAY, tz: TZ })?.map((c) => c.kind), ["woke", "naps", "feeds", "diapers"], "each cell names its kind: Home's strip links naps and feeds by it and leaves woke to the card below");
   assert.deepEqual(strip({}), ["07:00 woke", "0 naps"]);
   assert.deepEqual(strip({ naps: 1 }), ["07:00 woke", "1 nap"]);
   assert.deepEqual(strip({ naps: 2 }), ["07:00 woke", "2 naps"]);

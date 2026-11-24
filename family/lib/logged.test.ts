@@ -17,13 +17,17 @@ import { at, iso, msOf, TODAY, TZ } from "./fixtures/toddler-days.ts";
 type StripIn = Parameters<typeof stripCells>[0];
 type CardIn = Parameters<typeof feedCard>[0];
 
+/** What a cell says. Each cell also names its kind since 24 November (Home's strip links naps and
+ *  feeds by it; lib/toddler.test.ts checks the kinds); what the strip says is held to main here. */
+type Said = Pick<StripCell, "value" | "label">;
+const said = (cells: StripCell[] | null): Said[] | null => cells?.map(({ value, label }) => ({ value, label })) ?? null;
 /** stripCells as it stood on main. */
-function stripOnMain(c: StripIn): StripCell[] | null {
+function stripOnMain(c: StripIn): Said[] | null {
   const usual = c.stage.naps;
-  const naps: StripCell = usual[0] > 0 ? { value: `${c.naps} of ${range(usual)}`, label: "naps" } : usual[1] ? { value: `${c.naps}`, label: c.stage.toddler && c.naps === 1 ? "nap" : "naps" } : { value: `${c.naps}`, label: "naps" };
-  const feeds: StripCell = { value: `${c.feeds}`, label: c.feeds === 1 ? "feed" : "feeds" };
-  const diapers: StripCell = { value: `${c.diapers}`, label: c.diapers === 1 ? "diaper" : "diapers" };
-  const woke: StripCell = { value: c.woke, label: "woke" };
+  const naps: Said = usual[0] > 0 ? { value: `${c.naps} of ${range(usual)}`, label: "naps" } : usual[1] ? { value: `${c.naps}`, label: c.stage.toddler && c.naps === 1 ? "nap" : "naps" } : { value: `${c.naps}`, label: "naps" };
+  const feeds: Said = { value: `${c.feeds}`, label: c.feeds === 1 ? "feed" : "feeds" };
+  const diapers: Said = { value: `${c.diapers}`, label: c.diapers === 1 ? "diaper" : "diapers" };
+  const woke: Said = { value: c.woke, label: "woke" };
   if (!c.stage.toddler) return [woke, naps, feeds, diapers];
   const cells = [woke];
   if (c.napExpected || c.naps > 0) cells.push(naps);
@@ -70,14 +74,14 @@ test("stripCells without a plan, with a plan that names no cells, and for a baby
   for (const age of AGES) for (const naps of [0, 1, 2, 3]) for (const napExpected of [true, false]) for (const [feeds, diapers] of [[0, 0], [1, 1], [4, 6]]) for (const lastFeedAt of EDGES) for (const lastDiaperAt of EDGES) {
     const c: StripIn = { stage: stageOf(age), woke: naps ? "06:45" : "—", naps, napExpected, feeds, diapers, lastFeedAt, lastDiaperAt, today: TODAY, tz: TZ };
     const was = stripOnMain(c);
-    const got = stripCells(c);
+    const got = said(stripCells(c));
     const where = `day ${age} naps ${naps} ${napExpected} ${feeds} ${diapers} ${lastFeedAt} ${lastDiaperAt}`;
     assert.deepEqual(got, was, where);
     assert.equal(JSON.stringify(got), JSON.stringify(was), where);
     // Usual naps with no cells named is not a day: it is not read.
-    assert.deepEqual(stripCells({ ...c, plan: { cells: null, usualNaps: n % 2 ? [2, 2] : null, meals: 3, potty: 2 } }), was, where);
-    if (n % 7 === 0) assert.deepEqual(stripCells({ ...c, plan: undefined }), was, where);
-    if (!isToddler(age)) assert.deepEqual(stripCells({ ...c, plan: { cells: ["woke", "meals"], usualNaps: [0, 1], meals: 3, potty: 2 } }), was, where);
+    assert.deepEqual(said(stripCells({ ...c, plan: { cells: null, usualNaps: n % 2 ? [2, 2] : null, meals: 3, potty: 2 } })), was, where);
+    if (n % 7 === 0) assert.deepEqual(said(stripCells({ ...c, plan: undefined })), was, where);
+    if (!isToddler(age)) assert.deepEqual(said(stripCells({ ...c, plan: { cells: ["woke", "meals"], usualNaps: [0, 1], meals: 3, potty: 2 } })), was, where);
     n++;
   }
   assert.equal(n, AGES.length * 4 * 2 * 3 * 4 * 4);

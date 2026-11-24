@@ -13,7 +13,7 @@ import type { DayPlan } from "@/lib/day";
  * (lib/day.ts) the day says whether the card is drawn; a family that keeps the feed clock
  * gets the next feed back, and one whose milk is a drink reads "Milk today". Server-rendered.
  */
-export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowIso, today, href = null, plan = null }: { summary: HomeSummary; entries: EntryRow[]; dayStartMs: number; dayEndMs: number; timezone: string; nowIso: string; today: string; /** The Feeds section, linked at the foot of the card. */ href?: string | null; /** The home's plan (lib/day.ts dayPlan). Absent, or with no saved day, the card is as it always was. */ plan?: Pick<DayPlan, "feedCard" | "milk"> | null }) {
+export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowIso, today, href = null, plan = null, usual: showUsual = true }: { summary: HomeSummary; entries: EntryRow[]; dayStartMs: number; dayEndMs: number; timezone: string; nowIso: string; today: string; /** The Feeds section, linked at the foot of the card. */ href?: string | null; /** The home's plan (lib/day.ts dayPlan). Absent, or with no saved day, the card is as it always was. */ plan?: Pick<DayPlan, "feedCard" | "milk"> | null; /** Off on Home since 24 November: what is usual at her age is said on the Feeds section. */ usual?: boolean }) {
   const c = feedCard({
     ageDays: summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null,
     feeding: summary.ongoing.some((e) => e.type_id === "lana.feed"),
@@ -31,7 +31,7 @@ export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowI
       <h2 id="feed-day-h" className="section-title">{plan?.milk === "drink" ? "Milk today" : "Feeds today"}</h2>
       <p className="text-2xl font-bold">{c.headline}</p>
       {c.line && <p className="text-sm">{c.line}</p>}
-      {c.usual && <p className="muted text-sm">{c.usual}</p>}
+      {showUsual && c.usual && <p className="muted text-sm">{c.usual}</p>}
       {href && (
         <Link prefetch={false} href={href} className="row-link -mb-2 flex min-h-[44px] items-center justify-end font-semibold no-underline">
           All feeds ›
