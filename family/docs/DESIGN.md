@@ -593,7 +593,7 @@ says "Up from a nap at 14:12"), "since 14:04" on the button (said once, on the c
 
 One stretch is one card (24 November, "Cards you swipe": the fourth screen redrawn, with
 Sprouty's cards in mind, in the frame Feeds and Sleep got). The words are the twenty stretches
-of `lib/leaps.ts`, written per stretch (1 to 26 weeks long), not per week. Top to bottom:
+of `lib/leaps.ts`, written per stretch (2 to 26 weeks long), not per week. Top to bottom:
 
 1. **The pager**: "Now" over "Weeks 21 to 25" between two arrows; a swipe does what the arrows
    do. It opens on the stretch she is in; the one after reads "Next", the rest "Later" or
@@ -603,9 +603,11 @@ of `lib/leaps.ts`, written per stretch (1 to 26 weeks long), not per week. Top t
 2. **The card**, in the guide's lilac: "Week 24" and "week 4 of 5" over a bar that shows how
    far through the stretch she is (her own stretch only); the title; "often a harder
    stretch" where it is; **What it brings**; **Try**; the source. A stretch still to come says
-   how far off it is ("starts in 2 weeks", "in about 6 months").
+   how far off it is ("starts in 2 weeks", "in about 6 months", "in about 2 and a half years":
+   to the half year, since the last stretch begins at two and a half).
 3. **Where it is**: a line of twenty marks from birth to three years. The stretches behind
-   her are filled, hers is dark, and a ring marks the one the card shows.
+   her are filled, hers is dark, and a ring marks the one the card shows. Past three years
+   all twenty are filled and none is hers; with no birth date none is filled.
 4. **All the stretches**, one fold: the twenty by name with their weeks, hers marked "now";
    tapping one opens its card.
 

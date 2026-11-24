@@ -81,7 +81,7 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
       <figure className="stretch-pos" role="img" aria-label={`${place}, from birth to ${years} years${nav.current != null && off !== 0 ? `. ${s.name} is in stretch ${nav.current + 1}` : ""}`}>
         <span className="stretch-path">
           {BANDS.map((b, i) => (
-            <i key={b.fromWeek} className={[nav.current != null && i < nav.current ? "done" : "", i === nav.current ? "here" : "", i === nav.index ? "view" : ""].filter(Boolean).join(" ") || undefined} />
+            <i key={b.fromWeek} className={[i < nav.behind ? "done" : "", i === nav.current ? "here" : "", i === nav.index ? "view" : ""].filter(Boolean).join(" ") || undefined} />
           ))}
         </span>
         <figcaption>

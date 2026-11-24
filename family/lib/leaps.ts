@@ -74,6 +74,8 @@ export interface StretchNav {
   current: number | null;
   /** Where the screen opens with nothing in the address. */
   home: number;
+  /** How many stretches are behind her: those before her own, all of them past three years, none with no birth date. */
+  behind: number;
   prev: number | null;
   next: number | null;
 }
@@ -85,7 +87,8 @@ export function stretchNav(param: string | string[] | undefined, ageDays: number
   const asked = Array.isArray(param) ? param[0] : param;
   const named = asked && /^\d{1,3}$/.test(asked) ? BANDS.findIndex((b) => b.fromWeek === Number(asked)) : -1;
   const index = named >= 0 ? named : home;
-  return { index, current, home, prev: index > 0 ? index - 1 : null, next: index < BANDS.length - 1 ? index + 1 : null };
+  const behind = current ?? (ageDays != null && ageDays > 0 ? BANDS.length : 0);
+  return { index, current, home, behind, prev: index > 0 ? index - 1 : null, next: index < BANDS.length - 1 ? index + 1 : null };
 }
 
 /** The address of a stretch: the one the screen opens on has none of its own. */
@@ -93,10 +96,12 @@ export function stretchHref(index: number | null, home: number): string | null {
   return index == null ? null : index === home ? "/baby/weeks" : `/baby/weeks?stretch=${BANDS[index].fromWeek}`;
 }
 
-/** How far off a stretch that has not begun is, in the words under its card's weeks: "starts next week", "starts in 5 weeks", "in about 7 months", "in about 2 years". */
+/** How far off a stretch that has not begun is, in the words under its card's weeks: "starts next week", "starts in 5 weeks", "in about 7 months", "in about 2 years", "in about 2 and a half years" (to the half year: the last stretch begins at two and a half). */
 export function startsIn(weeks: number): string {
   if (weeks <= 1) return "starts next week";
   if (weeks <= 12) return `starts in ${weeks} weeks`;
   const months = Math.round(weeks / 4.345);
-  return months < 24 ? `in about ${months} months` : `in about ${Math.round(months / 12)} years`;
+  if (months < 24) return `in about ${months} months`;
+  const halves = Math.round(months / 6);
+  return `in about ${halves % 2 ? `${(halves - 1) / 2} and a half` : halves / 2} years`;
 }

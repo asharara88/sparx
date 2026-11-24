@@ -42,9 +42,11 @@ test("anything else in the address is the stretch it opens on", () => {
 });
 
 test("no birth date opens on the first stretch, past three years on the last, and neither marks one as hers", () => {
-  assert.deepEqual(stretchNav(undefined, null), { index: 0, current: null, home: 0, prev: null, next: 1 });
+  assert.deepEqual(stretchNav(undefined, null), { index: 0, current: null, home: 0, behind: 0, prev: null, next: 1 });
   const last = BANDS.length - 1;
-  assert.deepEqual(stretchNav(undefined, 1111), { index: last, current: null, home: last, prev: last - 1, next: null });
+  assert.deepEqual(stretchNav(undefined, 1111), { index: last, current: null, home: last, behind: BANDS.length, prev: last - 1, next: null }, "past three years every stretch is behind her");
+  assert.deepEqual([stretchNav(undefined, 156 * 7 + 6).behind, stretchNav(undefined, 157 * 7).behind], [last, BANDS.length], "the last day of the calendar, and the first day past it");
+  assert.equal(stretchNav("0", 24 * 7).behind, stretchNav(undefined, 24 * 7).current, "what is behind her does not move with the card that is open");
   assert.equal(stretchNav("26", null).current, null);
   assert.equal(stretchNav(undefined, 0).current, 0, "the day she is born is the first week");
 });
@@ -55,5 +57,9 @@ test("a stretch's address, and how far off it is", () => {
   assert.equal(stretchHref(nav.next, nav.home), "/baby/weeks?stretch=26");
   assert.equal(stretchHref(0, nav.home), "/baby/weeks?stretch=0");
   assert.equal(stretchHref(null, nav.home), null);
-  assert.deepEqual([1, 2, 12, 13, 26, 100, 104, 130].map(startsIn), ["starts next week", "starts in 2 weeks", "starts in 12 weeks", "in about 3 months", "in about 6 months", "in about 23 months", "in about 2 years", "in about 3 years"]);
+  assert.deepEqual([1, 2, 12, 13, 26, 100, 104, 113].map(startsIn), ["starts next week", "starts in 2 weeks", "starts in 12 weeks", "in about 3 months", "in about 6 months", "in about 23 months", "in about 2 years", "in about 2 years"]);
+  // The last stretch begins at two and a half years: a newborn reads that, not "3 years", over the title "Two and a half to three".
+  assert.deepEqual([128, 129, 130, 131].map(startsIn), ["in about 2 and a half years", "in about 2 and a half years", "in about 2 and a half years", "in about 2 and a half years"]);
+  // Every pair the screen can show: a child in any week, any later stretch. None says a whole number of years it is not near.
+  for (let week = 0; week <= 156; week++) for (const b of BANDS) if (b.fromWeek > week) assert.match(startsIn(b.fromWeek - week), /^(starts next week|starts in \d+ weeks|in about \d+ months|in about 2 years|in about 2 and a half years)$/, `${week} to ${b.fromWeek}`);
 });
