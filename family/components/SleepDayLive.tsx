@@ -37,7 +37,9 @@ export interface BarSegment {
   open: boolean;
 }
 
-export function SleepBar({ segments, dayStartMs, clockIso, live, label }: { segments: BarSegment[]; dayStartMs: number; clockIso: string; live: boolean; label: string }) {
+/** `marks`: the day's feeds, as times, drawn as pink marks over the sleep. `lead`: which of the
+ *  two the screen is about ("feeds": wide marks and faint sleep; "sleep", the default: thin marks). */
+export function SleepBar({ segments, dayStartMs, clockIso, live, label, marks = [], lead = "sleep" }: { segments: BarSegment[]; dayStartMs: number; clockIso: string; live: boolean; label: string; marks?: number[]; lead?: "feeds" | "sleep" }) {
   const now = useClock(clockIso);
   const W = 1440;
   const H = 16;
@@ -52,7 +54,11 @@ export function SleepBar({ segments, dayStartMs, clockIso, live, label }: { segm
       ))}
       {segments.map((g, i) => {
         const to = g.open && live ? Math.max(g.to, nowClip) : g.to;
-        return <rect key={i} x={x(g.from)} y={0} width={Math.max(6, x(to) - x(g.from))} height={H} rx={3} fill="var(--sleep-fg)" opacity={g.kind === "night" ? 1 : 0.55} />;
+        return <rect key={i} x={x(g.from)} y={0} width={Math.max(6, x(to) - x(g.from))} height={H} rx={3} fill="var(--sleep-fg)" opacity={(g.kind === "night" ? 1 : 0.55) * (lead === "feeds" ? 0.3 : 1)} />;
+      })}
+      {marks.map((ms, i) => {
+        const w = lead === "feeds" ? 16 : 10;
+        return <rect key={`m${i}`} x={Math.max(0, Math.min(W - w, x(ms) - w / 2))} y={0} width={w} height={H} rx={4} fill="var(--feed-fg)" />;
       })}
       {live && now < dayEnd && <rect x={x(now) - 2} y={0} width={4} height={H + 4} fill="var(--fg)" />}
     </svg>

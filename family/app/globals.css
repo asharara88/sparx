@@ -450,7 +450,7 @@ h2.section-title { letter-spacing: 0.06em; }
    in all three themes (the lowest, pump in the day theme, is 4.76). Danger fades not at all. */
 [class*="tint-"] .muted { color: inherit; opacity: 0.88; }
 [class*="tint-"] .section-title { color: inherit; opacity: 0.88; }
-[class*="tint-"] .chip, [class*="tint-"] .btn:not(.btn-primary):not(.btn-danger), [class*="tint-"] .input, [class*="tint-"] .tile-icon, [class*="tint-"] .icon-disc {
+[class*="tint-"] .chip, [class*="tint-"] .btn:not(.btn-primary):not(.btn-danger):not(.btn-stop), [class*="tint-"] .input, [class*="tint-"] .tile-icon, [class*="tint-"] .icon-disc {
   background: var(--card);
   color: var(--fg);
 }
@@ -888,6 +888,15 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 .round-go:active { transform: scale(0.95); }
 .round-go:disabled { opacity: 0.5; }
 .round-go-stop { background: var(--fab-bg); color: var(--fab-fg); box-shadow: inset 0 0 0 2px var(--fab-ring), 0 0 0 5px color-mix(in oklab, var(--tint-fg, var(--fg)) 24%, transparent); }
+/* A wide button that stops a timer: the dark square's colours (Feeds, a running feed). */
+.btn-stop { background: var(--fab-bg); border-color: transparent; color: var(--fab-fg); box-shadow: inset 0 0 0 2px var(--fab-ring); }
+/* A running timer's words and time as one tap target that opens its sheet. */
+.now-open { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 0; border: none; background: transparent; color: inherit; font: inherit; text-align: start; }
+/* The day a section shows, between the arrows to the day before and after (DayPager). */
+.daypager { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.daypager-title { display: flex; flex-direction: column; align-items: center; line-height: 1.3; }
+.daypager-title > b { font-size: 1rem; }
+.daypager-title > span { font-size: 0.85rem; }
 /* A plus opens the row's sheet, so it is drawn quiet. Solid rose is kept for what acts at once
    (the Sleep timer's start), the dark square for what stops it. */
 .round-go-open { background: var(--accent-soft); color: var(--accent); }

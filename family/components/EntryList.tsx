@@ -15,7 +15,7 @@ export function lastedMin(e: Pick<EntryRow, "occurred_at" | "ended_at">): number
  * The day's entries as a timeline list (time, icon, what, who). Tapping one opens its edit
  * sheet in place (EntrySheet), never a separate page.
  */
-export function EntryList({ entries, types, timezone, canEdit, canDelete, bare = false }: { entries: EntryRow[]; types: EntryType[]; timezone: string; canEdit: boolean; canDelete: boolean; /** Inside a fold: no card of its own (a card in a card). */ bare?: boolean }) {
+export function EntryList({ entries, types, timezone, canEdit, canDelete, bare = false, running: runningIds = [] }: { entries: EntryRow[]; types: EntryType[]; timezone: string; canEdit: boolean; canDelete: boolean; /** Inside a fold: no card of its own (a card in a card). */ bare?: boolean; /** The ids of the timers running now (home_summary's ongoing): those rows say "now". Having no end is not enough to tell: a bottle saved from the full form has none either. */ running?: readonly string[] }) {
   const [open, setOpen] = useState<EntryRow | null>(null);
   return (
     <>
@@ -25,7 +25,8 @@ export function EntryList({ entries, types, timezone, canEdit, canDelete, bare =
           const key = e.type_id.split(".")[1];
           const icon = iconFor(key);
           const detail = entryDetail(e.payload, !!len);
-          const running = !e.ended_at && e.type_id === "lana.sleep";
+          // A timer still going: a sleep with no end, as always; anything else only when the server says it runs.
+          const running = !e.ended_at && (e.type_id === "lana.sleep" || runningIds.includes(e.id));
           return (
             <li key={e.id} className={bare ? "row" : "row px-4"}>
               {/* DESIGN.md, list rows: the time and what, the detail and who under it ("Left breast ·
