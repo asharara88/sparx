@@ -11,14 +11,17 @@ import { MoodTap } from "./MoodTap";
 import { Backfill } from "./Backfill";
 import { Icon } from "./Icon";
 import { onLogHere, takeLogFrom } from "@/lib/log-bus";
+import type { DayPlan } from "@/lib/day";
 
 /**
  * The log sheet (DESIGN.md, "The bottom bar"): how she is right now (one tap), every kind
  * of entry as a row, and "From earlier" for something that was missed. The bar's ＋ opens
  * it from anywhere (it lands here with ?log=1); on a past day the page's own bottom button
- * opens "Add to this day". Home keeps the four most common as rows.
+ * opens "Add to this day". Home keeps the four most common as rows. In a home whose day says
+ * no milk is stored (lib/day.ts) Pump leaves the list; Feed and Diaper always stay, so
+ * nothing a family may still need is out of reach.
  */
-export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin, milkClock, solids = true }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number; /** The child's stage has a milk clock (lib/stage, a baby): "From earlier" may say a feed looks missed. */ milkClock: boolean; /** Meals are offered once the child eats (lib/stage), or once one was logged. */ solids?: boolean }) {
+export function LogMenu({ subjectId, types, timezone, day, isToday, entries, todayEntries, feedIntervalMin, milkClock, solids = true, plan = null }: { subjectId: string; types: EntryType[]; timezone: string; day: string; isToday: boolean; entries: EntryRow[]; todayEntries: EntryRow[]; feedIntervalMin: number; /** Milk feeds have a next-due time (a baby, or a toddler whose day keeps the clock): "From earlier" may say a feed looks missed. */ milkClock: boolean; /** Meals are offered once the child eats (lib/stage), or once one was logged. */ solids?: boolean; /** The home's plan (lib/day.ts dayPlan). Absent, or with no saved day, the sheet is as it always was. */ plan?: Pick<DayPlan, "milk" | "diapers" | "on"> | null }) {
   const me = useMe();
   const router = useRouter();
   const path = usePathname();
@@ -60,7 +63,7 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
           <MoodTap bare subjectId={subjectId} today={todayEntries} timezone={timezone} />
           <ul className="card flex flex-col p-0">
             {types
-              .filter((t) => t.key !== "mood" && (t.key !== "meal" || solids || entries.some((e) => e.type_id === t.id)))
+              .filter((t) => t.key !== "mood" && (t.key !== "meal" || solids || entries.some((e) => e.type_id === t.id)) && (t.key !== "pump" || plan?.on.pump !== false))
               .map((t) => {
                 const icon = iconFor(t.key);
                 return (
@@ -90,7 +93,7 @@ export function LogMenu({ subjectId, types, timezone, day, isToday, entries, tod
       )}
       {open === "earlier" && (
         <Sheet title={isToday ? "From earlier" : "Add to this day"} onClose={close}>
-          <Backfill bare defaultOpen onSaved={close} subjectId={subjectId} types={types} timezone={timezone} day={day} entries={entries} feedIntervalMin={feedIntervalMin} milkClock={milkClock} />
+          <Backfill bare defaultOpen onSaved={close} subjectId={subjectId} types={types} timezone={timezone} day={day} entries={entries} feedIntervalMin={feedIntervalMin} milkClock={milkClock} plan={plan} />
         </Sheet>
       )}
     </>

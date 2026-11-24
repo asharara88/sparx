@@ -20,14 +20,16 @@ import { fromLocalInput, toLocalInput } from "@/lib/time";
 import { bottleChoices, napLengths, overlappingSleep, runningTimers } from "@/lib/backlog";
 import { cap, possessive, pronouns } from "@/lib/names";
 import { isNightAt } from "@/lib/night";
-import { ageInDays, pumpingActive, stageFor } from "@/lib/stage";
+import { ageInDays } from "@/lib/stage";
+import { homeRows, readDay } from "@/lib/day";
 
 /**
  * Home's log (DESIGN.md, "Home"): one row per activity, Huckleberry-style. Each row says
  * when it last happened; the round button on the right is the one-tap action (start a
  * sleep, stop a feed or a sleep, open the amounts), and tapping the row opens its sheet
  * with a big button for now and the times for something that already happened. Timers
- * are open entries (no end time yet).
+ * are open entries (no end time yet). Which rows, and in what order, is lib/day.ts
+ * homeRows: a baby's four, or the four of a family that has saved "{Name}'s day".
  */
 type State =
   | { kind: "asleep"; entry: OngoingEntry }
@@ -138,6 +140,7 @@ export function LanaNow({
   const diaperType = types.find((t) => t.key === "diaper");
   const pumpType = types.find((t) => t.key === "pump");
   const mealType = types.find((t) => t.key === "meal");
+  const pottyType = types.find((t) => t.key === "potty");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
   // "She", "he" or "they", as the child's card says (X3).
   const p = pronouns(typeof subject.profile?.sex === "string" ? subject.profile.sex : null);
@@ -357,10 +360,14 @@ export function LanaNow({
     : "None yet today";
   const lastNappy = lastOf(diaperType?.id);
   const nappySub = lastNappy && ago(diaperType?.id, "") !== "" ? `${ago(diaperType?.id, "")}${lastNappy.payload.kind ? ` · ${String(lastNappy.payload.kind).toLowerCase()}` : ""}` : "Wet or dirty";
-  // The fourth row grows with the child (DESIGN.md, "Home"): Meal once she eats (lib/stage),
-  // before that Pump for the parent who pumps while pumping goes on, else Medicine.
-  const stage = stageFor(subject.birth_date, clock, timezone);
-  const fourth: "meal" | "pump" | "meds" = stage.solids && mealType ? "meal" : breastfeeds && pumpType && pumpingActive(lastPumpAt, clock, ageInDays(subject.birth_date, clock, timezone)) ? "pump" : "meds";
+  // The rows (lib/day.ts homeRows). With no saved day: Feed, Sleep, Diaper and a fourth that
+  // grows with the child (DESIGN.md, "Home"): Meal once she eats (lib/stage), before that Pump
+  // for the parent who pumps while pumping goes on, else Medicine. With one, the family's own
+  // four. Asked on this phone's clock, so a screen left open follows the day as it always did.
+  const age = ageInDays(subject.birth_date, clock, timezone);
+  const rows = homeRows(readDay(subject.settings, age, subject.birth_date), age, { now: clock, has: { meal: !!mealType, pump: !!pumpType, potty: !!pottyType, note: types.some((t) => t.key === "note") }, breastfeeds, lastPumpAt });
+  // Where milk is a drink with meals, the Feed row and its sheet go by the name "Milk".
+  const feedName = rows.includes("milk") ? "Milk" : "Feed";
   const lastMeal = lastOf(mealType?.id);
   const mealSub = lastMeal && ago(mealType?.id, "") !== "" ? `${ago(mealType?.id, "")}${lastMeal.payload.food ? ` · ${String(lastMeal.payload.food).toLowerCase()}` : ""}` : "What was eaten";
   const lastPump = lastOf(pumpType?.id);
@@ -394,24 +401,35 @@ export function LanaNow({
           rows, so the line under each name fits instead of being cut to "2 h 41 min ago · 13…". */}
       <div className="card log-card">
         <ul aria-label="Log">
-          <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")}
-            action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "plus", label: "Log a feed", onClick: () => openSheet("feed") }} />
-          <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
-            action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
-          <Row tint="diaper" icon="diaper" label="Diaper" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a diaper", onClick: () => openSheet("diaper") }} />
-          {fourth === "meal" ? (
-            <Row tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} action={{ kind: "plus", label: "Log a meal", onClick: () => openSheet("meal") }} />
-          ) : fourth === "pump" ? (
-            <Row tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
-          ) : (
-            <Row tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
+          {rows.map((k) =>
+            k === "feed" || k === "milk" ? (
+              <Row key={k} tint="feed" icon="bottle" label={feedName} sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")}
+                action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "plus", label: "Log a feed", onClick: () => openSheet("feed") }} />
+            ) : k === "sleep" ? (
+              <Row key={k} tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
+                action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
+            ) : k === "diaper" || k === "diaper_potty" ? (
+              // Diapers and potty in one row come with the Potty sheet; until then this is the diaper's row.
+              <Row key={k} tint="diaper" icon="diaper" label="Diaper" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a diaper", onClick: () => openSheet("diaper") }} />
+            ) : k === "potty" ? (
+              // No sheet of its own yet: the row opens the Potty form.
+              <Row key={k} tint="diaper" icon="diaper" label="Potty" sub="Wee or poo" disabled={!canAdd} href="/baby/log/potty" action={{ kind: "plus", label: "Log the potty", href: "/baby/log/potty" }} />
+            ) : k === "meal" ? (
+              <Row key={k} tint="food" icon="bowl" label="Meal" sub={mealSub} disabled={!canAdd} onOpen={() => openSheet("meal")} action={{ kind: "plus", label: "Log a meal", onClick: () => openSheet("meal") }} />
+            ) : k === "pump" ? (
+              <Row key={k} tint="pump" icon="droplet" label="Pump" sub={pumpSub} disabled={!canAdd} onOpen={() => openSheet("pump")} action={{ kind: "plus", label: "Log a pump", onClick: () => openSheet("pump") }} />
+            ) : k === "meds" ? (
+              <Row key={k} tint="meds" icon="clock" label="Medicine" sub="Log a dose" disabled={!canAdd} href="/baby/medicine" action={{ kind: "plus", label: "Log a dose", href: "/baby/medicine" }} />
+            ) : (
+              <Row key={k} tint="notes" icon="note" label="Note" sub="Write a note" disabled={!canAdd} href="/baby/log/note" action={{ kind: "plus", label: "Write a note", href: "/baby/log/note" }} />
+            ),
           )}
         </ul>
         {tell && <div className="log-card-tell">{tell}</div>}
       </div>
 
       {sheet === "feed" && (
-        <Sheet title="Feed" onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
+        <Sheet title={feedName} onClose={closeSheet} when={when} onWhen={setWhen} onWhenValid={(ok) => setWhenBad(!ok)} timezone={timezone} busy={busy}>
           {breastfeeds && (
             <div className="segmented" role="group" aria-label="Breast or bottle">
               {(["breast", "bottle"] as const).map((t) => (

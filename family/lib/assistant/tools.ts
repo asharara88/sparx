@@ -9,8 +9,9 @@ import { sleepCoach, awakeWindow, ageOutlook, daySchedule, napPattern, type NapP
 import { leapWeek } from "@/lib/leaps";
 import { ageInDays, isToddler, pumpingActive } from "@/lib/stage";
 import { ageWords } from "@/lib/norms";
-import { kindsLoggedLately } from "@/lib/logged";
-import { pronouns } from "@/lib/names";
+import { kindsLoggedLately, loggedLately } from "@/lib/logged";
+import { dayPlan, readDay, typesForDay, type DayPlan, type SavedDay } from "@/lib/day";
+import { possessive, pronouns } from "@/lib/names";
 import { tipsFor } from "@/lib/child-guide";
 import type { EntryRow } from "@/lib/types";
 import { ambulanceOf } from "@/lib/emergency";
@@ -43,6 +44,10 @@ export interface SubjectInfo {
  * prompt depends on these values and never on the clock. From 12 months (R5, R7, R11) the
  * helper needs the child's own days: whether they still nap, which kinds the family logs, and
  * whether milk is pumped. For a baby nothing more is read: `naps` and `lately` are null.
+ *
+ * From 12 months a family can also say what age and the log cannot, in "{Name}'s day"
+ * (lib/day.ts): `day`, and the naps and the feed clock that follow from it. With no day
+ * every value is what it was before the day existed.
  */
 export interface ChildNow {
   id: string;
@@ -50,12 +55,19 @@ export interface ChildNow {
   ageDays: number | null;
   /** 12 months or older (lib/stage isToddler). */
   toddler: boolean;
-  /** A toddler's nap pattern from the last 7 days, as Home reads it (napPattern); null for a baby. */
+  /** A toddler's nap pattern from the last 7 days, as Home reads it (napPattern), with the day's naps as the family's answer; null for a baby. */
   naps: NapPattern | null;
   /** A toddler's kinds logged lately (today and the 6 days before: "lana.feed", ...); null for a baby. */
   lately: string[] | null;
   /** A toddler's newest pump in the last 14 days (ISO), or null. */
   lastPumpAt: string | null;
+  /** "{Name}'s day" when one is in force (lib/day.ts readDay); null for a baby and for a home that has not saved one. */
+  day: SavedDay | null;
+  /**
+   * Milk feeds keep their next-due time (dayPlan's milkClock): always for a baby; from 12
+   * months only when the day says "on a clock" and a feed was logged lately.
+   */
+  milkClock: boolean;
 }
 
 export interface ToolContext {
@@ -71,10 +83,19 @@ export interface ToolContext {
   /**
    * Milk is kept at home, so the prompt may speak of pumped milk and the stash: always in a
    * home with a baby; in a toddler's home only with a bottle in stock or a pump in the last
-   * 14 days (R7).
+   * 14 days (R7), and not where the child's day says no milk is stored.
    */
   milkKept: boolean;
+  /**
+   * The entry types offered for new entries: the prompt's list and propose_care_entry. A type
+   * the child's day has not turned on is not in it (lib/day.ts typesForDay).
+   */
   types: EntryType[];
+  /**
+   * Every active type as selected, for the label and the fields of an entry already saved:
+   * a type an entry has is never dropped, so an old entry can still be read and corrected.
+   */
+  allTypes: EntryType[];
   /** Members with a written routine ("works 9 to 5"), for the prompt. */
   routines: { name: string; routine: string }[];
   /** Every active member the asker may see: id (to hand the child over), first name, role label and relationship ("Mido's mother"). */
@@ -155,7 +176,7 @@ function findSubject(ctx: ToolContext, name: unknown): SubjectInfo | null {
 /** The child's age facts from the context; a baby's, with nothing read, when the context has none for them. */
 export function childNowOf(ctx: ToolContext, s: SubjectInfo): ChildNow {
   const ageDays = ageInDays(s.birth_date, ctx.now.getTime(), ctx.tz);
-  return ctx.children.find((c) => c.id === s.id) ?? { id: s.id, ageDays, toddler: isToddler(ageDays), naps: null, lately: null, lastPumpAt: null };
+  return ctx.children.find((c) => c.id === s.id) ?? { id: s.id, ageDays, toddler: isToddler(ageDays), naps: null, lately: null, lastPumpAt: null, day: null, milkClock: !isToddler(ageDays) };
 }
 
 /** The hour of an instant on the home's clock, as a fraction (19.5 is 19:30). */
@@ -171,9 +192,14 @@ function hourIn(tz: string): (iso: string) => number {
  * A toddler's naps from their own days, in words: "1 nap a day lately", "no nap lately". Null
  * for a baby, and when nothing logged says it (no sleep in the week, or a nap expected only
  * because the child is under 3 and there is too little to go by).
+ *
+ * When the family said it in the child's day (`said`), their answer in their name, also with
+ * nothing logged: "the family says 1 nap a day". It is not from the log, so never "lately".
  */
 export function napsLately(p: NapPattern | null): string | null {
-  if (!p?.toddler || !p.evidenceDays) return null;
+  if (!p?.toddler) return null;
+  if (p.said) return p.perDay ? `the family says ${p.perDay} nap${p.perDay === 1 ? "" : "s"} a day` : "the family says no nap";
+  if (!p.evidenceDays) return null;
   if (!p.expected) return p.napDays ? `naps on only ${p.napDays} of the last ${p.evidenceDays} days logged` : "no nap lately";
   return p.napDays ? `${p.perDay} nap${p.perDay === 1 ? "" : "s"} a day lately` : null;
 }
@@ -303,10 +329,12 @@ function careNow(ctx0: ToolContext): AssistantTool {
       if (!s) return { error: "unknown_subject", known: ctx.subjects.map((x) => x.name) };
       const r = await rpc(ctx, "home_summary", { p_subject_id: s.id });
       if (!r.ok) return r;
-      // A toddler's milk, diapers and sleep have no clock (R2), whatever an older database still says.
-      const noClock = childNowOf(ctx, s).toddler ? /\.(feed|diaper|sleep)$/ : null;
+      // A toddler's milk, diapers and sleep have no clock (R2), whatever an older database still
+      // says. The feed keeps its own where the family's day keeps the clock.
+      const kid = childNowOf(ctx, s);
+      const noClock = !kid.toddler ? null : kid.milkClock ? /\.(diaper|sleep)$/ : /\.(feed|diaper|sleep)$/;
       const last = Object.entries((r.last as Record<string, Record<string, unknown>>) ?? {}).map(([type, l]) => {
-        const t = ctx.types.find((x) => x.id === type);
+        const t = ctx.allTypes.find((x) => x.id === type);
         entryRef(ctx, { id: l.id as string, type_label: t?.label, occurred_at: l.occurred_at as string }, s.module_id);
         return {
           id: l.id,
@@ -410,12 +438,13 @@ function dueSoon(): AssistantTool {
       // long and how full the feed was and the gap for her age, so it would contradict Home.
       // The next feed comes from home_summary, already in the snapshot ("Next feed due").
       // From 12 months milk, diapers and sleep have no clock at all (R2): the database lists no
-      // such row, and one from before that migration is dropped here too.
+      // such row, and one from before that migration is dropped here too. A toddler whose day
+      // keeps the feed clock has a next feed in the snapshot, as a baby has: the note says so.
       const toddlers = new Set(ctx.subjects.filter((s) => childNowOf(ctx, s).toddler).map((s) => s.name));
       const items = ((r.items as Record<string, unknown>[]) ?? []).filter((d) => !(d.kind === "interval" && (String(d.type_id ?? "").endsWith(".feed") || (toddlers.has(String(d.subject)) && /\.(diaper|sleep)$/.test(String(d.type_id ?? ""))))));
-      const anyBaby = !ctx.subjects.length || ctx.subjects.some((s) => !childNowOf(ctx, s).toddler);
+      const anyClock = !ctx.subjects.length || ctx.subjects.some((s) => childNowOf(ctx, s).milkClock);
       return {
-        ...(anyBaby ? { note: "The next feed is not listed here: use 'Next feed due' from the snapshot." } : {}),
+        ...(anyClock ? { note: "The next feed is not listed here: use 'Next feed due' from the snapshot." } : {}),
         items: items.map((d) => {
           if (d.entry_id) ctx.refs[d.entry_id as string] = { href: `/${d.module_id}/entry/${d.entry_id}`, label: `${d.label}` };
           return { subject: d.subject, what: d.label, due: local(d.due_at as string, ctx.tz), overdue: d.overdue, entry_id: d.entry_id ?? undefined };
@@ -576,7 +605,7 @@ function proposeEndTimer(ctx0: ToolContext): AssistantTool {
       const e = whenGiven(input.ended_at, ctx);
       if ("error" in e) return e;
       if (new Date(e.at) < new Date(o.occurred_at)) return { error: "end_before_start", started: local(o.occurred_at, ctx.tz), message: "That end is before it started; ask the member again." };
-      const t = ctx.types.find((x) => x.id === o.type_id);
+      const t = ctx.allTypes.find((x) => x.id === o.type_id);
       const label = t?.label ?? o.type_id;
       const p: AssistantProposal = {
         id: newId(),
@@ -755,12 +784,13 @@ function dayScheduleTool(ctx0: ToolContext): AssistantTool {
         return { subject: s.name, ...sched, basedOn: basis(sched.basedOn), note: away };
       }
       // A toddler's day plans no more naps than the child's own days show, and none when no nap
-      // is expected (R5, R11). Times read as hours and minutes.
+      // is expected (R5, R11). Times read as hours and minutes. Where the family said "no nap"
+      // in the child's day, that is the reason given, not a count of days the log may contradict.
       const pattern = childNowOf(ctx, s).naps ?? napPattern(entries, ageDays, ctx.now.getTime(), ctx.tz, ctx.now.getTime() - 7 * 86_400_000);
       const naps = pattern.expected ? (pattern.perDay ?? null) : 0;
       const coach = sleepCoach(entries, ageDays, hourOf, s.sex ?? null, naps);
       const sched = daySchedule(wake, ageDays, coach?.bestWindowMin ?? null, naps);
-      if (!naps) return { subject: s.name, lines: sched.lines, note: `No nap planned: ${pattern.evidenceDays ? `${s.name} napped on ${pattern.napDays} of the last ${pattern.evidenceDays} days logged` : "no nap logged lately"}.` };
+      if (!naps) return { subject: s.name, lines: sched.lines, note: pattern.said ? "No nap planned: the family says no nap." : `No nap planned: ${pattern.evidenceDays ? `${s.name} napped on ${pattern.napDays} of the last ${pattern.evidenceDays} days logged` : "no nap logged lately"}.` };
       return { subject: s.name, awake_before_a_nap: fmtDuration(sched.awakeWindowMin), basedOn: basis(sched.basedOn), naps_a_day: naps, lines: sched.lines };
     },
   };
@@ -947,7 +977,7 @@ async function entryById(ctx: ToolContext, raw: unknown): Promise<{ e: EntryRowL
   if (!e) return { error: "not_found", message: "No such entry (it may have been deleted). Look it up again with care_entries." };
   const s = ctx.subjects.find((x) => x.id === e.subject_id);
   if (!s) return { error: "not_found", message: "That entry is not one you can see." };
-  return { e: { ...e, payload: e.payload ?? {} }, s, t: ctx.types.find((x) => x.id === e.type_id) };
+  return { e: { ...e, payload: e.payload ?? {} }, s, t: ctx.allTypes.find((x) => x.id === e.type_id) };
 }
 
 function proposeCustody(ctx0: ToolContext): AssistantTool {
@@ -1105,6 +1135,15 @@ function milkStash(): AssistantTool {
   };
 }
 
+/**
+ * The child whose day says no milk is stored, when every child the stash belongs to (the lana
+ * module, as buildTools has it) says so; null otherwise, and always in a home with no day.
+ */
+function noStoredMilk(ctx: ToolContext): SubjectInfo | null {
+  const kids = ctx.subjects.filter((s) => s.kind === "child" && s.module_id === "lana");
+  return kids.length && kids.every((s) => childNowOf(ctx, s).day?.stores_milk === false) ? kids[0] : null;
+}
+
 function proposeMilkAdd(): AssistantTool {
   return {
     def: {
@@ -1122,6 +1161,10 @@ function proposeMilkAdd(): AssistantTool {
       ),
     },
     run: async (input, ctx) => {
+      // Nothing new goes into the stash while the child's day says no milk is stored. The tool
+      // stays in the list and a bag already there can still be used or binned (propose_milk_move).
+      const off = noStoredMilk(ctx);
+      if (off) return { error: "no_stored_milk", message: `${possessive(off.name)} day says no milk is stored. A parent turns it on in ${possessive(off.name)} day.` };
       const ml = Math.round(Number(input.amount_ml));
       if (!Number.isFinite(ml) || ml < 5 || ml > 1000) return { error: "bad_amount", message: "Ask how many ml are in the bottle (5 to 1000)." };
       const loc = String(input.location ?? "").trim().toLowerCase();
@@ -1414,30 +1457,92 @@ function roleLabel(roleId: string, roles: { id: string; label: string }[]): stri
   return roles.find((r) => r.id === roleId)?.label ?? roleId.replace(/_/g, " ");
 }
 
+/** What the home says for every child alike: the types as selected, and whether the member asking breastfeeds. */
+type HomeFacts = { types: EntryType[]; breastfeeds: boolean };
+
 /**
- * A child's ChildNow. A baby's needs no read. A toddler's reads the last 14 days of the log
- * once: the nap pattern over the week Home reads, the kinds logged lately, the newest pump.
+ * The plan of a child's day (lib/day.ts dayPlan) from what the helper itself has read: a
+ * toddler's 14 days and nap pattern; nothing for a baby, whose plan asks nothing of the log.
+ *
+ * The helper takes two things from it: the feed clock, and what the day turns on (through
+ * typesForDay). Neither depends on the stash, which is not read here (milkKeptIn reads it,
+ * once for the home), so what this plan says of stored milk in a home with no day is not the
+ * home's and must not be read off it.
  */
-async function childNow(supabase: SupabaseClient, s: SubjectInfo, now: Date, tz: string): Promise<ChildNow> {
+function planOf(c: { module: string; ageDays: number | null; day: SavedDay | null; entries: EntryRow[]; naps: NapPattern | null; lastPumpAt: string | null }, home: HomeFacts, now: Date, tz: string): DayPlan {
+  const today = todayYmd(tz, now);
+  const id = (key: string) => `${c.module}.${key}`;
+  const has = (key: string) => home.types.some((t) => t.id === id(key));
+  const newest = (key: string) => c.entries.filter((e) => e.type_id === id(key)).map((e) => e.occurred_at).sort().pop() ?? null;
+  return dayPlan(c.day, c.ageDays, {
+    now: now.getTime(),
+    today,
+    tz,
+    has: { meal: has("meal"), pump: has("pump"), potty: has("potty") },
+    breastfeeds: home.breastfeeds,
+    lastPumpAt: c.lastPumpAt,
+    inStock: false,
+    lastFeedAt: newest("feed"),
+    lastDiaperAt: newest("diaper"),
+    lastMealAt: newest("meal"),
+    lastPottyAt: newest("potty"),
+    breastLately: c.entries.some((e) => e.type_id === id("feed") && e.payload?.method === "Breast" && loggedLately(e.occurred_at, today, tz)),
+    napExpected: c.naps?.expected ?? true,
+    napsToday: c.naps?.napsToday ?? 0,
+  });
+}
+
+/**
+ * A child's ChildNow, with the plan of the child's day that the type list is asked of. A
+ * baby's needs no read. A toddler's reads the last 14 days of the log once: the nap pattern
+ * over the week Home reads (the family's answer standing in where they gave one), the kinds
+ * logged lately, the newest pump.
+ */
+async function childNow(supabase: SupabaseClient, s: SubjectInfo, settings: unknown, home: HomeFacts, now: Date, tz: string): Promise<{ module: string; kid: ChildNow; plan: DayPlan }> {
   const ageDays = ageInDays(s.birth_date, now.getTime(), tz);
-  if (!isToddler(ageDays)) return { id: s.id, ageDays, toddler: false, naps: null, lately: null, lastPumpAt: null };
+  if (!isToddler(ageDays)) {
+    const plan = planOf({ module: s.module_id, ageDays, day: null, entries: [], naps: null, lastPumpAt: null }, home, now, tz);
+    return { module: s.module_id, kid: { id: s.id, ageDays, toddler: false, naps: null, lately: null, lastPumpAt: null, day: null, milkClock: plan.milkClock }, plan };
+  }
   const { data } = await supabase.rpc("care_entries_list", { p_subject_id: s.id, p_from: new Date(now.getTime() - 14 * 86_400_000).toISOString(), p_to: now.toISOString() });
   const entries = ((data as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const pumps = entries.filter((e) => e.type_id === `${s.module_id}.pump`).map((e) => e.occurred_at).sort();
+  const lastPumpAt = pumps[pumps.length - 1] ?? null;
+  // No settings column (an older database, a test's stand-in) reads as no day, like any day that does not read whole.
+  const day = readDay(settings, ageDays, s.birth_date);
+  const naps = napPattern(entries, ageDays, now.getTime(), tz, now.getTime() - 7 * 86_400_000, day?.naps ?? null);
+  const plan = planOf({ module: s.module_id, ageDays, day, entries, naps, lastPumpAt }, home, now, tz);
   return {
-    id: s.id,
-    ageDays,
-    toddler: true,
-    naps: napPattern(entries, ageDays, now.getTime(), tz, now.getTime() - 7 * 86_400_000),
-    lately: [...kindsLoggedLately(entries, todayYmd(tz, now), tz)],
-    lastPumpAt: pumps[pumps.length - 1] ?? null,
+    module: s.module_id,
+    kid: { id: s.id, ageDays, toddler: true, naps, lately: [...kindsLoggedLately(entries, todayYmd(tz, now), tz)], lastPumpAt, day, milkClock: plan.milkClock },
+    plan,
   };
 }
 
-/** ToolContext.milkKept: true in a home with a baby; a toddler's home needs a pump in 14 days or a bottle in stock (R7). */
+/**
+ * The types offered for new entries: each module's rows as its child's day gives them
+ * (lib/day.ts typesForDay), so a type that needs a day to turn it on is there only where the
+ * day does. The list is typesForDay's own answer, never a copy of the stored rows; with no
+ * day that is the same objects. A module with no child here is read as a child with no day
+ * (`none`); where a module has more than one child, the first speaks for it, as elsewhere in
+ * the helper. The rows come ordered by module, and stay so.
+ */
+function typesOffered(all: EntryType[], kids: { module: string; plan: DayPlan }[], none: DayPlan): EntryType[] {
+  return [...new Set(all.map((t) => t.module_id))].flatMap((module) =>
+    typesForDay(all.filter((t) => t.module_id === module), kids.find((k) => k.module === module)?.plan ?? none),
+  );
+}
+
+/**
+ * ToolContext.milkKept: true in a home with a baby; a toddler's home needs a pump in 14 days or
+ * a bottle in stock (R7). A child whose day says no milk is stored does not count, whatever is
+ * left in the fridge: the rule of dayPlan's milkNotices.
+ */
 async function milkKeptIn(supabase: SupabaseClient, children: ChildNow[], now: Date): Promise<boolean> {
   if (!children.length || children.some((c) => !c.toddler)) return true;
-  if (children.some((c) => pumpingActive(c.lastPumpAt, now.getTime(), c.ageDays))) return true;
+  const storing = children.filter((c) => c.day?.stores_milk !== false);
+  if (!storing.length) return false;
+  if (storing.some((c) => pumpingActive(c.lastPumpAt, now.getTime(), c.ageDays))) return true;
   const { data } = await supabase.rpc("milk_list");
   const m = data as { ok?: boolean; fridge_count?: number; freezer_count?: number } | null;
   return !!m?.ok && (m.fridge_count ?? 0) + (m.freezer_count ?? 0) > 0;
@@ -1446,9 +1551,9 @@ async function milkKeptIn(supabase: SupabaseClient, children: ChildNow[], now: D
 /** Load what the member may see, once per request. RLS does the filtering. */
 export async function loadContext(supabase: SupabaseClient, me: Me, now = new Date(), opts: { question?: string; history?: string[]; screen?: string | null; chat?: string | null } = {}): Promise<ToolContext> {
   type MemberRow = { id: string; display_name: string; routine: string | null; role_id: string; relationship: string | null };
-  type SubjectRow = Omit<SubjectInfo, "sex" | "species"> & { profile: Record<string, unknown> | null };
+  type SubjectRow = Omit<SubjectInfo, "sex" | "species"> & { profile: Record<string, unknown> | null; settings?: unknown };
   const [{ data: subjects }, { data: types }, { data: members }, { data: roles }, { data: memData }, { data: skillData }, { data: recapData }] = await Promise.all([
-    supabase.from("care_subjects").select("id,name,module_id,kind,birth_date,profile").eq("is_active", true).order("sort"),
+    supabase.from("care_subjects").select("id,name,module_id,kind,birth_date,profile,settings").eq("is_active", true).order("sort"),
     supabase.from("care_entry_types").select("*").eq("is_active", true).order("module_id").order("sort"),
     supabase.from("members").select("id,display_name,routine,role_id,relationship").eq("is_active", true).order("display_name"),
     supabase.from("roles").select("id,label"),
@@ -1457,12 +1562,17 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     // The chat in progress is not one of the earlier chats.
     opts.chat ? supabase.rpc("ask_chat_recaps", { p_limit: 6, p_exclude: opts.chat }) : supabase.rpc("ask_chat_recaps", { p_limit: 6 }),
   ]);
-  const subs: SubjectInfo[] = (((subjects as SubjectRow[] | null) ?? []) as SubjectRow[]).map(({ profile, ...s }) => ({
-    ...s,
-    sex: typeof profile?.sex === "string" ? profile.sex : null,
-    species: typeof profile?.species === "string" ? profile.species : null,
-    ambulance: ambulanceOf(profile),
-  }));
+  // The settings hold "{Name}'s day". They are read once, below, and are not part of what the tools know of a subject.
+  const settings = new Map<string, unknown>();
+  const subs: SubjectInfo[] = (((subjects as SubjectRow[] | null) ?? []) as SubjectRow[]).map(({ profile, settings: stored, ...s }) => {
+    settings.set(s.id, stored);
+    return {
+      ...s,
+      sex: typeof profile?.sex === "string" ? profile.sex : null,
+      species: typeof profile?.species === "string" ? profile.species : null,
+      ambulance: ambulanceOf(profile),
+    };
+  });
   const people = ((members as MemberRow[] | null) ?? []).map((m) => ({ id: m.id, name: m.display_name, routine: m.routine, relationship: m.relationship, role: roleLabel(m.role_id, (roles as { id: string; label: string }[] | null) ?? []) }));
   // Names are noise when matching memories to a question: the household's subjects and members.
   const names = [...subs.map((s) => s.name), ...people.map((p) => p.name)];
@@ -1473,7 +1583,12 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
   const child = subs.find((s) => s.kind === "child" && s.birth_date);
   const ageDays = ageInDays(child?.birth_date, now.getTime(), me.household.timezone);
   const selection = selectSkills(opts.question ?? "", skills, { ageDays, history: opts.history });
-  const children = await Promise.all(subs.filter((s) => s.kind === "child").map((s) => childNow(supabase, s, now, me.household.timezone)));
+  const all = (types as EntryType[]) ?? [];
+  const home: HomeFacts = { types: all, breastfeeds: !!me.member.breastfeeds };
+  const kids = await Promise.all(subs.filter((s) => s.kind === "child").map((s) => childNow(supabase, s, settings.get(s.id), home, now, me.household.timezone)));
+  const children = kids.map((k) => k.kid);
+  // A type row of a module with no child in this list has no day to ask: nothing is turned on for it.
+  const noChild = planOf({ module: "", ageDays: null, day: null, entries: [], naps: null, lastPumpAt: null }, home, now, me.household.timezone);
   return {
     skills,
     selection,
@@ -1489,7 +1604,8 @@ export async function loadContext(supabase: SupabaseClient, me: Me, now = new Da
     subjects: subs,
     children,
     milkKept: await milkKeptIn(supabase, children, now),
-    types: (types as EntryType[]) ?? [],
+    types: typesOffered(all, kids, noChild),
+    allTypes: all,
     routines: people.filter((p): p is typeof p & { routine: string } => !!p.routine).map((p) => ({ name: p.name, routine: p.routine })),
     people: people.map(({ id, name, role, relationship }) => ({ id, name, role, relationship })),
     memories,

@@ -122,5 +122,25 @@ select pg_temp.act_as(:wafa);
 set role authenticated;
 select public.me_prefs_save('ar', true, null, false);
 reset role;
+
+-- The calls above do not look at their answers, so a call that refused would leave a quiet hole.
+-- Count what each kind of call leaves in Lana's home; short of one run's worth, the seed is broken.
+do $$
+declare
+  lana constant uuid := '00000000-0000-4000-8000-00000000a001';
+  home uuid := (select household_id from public.care_subjects where id = lana);
+  n record;
+begin
+  select (select count(*) from public.care_entries where subject_id = lana and deleted_at is null and type_id in ('lana.feed', 'lana.sleep', 'lana.diaper')) as log,
+         (select count(*) from public.milk_bottles where household_id = home) as bottles,
+         (select count(*) from public.vaccinations where subject_id = lana) as doses,
+         (select count(*) from public.notes where household_id = home) as notes,
+         (select count(*) from public.calendar_events where household_id = home) as events,
+         (select count(*) from public.care_custody where subject_id = lana) as custody
+    into n;
+  if n.log < 100 or n.bottles < 4 or n.doses < 5 or n.notes < 3 or n.events < 4 or n.custody < 1 then
+    raise exception 'demo_data.sql left Lana''s home short of what it makes: %', row_to_json(n);
+  end if;
+end $$;
 \o
 \echo 'Demo data loaded.'

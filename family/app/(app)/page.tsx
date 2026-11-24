@@ -37,9 +37,9 @@ import type { PumpDay } from "@/lib/pumping";
 import { nightWindow } from "@/lib/night";
 import { isToddler, limitsFor, pumpingActive, stageFor } from "@/lib/stage";
 import { tipsFor } from "@/lib/child-guide";
-import { child } from "@/lib/names";
+import { child, pronouns } from "@/lib/names";
 import { defaultMilk } from "@/lib/milk-take";
-import { loggedLately } from "@/lib/logged";
+import { dayFacts, dayOffer, dayPlan, readDay } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,9 @@ export const dynamic = "force-dynamic";
  * happened with its round button (solid acts at once, a soft plus opens the sheet).
  * Below the rows, the day's picture (Mido, 7 November: Home and the dashboard are one):
  * sleep today, feeds today, food once she eats, pumping while it goes on.
+ * From 12 months a parent may have saved "{Name}'s day" (lib/day.ts): one plan is built from
+ * it here and the strip, the notices, the cards and the log sheet all read that plan. With
+ * no day the plan is the rules as they were.
  */
 export default async function HomePage() {
   const supabase = await createClient();
@@ -109,18 +112,28 @@ export default async function HomePage() {
     lastMilk = (lastBottle?.payload.milk as string | undefined) ?? null;
   }
 
+  // The child's age on the home's calendar (null with no birth date: a baby, as always).
+  const age = summary && summary.ok && summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
+  // A week of entries for the forecast; the "recent" list only covers the last day.
+  const week: EntryRow[] = weekRows ?? recent;
+  const inStock = !!milkOk && milkOk.fridge_count + milkOk.freezer_count > 0;
+  // "{Name}'s day", when a parent has saved one and it counts at this age; null for a baby
+  // and for a home that has not saved one, and then everything below is as it was.
+  const day = summary && summary.ok ? readDay(summary.subject.settings, age, summary.subject.birth_date) : null;
+  // Does the child nap, and how often (R5): a toddler's own week decides, or the family's
+  // answer once they have given one; a baby always naps.
+  const pattern = napPattern(week, age, now.getTime(), tz, now.getTime() - 7 * 86_400_000, day?.naps ?? null);
+  // The plan, built once (lib/day.ts): milk on a clock or not, where the stored-milk notices
+  // speak, the strip's cells, the "since Mama left" tiles and what the log sheet offers.
+  const plan = dayPlan(day, age, dayFacts(summary && summary.ok ? summary : null, { now: now.getTime(), today, tz, breastfeeds: !!me.member.breastfeeds, inStock, week, pattern }));
+
   if (me.member.simple_mode && summary && summary.ok) {
-    return <SimpleHome summary={summary} recent={recent} milk={milkOk} />;
+    // The simple screen reads the two milk answers only, and only with a saved day; neither rests on the week, which it does not fetch.
+    return <SimpleHome summary={summary} recent={recent} milk={milkOk} plan={{ saved: plan.saved, milkClock: plan.milkClock, milkNotices: plan.milkNotices }} />;
   }
 
   const lastFeedAt = summary && summary.ok ? (summary.last["lana.feed"]?.ended_at ?? summary.last["lana.feed"]?.occurred_at ?? null) : null;
-  // The child's age on the home's calendar (null with no birth date: a baby, as always) and stage.
-  const age = summary && summary.ok && summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
   const stage = summary && summary.ok ? stageFor(summary.subject.birth_date, Date.now(), tz) : null;
-  // From 12 months milk has no clock (R2): no bottle countdown, fridge plan or "feed due".
-  const milkClock = stage ? stage.milkClock : true;
-  // A week of entries for the forecast; the "recent" list only covers the last day.
-  const week: EntryRow[] = weekRows ?? recent;
   const awayAt = (at: number) => {
     if (!mama || !mama.works_today) return false;
     const d = new Date(at);
@@ -131,8 +144,10 @@ export default async function HomePage() {
   };
   const sitter = me.role.id === "sitter";
   const bottleGapMin = milkOk?.bottle_interval_min ?? 120;
-  // While Mama is away the bottle interval is the gap, shortened after a small bottle.
-  const nextBottle = mamaAway && milkClock ? nextFeedAt(week, { gapMin: bottleGapMin, awayCapMin: bottleGapMin, away: awayAt }) : null;
+  // While Mama is away the bottle interval is the gap, shortened after a small bottle. From 12
+  // months milk has no clock (R2), so no bottle countdown, fridge plan or "feed due", unless
+  // the family's day keeps the clock and milk is still logged (plan.milkClock).
+  const nextBottle = mamaAway && plan.milkClock ? nextFeedAt(week, { gapMin: bottleGapMin, awayCapMin: bottleGapMin, away: awayAt }) : null;
   // Tomorrow has its own away parent: two parents who work on different days each get their day.
   const tomorrowWd = new Date(Date.parse(dayRange(addDays(today, 1), tz).from) + 12 * 3_600_000).getUTCDay();
   const tomorrowsParent = household.ok ? awayParentOn(household.members, tomorrowWd) : null;
@@ -144,21 +159,19 @@ export default async function HomePage() {
 
   // ---- below the rows: the day's picture (what /baby/dashboard showed until 7 November).
   const showFood = !!stage && !!summary && summary.ok && (stage.solids || !!summary.last["lana.meal"]);
-  const inStock = !!milkOk && milkOk.fridge_count + milkOk.freezer_count > 0;
   const pumping = !!summary && summary.ok && pumpingActive(summary.last["lana.pump"]?.occurred_at ?? null, now.getTime(), age);
-  const showPump = !!summary && summary.ok && (!!me.member.breastfeeds || me.role.id === "admin") && (pumping || inStock);
-  // Stored milk only where milk is stored (R7): a toddler's home with nothing in stock and no
-  // pump in 14 days gets no fridge notices. A baby's home always has them, as before.
-  const milkStored = !stage?.toddler || inStock || pumping;
+  // The pumping card while pumping goes on or milk is in stock; with a saved day, where the family says milk is stored.
+  const showPump = !!summary && summary.ok && (!!me.member.breastfeeds || me.role.id === "admin") && (plan.saved ? plan.storesMilk : pumping || inStock);
   // The milk the Feed sheet starts on (X10): a home that never pumped or kept milk is not told it gave pumped milk.
   const firstMilk = summary && summary.ok ? defaultMilk({ lastMilk, everPumped: !!summary.last["lana.pump"], inStock, namedMilkThisWeek: week.some((e) => e.type_id === "lana.feed" && e.payload.method === "Bottle" && typeof e.payload.milk === "string" && e.payload.milk.trim() !== "") }) : null;
   const { data: statsData } = showPump && summary && summary.ok ? await supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: addDays(today, -7), p_to: today }) : { data: null };
   // Badges (migration 5900): anything the log has just earned, shown once; and for whoever pumps,
-  // a nudge to keep a run going when nothing more pressing is waiting.
+  // a nudge to keep a run going when nothing more pressing is waiting. The nudge is a
+  // stored-milk notice: a run needs a pump today or yesterday, so with no day it shows as before.
   const { data: achData } = summary && summary.ok && can(me, "lana", "view") ? await supabase.rpc("achievements_check") : { data: null };
   const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers } | null;
   const fresh = ach?.ok ? (ach.new ?? []) : [];
-  const keep = me.member.breastfeeds && ach?.numbers ? keepRun(ach.numbers) : null;
+  const keep = me.member.breastfeeds && ach?.numbers && plan.milkNotices ? keepRun(ach.numbers) : null;
   const pumpDays = (((statsData as { ok?: boolean; days?: PumpDay[] } | null)?.days ?? []) as PumpDay[]).map((d) => ({ day: d.day, pump_ml: Number(d.pump_ml) || 0 }));
   // Since yesterday evening, like the Milk screen's goal: a night pump counts for the day it feeds.
   const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();
@@ -173,23 +186,20 @@ export default async function HomePage() {
     </Link>
   ) : null;
 
-  // Does the child nap, and how often (R5): a toddler's own week decides; a baby always naps.
-  const pattern = napPattern(week, age, now.getTime(), tz, now.getTime() - 7 * 86_400_000);
-  // "Since Mama left": a toddler's tiles only for what the family logs (R8); a baby's all three.
-  // Naps by the strip's rule: logged nights alone do not make a naps tile for a child who no longer naps.
-  const lately = (typeId: string) => !stage?.toddler || (!!summary && summary.ok && loggedLately(summary.last[typeId]?.occurred_at, today, tz));
-  const handoverKinds = { feeds: lately("lana.feed"), diapers: lately("lana.diaper"), naps: !stage?.toddler || pattern.expected || pattern.napsToday > 0 };
-
   // The alerts of this hour, in order. Each is one line or a small card; they are never folded.
+  // Stored milk only where milk is stored (R7, plan.milkNotices): a toddler's home with nothing
+  // in stock and no pump in 14 days gets no fridge notices; a baby's home always has them. The
+  // fridge plan needs the clock as well, so a home on a clock that stores no milk gets none.
+  // "Since Mama left": a toddler's tiles only for what the family logs (R8, plan.kinds).
   const alerts: Record<string, React.ReactNode> =
     summary && summary.ok
       ? {
-          countdown: milkOk && milkStored ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} milkClock={milkClock} timezone={tz} nextAtIso={nextBottle ? new Date(nextBottle.at).toISOString() : null} /> : null,
-          thaw: milkOk && milkStored ? <ThawReminder key="th" milk={milkOk} entries={week} timezone={tz} opts={thawOpts} /> : null,
-          plan: milkOk && mamaAway ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} milkClock={milkClock} /> : null,
+          countdown: milkOk && plan.milkNotices ? <BottleCountdown key="c" milk={milkOk} lastFeedAt={lastFeedAt} mamaAway={mamaAway} milkClock={plan.milkClock} timezone={tz} nextAtIso={nextBottle ? new Date(nextBottle.at).toISOString() : null} /> : null,
+          thaw: milkOk && plan.milkNotices ? <ThawReminder key="th" milk={milkOk} entries={week} timezone={tz} opts={thawOpts} /> : null,
+          plan: milkOk && mamaAway && plan.milkNotices ? <FridgePlan key="fp" milk={milkOk} lastFeedAt={lastFeedAt} backAtIso={atLocal(to)} bottleMl={lastBottleMl} timezone={tz} name={mama?.name ?? "Mama"} milkClock={plan.milkClock} /> : null,
           handover:
             mamaWorks && (part === "away" || part === "evening") && hhm >= from ? (
-              <HandoverSince key="h" entries={recent} kinds={handoverKinds} fromIso={atLocal(from)} toIso={part === "away" ? now.toISOString() : atLocal(to)} label={part === "away" ? `Since ${mama?.name ?? "Mama"} left at ${fmtTime(atLocal(from), tz)}` : `While ${mama?.name ?? "Mama"} was at work`} />
+              <HandoverSince key="h" entries={recent} kinds={plan.kinds} fromIso={atLocal(from)} toIso={part === "away" ? now.toISOString() : atLocal(to)} label={part === "away" ? `Since ${mama?.name ?? "Mama"} left at ${fmtTime(atLocal(from), tz)}` : `While ${mama?.name ?? "Mama"} was at work`} />
             ) : null,
         }
       : {};
@@ -202,7 +212,7 @@ export default async function HomePage() {
 
   // ---- the Now slot (DESIGN.md, rule 3): candidates in order, safety first; only the first
   // that renders anything shows (.now-queue). Whatever else applies waits on the child's page.
-  const feedDue = summary && summary.ok && milkClock ? summary.last["lana.feed"]?.next_due ?? null : null;
+  const feedDue = summary && summary.ok && plan.milkClock ? summary.last["lana.feed"]?.next_due ?? null : null;
   // The feed and nap reminders show themselves on the phone when their time comes
   // (DueNotice), so Home left open still says so; these flags only size "N more".
   const feeding = !!(summary && summary.ok && summary.ongoing.some((e) => e.type_id === "lana.feed"));
@@ -214,8 +224,21 @@ export default async function HomePage() {
   const nap = summary && summary.ok && age != null ? nextNap(week, age, now.getTime(), hourOf, pattern) : null;
   const napWatch = !!nap && !nap.asleepSince && nap.at != null && nap.awakeMin <= (stage?.limits.awakeKnownMin ?? 12 * 60);
   const checks = summary && summary.ok && can(me, "lana", "edit") ? checkEntries(week, { ageDays: age }).length : 0;
-  const fridgeLow = !!milkOk && milkStored && milkOk.fridge_ml < lastBottleMl;
-  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && milkStored, feedIsDue, checks > 0, vaccine && !vaccine.overdue, fridgeLow, !!keep].filter(Boolean).length;
+  const fridgeLow = !!milkOk && plan.milkNotices && milkOk.fridge_ml < lastBottleMl;
+  // "{Name} is one. Look at her day": the day offered at 12, 18, 24 and 36 months, for 30 days,
+  // to parents only and never while viewing as someone else. For its first week it sits ahead
+  // of "A vaccine is due" (the 12-month visit is due the same weeks, and behind it the line
+  // would wait unseen as "+1"); after that behind it, so a vaccine never waits long on a setting.
+  const offer =
+    summary && summary.ok && me.role.id === "admin" && !me.preview
+      ? dayOffer({ settings: summary.subject.settings, birthDate: summary.subject.birth_date, createdAt: summary.subject.created_at ?? null, today, tz, name: summary.subject.name, their: pronouns(child(me)?.sex ?? null).their })
+      : null;
+  const offerNotice = offer ? (
+    <Link prefetch={false} href="/baby/day?offer=1" className="notice flex items-center gap-2 no-underline">
+      <span className="flex-1 font-semibold">{offer.words}</span> <Icon name="forward" size={18} />
+    </Link>
+  ) : null;
+  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, !!keep].filter(Boolean).length;
 
   // The Now slot's candidates, in rule 3's order. The slot shows the first that renders
   // anything (.now-queue); "More" beside it lists them all in a sheet (NowMore).
@@ -251,6 +274,8 @@ export default async function HomePage() {
         </Link>
       )}
     </div>,
+    // The day's offer makes its own place only while it is there, so a home with none has the queue as it was.
+    offer?.early ? <div key="offer-early">{offerNotice}</div> : null,
     <div key="n9">
       {vaccine && !vaccine.overdue && (
         <Link prefetch={false} href="/baby/vaccines" className="notice flex items-center gap-2 no-underline tint-meds">
@@ -258,6 +283,7 @@ export default async function HomePage() {
         </Link>
       )}
     </div>,
+    offer && !offer.early ? <div key="offer">{offerNotice}</div> : null,
     <div key="n10">
       {milkOk && fridgeLow && (
         <Link prefetch={false} href="/baby/milk" className="notice flex items-center gap-2 no-underline tint-milk">
@@ -288,7 +314,7 @@ export default async function HomePage() {
       <Celebration key={fresh.map((f) => f.id).join(",")} fresh={fresh} />
       <HomeHeader summary={summary} />
       <HomeState summary={summary} stage={{ toddler: isToddler(age), limits: limitsFor(age) }} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
-      <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} napExpected={pattern.expected} />
+      <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} napExpected={pattern.expected} plan={plan} />
       {/* One thing that needs a look, on one line; the rest wait behind "More" beside it
           (DESIGN.md rule 3), which lists them in a sheet over Home. */}
       <div className="now-line">
@@ -297,11 +323,11 @@ export default async function HomePage() {
       </div>
       <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} defaultMilk={firstMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} tell={can(me, "assistant", "add") && can(me, "lana", "add") ? <TellBar quick={quickContextOf(summary, me)} /> : null} />
       {/* The bar's ＋ opens the log sheet here, rather than taking the person to the child's page. */}
-      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} isToday entries={week} todayEntries={recent.filter((e) => Date.parse(e.occurred_at) >= dayStart)} feedIntervalMin={stage ? feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min) : 180} milkClock={milkClock} solids={stage?.solids ?? false} />
+      <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} isToday entries={week} todayEntries={recent.filter((e) => Date.parse(e.occurred_at) >= dayStart)} feedIntervalMin={stage ? feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min) : 180} milkClock={plan.milkClock} solids={stage?.solids ?? false} plan={plan} />
     </div>
     <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">
-      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums="short" since={false} href="/baby/sleep" />
-      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} href="/baby/feed" usual={false} />
+      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={plan.usualNaps ?? stage?.naps ?? null} sums="short" since={false} href="/baby/sleep" />
+      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} href="/baby/feed" plan={plan} usual={false} />
       {showFood && stage && <FoodDay meals={meals} dayStartMs={dayStart} dayEndMs={dayEnd} stage={stage} timezone={tz} />}
       {showPump && <PumpDashboard pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} days={pumpDays} today={today} hourOfDay={hour} />}
     </section>

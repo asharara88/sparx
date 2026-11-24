@@ -4,17 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMe } from "@/lib/me-context";
 import { can } from "@/lib/types";
-import { childName } from "@/lib/names";
+import { child, childName } from "@/lib/names";
 import { Icon, type IconName } from "@/components/Icon";
 import { usePageSwap } from "@/components/PageSwap";
 import { markLogFrom, openLogHere } from "@/lib/log-bus";
 import { useEffect } from "react";
 import { notePath } from "@/lib/nav-history";
+import { milkTab } from "@/lib/day";
 
 /**
  * Home, the child, ＋, Milk, More (DESIGN.md, "The bottom bar"): the ＋ in the middle opens
  * the log sheet from any screen, as in Huckleberry; Chat, Calendar and the admin screens
- * live under More. Someone without the child's log gets Today, Calendar, Chat.
+ * live under More. Someone without the child's log gets Today, Calendar, Chat. From 12 months
+ * a home whose day says no milk is stored has no Milk tab (lib/day.ts milkTab): four tabs.
  */
 export function Nav() {
   const me = useMe();
@@ -40,6 +42,8 @@ export function Nav() {
     swap(href);
   };
   const staff = !can(me, "lana", "view");
+  // The child's day as me() carries it: absent (an older session, no day saved) keeps the tab.
+  const milk = milkTab(child(me)?.day);
   const items: { href: string; label: string; icon: IconName; log?: boolean }[] = [];
   if (staff) {
     items.push({ href: "/send", label: "Today", icon: "home" });
@@ -49,7 +53,7 @@ export function Nav() {
     items.push({ href: "/", label: "Home", icon: "home" });
     if (can(me, "lana", "view")) items.push({ href: "/baby", label: childName(me), icon: "baby" });
     if (can(me, "lana", "add")) items.push({ href: "/baby?log=1", label: "Log", icon: "plus", log: true });
-    if (can(me, "lana", "view") && !me.member.simple_mode) items.push({ href: "/baby/milk", label: "Milk", icon: "droplet" });
+    if (can(me, "lana", "view") && !me.member.simple_mode && milk) items.push({ href: "/baby/milk", label: "Milk", icon: "droplet" });
   }
   items.push({ href: "/me", label: "More", icon: "grid" });
 
@@ -59,7 +63,8 @@ export function Nav() {
         {items.map((it) => {
           // More stays lit on the screens it opens (Chat, Calendar, Notes, Members, the helper's pages).
           const underMore = !staff && ["/chat", "/calendar", "/notes", "/members", "/audit", "/ask"].some((p) => path.startsWith(p));
-          const active = it.log ? false : it.href === "/" ? path === "/" : it.href === "/baby" ? (path.startsWith("/baby") && !path.startsWith("/baby/milk")) || path.startsWith("/entry") : it.href === "/me" ? path.startsWith("/me") || underMore : path.startsWith(it.href);
+          // The Milk screen is still there for a bag left in the stash: where the day took its tab away, the child's tab lights for it.
+          const active = it.log ? false : it.href === "/" ? path === "/" : it.href === "/baby" ? (path.startsWith("/baby") && !(milk && path.startsWith("/baby/milk"))) || path.startsWith("/entry") : it.href === "/me" ? path.startsWith("/me") || underMore : path.startsWith(it.href);
           if (it.log)
             return (
               <li key={it.href}>

@@ -54,6 +54,21 @@ jobs:
           PGPASSWORD: postgres
           PSQL: psql -h localhost -U postgres
         run: npm run db:test
+      # The seeds behind the screenshots and the side-by-side walk (Lana's demo home, the four
+      # toddler homes and the days their parents saved) are not part of the suite, so a
+      # migration that broke one showed only when someone next built a screenshot database.
+      # A second database: the suite leaves its own homes in the first.
+      - name: The demo seeds load on a second database
+        env:
+          PGPASSWORD: postgres
+          PSQL: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -q
+        run: |
+          $PSQL -c "drop database if exists family_seeds" -c "create database family_seeds"
+          for f in supabase/tests/00_local_auth_stub.sql supabase/migrations/*.sql supabase/tests/01_test_household.sql \
+                   supabase/tests/demo_data.sql supabase/tests/toddler_homes.sql supabase/tests/toddler_days.sql; do
+            echo "== $f"
+            $PSQL -d family_seeds -f "$f"
+          done
       # The production build Vercel runs on every push, so a page or route that does not
       # compile fails the check a merge waits for. The two values are placeholders (the
       # ones CLAUDE.md names for a local build); the build reads no secret.

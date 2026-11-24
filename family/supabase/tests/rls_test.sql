@@ -2151,5 +2151,460 @@ select pg_temp.assert((select count(*) from public.household) = :homes_before an
 rollback;
 select pg_temp.assert((select count(*) from public.members) > 5 and not exists (select 1 from public.household where name in ('First family', 'Seeded', 'Someone else')), 'and the members are all back');
 
-\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday, the child''s facts, the answer follows the member).'
+-- The family's day (migration 6800). From 12 months an admin saves what age and the log cannot say
+-- (milk on a clock, as a drink or not logged; naps; diapers; stored milk); home_summary and me()
+-- follow it. A baby, a child with no birth date, a day with a bad answer and a day saved under a
+-- birth date that was later moved all read as no day. An age on an edge is counted on the home's
+-- date, as the 6500 checks above; current_date only well away from one (160, 400, 600). The potty
+-- checks switch the Potty type off, or make it, inside a transaction that is rolled back, so they
+-- hold before a migration brings that type and after. Permissions are set here, not inherited; the
+-- child's row, the log and the permissions are put back at the end.
+reset role;
+select set_config('request.headers', '', false);
+create temp table day6800 as select name, birth_date, profile, settings, created_at from public.care_subjects where id = :lana;
+create temp table perm6800 as select role_id, module_id, action, allowed from public.permissions where module_id = 'lana' and action in ('view', 'edit');
+update public.permissions set allowed = true  where role_id in ('admin', 'family_carer') and module_id = 'lana' and action in ('view', 'edit');
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana' and action in ('view', 'edit');
+select timezone as home_tz from public.household where id = :'our_home' \gset
+select settings as zayd_settings from public.care_subjects where id = :zayd \gset
+\set day_ok '''{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": true}'''
+-- Is this kind among the ones Home is given?
+create or replace function pg_temp.listed(p_subject uuid, p_type text) returns boolean language sql as $$
+  select exists (select 1 from jsonb_array_elements((public.home_summary(p_subject))->'types') t where t->>'id' = p_type)
+$$;
+-- The day as me() carries it for one child: SQL null when the key is not there at all.
+create or replace function pg_temp.me_day(p_subject uuid) returns jsonb language sql as $$
+  select x->'day' from jsonb_array_elements((public.me())->'subjects') x where x->>'id' = p_subject::text
+$$;
+-- Writes a day straight into the settings and says how it is then read, one letter each: in me(),
+-- a next due on the last feed, Potty among the kinds.
+create or replace function pg_temp.day_reads(p_subject uuid, p_day jsonb) returns text language plpgsql as $$
+begin
+  update public.care_subjects set settings = settings || jsonb_build_object('day', p_day) where id = p_subject;
+  return case when pg_temp.me_day(p_subject) <> 'null'::jsonb then 'y' else 'n' end
+      || case when (public.home_summary(p_subject))#>>'{last,lana.feed,next_due}' is not null then 'y' else 'n' end
+      || case when pg_temp.listed(p_subject, 'lana.potty') then 'y' else 'n' end;
+end $$;
+
+select pg_temp.assert((select count(*) = 3 and not bool_or(prosecdef) from pg_proc
+  where oid in ('private.day_band(date)'::regprocedure, 'private.subject_day(jsonb, date)'::regprocedure, 'public.subject_day_save(uuid, jsonb, text, text)'::regprocedure)),
+  'the band, the day and its save run as the caller, so row security and the guard on the child''s row hold the save too');
+select pg_temp.assert((select bool_and(not has_function_privilege('anon', f, 'execute') and not has_function_privilege('public', f, 'execute') and has_function_privilege('authenticated', f, 'execute'))
+  from unnest(array['private.day_band(date)', 'private.subject_day(jsonb, date)', 'public.subject_day_save(uuid, jsonb, text, text)']) f),
+  'signed-out callers can run none of the three; members can');
+select pg_temp.assert(has_function_privilege('app_rls', 'private.day_band(date)', 'execute') and has_function_privilege('app_rls', 'private.subject_day(jsonb, date)', 'execute'),
+  'and app_rls can run the two helpers, which me() needs');
+select pg_temp.assert((select prosecdef and pg_get_userbyid(proowner) = 'app_rls' and prosrc !~ 'auth\.' from pg_proc where oid = 'private.subject_names()'::regprocedure),
+  'subject_names is still a definer of app_rls and does not name the auth schema');
+
+-- The bands turn on days 366, 548, 731 and 1096 of the home's calendar. At UTC+14 the home's date is
+-- ahead of UTC for most of the day, so a count on the server's date would show; then the home's own zone.
+update public.household set timezone = 'Pacific/Kiritimati' where id = :'our_home';
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(private.day_band(d - 365) is null and private.day_band(d - 366) = 12 and private.day_band(d - 547) = 12 and private.day_band(d - 548) = 18
+  and private.day_band(d - 730) = 18 and private.day_band(d - 731) = 24 and private.day_band(d - 1095) = 24 and private.day_band(d - 1096) = 36,
+  'no band on day 365, then 12 from day 366, 18 from 548, 24 from 731 and 36 from 1096, on the home''s calendar (home on UTC+14)')
+  from (select (now() at time zone 'Pacific/Kiritimati')::date as d) x;
+reset role;
+update public.household set timezone = :'home_tz' where id = :'our_home';
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(private.day_band(d - 365) is null and private.day_band(d - 366) = 12 and private.day_band(d - 547) = 12 and private.day_band(d - 548) = 18
+  and private.day_band(d - 730) = 18 and private.day_band(d - 731) = 24 and private.day_band(d - 1095) = 24 and private.day_band(d - 1096) = 36,
+  'and the same in the home''s own zone')
+  from (select (now() at time zone :'home_tz')::date as d) x;
+select pg_temp.assert(private.day_band(null) is null, 'with no birth date there is no band');
+reset role;
+
+-- Who may save it: an admin of the home on screen, and nobody in a preview. The child is 400 days old.
+update public.care_subjects set birth_date = current_date - 400 where id = :lana;
+select birth_date as birth400 from public.care_subjects where id = :lana \gset
+select pg_temp.act_as(:wafa);
+set role authenticated;
+select pg_temp.assert(r->>'error' = 'not_allowed' and r->>'message' like 'Ask % to change Lana''s day.' and r->>'message' ~ 'Mido' and r->>'message' ~ 'Dana',
+  'Wafa, a carer who may edit the log, is refused the day, naming the admins to ask')
+  from (select public.subject_day_save(:lana, :day_ok::jsonb) as r) x;
+select pg_temp.assert((public.subject_day_save(:lana))->>'error' = 'not_allowed', 'nor can she settle the question as it is');
+select pg_temp.assert(pg_temp.refused(format('update public.care_subjects set settings = settings || %L where id = %L', '{"day": {"v": 1}}', :lana)), 'and her direct write of the settings is refused');
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'message' = 'You are not allowed to do this.', 'Lilly, who may not edit the log, is refused');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'error' = 'not_found', 'another home''s admin is told there is no such child');
+reset role;
+select pg_temp.preview_as(:mido, :dana);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'error' = 'preview', 'viewing as an admin, the day is not saved');
+reset role;
+select pg_temp.assert((select settings from public.care_subjects where id = :lana) = (select settings from day6800), 'after the refusals her settings are as they were');
+select pg_temp.assert(exists (select 1 from public.audit_log where actor_member = :wafa and target_table = 'care_subjects' and not allowed and detail ? 'day')
+  and exists (select 1 from public.audit_log where actor_member = :lilly and target_table = 'care_subjects' and not allowed and detail ? 'day'), 'and the audit log has Wafa''s and Lilly''s');
+
+-- The day opens at 12 months: a baby is refused, to the day, and so is a child with no birth date.
+update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(r->>'error' = 'too_young' and r->>'message' = 'Lana''s day opens at 12 months.', 'Mido is refused for a baby of 160 days')
+  from (select public.subject_day_save(:lana, :day_ok::jsonb) as r) x;
+reset role;
+update public.care_subjects set birth_date = (now() at time zone :'home_tz')::date - 365 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'error' = 'too_young', 'and on day 365 of the home''s calendar, her last day as a baby');
+select pg_temp.assert((public.subject_day_save(:lana))->>'error' = 'too_young', 'also when only settling the question');
+reset role;
+select pg_temp.act_as(:mido);
+begin;
+update public.care_subjects set birth_date = (now() at time zone :'home_tz')::date - 366 where id = :lana;
+set local role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana))->'asked' = '12'::jsonb, 'on day 366 it is open');
+rollback;
+update public.care_subjects set birth_date = null where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(r->>'error' = 'no_birth_date' and r->>'message' = 'Add the date of birth first, on Doctor.', 'with no birth date he is asked for it first')
+  from (select public.subject_day_save(:lana, :day_ok::jsonb) as r) x;
+reset role;
+
+-- At 400 days, each thing that is not an answer is refused as bad input, never as a database error.
+update public.care_subjects set birth_date = :'birth400' where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((select bool_and((public.subject_day_save(:lana, d::jsonb))->>'error' = 'bad_input') from (values
+    ('{"milk": "x", "naps": 1, "diapers": "diapers", "stores_milk": true}'),
+    ('{"naps": 1, "diapers": "diapers", "stores_milk": true}'),
+    ('{"milk": "drink", "naps": 1, "diapers": "nappy", "stores_milk": true}'),
+    ('{"milk": "drink", "naps": 1, "stores_milk": true}'),
+    ('{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": "yes"}'),
+    ('{"milk": "drink", "naps": 1, "diapers": "diapers"}')) v(d)),
+  'a milk, diapers or stored-milk answer that is not one of its values, or is missing, is refused');
+select pg_temp.assert((select bool_and((public.subject_day_save(:lana, d::jsonb))->>'error' = 'bad_input') from (values
+    ('{"milk": "drink", "naps": 3, "diapers": "diapers", "stores_milk": true}'),
+    ('{"milk": "drink", "naps": 1.5, "diapers": "diapers", "stores_milk": true}'),
+    ('{"milk": "drink", "naps": 99999999999, "diapers": "diapers", "stores_milk": true}'),
+    ('{"milk": "drink", "naps": "1", "diapers": "diapers", "stores_milk": true}'),
+    ('{"milk": "drink", "naps": -1, "diapers": "diapers", "stores_milk": true}'),
+    ('{"milk": "drink", "diapers": "diapers", "stores_milk": true}')) v(d)),
+  'so are 3 naps, 1.5, 99999999999, the text "1", -1 and none given');
+select pg_temp.assert((public.subject_day_save(:lana, '[{"milk": "drink"}]'::jsonb))->>'error' = 'bad_input' and (public.subject_day_save(:lana, '"drink"'::jsonb))->>'error' = 'bad_input',
+  'and a list or a word in place of the day');
+select pg_temp.assert((select bool_and((public.subject_day_save(:lana, :day_ok::jsonb, f, t))->>'error' = 'bad_time') from (values
+    ('25:00', null), ('7pm', null), ('12:00', null), ('16:59', null), ('23:46', null), ('19:30:00', null),
+    (null, '19:00'), (null, '03:59'), (null, '10:01'), ('19:00', '7:00')) v(f, t)),
+  'a time that is not one, a bedtime outside 17:00 to 23:45 and a morning outside 04:00 to 10:00 are refused');
+select pg_temp.assert(r->>'error' = 'too_young_potty' and r->>'message' = 'Potty is offered from 18 months.', 'both diapers and potty is not an answer under 18 months')
+  from (select public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "both", "stores_milk": true}'::jsonb) as r) x;
+reset role;
+select pg_temp.assert((select settings from public.care_subjects where id = :lana) = (select settings from day6800), 'after every one of them her settings are still as they were');
+
+-- From 18 months potty is an answer only where there is a Potty entry to log. The type is switched
+-- off here (no row at all before the migration that brings it), and that is rolled back.
+select pg_temp.act_as(:mido);
+begin;
+update public.care_entry_types set is_active = false where id = 'lana.potty';
+update public.care_subjects set birth_date = current_date - 600 where id = :lana;
+set local role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "both", "stores_milk": true}'::jsonb))->>'error' = 'bad_input',
+  'at 600 days, both is refused while there is no Potty entry to log');
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "potty", "stores_milk": true}'::jsonb))->>'error' = 'bad_input', 'and so is potty alone');
+rollback;
+
+-- "No stored milk" is refused while a bottle is in stock, and a bottle past its time is not stock
+-- (the rule behind milk_list's counts). The home's own bottles are set aside first; rolled back.
+select pg_temp.act_as(:mido);
+begin;
+update public.milk_bottles set deleted_at = now() where household_id = :'our_home' and deleted_at is null;
+set local role authenticated;
+select pg_temp.assert((public.milk_add(100, 'fridge', now() - interval '5 days', 'day test'))->>'ok' = 'true', 'Mido puts away a bottle pumped five days ago, past its four days in the fridge');
+select pg_temp.assert((select (m->>'fridge_count')::int + (m->>'freezer_count')::int = 0 and jsonb_array_length(m->'bottles') = 1 from (select public.milk_list() as m) x), 'the milk list holds it and counts nothing in stock');
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": false}'::jsonb, '17:00', '04:00'))->>'ok' = 'true',
+  'with only that bottle "no stored milk" is saved, with the earliest bedtime and morning');
+-- While the day says no milk is stored, the stash's one door is shut for every caller (a Milk
+-- screen or a helper card opened before the parent answered, an older build): milk_add refuses,
+-- for the parent and for a carer, in the words every screen shows, and nothing is added.
+select pg_temp.assert((public.milk_add(120, 'fridge', now() - interval '1 hour', 'day test'))
+  = '{"ok": false, "error": "no_stored_milk", "message": "Lana''s day says no milk is stored. A parent turns it on in Lana''s day."}'::jsonb,
+  'with "no stored milk" saved, a bottle is not put away: the answer says where a parent turns it on');
+reset role;
+select pg_temp.act_as(:wafa);
+set local role authenticated;
+select pg_temp.assert((public.milk_add(90, 'freezer', now(), 'day test'))->>'error' = 'no_stored_milk', 'nor by Wafa, who may add to the log');
+reset role;
+select pg_temp.assert((select count(*) = 1 from public.milk_bottles where note = 'day test'), 'nothing went into the stash');
+-- A day that does not count shuts nothing: the same child a baby again, by the birth date.
+update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+select pg_temp.act_as(:mido);
+set local role authenticated;
+select pg_temp.assert((public.milk_add(60, 'fridge', now() - interval '1 hour', 'day test baby'))->>'ok' = 'true', 'for a baby the stored day is no day: the bottle is put away');
+reset role;
+update public.milk_bottles set deleted_at = now() where note = 'day test baby';
+update public.care_subjects set birth_date = current_date - 600 where id = :lana;
+select pg_temp.act_as(:mido);
+set local role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": true}'::jsonb, '23:45', '10:00'))->>'ok' = 'true',
+  '"stored milk: yes" is saved, with the latest bedtime and morning');
+select pg_temp.assert((public.milk_add(120, 'fridge', now() - interval '1 hour', 'day test'))->>'ok' = 'true', 'and now he puts away a bottle that is in date');
+select pg_temp.assert(r->>'error' = 'milk_in_stock' and r->>'message' = 'Use or bin the bottles on Milk first.', 'with it in stock "no stored milk" is refused: use or bin the bottles first')
+  from (select public.subject_day_save(:lana, '{"milk": "drink", "naps": 1, "diapers": "diapers", "stores_milk": false}'::jsonb) as r) x;
+rollback;
+select pg_temp.assert((select prosecdef and pg_get_userbyid(proowner) = 'app_rls' and prosrc !~ 'auth\.' and has_function_privilege('authenticated', oid, 'execute') from pg_proc where oid = 'public.milk_add(integer, text, timestamptz, text)'::regprocedure),
+  'milk_add still runs as app_rls, names no auth table, and signed-in members may call it as before');
+-- The two cannot pass each other: the save locks the child's row before it looks at the stash, and
+-- milk_add reads the day under the lock that waits for that one (two sessions cannot be run from
+-- here; the refusals above show the locked read still finds the row for a parent and a carer).
+select pg_temp.assert((select prosrc ~ 'for share;' from pg_proc where oid = 'public.milk_add(integer, text, timestamptz, text)'::regprocedure)
+  and (select prosrc ~ 'for no key update;' and position('for no key update;' in prosrc) < position('milk_bottles' in prosrc) from pg_proc where oid = 'public.subject_day_save(uuid, jsonb, text, text)'::regprocedure),
+  'milk_add reads the day under a share lock on the child''s row, and subject_day_save locks that row before it reads the stash');
+
+-- A good save. What is stored is built again from the checked answers: a key that is not an answer,
+-- and a version, a date and a name that were sent, are not kept, and 1.0 naps is one nap.
+update public.care_subjects set settings = settings || '{"marker": "kept"}' where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table save6800 as select public.subject_day_save(:lana,
+  '{"milk": "drink", "naps": 1.0, "diapers": "diapers", "stores_milk": true, "v": 9, "saved_on": "1999-01-01", "saved_by": "x", "extra": "x"}'::jsonb, '20:30', null) as r;
+create temp table me6800 as select 'mido' as who, pg_temp.me_day(:lana) as day;
+reset role;
+select pg_temp.act_as(:wafa);
+set role authenticated;
+insert into me6800 select 'wafa', pg_temp.me_day(:lana);
+reset role;
+select pg_temp.act_as(:lilly);
+set role authenticated;
+insert into me6800 select 'lilly', pg_temp.me_day(:lana);
+reset role;
+select pg_temp.assert((select r->>'ok' = 'true' and r->'asked' = '12'::jsonb and r->>'night_from' = '20:30' and r->>'night_to' = '07:00' from save6800), 'Mido saves the day at 400 days, with a new bedtime');
+select pg_temp.assert((select array_agg(k order by k) from public.care_subjects s, jsonb_object_keys(s.settings->'day') k where s.id = :lana)
+  = array['diapers', 'milk', 'naps', 'saved_at', 'saved_by', 'saved_on', 'stores_milk', 'v'], 'the stored day has its eight keys and nothing else that was sent');
+select pg_temp.assert((select d->'v' = '1'::jsonb and d->>'milk' = 'drink' and d->>'naps' = '1' and d->>'diapers' = 'diapers' and d->'stores_milk' = 'true'::jsonb
+    and d->>'saved_on' = to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD') and d->>'saved_by' = :mido::text and (d->>'saved_at')::timestamptz > now() - interval '1 minute'
+  from (select settings->'day' as d from public.care_subjects where id = :lana) x), 'the answers as checked (1.0 naps is stored as 1), dated on the home''s day, by Mido');
+select pg_temp.assert((select settings->'day_asked' = '12'::jsonb and settings->>'day_asked_on' = to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD')
+    and settings->>'night_from' = '20:30' and settings->>'night_to' = (select settings->>'night_to' from day6800) and settings->>'marker' = 'kept'
+  from public.care_subjects where id = :lana), 'the 12-month question is settled, bedtime is replaced, and morning (not given) and a key of another kind are kept');
+select pg_temp.assert((select s.name = f.name and s.birth_date = :'birth400' and s.profile = f.profile and s.created_at = f.created_at from public.care_subjects s, day6800 f where s.id = :lana),
+  'her name, her birth date, her health card and the day she joined are untouched');
+select pg_temp.assert(exists (select 1 from public.audit_log where actor_member = :mido and target_table = 'care_subjects' and allowed and detail->'day'->>'milk' = 'drink' and detail->>'night_from' = '20:30'),
+  'and the audit log has the save');
+select pg_temp.assert((select r->'day' from save6800) = (select settings->'day' from public.care_subjects where id = :lana)
+  and (select day from me6800 where who = 'mido') = (select settings->'day' from public.care_subjects where id = :lana)
+  and (select day from me6800 where who = 'wafa') = (select settings->'day' from public.care_subjects where id = :lana), 'the save answers with the stored day, and me() carries it for Mido and for Wafa');
+select pg_temp.assert((select day from me6800 where who = 'lilly') = 'null'::jsonb, 'for Lilly, who may not view the child, the key is there and null');
+
+-- home_summary follows the milk answer: a next due on the last feed only on a clock. Diapers and sleep stay without.
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.feed', now() - interval '3 minutes', null, '{"method":"Bottle","amount_ml":120}', 'day test', null))->>'ok' = 'true', 'Mido logs a bottle');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.diaper', now() - interval '2 minutes', null, '{"kind":"Wet"}', 'day test', null))->>'ok' = 'true', 'a diaper');
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', now() - interval '40 minutes', now() - interval '4 minutes', '{"place":"Cot"}', 'day test', null))->>'ok' = 'true', 'and a nap');
+create temp table sum_drink as select public.home_summary(:lana) as s;
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "clock", "naps": 2, "diapers": "diapers", "stores_milk": true}'::jsonb))->>'ok' = 'true', 'he puts milk on a clock');
+create temp table sum_clock as select public.home_summary(:lana) as s;
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "off", "naps": 0, "diapers": "off", "stores_milk": true}'::jsonb))->>'ok' = 'true', 'and then stops logging it, and diapers');
+create temp table sum_off as select public.home_summary(:lana) as s;
+reset role;
+select pg_temp.assert((select s#>>'{last,lana.feed,next_due}' is null and s#>>'{last,lana.diaper,next_due}' is null and s#>>'{last,lana.sleep,next_due}' is null and s->'last'->'lana.feed' ? 'next_due' from sum_drink),
+  'milk as a drink: the last feed has no next due (the key stays, with null), nor the diaper or the sleep');
+select pg_temp.assert((select s#>>'{last,lana.feed,next_due}' is not null and s#>>'{last,lana.diaper,next_due}' is null and s#>>'{last,lana.sleep,next_due}' is null from sum_clock),
+  'milk on a clock: the last feed has its next due again; the diaper and the sleep still have none');
+select pg_temp.assert((select s#>>'{last,lana.feed,next_due}' is null and s#>>'{last,lana.diaper,next_due}' is null and s#>>'{last,lana.sleep,next_due}' is null from sum_off), 'milk not logged: none');
+select pg_temp.assert((select (s->'last'->'lana.feed') - 'next_due' from sum_clock) = (select (s->'last'->'lana.feed') - 'next_due' from sum_drink)
+  and (select s->'types' from sum_clock) = (select s->'types' from sum_drink) and (select s->'types' from sum_off) = (select s->'types' from sum_drink),
+  'the rest of the last feed and the kinds listed are the same under all three');
+select pg_temp.assert((select settings->>'night_from' = '20:30' and settings->>'night_to' = (select settings->>'night_to' from day6800) from public.care_subjects where id = :lana),
+  'and a save with no times keeps the bedtime and the morning');
+
+-- Keep it as it is, at 600 days: the 18-month question is settled and nothing else moves.
+update public.care_subjects set birth_date = current_date - 600 where id = :lana;
+create temp table before_keep as select settings from public.care_subjects where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, null, '19:00', null))->>'error' = 'bad_input', 'a time with no day is refused');
+select pg_temp.assert((public.subject_day_save(:lana)) = '{"ok": true, "asked": 18}'::jsonb, 'Mido keeps the day as it is, at 600 days');
+select pg_temp.assert((public.subject_day_save(:lana, 'null'::jsonb)) = '{"ok": true, "asked": 18}'::jsonb, 'and a JSON null for the day is the same request');
+reset role;
+select pg_temp.assert((select s.settings - 'day_asked' - 'day_asked_on' = b.settings - 'day_asked' - 'day_asked_on' and s.settings->'day' = b.settings->'day' and b.settings->'day_asked' = '12'::jsonb
+    and s.settings->'day_asked' = '18'::jsonb and s.settings->>'day_asked_on' = to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD')
+  from public.care_subjects s, before_keep b where s.id = :lana), 'the day is unchanged and the question is settled at 18 months, on the home''s date');
+
+-- A kind of entry marked settings.needs is listed only in a home whose day has turned it on. A Potty
+-- type is made here (switched on, once a migration brings the real one) beside a kind that nothing
+-- turns on, and it is all rolled back. Then a day written straight into the settings, which an
+-- admin may do: it counts only when it reads whole.
+select pg_temp.act_as(:mido);
+begin;
+insert into public.care_entry_types (id, module_id, key, label, icon, sort, has_end, due_after_min, fields, settings, show_on_home, is_active) values
+  ('lana.potty', 'lana', 'potty', 'Potty', '🚽', 22, false, null,
+   '[{"key":"kind","label":"What","type":"choice","options":["Wee","Poo","Tried","Accident"],"required":true}]'::jsonb, '{"needs": "potty"}'::jsonb, false, true)
+on conflict (id) do update set is_active = true, settings = excluded.settings;
+insert into public.care_entry_types (id, module_id, key, label, sort, settings, show_on_home, is_active) values
+  ('lana.day_probe', 'lana', 'day_probe', 'Probe', 23, '{"needs": "something else"}'::jsonb, false, true);
+set local role authenticated;
+select pg_temp.assert(not pg_temp.listed(:lana, 'lana.potty') and not pg_temp.listed(:lana, 'lana.day_probe') and pg_temp.listed(:lana, 'lana.diaper'),
+  'at 600 days with diapers not logged, Potty is not among the kinds, nor is a kind nothing turns on; the others are');
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "off", "naps": 0, "diapers": "both", "stores_milk": true}'::jsonb))->>'ok' = 'true', 'with a Potty entry to log, both is an answer at 600 days');
+select pg_temp.assert(pg_temp.listed(:lana, 'lana.potty'), 'and Potty is listed');
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "off", "naps": 0, "diapers": "potty", "stores_milk": true}'::jsonb))->>'ok' = 'true', 'so is potty alone');
+select pg_temp.assert(pg_temp.listed(:lana, 'lana.potty') and not pg_temp.listed(:lana, 'lana.day_probe'), 'Potty is listed; the other marked kind never is');
+reset role;
+update public.care_subjects set birth_date = :'birth400' where id = :lana;
+set local role authenticated;
+select pg_temp.assert(not pg_temp.listed(:lana, 'lana.potty'), 'under 18 months a day that says potty does not list it (a corrected birth date gets there)');
+reset role;
+update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+set local role authenticated;
+select pg_temp.assert(not pg_temp.listed(:lana, 'lana.potty'), 'nor for a baby');
+reset role;
+update public.care_subjects set birth_date = current_date - 600 where id = :lana;
+set local role authenticated;
+select pg_temp.assert(pg_temp.listed(:lana, 'lana.potty'), 'back at 600 days it is listed again');
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "off", "naps": 0, "diapers": "diapers", "stores_milk": true}'::jsonb))->>'ok' = 'true', 'Mido goes back to diapers');
+select pg_temp.assert(not pg_temp.listed(:lana, 'lana.potty'), 'and Potty is gone from the kinds');
+select pg_temp.assert(pg_temp.day_reads(:lana, b) = 'yyy' and pg_temp.day_reads(:lana, b || '{"v": "1", "naps": 2.0, "more": "x"}') = 'yyy',
+  'a whole day written directly is read: in me(), the feed due again, Potty listed')
+  from (select jsonb_build_object('v', 1, 'milk', 'clock', 'naps', 1, 'diapers', 'both', 'stores_milk', true,
+                                  'saved_on', to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD')) as b) x;
+select pg_temp.assert(bool_and(pg_temp.day_reads(:lana, v.d) = 'nnn'), 'with a bad or missing answer it is no day: null in me(), no next due on the feed, Potty not listed')
+  from (select jsonb_build_object('v', 1, 'milk', 'clock', 'naps', 1, 'diapers', 'both', 'stores_milk', true,
+                                  'saved_on', to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD')) as b) x,
+       lateral (values (b || '{"v": 2}'), (b - 'v'), (b || '{"milk": "bottle"}'), (b - 'milk'), (b || '{"naps": 3}'), (b || '{"naps": 1.5}'), (b || '{"naps": "1"}'), (b - 'naps'),
+                       (b || '{"diapers": "nappy"}'), (b - 'diapers'), (b || '{"stores_milk": "yes"}'), (b - 'stores_milk'),
+                       (b || '{"saved_on": "06/06/2027"}'), (b || '{"saved_on": 20270606}'), (b - 'saved_on'), ('[1]'::jsonb), ('"clock"'::jsonb), ('null'::jsonb)) v(d);
+rollback;
+select pg_temp.assert(not exists (select 1 from public.care_entry_types where id = 'lana.day_probe')
+  and (select settings from public.care_subjects where id = :lana) = (select settings from before_keep) || jsonb_build_object('day_asked', 18, 'day_asked_on', to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD')),
+  'none of that stayed');
+
+-- Bedtime and morning are read when the numbers are asked for: a sleep at 19:30, 45 days ago, is a
+-- nap while bedtime is 20:30 and night sleep once it is 19:00. Nothing stored is rewritten.
+select ((now() at time zone :'home_tz')::date - 45) as stat_day \gset
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.sleep', (:'stat_day'::date + time '19:30') at time zone :'home_tz', (:'stat_day'::date + time '19:50') at time zone :'home_tz', '{"place":"Cot"}', 'day test', null))->>'ok' = 'true',
+  'Mido logs a sleep from 19:30 to 19:50, 45 days ago');
+create temp table nap2030 as select (public.care_daily_stats(:lana, :'stat_day', :'stat_day'))->'days'->0 as d;
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "off", "naps": 0, "diapers": "off", "stores_milk": true}'::jsonb, '19:00', '06:30'))->>'ok' = 'true', 'and moves bedtime to 19:00 and morning to 06:30');
+create temp table nap1900 as select (public.care_daily_stats(:lana, :'stat_day', :'stat_day'))->'days'->0 as d;
+reset role;
+select pg_temp.assert((select d->>'nap_count' = '1' and d->>'night_sleep_min' = '0' from nap2030), 'with bedtime at 20:30 it is a nap');
+select pg_temp.assert((select d->>'nap_count' = '0' and d->>'night_sleep_min' = '20' from nap1900), 'with bedtime at 19:00 it is twenty minutes of night sleep');
+select pg_temp.assert((select settings->>'night_from' = '19:00' and settings->>'night_to' = '06:30' from public.care_subjects where id = :lana), 'both times are stored');
+
+-- Absent means as before. Back at 160 days, and on day 365, with the day still stored (milk not
+-- logged, which gives a toddler no next due): no day in me(), and the baby's clocks are all there.
+update public.care_subjects set birth_date = current_date - 160 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table baby160 as select public.home_summary(:lana) as s, pg_temp.me_day(:lana) as day;
+reset role;
+update public.care_subjects set birth_date = (now() at time zone :'home_tz')::date - 365 where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table baby365 as select public.home_summary(:lana) as s, pg_temp.me_day(:lana) as day;
+reset role;
+-- The age is asked on its own account, not left to the day's date: a date still to come does not open it.
+update public.care_subjects set settings = jsonb_set(settings, '{day,saved_on}', '"2999-01-01"') where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert(pg_temp.me_day(:lana) = 'null'::jsonb, 'a baby has no day whatever date the stored one carries');
+reset role;
+select pg_temp.assert((select settings->'day'->>'milk' = 'off' from public.care_subjects where id = :lana)
+  and (select day = 'null'::jsonb and s#>>'{last,lana.feed,next_due}' is not null and s#>>'{last,lana.diaper,next_due}' is not null and s#>>'{last,lana.sleep,next_due}' is not null from baby160),
+  'at 160 days a stored day is not read: null in me(), and the last feed, diaper and sleep each have a next due');
+select pg_temp.assert((select day = 'null'::jsonb and s#>>'{last,lana.feed,next_due}' is not null and s#>>'{last,lana.diaper,next_due}' is not null and s#>>'{last,lana.sleep,next_due}' is not null from baby365),
+  'and the same on day 365 of the home''s calendar');
+
+-- A day saved under a birth date that was later moved (a mistyped year at sign-up) does not come
+-- into force when the child reaches 12 months by the true date. The suite cannot wait a year, so
+-- the day's date is moved back instead: 400 days old today, and a day saved on her day 365, then 366.
+update public.care_subjects set birth_date = :'birth400' where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, '{"milk": "clock", "naps": 1, "diapers": "diapers", "stores_milk": true}'::jsonb))->>'ok' = 'true', 'Mido saves a day with milk on a clock, at 400 days');
+reset role;
+update public.care_subjects set settings = jsonb_set(settings, '{day,saved_on}', to_jsonb(to_char(birth_date + 365, 'YYYY-MM-DD'))) where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table moved365 as select public.home_summary(:lana) as s, pg_temp.me_day(:lana) as day;
+reset role;
+update public.care_subjects set settings = jsonb_set(settings, '{day,saved_on}', to_jsonb(to_char(birth_date + 366, 'YYYY-MM-DD'))) where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table moved366 as select public.home_summary(:lana) as s, pg_temp.me_day(:lana) as day;
+reset role;
+select pg_temp.assert((select day = 'null'::jsonb and s#>>'{last,lana.feed,next_due}' is null from moved365), 'saved on what is now her day 365, it is no day: null in me() and no clock on the milk');
+select pg_temp.assert((select day->>'milk' = 'clock' and s#>>'{last,lana.feed,next_due}' is not null from moved366), 'saved on her day 366, it counts');
+
+-- An admin at home is a carer in the Khans' home: there the day is not his to save.
+select pg_temp.act_as(:mido);
+select set_config('request.headers', jsonb_build_object('x-home', :khan_home)::text, false);
+set role authenticated;
+select pg_temp.assert(not private.is_admin() and (public.subject_day_save(:zayd, :day_ok::jsonb))->>'message' = 'Ask Haitham to change Zayd''s day.', 'Mido, a carer in the home on screen, is refused Zayd''s day, naming that home''s admin');
+reset role;
+select set_config('request.headers', '', false);
+select pg_temp.assert((select settings from public.care_subjects where id = :zayd) = :'zayd_settings'::jsonb, 'Zayd''s settings are as they were');
+
+-- The stamps are the home's calendar day, not the server's. A home 14 hours ahead of UTC and one
+-- 12 hours behind: at any moment one of them is on another date than the server, so a stamp taken
+-- from the server's clock fails here whatever the hour the suite runs at. Rolled back with the zone.
+select pg_temp.act_as(:mido);
+begin;
+update public.household set timezone = 'Pacific/Kiritimati' where id = :'our_home';
+update public.care_subjects set birth_date = (now() at time zone 'Pacific/Kiritimati')::date - 600 where id = :lana;
+set local role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana))->>'ok' = 'true', 'kept as it is, in a home 14 hours ahead of UTC');
+reset role;
+select pg_temp.assert((select settings->>'day_asked_on' = to_char((now() at time zone 'Pacific/Kiritimati')::date, 'YYYY-MM-DD') from public.care_subjects where id = :lana), 'the question is dated on that home''s day');
+set local role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'ok' = 'true', 'and saved there');
+reset role;
+select pg_temp.assert((select settings->'day'->>'saved_on' = to_char((now() at time zone 'Pacific/Kiritimati')::date, 'YYYY-MM-DD') and settings->>'day_asked_on' = settings->'day'->>'saved_on' from public.care_subjects where id = :lana), 'the day is dated on that home''s day too');
+update public.household set timezone = 'Etc/GMT+12' where id = :'our_home';
+update public.care_subjects set birth_date = (now() at time zone 'Etc/GMT+12')::date - 600 where id = :lana;
+set local role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'ok' = 'true', 'saved in a home 12 hours behind UTC');
+reset role;
+select pg_temp.assert((select settings->'day'->>'saved_on' = to_char((now() at time zone 'Etc/GMT+12')::date, 'YYYY-MM-DD') and settings->>'day_asked_on' = settings->'day'->>'saved_on' from public.care_subjects where id = :lana), 'and dated on that home''s day');
+rollback;
+select pg_temp.assert((select timezone = :'home_tz' from public.household where id = :'our_home'), 'the home is back in its own zone');
+
+-- Settings that are not an object (only a hand-written update stores that): a save replaces them
+-- with an object that holds the day; it does not append to a list.
+update public.care_subjects set birth_date = current_date - 600, settings = '[]'::jsonb where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb, '19:30', null))->'day'->>'milk' = 'drink', 'a save onto settings that are a list answers with the day');
+reset role;
+select pg_temp.assert((select jsonb_typeof(settings) = 'object' and settings->'day'->>'milk' = 'drink' and settings->>'night_from' = '19:30' and settings->'day_asked' = '18'::jsonb from public.care_subjects where id = :lana),
+  'the stored settings are an object again, with the day, the bedtime and the question settled');
+update public.care_subjects set settings = '"x"'::jsonb where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.subject_day_save(:lana))->>'ok' = 'true', 'kept as it is onto settings that are a bare text');
+reset role;
+select pg_temp.assert((select settings = jsonb_build_object('day_asked', 18, 'day_asked_on', to_char((now() at time zone :'home_tz')::date, 'YYYY-MM-DD')) from public.care_subjects where id = :lana), 'and only the settled question is stored');
+
+-- A birth date no calendar holds (only a hand-made call stores one) must not sign the home out:
+-- me() still answers, with no day, and the day cannot be saved.
+update public.care_subjects set birth_date = 'infinity' where id = :lana;
+select pg_temp.act_as(:mido);
+set role authenticated;
+select pg_temp.assert((public.me())->>'ok' = 'true' and pg_temp.me_day(:lana) = 'null'::jsonb, 'with a birth date of infinity me() still answers, and there is no day');
+select pg_temp.assert((public.subject_day_save(:lana, :day_ok::jsonb))->>'error' = 'too_young', 'and the day is not opened for it');
+reset role;
+
+-- Put back: her row as it was (the top of this file pins her age), the log, and who may do what.
+update public.care_subjects s set name = f.name, birth_date = f.birth_date, profile = f.profile, settings = f.settings, created_at = f.created_at from day6800 f where s.id = :lana;
+update public.care_entries set deleted_at = now() where note = 'day test' and deleted_at is null;
+update public.permissions p set allowed = f.allowed from perm6800 f where p.role_id = f.role_id and p.module_id = f.module_id and p.action = f.action;
+select pg_temp.assert((select (s.name, s.birth_date, s.profile, s.settings, s.created_at) is not distinct from (f.name, f.birth_date, f.profile, f.settings, f.created_at) from public.care_subjects s, day6800 f where s.id = :lana)
+  and not exists (select 1 from public.care_entries where note = 'day test' and deleted_at is null) and not exists (select 1 from public.milk_bottles where note = 'day test')
+  and not exists (select 1 from public.permissions p join perm6800 f using (role_id, module_id, action) where p.allowed is distinct from f.allowed),
+  'her row, the log and the permissions are put back');
+
+\echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday, the child''s facts, the answer follows the member, the family''s day).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

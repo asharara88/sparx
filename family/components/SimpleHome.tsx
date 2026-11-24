@@ -15,6 +15,7 @@ import { ListenButton } from "@/components/ListenButton";
 import { awakeWindow } from "@/lib/child-insights";
 import { ageInDays, isToddler, pumpingActive } from "@/lib/stage";
 import { loggedLately } from "@/lib/logged";
+import type { DayPlan } from "@/lib/day";
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 function recognitionCtor(): (new () => Recognition) | null {
@@ -28,9 +29,10 @@ function recognitionCtor(): (new () => Recognition) | null {
  * Bottle (three amounts), Diaper (wet / dirty / both), Asleep or Woke up, Note (spoken or typed).
  * Every label in the member's language; Arabic reads right to left. From 12 months it says
  * nothing about a kind the family does not log (R8), no "hungry" or "sleepy" guess (R5), and
- * the fridge only where milk is kept (R7).
+ * the fridge only where milk is kept (R7). A family whose day keeps the feed clock (lib/day.ts)
+ * gets the "hungry" line back, and the fridge line follows what the day says about stored milk.
  */
-export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null }) {
+export function SimpleHome({ summary, recent, milk, plan = null }: { summary: HomeSummary; recent: EntryRow[]; milk: MilkData | null; /** The home's plan (lib/day.ts dayPlan), built by the page. Read only with a saved day: absent, or with no day, the two rules below are worked out here on this phone's clock, as they always were. */ plan?: Pick<DayPlan, "saved" | "milkClock" | "milkNotices"> | null }) {
   const me = useMe();
   const router = useRouter();
   const lang = (me.member.lang ?? "en") as Lang;
@@ -84,8 +86,10 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const age = ageInDays(subject.birth_date, now, timezone);
   const toddler = isToddler(age);
   // Likely hungry (from how much the child took last time) and likely sleepy (awake window for the age): a baby's only.
+  // Hungry also where the family's day keeps the feed clock and milk is still logged.
   const hints: string[] = [];
-  const due = !toddler && lastFeed?.next_due ? Date.parse(lastFeed.next_due) : null;
+  const milkClock = plan?.saved ? plan.milkClock : !toddler;
+  const due = milkClock && lastFeed?.next_due ? Date.parse(lastFeed.next_due) : null;
   if (due != null) {
     const m = (due - now) / 60000;
     if (m <= 0 && m > -90) hints.push(L("hungryNow"));
@@ -111,8 +115,9 @@ export function SimpleHome({ summary, recent, milk }: { summary: HomeSummary; re
   const todayText = `${counts ? `${counts} ` : ""}${openSleep ? L("asleepNow") : L("awakeNow")}`;
   // From 12 months a last feed or diaper older than a day is not news, so it is not said.
   const fresh = (iso: string) => !toddler || minutesSince(iso) <= 24 * 60;
-  // The fridge only where milk is kept: from 12 months, a bottle in stock or a pump in 14 days.
-  const showMilk = !!milk && (!toddler || milk.fridge_count + milk.freezer_count > 0 || pumpingActive(last["lana.pump"]?.occurred_at ?? null, now, age));
+  // The fridge only where milk is kept: from 12 months, a bottle in stock or a pump in 14 days;
+  // with a saved day, only where the day says milk is stored as well (the plan's milkNotices).
+  const showMilk = !!milk && (plan?.saved ? plan.milkNotices : !toddler || milk.fridge_count + milk.freezer_count > 0 || pumpingActive(last["lana.pump"]?.occurred_at ?? null, now, age));
 
   async function log(type: EntryType | undefined, payload: Record<string, unknown>, ended: boolean, noteText: string | null = null) {
     if (!type) return;

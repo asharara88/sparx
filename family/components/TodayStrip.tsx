@@ -5,6 +5,7 @@ import { fmtTime, zonedMidnight } from "@/lib/time";
 import { nightWindow } from "@/lib/night";
 import { stageFor } from "@/lib/stage";
 import { stripCells } from "@/lib/logged";
+import { pottyCount, type DayPlan } from "@/lib/day";
 
 /**
  * Home's day in up to three counts (DESIGN.md, "Stat strip"): naps, feeds and diapers so far,
@@ -14,9 +15,12 @@ import { stripCells } from "@/lib/logged";
  * usual at her age on the Sleep section, so neither is repeated here. The last of each is on
  * the rows themselves.
  * From 12 months a cell shows only for what the family logs (lib/logged.ts, R8): naps while a
- * nap is expected or one was had today, feeds and diapers when logged lately.
+ * nap is expected or one was had today, feeds and diapers when logged lately. With a saved day
+ * (lib/day.ts) the day names the cells: meals or the potty may take a place, and the naps are
+ * held against the family's own answer ("1 of 2"), which stays; what is only usual at an age
+ * does not.
  */
-export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpected }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string; /** napPattern's answer for today; not read for a baby. */ napExpected: boolean }) {
+export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpected, plan = null }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string; /** napPattern's answer for today; not read for a baby. */ napExpected: boolean; /** The home's plan (lib/day.ts dayPlan). Absent, or with no saved day, the strip is as it always was. */ plan?: Pick<DayPlan, "cells" | "usualNaps"> | null }) {
   const start = zonedMidnight(day, timezone).getTime();
   const now = Date.parse(nowIso);
   const hourOf = (ms: number) => {
@@ -29,8 +33,9 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpecte
   };
   const night = nightWindow(summary.subject.settings);
   const s = sleepDay(entries, start, now, { bedtimeHour: hours(night.from, 19), morningHour: hours(night.to, 7), hourOf });
+  const stage = stageFor(summary.subject.birth_date, now, timezone);
   const cells = stripCells({
-    stage: stageFor(summary.subject.birth_date, now, timezone),
+    stage,
     woke: s.wokeAt ? fmtTime(new Date(s.wokeAt).toISOString(), timezone) : "—",
     naps: s.naps,
     napExpected,
@@ -40,16 +45,21 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpecte
     lastDiaperAt: summary.last["lana.diaper"]?.occurred_at ?? null,
     today: day,
     tz: timezone,
+    // Today's meals and potty by the same day as the counts above (home_summary's today).
+    plan: plan ? { cells: plan.cells, usualNaps: plan.usualNaps, meals: summary.today_counts?.["lana.meal"] ?? 0, potty: pottyCount(summary.today_entries ?? []) } : undefined,
   });
   // "woke" counts towards whether there is a strip (lib/logged.ts) and is drawn on the card below.
   const shown = (cells ?? []).filter((c) => c.kind !== "woke");
   if (!shown.length) return null;
   const HREF: Partial<Record<(typeof shown)[number]["kind"], string>> = { naps: "/baby/sleep", feeds: "/baby/feed" };
+  const held = stage.toddler && !!plan?.cells && !!plan.usualNaps;
   return (
     <div className="card day-strip" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }} role="group" aria-label="Today so far">
       {shown.map((c) => {
-        const value = c.kind === "naps" ? `${s.naps}` : c.value;
-        const word = c.kind === "naps" ? (s.naps === 1 ? "nap" : "naps") : c.label;
+        // A plain count, unless the family said how many naps there are: then "1 of 2", as stripCells wrote it.
+        const plain = c.kind === "naps" && !held;
+        const value = plain ? `${s.naps}` : c.value;
+        const word = plain ? (s.naps === 1 ? "nap" : "naps") : c.label;
         const href = HREF[c.kind];
         const inner = (
           <>

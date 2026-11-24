@@ -8,10 +8,13 @@ const ICON: Record<ForecastItem["kind"], IconName> = { feed: "bottle", diaper: "
 /**
  * The next hours as a glance: "feed ~15:10, nap ~16:00". Estimated from the
  * last 7 days of the child's log and the work hours of whoever breastfeeds; nothing
- * here is logged. Server-rendered; it refreshes with the page.
+ * here is logged. Server-rendered; it refreshes with the page. `only` keeps the kinds
+ * named: a toddler whose day keeps the feed clock gets the feeds alone, since diapers,
+ * naps and waking have no clock from 12 months.
  */
-export function LanaForecast({ entries, timezone, away, feedIntervalMin, hours = 12, limit, title = "Coming up", bare = false }: { entries: EntryRow[]; timezone: string; away?: (at: number) => boolean; feedIntervalMin?: number; hours?: number; limit?: number; title?: string; bare?: boolean }) {
-  const items = forecast(entries, { hours, away, feedIntervalMin });
+export function LanaForecast({ entries, timezone, away, feedIntervalMin, hours = 12, limit, title = "Coming up", bare = false, only }: { entries: EntryRow[]; timezone: string; away?: (at: number) => boolean; feedIntervalMin?: number; hours?: number; limit?: number; title?: string; bare?: boolean; only?: readonly ForecastItem["kind"][] }) {
+  const every = forecast(entries, { hours, away, feedIntervalMin });
+  const items = only ? every.filter((i) => only.includes(i.kind)) : every;
   const shown = limit ? items.slice(0, limit) : items;
   if (shown.length === 0) return null;
   return (

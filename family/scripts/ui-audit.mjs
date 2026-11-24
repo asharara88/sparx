@@ -20,7 +20,7 @@ const as = process.env.AUDIT_AS ?? "00000000-0000-4000-8000-000000000002";
 const out = process.env.AUDIT_OUT ?? "/tmp/ui-audit";
 // With no routes given it sweeps every screen (the list below; add a screen here when it is built).
 const ALL = [
-  "/", "/baby", "/baby?tab=week", "/baby?tab=about", "/baby/milk", "/baby/sleep", "/baby/feed", "/baby/trends",
+  "/", "/baby", "/baby?tab=week", "/baby?tab=about", "/baby/day", "/baby/milk", "/baby/sleep", "/baby/feed", "/baby/trends",
   "/baby/doctor", "/baby/emergency", "/baby/when-to-call", "/baby/vaccines", "/baby/medicine", "/baby/milestones",
   "/baby/weeks", "/baby/activities", "/baby/story", "/baby/handover", "/calendar", "/notes", "/chat", "/ask",
   "/ask/memory", "/ask/skills", "/achievements", "/members", "/members/home", "/members/roles", "/members/types",
@@ -33,7 +33,11 @@ const routes = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 // their own.
 const HOME = { blocks: 6, numbers: 15, words: 80, screens: 1 };
 const OTHER = { blocks: 8, numbers: 12, words: 150, screens: 2.5 };
-const parts = (route) => (route === "/" ? [["/ first screen", ".screen-fill", HOME], ["/ below", "#today", OTHER]] : [[route, null, OTHER]]);
+// The child's day has a budget of its own (docs/DESIGN.md, "The child's day"), held only where the
+// screen opened: a baby's home and anyone but a parent are sent to About the child, which keeps
+// the general budget. Run it with AUDIT_AS set to the parent of a child of 12 months or more.
+const DAY = { blocks: 5, numbers: 4, words: 100, screens: 1.5 };
+const parts = (route, landed) => (route === "/" ? [["/ first screen", ".screen-fill", HOME], ["/ below", "#today", OTHER]] : [[route, null, landed === "/baby/day" ? DAY : OTHER]]);
 
 mkdirSync(out, { recursive: true });
 // The sandbox's Chromium moves with each Playwright release; /opt/pw-browsers/chromium follows it.
@@ -82,7 +86,7 @@ for (const theme of ["light", "night"]) {
       };
     }, scope);
     const ms = [];
-    for (const [label, scope, b] of parts(route)) ms.push([label, await measure(scope), b]);
+    for (const [label, scope, b] of parts(route, new URL(page.url()).pathname)) ms.push([label, await measure(scope), b]);
     // The phone checks look inside every fold, so open them all first.
     await page.evaluate(() => document.querySelectorAll("main details").forEach((d) => (d.open = true)));
     await page.waitForTimeout(150);

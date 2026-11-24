@@ -13,6 +13,7 @@ import { clockMarks, maxDurationMin, type When, whenToIso } from "@/lib/when";
 import { bottleChoices, NAP_LENGTHS, overlappingSleep } from "@/lib/backlog";
 import { WhenChips } from "@/components/WhenChips";
 import { Icon } from "@/components/Icon";
+import type { DayPlan } from "@/lib/day";
 
 const LASTED: Record<string, readonly number[]> = { sleep: NAP_LENGTHS, feed: [5, 10, 15, 20, 30] };
 
@@ -23,25 +24,32 @@ const LASTED: Record<string, readonly number[]> = { sleep: NAP_LENGTHS, feed: [5
  * line until tapped. On a past day the time defaults to that day. `bare` drops the card
  * and its heading, for inside a sheet that already says what it is. A bottle starts on
  * the last amount; a sleep on top of one already logged asks before it is saved.
+ * With a saved day (lib/day.ts) it offers what the family logs: no Bottle or Breastfeed
+ * where milk is not logged, no Diaper where diapers are not, no Pump where no milk is stored.
  */
-export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, milkClock, defaultOpen = false, bare = false, onSaved }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; /** The child's stage has a milk clock (lib/stage): from 12 months no feed is "missed" (R2). */ milkClock: boolean; defaultOpen?: boolean; bare?: boolean; onSaved?: () => void }) {
+export function Backfill({ subjectId, types, timezone, day, entries = [], feedIntervalMin = 180, milkClock, defaultOpen = false, bare = false, onSaved, plan = null }: { subjectId: string; types: EntryType[]; timezone: string; day: string; entries?: EntryRow[]; feedIntervalMin?: number; /** Milk feeds have a next-due time (a baby, or a toddler whose day keeps the clock): from 12 months no feed is "missed" otherwise (R2). */ milkClock: boolean; defaultOpen?: boolean; bare?: boolean; onSaved?: () => void; /** The home's plan (lib/day.ts dayPlan). Absent, or with no saved day, the choices are as they always were. */ plan?: Pick<DayPlan, "milk" | "diapers" | "on"> | null }) {
   const me = useMe();
   const router = useRouter();
   const flags = me.member as unknown as Record<string, boolean>;
   const feedType = types.find((t) => t.key === "feed");
   const breastfeeds = !!feedType?.settings?.timer_flag && !!flags[feedType.settings.timer_flag!];
+  // What the day leaves out; each is false with no plan and with no saved day.
+  const noMilk = plan?.milk === "off";
+  const noDiaper = plan?.diapers === "potty" || plan?.diapers === "off";
+  const noPump = plan?.on.pump === false;
   const choices = useMemo(() => {
     const out: { key: string; label: string; icon: string | null; type: EntryType; payload: Record<string, unknown>; lasted: boolean }[] = [];
     for (const t of types) {
       if (t.key === "feed") {
+        if (noMilk) continue;
         out.push({ key: "bottle", label: "Bottle", icon: t.icon, type: t, payload: { method: "Bottle" }, lasted: false });
         if (breastfeeds) out.push({ key: "breast", label: "Breastfeed", icon: t.icon, type: t, payload: { method: "Breast" }, lasted: true });
-      } else if (t.key === "diaper") out.push({ key: "diaper", label: t.label, icon: t.icon, type: t, payload: {}, lasted: false });
+      } else if (t.key === "diaper" && !noDiaper) out.push({ key: "diaper", label: t.label, icon: t.icon, type: t, payload: {}, lasted: false });
       else if (t.key === "sleep") out.push({ key: "sleep", label: t.label, icon: t.icon, type: t, payload: {}, lasted: true });
-      else if (t.key === "pump" && breastfeeds) out.push({ key: "pump", label: t.label, icon: t.icon, type: t, payload: {}, lasted: false });
+      else if (t.key === "pump" && breastfeeds && !noPump) out.push({ key: "pump", label: t.label, icon: t.icon, type: t, payload: {}, lasted: false });
     }
     return out;
-  }, [types, breastfeeds]);
+  }, [types, breastfeeds, noMilk, noDiaper, noPump]);
 
   const today = toLocalInput(new Date().toISOString(), timezone).slice(0, 10);
   const pastDay = day < today;
