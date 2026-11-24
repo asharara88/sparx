@@ -110,7 +110,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         (!toddler || dayFeeds.length > 0) && <FeedPastDay feeds={dayFeeds} section={sectionDay} />
       )}
       {dayFeeds.length > 0 ? (
-        <EntryList entries={dayFeeds} types={summary.types} timezone={tz} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} />
+        <EntryList entries={dayFeeds} types={summary.types} timezone={tz} canEdit={can(me, "lana", "edit")} canDelete={can(me, "lana", "delete")} running={summary.ongoing.map((e) => e.id)} />
       ) : (
         <p className="muted px-1 text-sm">{nav.isToday ? "None logged yet today." : "None logged that day."}</p>
       )}
