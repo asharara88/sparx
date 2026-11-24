@@ -12,7 +12,7 @@ import { napsLine } from "@/lib/stage";
  * and one line of sums. The times of each nap are in the list below, not here.
  * Server-rendered; the duration and the bar's "now" tick on the phone.
  */
-export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true, since: showSince = true, href = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** "short" on Home: when she woke and the plain count ("up at 06:10 · 3 naps"), which left the strip on 24 November. */ sums?: boolean | "short"; /** Off on Home, where her state card above already runs the clock. */ since?: boolean; /** The Sleep section, linked at the foot of the card. */ href?: string | null }) {
+export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = null, sums: showSums = true, since: showSince = true, href = null, section = null }: { entries: EntryRow[]; day: string; timezone: string; nowIso?: string; night: { from: string; to: string }; /** Naps usual at this age (lib/stage): "2 of 2–3 naps". */ usualNaps?: [number, number] | null; /** "short" on Home: when she woke and the plain count ("up at 06:10 · 3 naps"), which left the strip on 24 November. */ sums?: boolean | "short"; /** Off on Home, where her state card above already runs the clock. */ since?: boolean; /** The Sleep section, linked at the foot of the card. */ href?: string | null; /** On the Sleep section (24 November): the pager names the day, so no title and no running clock beside it; the day's feeds as thin marks on the bar; a line for the night before. */ section?: { night: string | null } | null }) {
   const start = zonedMidnight(day, timezone).getTime();
   const end = start + 24 * 3600 * 1000;
   const now = nowIso ? Math.min(Date.parse(nowIso), end) : end;
@@ -52,6 +52,23 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
   // Home's line: when she woke and the plain count, without what is usual or the naps' total.
   const short = [upAt, napsLine(s.naps, null, isToday)].filter(Boolean);
   const label = `Sleep from midnight: ${s.segments.map((g) => `${g.kind} ${at(g.from)} to ${g.open ? "now" : at(g.to)}`).join(", ") || "none yet"}`;
+  if (section) {
+    const feeds = entries.filter((e) => e.type_id === "lana.feed").map((e) => Date.parse(e.occurred_at)).filter((t) => t >= start && t < end);
+    return (
+      <section className="card tint-sleep flex flex-col gap-1" aria-label={isToday ? "Sleep today" : "Sleep that day"}>
+        <p className="text-[1.25rem] font-bold leading-snug tabular-nums">{headline}</p>
+        <SleepBar segments={s.segments} dayStartMs={start} clockIso={clockIso} live={isToday} label={`${label}. Feeds at: ${feeds.map(at).join(", ") || "none"}`} marks={feeds} />
+        <div className="-mt-1 flex justify-between text-[13px] opacity-80">
+          <span>midnight</span>
+          <span>noon</span>
+          <span>midnight</span>
+        </div>
+        {/* A day before today is headed "Up at 06:10": the line under it does not say so again. */}
+        <p className="text-sm">{(isToday ? sums : sums.filter((x) => x !== upAt)).join(" · ")}</p>
+        {section.night && <p className="text-sm opacity-80">{section.night}</p>}
+      </section>
+    );
+  }
   return (
     <section className="card tint-sleep flex flex-col gap-2" aria-labelledby="sleep-day-h">
       <div className="flex items-baseline justify-between gap-2">

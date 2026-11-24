@@ -10,10 +10,12 @@ import { TimeBox } from "./TimeBox";
  * Clock times, not "80 min ago", so it matches the clock on the wall. Collapsed to one line
  * until tapped, so the one-tap screen stays one tap; picking a chip folds it back.
  */
-export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null, onValid, nowChip = "always" }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null; /** False while a typed time is incomplete or refused: the sheet holds its buttons. */ onValid?: (ok: boolean) => void; /** "whenEarlier": under a big now button the Now chip shows only once an earlier time is picked (to go back), and the grid keeps 12 cells. */ nowChip?: "always" | "whenEarlier" }) {
+export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label = "When", disabled = false, alwaysOpen = false, defaultOpen = false, day = null, onValid, nowChip = "always", short = false }: { value: When; onChange: (w: When) => void; timezone: string; marks?: number; label?: string; disabled?: boolean; alwaysOpen?: boolean; defaultOpen?: boolean; /** A past day being filled in: a typed time is on that day, not the most recent. */ day?: string | null; /** False while a typed time is incomplete or refused: the sheet holds its buttons. */ onValid?: (ok: boolean) => void; /** "whenEarlier": under a big now button the Now chip shows only once an earlier time is picked (to go back), and the grid keeps 12 cells. */ nowChip?: "always" | "whenEarlier"; /** On a screen, not in a sheet (the Sleep section): one row of the three latest times and "Other", which opens the twelve and the box to type one. */ short?: boolean }) {
   const [open, setOpen] = useState(alwaysOpen || defaultOpen);
   // The time came from the box (a typed time that happens to match a chip is still typed).
   const [typed, setTyped] = useState(false);
+  // The short row has been opened to all the times.
+  const [all, setAll] = useState(false);
   const summary = value.kind === "now" ? "now" : value.kind === "ago" ? agoLabel(value.min) : `at ${value.local.slice(11)}${value.local.slice(0, 10) !== toLocalInput(new Date().toISOString(), timezone).slice(0, 10) ? ` on ${value.local.slice(5, 10)}` : ""}`;
   if (!open) {
     return (
@@ -30,7 +32,9 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
   };
   const showNow = nowChip === "always" || value.kind !== "now";
   // Under a big now button: twelve clock times, or Now and eleven once an earlier one is picked.
-  const times = clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), nowChip === "whenEarlier" && showNow ? marks - 1 : marks);
+  // The short row stays short only while nothing earlier is picked: a picked time must be seen among its neighbours.
+  const brief = short && !all && value.kind === "now";
+  const times = brief ? clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), 3) : clockMarks(Date.now(), (iso) => toLocalInput(iso, timezone), nowChip === "whenEarlier" && showNow ? marks - 1 : marks);
   const onDay = day;
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={label}>
@@ -45,7 +49,13 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
             {local.slice(11)}
           </button>
         ))}
+        {brief && (
+          <button type="button" className="chip px-0" disabled={disabled} onClick={() => setAll(true)} aria-label="Another time">
+            Other
+          </button>
+        )}
       </div>
+      {!brief && (
       <TimeBox
         key={onDay ?? "recent"}
         label="or type it"
@@ -61,6 +71,7 @@ export function WhenChips({ value, onChange, timezone, marks = MARK_COUNT, label
           onChange({ kind: "at", local });
         }}
       />
+      )}
     </div>
   );
 }
