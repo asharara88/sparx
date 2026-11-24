@@ -10,7 +10,7 @@ import { feedCard } from "@/lib/logged";
  * milk has no clock and no usual number: the day's sum and when the last was, and no card at
  * all for a family that has not logged a feed lately (lib/logged.ts, R8). Server-rendered.
  */
-export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowIso, today, href = null }: { summary: HomeSummary; entries: EntryRow[]; dayStartMs: number; dayEndMs: number; timezone: string; nowIso: string; today: string; /** The Feeds section, linked at the foot of the card. */ href?: string | null }) {
+export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowIso, today, href = null, usual: showUsual = true }: { summary: HomeSummary; entries: EntryRow[]; dayStartMs: number; dayEndMs: number; timezone: string; nowIso: string; today: string; /** The Feeds section, linked at the foot of the card. */ href?: string | null; /** Off on Home since 24 November: what is usual at her age is said on the Feeds section. */ usual?: boolean }) {
   const c = feedCard({
     ageDays: summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null,
     feeding: summary.ongoing.some((e) => e.type_id === "lana.feed"),
@@ -27,7 +27,7 @@ export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowI
       <h2 id="feed-day-h" className="section-title">Feeds today</h2>
       <p className="text-2xl font-bold">{c.headline}</p>
       {c.line && <p className="text-sm">{c.line}</p>}
-      {c.usual && <p className="muted text-sm">{c.usual}</p>}
+      {showUsual && c.usual && <p className="muted text-sm">{c.usual}</p>}
       {href && (
         <Link prefetch={false} href={href} className="row-link -mb-2 flex min-h-[44px] items-center justify-end font-semibold no-underline">
           All feeds ›

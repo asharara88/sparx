@@ -1,22 +1,19 @@
 import Link from "next/link";
-import type { HomeSummary, Me } from "@/lib/types";
-import { can } from "@/lib/types";
-import { ageWordsShort } from "@/lib/norms";
+import type { HomeSummary } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { CustodyToggle } from "./CustodyToggle";
 import { Icon } from "./Icon";
 
 /**
- * The top of Home: the child's photo, name, age and who has her on the left; on the right
- * the round Emergency button. It sits high, out of the thumb's easy reach, on purpose:
+ * The top of Home: the child's photo, name and who has her on the left (her age is on her own
+ * screen; it left Home on 24 November to bring the first screen back to 15 numbers); on the
+ * right the round Emergency button. It sits high, out of the thumb's easy reach, on purpose:
  * always there, never tapped by accident (DESIGN.md, "Home"). The mic moved down into the
  * "Tell me" bar at the thumb (9 November).
  */
-export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: Me; today: string }) {
+export function HomeHeader({ summary }: { summary: HomeSummary }) {
   const s = summary.subject;
   const photo = (s.profile?.photo_path as string | undefined) ?? null;
-  // Whole years from 24 months ("2 years"), so the line still fits beside who has her.
-  const age = s.birth_date ? ageWordsShort(s.birth_date, today) : null;
   return (
     <header className="flex items-center gap-3 pt-2">
       <Avatar name={s.name} path={photo} size={48} />
@@ -24,7 +21,6 @@ export function HomeHeader({ summary, me, today }: { summary: HomeSummary; me: M
         <h1 className="truncate font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">{s.name}</h1>
         {/* A div, not a <p>: the custody switch holds a menu, and nothing here clips it. */}
         <div className="muted flex min-w-0 items-center gap-1 text-[0.95rem]">
-          {age && <span className="shrink-0">{age} ·</span>}
           <CustodyToggle inline subjectId={s.id} custody={summary.custody} />
         </div>
       </div>

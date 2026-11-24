@@ -28,6 +28,7 @@ import { DueNotice } from "@/components/DueNotice";
 import { napPattern, nextNap } from "@/lib/child-insights";
 import { checkEntries } from "@/lib/entry-checks";
 import { TodayStrip } from "@/components/TodayStrip";
+import { NowMore } from "@/components/NowMore";
 import { SleepDay } from "@/components/SleepDay";
 import { FeedDay } from "@/components/FeedDay";
 import { FoodDay } from "@/components/FoodDay";
@@ -44,10 +45,11 @@ export const dynamic = "force-dynamic";
 
 /**
  * Home answers "what does she need now, and what do I tap?" on its first phone screen
- * (DESIGN.md, "Home"): the header (photo, name, age, who has her, Say it, Emergency); a card
- * with her state, awake as the next-nap window; the day in up to four numbers; one Now notice, the
- * first that applies (the guide's top tip among them), with "N more ›"; and a row per
- * activity at the thumb, each saying when it last happened with its one-tap button.
+ * (DESIGN.md, "Home"): the header (photo, name, who has her, Emergency); a card with her
+ * state, awake as the next-nap window; the day in up to three counts, naps and feeds opening
+ * their sections; one Now notice, the first that applies (the guide's top tip among them),
+ * with "More" for the rest; and a row per activity at the thumb, each saying when it last
+ * happened with its round button (solid acts at once, a soft plus opens the sheet).
  * Below the rows, the day's picture (Mido, 7 November: Home and the dashboard are one):
  * sleep today, feeds today, food once she eats, pumping while it goes on.
  */
@@ -215,91 +217,91 @@ export default async function HomePage() {
   const fridgeLow = !!milkOk && milkStored && milkOk.fridge_ml < lastBottleMl;
   const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && milkStored, feedIsDue, checks > 0, vaccine && !vaccine.overdue, fridgeLow, !!keep].filter(Boolean).length;
 
+  // The Now slot's candidates, in rule 3's order. The slot shows the first that renders
+  // anything (.now-queue); "More" beside it lists them all in a sheet (NowMore).
+  const nowQueue: React.ReactNode[] = summary && summary.ok ? [
+    <div key="n0">
+      {vaccine?.overdue && (
+        <Link prefetch={false} href="/baby/vaccines" className="notice notice-danger flex items-center gap-2 no-underline">
+          <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">Vaccine overdue</span> <Icon name="forward" size={18} />
+        </Link>
+      )}
+    </div>,
+    <div key="n1">{tip?.level === "red" ? tipNotice : null}</div>,
+    <div key="n2">{mamaAway ? alerts.countdown : null}</div>,
+    <div key="n3">
+      {feedDue && !feeding && (
+        <DueNotice fromMs={Date.parse(feedDue)} className="notice tint-feed" href="/baby/feed">
+          <b>Feed due now</b>
+          {lastFeedAt ? ` · last ${fmtWhen(lastFeedAt, tz, now)}` : ""}
+        </DueNotice>
+      )}
+    </div>,
+    <div key="n4">{tip?.level === "yellow" ? tipNotice : null}</div>,
+    <div key="n5">{order.includes("plan") ? alerts.plan : null}</div>,
+    <div key="n6">{order.includes("handover") ? alerts.handover : null}</div>,
+    <div key="n7">{order.includes("thaw") ? alerts.thaw : null}</div>,
+    <div key="n8">
+      {checks > 0 && (
+        <Link prefetch={false} href="/baby" className="notice notice-warn flex items-center gap-2 no-underline">
+          <span className="flex-1 font-semibold">
+            {checks} {checks === 1 ? "entry" : "entries"} to check
+          </span>
+          <Icon name="forward" size={18} />
+        </Link>
+      )}
+    </div>,
+    <div key="n9">
+      {vaccine && !vaccine.overdue && (
+        <Link prefetch={false} href="/baby/vaccines" className="notice flex items-center gap-2 no-underline tint-meds">
+          <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is due</span> <Icon name="forward" size={18} />
+        </Link>
+      )}
+    </div>,
+    <div key="n10">
+      {milkOk && fridgeLow && (
+        <Link prefetch={false} href="/baby/milk" className="notice flex items-center gap-2 no-underline tint-milk">
+          <Icon name="droplet" size={20} /> <span className="flex-1 font-semibold">Fridge is low: {milkOk.fridge_ml} ml</span> <Icon name="forward" size={18} />
+        </Link>
+      )}
+    </div>,
+    <div key="n11">
+      {sitter && (
+        <Link prefetch={false} href="/baby/handover" className="notice flex items-center gap-2 no-underline">
+          <span className="flex-1 font-semibold">The handover</span> <Icon name="forward" size={18} />
+        </Link>
+      )}
+    </div>,
+    <div key="n12">
+      {keep && (
+        <Link prefetch={false} href="/achievements" className="notice tint-pump flex items-center gap-2 no-underline">
+          <Icon name="star" size={20} /> <span className="flex-1 font-semibold">{keep}</span> <Icon name="forward" size={18} />
+        </Link>
+      )}
+    </div>,
+  ] : [];
+
   return summary && summary.ok ? (
     <div className="flex flex-col gap-4">
     <div className="screen-fill">
       {/* Keyed by what is new: a badge won while Home is open (a pump logged, the page refreshed) pops too. */}
       <Celebration key={fresh.map((f) => f.id).join(",")} fresh={fresh} />
-      <HomeHeader summary={summary} me={me} today={today} />
+      <HomeHeader summary={summary} />
       <HomeState summary={summary} stage={{ toddler: isToddler(age), limits: limitsFor(age) }} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} napExpected={pattern.expected} />
-      {/* One thing that needs a look, on one line; the rest wait behind a small "+N" beside it
-          (DESIGN.md rule 3), not a link floating on its own line. */}
+      {/* One thing that needs a look, on one line; the rest wait behind "More" beside it
+          (DESIGN.md rule 3), which lists them in a sheet over Home. */}
       <div className="now-line">
-      <div className="now-queue">
-        <div>
-          {vaccine?.overdue && (
-            <Link prefetch={false} href="/baby/vaccines" className="notice notice-danger flex items-center gap-2 no-underline">
-              <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">Vaccine overdue</span> <Icon name="forward" size={18} />
-            </Link>
-          )}
-        </div>
-        <div>{tip?.level === "red" ? tipNotice : null}</div>
-        <div>{mamaAway ? alerts.countdown : null}</div>
-        <div>
-          {feedDue && !feeding && (
-            <DueNotice fromMs={Date.parse(feedDue)} className="notice tint-feed" href="/baby/feed">
-              <b>Feed due now</b>
-              {lastFeedAt ? ` · last ${fmtWhen(lastFeedAt, tz, now)}` : ""}
-            </DueNotice>
-          )}
-        </div>
-        <div>{tip?.level === "yellow" ? tipNotice : null}</div>
-        <div>{order.includes("plan") ? alerts.plan : null}</div>
-        <div>{order.includes("handover") ? alerts.handover : null}</div>
-        <div>{order.includes("thaw") ? alerts.thaw : null}</div>
-        <div>
-          {checks > 0 && (
-            <Link prefetch={false} href="/baby" className="notice notice-warn flex items-center gap-2 no-underline">
-              <span className="flex-1 font-semibold">
-                {checks} {checks === 1 ? "entry" : "entries"} to check
-              </span>
-              <Icon name="forward" size={18} />
-            </Link>
-          )}
-        </div>
-        <div>
-          {vaccine && !vaccine.overdue && (
-            <Link prefetch={false} href="/baby/vaccines" className="notice flex items-center gap-2 no-underline tint-meds">
-              <Icon name="syringe" size={20} /> <span className="flex-1 font-semibold">A vaccine is due</span> <Icon name="forward" size={18} />
-            </Link>
-          )}
-        </div>
-        <div>
-          {milkOk && fridgeLow && (
-            <Link prefetch={false} href="/baby/milk" className="notice flex items-center gap-2 no-underline tint-milk">
-              <Icon name="droplet" size={20} /> <span className="flex-1 font-semibold">Fridge is low: {milkOk.fridge_ml} ml</span> <Icon name="forward" size={18} />
-            </Link>
-          )}
-        </div>
-        <div>
-          {sitter && (
-            <Link prefetch={false} href="/baby/handover" className="notice flex items-center gap-2 no-underline">
-              <span className="flex-1 font-semibold">The handover</span> <Icon name="forward" size={18} />
-            </Link>
-          )}
-        </div>
-        <div>
-          {keep && (
-            <Link prefetch={false} href="/achievements" className="notice tint-pump flex items-center gap-2 no-underline">
-              <Icon name="star" size={20} /> <span className="flex-1 font-semibold">{keep}</span> <Icon name="forward" size={18} />
-            </Link>
-          )}
-        </div>
-      </div>
-      {known > 1 && (
-        <Link prefetch={false} href="/baby" className="now-more" aria-label={`${known - 1} more to look at`}>
-          +{known - 1}
-        </Link>
-      )}
+        <div className="now-queue">{nowQueue}</div>
+        {known > 1 && <NowMore count={known - 1}>{nowQueue}</NowMore>}
       </div>
       <LanaNow subject={summary.subject} types={summary.types} ongoing={summary.ongoing} recent={recent} timezone={tz} clockIso={now.toISOString()} defaultMilk={firstMilk} lastFeedMethod={(summary.last["lana.feed"]?.payload?.method as string | undefined) ?? null} lastPumpAt={summary.last["lana.pump"]?.occurred_at ?? null} tell={can(me, "assistant", "add") && can(me, "lana", "add") ? <TellBar quick={quickContextOf(summary, me)} /> : null} />
       {/* The bar's ＋ opens the log sheet here, rather than taking the person to the child's page. */}
       <LogMenu subjectId={summary.subject.id} types={summary.types} timezone={tz} day={today} isToday entries={week} todayEntries={recent.filter((e) => Date.parse(e.occurred_at) >= dayStart)} feedIntervalMin={stage ? feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min) : 180} milkClock={milkClock} solids={stage?.solids ?? false} />
     </div>
     <section id="today" aria-label="Today in detail" className="flex scroll-mt-4 flex-col gap-4">
-      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums={false} since={false} href="/baby/sleep" />
-      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} href="/baby/feed" />
+      <SleepDay entries={week} day={today} timezone={tz} nowIso={now.toISOString()} night={nightWindow(summary.subject.settings)} usualNaps={stage?.naps ?? null} sums="short" since={false} href="/baby/sleep" />
+      <FeedDay summary={summary} entries={week} dayStartMs={dayStart} dayEndMs={dayEnd} timezone={tz} nowIso={now.toISOString()} today={today} href="/baby/feed" usual={false} />
       {showFood && stage && <FoodDay meals={meals} dayStartMs={dayStart} dayEndMs={dayEnd} stage={stage} timezone={tz} />}
       {showPump && <PumpDashboard pumps={pumps} milk={milkOk} target={me.household.milk_target_ml ?? 400} days={pumpDays} today={today} hourOfDay={hour} />}
     </section>

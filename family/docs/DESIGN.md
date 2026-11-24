@@ -216,6 +216,25 @@ Asleep and a running feed went up a little because they now show the last diaper
 too (the four tiles while she sleeps; "Woke 14:29 · diaper 1 h 38 min ago" during a feed),
 and the feed card's own "Feeding, left · 9 min" header went.
 
+Home, 24 November 2026 ("Same screen, calmer": the first of three screens redrawn with the
+feel of Huckleberry and Sprouty in mind, the brand and these rules kept). The strip and the
+notice had been added since the table above, and the first screen had drifted to 20 numbers.
+Measured as an admin on a normal afternoon (four feeds, three naps, one notice with two more
+waiting), before → after; a family carer with large text reads the same counts:
+
+| Home, first screen | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| Awake | 6 → 6 | 20 → 13 | 69 → 62 | 0.9 → 0.9 | none |
+| Asleep | 6 → 6 | 17 → 10 | 56 → 54 | 0.8 → 0.8 | none |
+| Feed timer running | 6 → 6 | 15 → 9 | 55 → 53 | 0.8 → 0.8 | none |
+| The day's cards below (awake) | 5 → 5 | 12 → 12 | 63 → 59 | 0.7 → 0.7 | none |
+
+What left the first screen: her age under the name (it is on her own screen), "06:10 woke"
+and "of 3–4" from the strip (when she woke moved to the Sleep today card below), "Last sleep
+15 min" on the Sleep row (the row now says what its button does), and the "+2" that led to
+the child's screen. Below, "Usual at this age" left the Feeds today card (the Feeds section
+says it). Nothing was added that is not one of these moved or reworded.
+
 ## What lives where
 
 Three levels, no more.
@@ -235,14 +254,17 @@ bottom bar as a grid of tiles.
 
 ### Home
 
-1. **Header**: the child's initial, name, age and who has her; on the right, the round
-   *Emergency* button (phone, red). The microphone moved down into *Tell me* (item 5).
+1. **Header**: the child's initial, name and who has her; on the right, the round
+   *Emergency* button (phone, red). The microphone moved down into *Tell me* (item 5). Her
+   age left Home on 24 November: it is on her own screen.
 2. **Her state**, one card in big type. Awake: the **next-nap window** (Huckleberry's
    SweetSpot): "Next nap" or "Bedtime", how long she has been awake, the window as
    "11:20 – 11:50" (the forecast ± 15 minutes, on five-minute marks), a bar filling towards
    it, and one line: "In 25 min. Start winding down.", "Now.", or "Past the window by 20 min".
    Over an hour past it a nap was most likely not logged, so the card says when she last
-   woke instead. Asleep: "Asleep 42 min, since 13:10". Feeding: "Feeding 9 min". With no
+   woke instead. Asleep: "Asleep 42 min, since 13:10". Feeding: "Feeding 9 min, since
+   14:16". A running timer has a dot beside its word and, at the foot of the card, "All
+   sleep ›" or "All feeds ›": the whole card opens that section, and now says so. With no
    sleep in 12 hours, plain "Awake for", or nothing (rule 6).
    From 12 months the window follows the child's own week (`napPattern` in
    `lib/child-insights.ts`, 17 November): one nap a day gives one window, then **Bedtime**
@@ -250,17 +272,21 @@ bottom bar as a grid of tiles.
    window at all, only "Awake for 5 h 20 min, since 07:00", held for 16 hours instead of 12
    (a child with no nap is up 12 to 13 hours); never "Past the window". More than an hour past
    a bedtime window it is the plain "Awake for", never "if she napped since".
-3. **Today strip**: up to four numbers in one white bar (woke 06:10 · naps 1 of 3–4 · feeds 5 ·
-   diapers 4); tapping it scrolls to the day's cards below the log card. The last of each is on
-   the rows, so the strip gives the day's totals instead. Each number stays on one line, a size
-   smaller on a 320 px screen. From 12 months it holds only what the family logs (17 November,
+3. **Today strip**: up to three counts in one white bar, one number over one word (3 naps ›
+   · 4 feeds › · 3 diapers). "naps ›" opens the Sleep section and "feeds ›" the Feeds section:
+   they are links and are drawn as links (rose, with the arrow); diapers is plain. Until 24
+   November the bar scrolled to the day's cards and the way to the two sections was below the
+   first screen. The last of each is on the rows, so the strip gives the day's totals instead.
+   When she woke is on the Sleep today card below; what is usual at her age ("of 3–4") is on
+   the Sleep section. From 12 months it holds only what the family logs (17 November,
    `stripCells` in `lib/logged.ts`): feeds and diapers only when that kind was logged in the
    last 7 days (today and the 6 days before); naps while a nap is expected or one was had
-   today, "1 of 1–2" as before, or a plain count ("1" over "nap") once the usual range starts
-   at 0. Two to four cells; with fewer than two there is no strip.
+   today. `stripCells` still counts "woke" towards its rule (fewer than two cells, no strip);
+   the strip draws the other one to three.
 4. **Now**: one notice on one slim line (48 px, words cut with … rather than wrapping), the top
-   of the order in rule 3, or nothing. Beside it, a small "+2" opens the rest; never a link on a
-   line of its own.
+   of the order in rule 3, or nothing. Beside it, **More** opens every notice that applies in a
+   sheet over Home (`NowMore`, 24 November; "+2" was a link to the child's screen, which did
+   not show the two things it counted); never a link on a line of its own.
    The guide's most pressing tip is a candidate: a red one right after an overdue vaccine, a
    yellow one after "feed due". The nap is no longer a notice: the card says it.
    From 12 months there is no "feed due" and no guide tip (the guide is silent: no usual
@@ -272,9 +298,14 @@ bottom bar as a grid of tiles.
    way to log). On top, four **rows** (Feed, Sleep, Diaper, and a fourth that grows with
    the child: Meal once she eats, from 24 weeks; before that Pump while the parent who pumps
    still does (a pump in the last two weeks), else Medicine; `lib/stage.ts` decides). Each
-   row: the tinted icon, the name, one line under it ("40 min ago · 90 ml", "since 13:10"),
-   and the round one-tap button on the right (▶ start, ■ stop, ＋ log); a running timer tints
-   its row. Tapping the row opens its sheet. Rows, not a grid of four tiles: the tiles (9 to
+   row: the tinted icon, the name, one line under it ("40 min ago · 90 ml"), and the round
+   button on the right; a running timer tints its row and puts a dot before its line. The
+   button's look says what a tap does (24 November: one solid ▶ used to start sleep at once
+   and open a sheet for a feed): **solid rose ▶** starts the Sleep timer at once, the **dark
+   ■** stops a running timer at once, a **soft ＋** opens the row's sheet (Feed, Diaper, the
+   fourth row). The Sleep row's line says so in words, "Asleep? Tap to start" and "Awake? Tap
+   to stop"; someone who may not log reads "Last sleep 15 min" or "since 13:10" there
+   instead. Tapping the row opens its sheet. Rows, not a grid of four tiles: the tiles (9 to
    12 November) cut every line to "2 h 41 min ago · 13…" and read as clutter (Mido, 12
    November: "too messy and text heavy"). Under the rows, a hairline, then **Tell me**: a box and a
    microphone. Typing or saying "120 ml bottle", "wet diaper", "fell asleep 10 min ago" or
@@ -283,9 +314,10 @@ bottom bar as a grid of tiles.
    goes to the helper. It all opens in a sheet over Home, never a new screen; *Open the full
    chat* goes to Ask. At night while she sleeps, *Up for the day* is in the sleep sheet.
 6. **Below the log card** (`#today`, Mido, 7 November: Home and the dashboard are one): Sleep
-   today (the bar from midnight, without its sums line, which the strip already says), Feeds
-   today (when the next is due, what went in, what is usual at her age), Food today once she
-   eats, and pumping for the member who breastfeeds and admins while it goes on.
+   today (the bar from midnight and one short line, "up at 06:10 · 3 naps", which left the
+   strip on 24 November), Feeds today (when the next is due and what went in; what is usual
+   at her age is on the Feeds section), Food today once she eats, and pumping for the member
+   who breastfeeds and admins while it goes on.
    From 12 months Feeds today shows only when a milk feed was logged in the last 7 days
    (`feedCard` in `lib/logged.ts`), and says no time and no usual number: "Feeding now"; fed
    today, the day's sum ("180 ml in 1 bottle", "2 breastfeeds") over "Last at 18:40."; none
@@ -494,16 +526,16 @@ Use these; extend one before adding a new one, and add any new one here.
 | List row | `.row` in a white `ul` | Any set of like things | First line what and when, second line muted detail, number on the right. |
 | Sheet | `Sheet` (`.sheet`) | Logging, editing, choosing | Opens from a tile, a row or the bottom button; Escape or a tap outside closes it; Save at the bottom says what is missing. |
 | Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls; on a short screen it rests at the bottom by the thumb, not mid-screen (13 November: Milk, the nanny's Today). |
-| Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` ▶ / ■ / ＋ on the right; the row opens its sheet. Tint = the feature. |
+| Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` on the right, sized in rem so large text grows it; the row opens its sheet. Solid ▶ and the dark ■ (`.round-go-stop`) act at once; a soft ＋ (`.round-go-open`) opens the sheet. Tint = the feature. |
 | Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. |
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle) | Two or three words; the chosen one raised. |
 | Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. From 12 months only while a nap is expected (`topCard`). |
 | Week columns | `WeekColumns` | The shape of a week | Seven columns, midnight at the top; a column is one tap target. |
 | Log form | `EntryForm` (`/baby/log/…`, `/baby/entry/…`) | Anything less common than Home's rows, and editing in full | One card, a row per question, the When line first; two or three answers as a segmented control, a question with one possible answer not asked; photo and note in a second card; Save as the bottom button; Delete a word that asks twice. No helper button on it. |
 | Edit sheet | `EntrySheet` from `EntryList` | Changing or deleting an entry | Time picker, end chips, field chips, Save, Delete with a second tap. |
-| Stat strip | `TodayStrip` (Home), `DayStrip` tiles (the child's page) | A day's sums | Four at most, a dash for none. Home's from 12 months: two to four cells, only the kinds the family logs. |
+| Stat strip | `TodayStrip` (Home), `DayStrip` tiles (the child's page) | A day's sums | Four at most, a dash for none. Home's: naps, feeds and diapers as plain counts, the first two linking to their sections; from 12 months only the kinds the family logs. |
 | Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |
-| Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen. |
+| Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen; the rest wait behind **More** (`NowMore`), a sheet that lists them. |
 | Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `className="fold-flat"` makes folds the rows of one white list (earlier days on Sleep and Feeds, Week by week). |
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
 | When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. |

@@ -346,9 +346,13 @@ export function LanaNow({
         ? `${ago(feedType?.id, "")} · ${lastFeed.payload.method === "Bottle" ? (lastFeed.payload.amount_ml ? `${lastFeed.payload.amount_ml} ml` : "bottle") : lastFeed.payload.side ? String(lastFeed.payload.side).toLowerCase() : "breast"}`
         : breastfeeds ? "Breast or bottle" : "Bottle";
   const napLen = lastSleep?.ended_at ? Math.round((Date.parse(lastSleep.ended_at) - Date.parse(lastSleep.occurred_at)) / 60_000) : 0;
+  // The Sleep row is the one timer on Home, so its line says what the button does (24 November:
+  // the same round button started sleep at once and opened a sheet for a feed). The card above
+  // already says "Asleep 26 min, since 14:04". Someone who cannot log reads what happened instead.
   const sleepSub =
-    sleepEntry ? `since ${fmtTime(sleepEntry.occurred_at, timezone)}` // the card above already says "Asleep"
+    sleepEntry ? (canAdd ? "Awake? Tap to stop" : `since ${fmtTime(sleepEntry.occurred_at, timezone)}`)
     : nightWake ? `Awake since ${fmtTime(nightWake.occurred_at, timezone)}`
+    : canAdd ? "Asleep? Tap to start"
     : lastSleep?.ended_at && minutesBetween(lastSleep.ended_at, realNowIso) <= 12 * 60 && napLen > 0 ? `Last sleep ${fmtDuration(napLen)}`
     : "None yet today";
   const lastNappy = lastOf(diaperType?.id);
@@ -385,12 +389,13 @@ export function LanaNow({
       )}
 
       {/* One row per activity (DESIGN.md, "Log row"; the agreed mockup): the row opens its
-          sheet, the round button is the one tap (start, stop, add). Full-width rows, so the
-          line under each name fits instead of being cut to "2 h 41 min ago · 13…". */}
+          sheet, the round button is the one tap. A solid button acts at once (▶ starts the
+          sleep timer, the dark ■ stops a timer); a soft ＋ opens the row's sheet. Full-width
+          rows, so the line under each name fits instead of being cut to "2 h 41 min ago · 13…". */}
       <div className="card log-card">
         <ul aria-label="Log">
           <Row tint="feed" icon="bottle" label="Feed" sub={feedSub} live={!!feedEntry} disabled={!canAdd} onOpen={() => openSheet("feed")}
-            action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "play", label: "Start a feed", onClick: () => openSheet("feed") }} />
+            action={feedEntry ? { kind: "stop", label: "Done feeding", onClick: () => finishFeed(feedEntry) } : { kind: "plus", label: "Log a feed", onClick: () => openSheet("feed") }} />
           <Row tint="sleep" icon="zzz" label="Sleep" sub={sleepSub} live={!!sleepEntry} disabled={!canAdd} onOpen={() => openSheet("sleep")}
             action={sleepEntry ? { kind: "stop", label: "Woke up", onClick: () => wake(sleepEntry) } : { kind: "play", label: nightWake ? "Back to sleep" : "Asleep now", onClick: startSleep }} />
           <Row tint="diaper" icon="diaper" label="Diaper" sub={nappySub} disabled={!canAdd} onOpen={() => openSheet("diaper")} action={{ kind: "plus", label: "Log a diaper", onClick: () => openSheet("diaper") }} />
@@ -635,16 +640,20 @@ export function LanaNow({
  */
 type RowAction = { kind: "play" | "stop" | "plus"; label: string; onClick?: () => void; href?: string };
 
-/** A log row: icon, name, one line under it, the round one-tap button on the right. */
+/** A log row: icon, name, one line under it, the round one-tap button on the right
+ *  (solid ▶ or dark ■ acts at once; a soft ＋ opens the row's sheet). */
 function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, action }: { tint: string; icon: IconName; label: string; sub: string; live?: boolean; disabled: boolean; onOpen?: () => void; href?: string; action: RowAction }) {
   const body = (
     <>
-      <span className={`icon-disc tint-${tint}`} style={{ width: 40, height: 40 }}>
+      <span className={`icon-disc tint-${tint}`}>
         <Icon name={icon} size={21} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="log-row-name">{label}</span>
-        <span className={`log-row-sub ${live ? "log-row-live" : "muted"}`}>{sub}</span>
+        <span className={`log-row-sub ${live ? "log-row-live" : "muted"}`}>
+          {live && <span className="live-dot" aria-hidden="true" />}
+          {sub}
+        </span>
       </span>
     </>
   );
@@ -652,7 +661,7 @@ function Row({ tint, icon, label, sub, live = false, disabled, onOpen, href, act
     action.kind === "play" ? <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" />
     : action.kind === "stop" ? <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" />
     : <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" />;
-  const btnCls = `round-go ${action.kind === "stop" ? "round-go-stop" : ""}`;
+  const btnCls = `round-go ${action.kind === "stop" ? "round-go-stop" : action.kind === "plus" ? "round-go-open" : ""}`;
   const svg = (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       {glyph}

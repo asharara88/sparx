@@ -22,12 +22,15 @@ end $$;
 \set mido  '''00000000-0000-4000-8000-000000000001'''
 \set dana  '''00000000-0000-4000-8000-000000000002'''
 \set wafa  '''00000000-0000-4000-8000-000000000003'''
+\set luda  '''00000000-0000-4000-8000-000000000004'''
 \set lilly '''00000000-0000-4000-8000-000000000005'''
 \set lana  '''00000000-0000-4000-8000-00000000a001'''
 -- Her live row was made on 10 October 2026: the day her vaccine book counts from (migration 6500).
 update public.care_subjects set created_at = timestamptz '2026-10-10 12:00+04' where id = :lana;
 
--- Lana: fourteen days, as Dana (breast) and Lilly (bottles on weekdays)
+-- Lana: fourteen days, as Dana (breast) and Luda (bottles on weekdays). The bottles were
+-- Lilly's until a home carer lost "add" on the log: care_entry_log then refused each one
+-- without an error, and the demo day read "Feed 8 h ago" with four feeds in 24 hours.
 select pg_temp.act_as(:dana);
 set role authenticated;
 do $$
@@ -53,7 +56,7 @@ begin
   end loop;
 end $$;
 reset role;
-select pg_temp.act_as(:lilly);
+select pg_temp.act_as(:luda);
 set role authenticated;
 do $$
 declare d int; day date; tz text := 'Asia/Dubai'; n timestamptz := now();

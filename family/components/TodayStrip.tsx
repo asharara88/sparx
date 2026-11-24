@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EntryRow, HomeSummary } from "@/lib/types";
 import { sleepDay } from "@/lib/sleep-day";
 import { fmtTime, zonedMidnight } from "@/lib/time";
@@ -5,16 +6,15 @@ import { nightWindow } from "@/lib/night";
 import { stageFor } from "@/lib/stage";
 import { stripCells } from "@/lib/logged";
 
-// Written out in full so Tailwind keeps all three.
-const COLS: Record<number, string> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4" };
-
 /**
- * Home's day in up to four numbers (DESIGN.md, "Stat strip"): when she woke, naps against what
- * is usual at her age, feeds and diapers so far. One white bar; tapping it goes to the day's
- * cards below the log rows. The last of each is on the rows themselves, so not repeated here.
+ * Home's day in up to three counts (DESIGN.md, "Stat strip"): naps, feeds and diapers so far,
+ * one number over one word. Naps and feeds are links and look like links ("naps ›" opens the
+ * Sleep section, "feeds ›" the Feeds section): until 24 November the way to the two sections
+ * was below the first screen. When she woke is on the Sleep today card below, and what is
+ * usual at her age on the Sleep section, so neither is repeated here. The last of each is on
+ * the rows themselves.
  * From 12 months a cell shows only for what the family logs (lib/logged.ts, R8): naps while a
- * nap is expected or one was had today, feeds and diapers when logged lately; with fewer than
- * two cells there is no strip.
+ * nap is expected or one was had today, feeds and diapers when logged lately.
  */
 export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpected }: { summary: HomeSummary; entries: EntryRow[]; day: string; timezone: string; nowIso: string; /** napPattern's answer for today; not read for a baby. */ napExpected: boolean }) {
   const start = zonedMidnight(day, timezone).getTime();
@@ -41,16 +41,32 @@ export function TodayStrip({ summary, entries, day, timezone, nowIso, napExpecte
     today: day,
     tz: timezone,
   });
-  if (!cells) return null;
+  // "woke" counts towards whether there is a strip (lib/logged.ts) and is drawn on the card below.
+  const shown = (cells ?? []).filter((c) => c.kind !== "woke");
+  if (!shown.length) return null;
+  const HREF: Partial<Record<(typeof shown)[number]["kind"], string>> = { naps: "/baby/sleep", feeds: "/baby/feed" };
   return (
-    <a href="#today" className={`card row-link grid ${COLS[cells.length]} gap-1 py-3 text-center no-underline`} aria-label="Today so far, more below">
-      {cells.map((c) => (
-        <span key={c.label} className="flex flex-col">
-          {/* One line always ("3 of 3–4" broke in two at 320 px); a narrow phone gets a size smaller. */}
-          <span className="whitespace-nowrap text-[clamp(0.95rem,4.6vw,1.125rem)] font-bold leading-tight tabular-nums">{c.value}</span>
-          <span className="muted text-[13px]">{c.label}</span>
-        </span>
-      ))}
-    </a>
+    <div className="card day-strip" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }} role="group" aria-label="Today so far">
+      {shown.map((c) => {
+        const value = c.kind === "naps" ? `${s.naps}` : c.value;
+        const word = c.kind === "naps" ? (s.naps === 1 ? "nap" : "naps") : c.label;
+        const href = HREF[c.kind];
+        const inner = (
+          <>
+            <span className="day-num">{value}</span>
+            <span className="day-word">{href ? `${word} ›` : word}</span>
+          </>
+        );
+        return href ? (
+          <Link key={c.kind} prefetch={false} href={href} className="day-cell" aria-label={`${value} ${word} today. ${c.kind === "naps" ? "All sleep" : "All feeds"}`}>
+            {inner}
+          </Link>
+        ) : (
+          <span key={c.kind} className="day-cell">
+            {inner}
+          </span>
+        );
+      })}
+    </div>
   );
 }
