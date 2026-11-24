@@ -523,13 +523,9 @@ same for feeds. Reached from Home's strip ("naps ›", "feeds ›"), its state c
 Feeds; otherwise Sleep), "All sleep ›" and "All feeds ›" under Sleep today and Feeds today,
 "Feed due" and the guide's sleep or feed tip.
 
-**Sleep** (until its own redraw), top to bottom: now (the big Asleep / Woke up button with the
-time typed), today's card, last night, every entry of the week (today open, each earlier day
-a fold; tapping one opens the edit sheet), and the week against what is usual at her age,
-folded.
-
-**Feeds is one day at a time** (24 November, "The day, swiped": the second screen redrawn with
-Huckleberry and Sprouty in mind). Top to bottom:
+**Both are one day at a time** (24 November, "The day, swiped": the second and third screens
+redrawn with Huckleberry and Sprouty in mind), in one frame, so the two work as one place.
+Feeds, top to bottom:
 
 1. **Feeds | Sleep**, a segmented control of two links: one tap across to the other section,
    on the day this one shows.
@@ -568,6 +564,30 @@ the app on the first swipe.
 
 From 12 months the Feeds section's fold has no "usually" hint, and the night's line shows only
 when a night feed was logged.
+
+**Sleep** has the same frame: Feeds | Sleep, now (on today only), the day pager, the day's
+card, that day's sleeps, the week folded. What is its own:
+
+- **One timer.** Now is the big round button and, under "or it already happened", the three
+  latest clock times and **Other** (which opens the twelve and the box to type one). It is
+  Home's Sleep sheet drawn on the screen (`LanaNow` with `section="sleep"`), so it says and
+  does what Home's does: "Asleep now", "Woke up now" over "asleep 26 min", "Back to sleep"
+  after a night wake, "Up for the day" at night, "Still asleep" or when she woke for a sleep
+  from earlier, the warning when it lands on one already logged, Undo. Until now this screen
+  had a second timer (`QuickSleep`) with other words ("since 14:04" on the button, the time
+  behind a small "earlier?" chip).
+- **The day's card** is `SleepDay` without its title row: what she is doing or, on an earlier
+  day, when she got up; the bar with the day's feeds as thin pink marks; the sums; and the
+  night that ended that morning as one line ("Last night: 9 h 50 min · longest 5 h 5 min",
+  with the wake-ups when there were any).
+
+What left the screen: the six folds of "Earlier this week", the "Last night" card (one line),
+the "Sleep today" label with "awake 17 min" beside it (the pager names the day, the headline
+says "Up from a nap at 14:12"), "since 14:04" on the button (said once, on the card), and the
+"Today, 4 sleeps" heading. As an admin on a normal afternoon, before → after: 10 → 7 blocks,
+30 → 26 numbers, 107 → 85 words, 1.9 → 1.4 screens, 44 → 14 things to tap; asleep 10 → 7,
+32 → 26, 113 → 85, 1.9 → 1.4, 45 → 14; a family carer with large text 10 → 7, 30 → 26,
+107 → 85, 2.0 → 1.5. Phone checks pass. The same bend as Feeds: the swipe.
 
 ### Sleep today (Home's day cards and the child's Today tab)
 
@@ -625,7 +645,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Sheet | `Sheet` (`.sheet`) | Logging, editing, choosing | Opens from a tile, a row or the bottom button; Escape or a tap outside closes it; Save at the bottom says what is missing. |
 | Bottom button | `.bottom-action` around a `.btn-lg` | The screen's one main action | Last thing on the page; held just above the tab bar while the page scrolls; on a short screen it rests at the bottom by the thumb, not mid-screen (13 November: Milk, the nanny's Today). |
 | Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` on the right, sized in rem so large text grows it; the row opens its sheet. Solid ▶ and the dark ■ (`.round-go-stop`) act at once; a soft ＋ (`.round-go-open`) opens the sheet. Tint = the feature. |
-| Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. |
+| Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. There is one Sleep timer (`LanaNow`'s): Home draws it in the sheet, the Sleep section on the screen. |
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle); two sections that are one place (`SectionSwitch`: Feeds / Sleep) | Two or three words; the chosen one raised. Made of links when it changes the page. |
 | Day pager | `DayPager`, `DaySwipe`, `lib/day-nav.ts` | The day a section shows | The day's name over its date between two arrows; a swipe does the same; the arrow at either end is faint and does nothing. The day is in the address (`?day=`), today has none. |
 | Day bar | `DayBar` (draws with `SleepBar`) | One day from midnight to midnight on a section | Sleep and feeds on one bar; `lead` says which the screen is about and draws the other faint. No numbers on it: the times are in the list. Not on Home. |
@@ -637,9 +657,9 @@ Use these; extend one before adding a new one, and add any new one here.
 | Stat strip | `TodayStrip` (Home), `DayStrip` tiles (the child's page) | A day's sums | Four at most, a dash for none. Home's: naps, feeds and diapers as plain counts, the first two linking to their sections; from 12 months only the kinds the family logs. |
 | Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen; the rest wait behind **More** (`NowMore`), a sheet that lists them. |
-| Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `className="fold-flat"` makes folds the rows of one white list (earlier days on Sleep, Week by week). |
+| Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `className="fold-flat"` makes folds the rows of one white list (Week by week). |
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
-| When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. |
+| When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. On a screen (`short`): one row of the three latest times and "Other". |
 | Pill | `.pill` | A state beside a headline | "use first", "short", "expired". One line. Not for numbers that are fine. |
 | Tick | `.tick` | Marking a thing done (Activities, the bag list) | 44 px round; an empty ring until done, then a filled disc with a tick. |
 

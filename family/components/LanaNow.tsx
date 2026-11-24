@@ -65,10 +65,11 @@ export function LanaNow({
   lastPumpAt?: string | null;
   /** Home's "Tell me" bar, at the bottom of the log card. */
   tell?: React.ReactNode;
-  /** On the Feeds section (24 November): its two buttons, or the feed that is running, in place
-   *  of Home's rows. The sheet, the taps, Undo and Recent are Home's own, so logging there works
-   *  as it does on Home and nobody leaves the section to log. */
-  section?: "feed" | null;
+  /** On a section (24 November), in place of Home's rows. "feed": the two buttons, or the feed
+   *  that is running. "sleep": the Sleep timer itself, on the screen. The sheet, the taps, Undo
+   *  and Recent are Home's own, so logging there works as it does on Home and nobody leaves
+   *  the section to log. */
+  section?: "feed" | "sleep" | null;
 }) {
   const me = useMe();
   const router = useRouter();
@@ -387,6 +388,77 @@ export function LanaNow({
   const feedEntry = state.kind === "feeding" ? state.entry : null;
   const feedSide = state.kind === "feeding" && (state.side === "Left" || state.side === "Right") ? state.side : null;
 
+  // The Sleep timer's whole body: the big now button, then "or it already happened" with the
+  // clock times. Home draws it in the Sleep sheet; the Sleep section draws it on the screen
+  // (24 November: the section had its own timer with other words; now there is one).
+  const sleepBody = (onScreen: boolean) => (
+    <>
+      {/* Now: one big button. Earlier: the time she fell asleep (or woke), then when she woke. */}
+      {!isEarlier(when) && (
+        <div className="flex flex-col items-center gap-2 py-1">
+          <button type="button" className="big-timer tint-sleep" disabled={off} onClick={() => (sleepEntry ? wake(sleepEntry) : startSleep())}>
+            <Icon name={sleepEntry ? "sun" : "zzz"} size={30} />
+            <span>{sleepEntry ? "Woke up now" : nightWake ? "Back to sleep" : "Asleep now"}</span>
+            {sleepEntry && <span className="big-timer-sub">asleep {elapsed(sleepEntry.occurred_at)}</span>}
+          </button>
+          {sleepEntry && isNight && (
+            <button type="button" className="btn" disabled={off} onClick={() => run("Up for the day.", () => end(sleepEntry))}>
+              <Icon name="sun" size={18} /> Up for the day
+            </button>
+          )}
+        </div>
+      )}
+      <p className="divider-label">{isEarlier(when) ? "It already happened" : "or it already happened"}</p>
+      <WhenChips label={sleepEntry ? "Woke up" : "Fell asleep"} value={when} onChange={(w) => { setWhen(w); setClash(null); }} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} defaultOpen nowChip="whenEarlier" short={onScreen} />
+      {isEarlier(when) &&
+        (sleepEntry ? (
+          <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => wake(sleepEntry)}>
+            Woke up at {fmtTime(whenIso, timezone)}
+          </button>
+        ) : clash ? (
+          <div className="notice notice-warn flex flex-col gap-2" role="alert">
+            <p className="font-semibold">
+              On top of a sleep from {fmtTime(clash.entry.occurred_at, timezone)}
+              {clash.entry.ended_at ? ` to ${fmtTime(clash.entry.ended_at, timezone)}` : ", still going"}.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link prefetch={false} href={clash.entry.id.startsWith(QUEUED_ID_PREFIX) ? "/baby?tab=today" : `/baby/entry/${clash.entry.id}`} className="btn">
+                Change it
+              </Link>
+              <button type="button" className="btn" disabled={busy} onClick={() => logSleep(clash.lastedMin, true)}>
+                Log anyway
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="font-semibold">Woke up</p>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Woke up">
+              <button type="button" className="chip col-span-3 min-h-[52px]" disabled={off} onClick={() => logSleep(null)}>
+                Still asleep
+              </button>
+              {napLengths(Date.parse(whenIso), now.getTime()).map((m) => {
+                const at = fmtTime(new Date(Date.parse(whenIso) + m * 60_000).toISOString(), timezone);
+                return (
+                  <button key={m} type="button" className="chip min-h-[56px] flex-col gap-0 leading-tight" disabled={off} onClick={() => logSleep(m)} aria-label={`Woke at ${at}, ${fmtDuration(m)}`}>
+                    <span className="font-semibold tabular-nums">{at}</span>
+                    <span className="text-sm opacity-80">{fmtDuration(m)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <TimeBox key={whenIso} label="or woke at" value={null} timezone={timezone} min={toLocalInput(whenIso, timezone)} minWord={`${p.they} fell asleep`} yesterday={false} day={null} disabled={off} onChange={(at) => setWokeTyped(at ? { start: whenIso, at } : null)} />
+            {/* Only against the start it was typed for, and only after it: a changed start empties it. */}
+            {wokeTyped && wokeTyped.start === whenIso && wokeTyped.at > toLocalInput(whenIso, timezone) && (
+              <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => logSleep(Math.round((Date.parse(fromLocalInput(wokeTyped.at, timezone)) - Date.parse(whenIso)) / 60_000))}>
+                Slept {fmtTime(whenIso, timezone)} to {wokeTyped.at.slice(11, 16)}
+              </button>
+            )}
+          </>
+        ))}
+    </>
+  );
+
   return (
     <section className="flex flex-col gap-3" aria-live="polite">
       {msg && (
@@ -424,6 +496,7 @@ export function LanaNow({
           </button>
         </div>
       )}
+      {section === "sleep" && <div className="flex flex-col gap-3">{sleepBody(true)}</div>}
       {section === "feed" && !feedEntry && (
         <div className={`grid ${breastfeeds ? "grid-cols-2" : "grid-cols-1"} gap-2`} role="group" aria-label="Log a feed">
           {breastfeeds && (
@@ -609,69 +682,7 @@ export function LanaNow({
       )}
       {sheet === "sleep" && (
         <BaseSheet title="Sleep" onClose={closeSheet}>
-          {/* Now: one big button. Earlier: the time she fell asleep (or woke), then when she woke. */}
-          {!isEarlier(when) && (
-            <div className="flex flex-col items-center gap-2 py-1">
-              <button type="button" className="big-timer tint-sleep" disabled={off} onClick={() => (sleepEntry ? wake(sleepEntry) : startSleep())}>
-                <Icon name={sleepEntry ? "sun" : "zzz"} size={30} />
-                <span>{sleepEntry ? "Woke up now" : nightWake ? "Back to sleep" : "Asleep now"}</span>
-                {sleepEntry && <span className="big-timer-sub">asleep {elapsed(sleepEntry.occurred_at)}</span>}
-              </button>
-              {sleepEntry && isNight && (
-                <button type="button" className="btn" disabled={off} onClick={() => run("Up for the day.", () => end(sleepEntry))}>
-                  <Icon name="sun" size={18} /> Up for the day
-                </button>
-              )}
-            </div>
-          )}
-          <p className="divider-label">{isEarlier(when) ? "It already happened" : "or it already happened"}</p>
-          <WhenChips label={sleepEntry ? "Woke up" : "Fell asleep"} value={when} onChange={(w) => { setWhen(w); setClash(null); }} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} defaultOpen nowChip="whenEarlier" />
-          {isEarlier(when) &&
-            (sleepEntry ? (
-              <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => wake(sleepEntry)}>
-                Woke up at {fmtTime(whenIso, timezone)}
-              </button>
-            ) : clash ? (
-              <div className="notice notice-warn flex flex-col gap-2" role="alert">
-                <p className="font-semibold">
-                  On top of a sleep from {fmtTime(clash.entry.occurred_at, timezone)}
-                  {clash.entry.ended_at ? ` to ${fmtTime(clash.entry.ended_at, timezone)}` : ", still going"}.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Link prefetch={false} href={clash.entry.id.startsWith(QUEUED_ID_PREFIX) ? "/baby?tab=today" : `/baby/entry/${clash.entry.id}`} className="btn">
-                    Change it
-                  </Link>
-                  <button type="button" className="btn" disabled={busy} onClick={() => logSleep(clash.lastedMin, true)}>
-                    Log anyway
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="font-semibold">Woke up</p>
-                <div className="grid grid-cols-3 gap-2" role="group" aria-label="Woke up">
-                  <button type="button" className="chip col-span-3 min-h-[52px]" disabled={off} onClick={() => logSleep(null)}>
-                    Still asleep
-                  </button>
-                  {napLengths(Date.parse(whenIso), now.getTime()).map((m) => {
-                    const at = fmtTime(new Date(Date.parse(whenIso) + m * 60_000).toISOString(), timezone);
-                    return (
-                      <button key={m} type="button" className="chip min-h-[56px] flex-col gap-0 leading-tight" disabled={off} onClick={() => logSleep(m)} aria-label={`Woke at ${at}, ${fmtDuration(m)}`}>
-                        <span className="font-semibold tabular-nums">{at}</span>
-                        <span className="text-sm opacity-80">{fmtDuration(m)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <TimeBox key={whenIso} label="or woke at" value={null} timezone={timezone} min={toLocalInput(whenIso, timezone)} minWord={`${p.they} fell asleep`} yesterday={false} day={null} disabled={off} onChange={(at) => setWokeTyped(at ? { start: whenIso, at } : null)} />
-                {/* Only against the start it was typed for, and only after it: a changed start empties it. */}
-                {wokeTyped && wokeTyped.start === whenIso && wokeTyped.at > toLocalInput(whenIso, timezone) && (
-                  <button type="button" className="btn btn-primary btn-lg" disabled={off} onClick={() => logSleep(Math.round((Date.parse(fromLocalInput(wokeTyped.at, timezone)) - Date.parse(whenIso)) / 60_000))}>
-                    Slept {fmtTime(whenIso, timezone)} to {wokeTyped.at.slice(11, 16)}
-                  </button>
-                )}
-              </>
-            ))}
+          {sleepBody(false)}
           <RecentList title="Recent sleeps" items={recentOf(sleepType?.id)} timezone={timezone} describe={sleepWords} onOpen={(e) => { closeSheet(); setEditing(e); }} />
         </BaseSheet>
       )}
