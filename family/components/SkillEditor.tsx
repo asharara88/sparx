@@ -52,9 +52,19 @@ export function SkillEditor({ skills }: { skills: AssistantSkill[] }) {
   const months = (d: number | null) => (d == null ? "" : String(Math.round(d / 30.44)));
   const days = (m: string) => (m.trim() === "" ? null : Math.round(Number(m) * 30.44));
 
-  const Form = () =>
+  // Called as a function, not rendered as <Form />: a component made anew on every render is a
+  // new component to React, which would rebuild the fields (and drop the keyboard) at each letter.
+  // A new skill's form is a card of its own under the button; a saved skill's form sits flat
+  // in its row (a ringed card inside the list's card was a box in a box, its fields on the ring).
+  const form = (inRow: boolean) =>
     draft && (
-      <div className="card mt-2 flex flex-col gap-2 ring-2 ring-[var(--accent)]">
+      <div className={inRow ? "flex flex-col gap-2 pb-2" : "card flex flex-col gap-2"}>
+        {draft.version != null && (
+          <p className="muted text-sm">
+            Version {draft.version}
+            {draft.updated_by ? `, saved by ${draft.updated_by}` : ""}. Every save is versioned and audited.
+          </p>
+        )}
         {!skills.some((s) => s.id === draft.id) && (
           <label className="flex flex-col gap-1 text-sm">
             Id (letters, digits, _)
@@ -74,7 +84,7 @@ export function SkillEditor({ skills }: { skills: AssistantSkill[] }) {
           <textarea className="input" rows={3} value={draft.triggers.join(", ")} onChange={(e) => setDraft({ ...draft, triggers: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          What it knows
+          What it knows (guidance, not a prescription: no medicines or doses, and red flags point to the doctor)
           <textarea className="input" rows={12} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -91,10 +101,10 @@ export function SkillEditor({ skills }: { skills: AssistantSkill[] }) {
             <input className="input" inputMode="decimal" value={months(draft.age_to_days)} onChange={(e) => setDraft({ ...draft, age_to_days: days(e.target.value) })} />
           </label>
         </div>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-[44px] items-center gap-2 text-sm">
           <input type="checkbox" checked={draft.always_on} onChange={(e) => setDraft({ ...draft, always_on: e.target.checked })} /> Always on (in every answer)
         </label>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-[44px] items-center gap-2 text-sm">
           <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })} /> Active
         </label>
         {msg && <p className={`text-sm ${msg === "Saved." ? "text-[var(--ok)]" : "text-[var(--danger)]"}`}>{msg}</p>}
@@ -114,23 +124,19 @@ export function SkillEditor({ skills }: { skills: AssistantSkill[] }) {
       <button type="button" className="btn" onClick={() => edit(EMPTY)}>
         <Icon name="plus" size={18} /> New skill
       </button>
-      {open === "new" && <Form />}
+      {open === "new" && form(false)}
       <ul className="card flex flex-col">
         {skills.map((s) => (
           <li key={s.id} className="row flex-col items-stretch">
-            <button type="button" className="flex items-center justify-between gap-2 text-left" onClick={() => (open === s.id ? (setOpen(null), setDraft(null)) : edit(s))} aria-expanded={open === s.id}>
-              <span className="min-w-0">
-                <span className={`block font-semibold ${s.is_active ? "" : "muted line-through"}`}>
-                  {s.title} {s.always_on && <span className="pill">always on</span>}
-                </span>
-                <span className="muted block text-sm">
-                  {s.when} {s.age_from_days != null || s.age_to_days != null ? `· ${months(s.age_from_days) || "0"} to ${months(s.age_to_days) || "any"} months` : ""} · v{s.version ?? 1}
-                  {s.updated_by ? ` by ${s.updated_by}` : ""}
-                </span>
+            {/* A row is the topic's name (DESIGN.md, "Helper skills"): when it is used, the ages and the
+                version are in the form the row opens, where they can be changed. */}
+            <button type="button" className="flex min-h-[44px] items-center justify-between gap-2 text-left" onClick={() => (open === s.id ? (setOpen(null), setDraft(null)) : edit(s))} aria-expanded={open === s.id}>
+              <span className={`min-w-0 font-semibold ${s.is_active ? "" : "muted line-through"}`}>
+                {s.title} {s.always_on && <span className="pill">always on</span>}
               </span>
               <Icon name={open === s.id ? "x" : "forward"} size={18} className="shrink-0 text-[var(--muted)]" />
             </button>
-            {open === s.id && <Form />}
+            {open === s.id && form(true)}
           </li>
         ))}
       </ul>

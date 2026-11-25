@@ -910,6 +910,10 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 /* A card's headline (DESIGN.md, "Three text sizes per card"): 1.25 rem bold. One class, so no
    card sets its own size; the day cards carried 1.5 rem until 25 November. */
 .card-head { font-size: 1.25rem; font-weight: 700; line-height: 1.25; }
+/* The calendar's fortnight as one list: each day is a small label inside it, over its rows. */
+.agenda > .agenda-day { padding-top: 12px; padding-bottom: 2px; }
+.agenda > .agenda-day:not(:first-child) { border-top: 1px solid var(--line); }
+.agenda > .agenda-day + .row { border-top: none; }
 /* A plus opens the row's sheet, so it is drawn quiet. Solid rose is kept for what acts at once
    (the Sleep timer's start), the dark square for what stops it. */
 .round-go-open { background: var(--accent-soft); color: var(--accent); }

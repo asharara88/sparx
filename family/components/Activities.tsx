@@ -9,8 +9,14 @@ import { Icon } from "@/components/Icon";
 import { Fold } from "@/components/Fold";
 import { childPronouns } from "@/lib/names";
 
-/** Play ideas for the child's age, a tick each. The next age band shows below as "coming". */
-export function Activities({ subjectId, items, compact = false }: { subjectId: string; items: Activity[]; compact?: boolean }) {
+/**
+ * Play ideas for the child's age, a tick each. The next age band shows below as "coming".
+ * The list is every idea for the age, so a row is the idea's name and a tap opens how to do
+ * it, why it helps and the source: eighteen ideas with a sentence each were 406 words on a
+ * screen whose budget is 150 (DESIGN.md, "The small screens"). The three-a-day card this
+ * component once drew on the child's page left on 29 October; its code left with this change.
+ */
+export function Activities({ subjectId, items }: { subjectId: string; items: Activity[] }) {
   const me = useMe();
   const pr = childPronouns(me);
   const router = useRouter();
@@ -21,10 +27,6 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
   const [failed, setFailed] = useState<{ id: string; message: string } | null>(null);
   const now = items.filter((a) => a.band === "now");
   const coming = items.filter((a) => a.band === "coming");
-  // Three a day, rotating through what the child has not tried yet so the same three do not sit there for a month.
-  const pending = now.filter((a) => !a.done_on);
-  const offset = pending.length ? (Math.floor(Date.now() / 86_400_000) * 3) % pending.length : 0;
-  const shown = compact ? [...pending.slice(offset), ...pending.slice(0, offset)].slice(0, 3) : now;
 
   async function tick(a: Activity) {
     setBusy(a.id);
@@ -36,75 +38,57 @@ export function Activities({ subjectId, items, compact = false }: { subjectId: s
     router.refresh();
   }
 
-  const Row = ({ a }: { a: Activity }) => {
-    const hasTick = canTick && a.band === "now";
-    // The detail lines up under the title: the tick's 44 px and the 12 px gap.
-    const inset = hasTick ? "pl-[56px]" : "";
+  // Called as a function, not rendered as <Row />: a component made anew on every render is a
+  // new component to React, which rebuilt every row at each tap and dropped the keyboard's
+  // place on the name just pressed.
+  const row = (a: Activity) => {
+    // The detail lines up under the name: the tick's 44 px and the 12 px gap.
+    const inset = canTick ? "pl-[56px]" : "";
     return (
-    <li className="row flex-col items-stretch">
-      <div className="flex items-start gap-3">
-        {hasTick && (
-          <button type="button" className="tick" aria-pressed={!!a.done_on} aria-label={a.done_on ? `Done: ${a.title}` : `Mark done: ${a.title}`} disabled={busy === a.id} onClick={() => void tick(a)}>
-            <Icon name="check" size={18} />
-          </button>
-        )}
-        <button type="button" className="min-w-0 grow text-left" onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}>
-          <span className={`block font-semibold ${a.done_on ? "muted line-through" : ""}`}>{a.title}</span>
-          <span className="muted block text-sm">{a.how}</span>
-        </button>
-      </div>
-      {failed?.id === a.id && (
-        <p role="alert" className={`mt-1 ${inset} text-sm text-[var(--danger)]`}>
-          {failed.message}
-        </p>
-      )}
-      {open === a.id && (
-        <div className={`muted mt-2 ${inset} text-sm`}>
-          <p>{a.why}</p>
-          <p className="mt-1">Source: {a.source}</p>
-          {a.done_on && (
-            <p className="mt-1">
-              Done {a.done_on}
-              {a.done_by ? ` by ${a.done_by}` : ""}
-            </p>
+      <li key={a.id} className="row flex-col items-stretch">
+        <div className="flex items-center gap-3">
+          {canTick && (
+            <button type="button" className="tick" aria-pressed={!!a.done_on} aria-label={a.done_on ? `Done: ${a.title}` : `Mark done: ${a.title}`} disabled={busy === a.id} onClick={() => void tick(a)}>
+              <Icon name="check" size={18} />
+            </button>
           )}
+          <button type="button" className="min-h-[44px] min-w-0 grow text-left" onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}>
+            {/* Under 360 px the name steps down a size so a short one stays on its line beside the tick
+                ("Grass under the hands" broke in two at 320 px in large text). In px, so large text does not undo it. */}
+            <span className={`block font-semibold max-[360px]:text-[16px] ${a.done_on ? "muted line-through" : ""}`}>{a.title}</span>
+          </button>
         </div>
-      )}
-    </li>
+        {failed?.id === a.id && (
+          <p role="alert" className={`mt-1 ${inset} text-sm text-[var(--danger)]`}>
+            {failed.message}
+          </p>
+        )}
+        {open === a.id && (
+          <div className={`muted mt-1 ${inset} text-sm`}>
+            <p className="mb-1 text-[var(--fg)]">{a.how}</p>
+            <p>{a.why}</p>
+            <p className="mt-1">Source: {a.source}</p>
+            {a.done_on && (
+              <p className="mt-1">
+                Done {a.done_on}
+                {a.done_by ? ` by ${a.done_by}` : ""}
+              </p>
+            )}
+          </div>
+        )}
+      </li>
     );
   };
 
-  if (compact) {
-    if (shown.length === 0) return null;
-    return (
-      <section className="card" aria-labelledby="play-h">
-        <div className="flex items-baseline justify-between">
-          <h2 id="play-h" className="font-semibold">
-            Play ideas for {pr.their} age
-          </h2>
-          <a href="/baby/activities" className="text-sm font-semibold text-[var(--accent)]">
-            All ›
-          </a>
-        </div>
-        <ul className="mt-1 flex flex-col">
-          {shown.map((a) => (
-            <Row key={a.id} a={a} />
-          ))}
-        </ul>
-      </section>
-    );
-  }
   return (
     <div className="flex flex-col gap-4">
       <section className="card">
         <h2 className="font-semibold">For {pr.their} age now</h2>
         <p className="muted text-sm">
-          {now.filter((a) => a.done_on).length} of {now.length} tried. Tap the tick when you have done one; tap the title for why it helps.
+          {now.filter((a) => a.done_on).length} of {now.length} tried. {canTick ? "Tap the tick when you have done one; tap a name for how and why." : "Tap a name for how and why."}
         </p>
         <ul className="mt-1 flex flex-col">
-          {now.map((a) => (
-            <Row key={a.id} a={a} />
-          ))}
+          {now.map((a) => row(a))}
           {now.length === 0 && <li className="muted text-sm">No ideas for this age yet.</li>}
         </ul>
       </section>

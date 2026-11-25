@@ -7,7 +7,7 @@ export function NightPref({ from, to }: { from: string; to: string }) {
   const [on, setOn] = useState(true);
   useEffect(() => setOn(autoNightEnabled()), []);
   return (
-    <label className="flex items-center justify-between gap-3">
+    <label className="flex min-h-[44px] items-center justify-between gap-3">
       <span>
         <span className="block font-semibold">Dark screen at night</span>
         <span className="muted block text-sm">

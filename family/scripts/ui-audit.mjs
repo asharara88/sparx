@@ -10,7 +10,10 @@
 // AUDIT_NOW (an ISO time: the browser's clock is held there, to match a server started with
 // scripts/fake-clock.cjs on a demo day shifted to that time), AUDIT_W (the phone's width in px,
 // default 390; 320 is the smallest the bible names: run the phone checks there too after a
-// change to margins or type).
+// change to margins or type), AUDIT_CUT=1 (also list the one-line labels that are cut with "…":
+// not a check, a list to compare before and after such a change, at 320, 360, 375 and 390).
+// A closed select counts as the one option it shows, a tick box or radio as the label it sits
+// in, and the wordmark's small "el" (.wordmark, .wordmark-ar) is not tiny text.
 // A group that is one thing to a person but is built of several (the simple Home's four log
 // tiles, as Home's log card is) is marked data-block on its wrapper and counts as one.
 import { mkdirSync } from "node:fs";
@@ -80,12 +83,25 @@ for (const theme of ["light", "night"]) {
       const flatten = (el) => [...el.children].filter((c) => shown(c) && !c.classList.contains("grow-space")).flatMap((c) => (plain(c) && [...c.children].filter(shown).length > 1 ? flatten(c) : [c]));
       const box = root ?? main;
       const text = box.innerText;
+      const wordsOf = (t) => t.split(/\s+/).filter(Boolean).length;
+      const numbersOf = (t) => (t.match(/\b\d+(?:[.:]\d+)?\b/g) ?? []).length;
+      // A closed select shows one of its options; innerText reads them all (Create another home
+      // counted 468 words: 419 of them time zones in a menu nobody had opened). Count what shows.
+      let words = wordsOf(text);
+      let numbers = numbersOf(text);
+      for (const sel of box.querySelectorAll("select")) {
+        // Not one in a closed fold: it has a box, but innerText already leaves it out.
+        if (!shown(sel) || !sel.checkVisibility()) continue;
+        const seen = sel.selectedOptions[0]?.textContent ?? "";
+        words -= wordsOf(sel.innerText) - wordsOf(seen);
+        numbers -= numbersOf(sel.innerText) - numbersOf(seen);
+      }
       return {
         blocks: flatten(column).length, // a spacer is not a block
         cards: [...box.querySelectorAll(".card, .tile, details, .action, .notice")].filter(shown).length,
         taps: [...box.querySelectorAll("a, button, summary")].filter(shown).length,
-        numbers: (text.match(/\b\d+(?:[.:]\d+)?\b/g) ?? []).length,
-        words: text.split(/\s+/).filter(Boolean).length,
+        numbers,
+        words,
         screens: Math.round(((root ? root.getBoundingClientRect().height : document.documentElement.scrollHeight) / innerHeight) * 10) / 10,
       };
     }, scope);
@@ -102,7 +118,7 @@ for (const theme of ["light", "night"]) {
         return s.display !== "none" && s.visibility !== "hidden" && r.height > 0 && r.width > 0;
       };
       const all = (sel) => [...main.querySelectorAll(sel)].filter(shown);
-      const label = (el) => el.innerText.replace(/\s+/g, " ").trim().slice(0, 40);
+      const label = (el) => (el.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
       // Does one run of words break onto a second line? Each text node is measured on its own,
       // so an icon beside a label, or a label over a sub-label, is not counted as a break.
       const breaks = (el) => {
@@ -138,14 +154,24 @@ for (const theme of ["light", "night"]) {
       const nested = all(".card .card, .card .tile, .card .notice, details .card, details details, .tile .card").filter(boxed);
       const small = all("a, button, summary, input, select").filter((el) => {
         if (el.tagName === "A" && el.closest("p, li > span, dd")) return false; // a link inside a sentence
-        const r = el.getBoundingClientRect();
-        return r.height < 43.5;
+        // A tick box or a radio inside its label: the label is what the finger meets.
+        const target = el.tagName === "INPUT" && /^(checkbox|radio)$/.test(el.type) ? (el.closest("label") ?? el) : el;
+        return target.getBoundingClientRect().height < 43.5;
       });
-      const tiny = all("*").filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(el).fontSize) < 13);
+      // The wordmark is a logotype, a picture of letters: its small "el" is not text to read. Nothing else is let off.
+      const tiny = all("*").filter((el) => !el.closest(".wordmark, .wordmark-ar") && [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(el).fontSize) < 13);
+      // Not a check (a list row's detail is cut on purpose): the lines held on one line that end
+      // in "…". AUDIT_CUT=1 prints them, to compare before and after a change to margins or type.
+      const cut = all("*").filter((el) => {
+        if (!(el instanceof HTMLElement)) return false; // an icon's <svg> clips too, and has no innerText
+        const s = getComputedStyle(el);
+        return /(hidden|clip)/.test(s.overflowX) && (s.whiteSpace === "nowrap" || s.textOverflow === "ellipsis") && label(el) && el.scrollWidth > el.clientWidth;
+      });
       const pick = (els) => [...new Set(els.map(label).filter(Boolean))].slice(0, 4);
       return {
         wide: wide.length, sideways: sideways.length, tables: all("table").length, wrapped: wrapped.length, nested: nested.length, small: small.length, tiny: tiny.length,
         examples: { wrapped: pick(wrapped), nested: pick(nested), small: pick(small) },
+        cut: cut.map((el) => `${JSON.stringify(label(el).slice(0, 40))} ${el.scrollWidth} px in ${el.clientWidth}`),
       };
     });
     const issues = Object.entries({ wide: phone.wide, sideways: phone.sideways, tables: phone.tables, "wrapped labels": phone.wrapped, "card in card": phone.nested, "small taps": phone.small, "tiny text": phone.tiny }).filter(([, n]) => n > 0);
@@ -157,6 +183,7 @@ for (const theme of ["light", "night"]) {
     }
     console.log(`${"".padEnd(18)}phone: ${issues.length ? issues.map(([k, n]) => `${k} ${n}`).join(", ") : "ok"}`);
     for (const [k, v] of Object.entries(phone.examples)) if (v.length) console.log(`${"".padEnd(18)}  ${k}: ${v.map((t) => JSON.stringify(t)).join(", ")}`);
+    if (process.env.AUDIT_CUT) for (const line of phone.cut) console.log(`${"".padEnd(18)}  cut: ${line}`);
   }
   await ctx.close();
 }
