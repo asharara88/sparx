@@ -485,7 +485,9 @@ an admin at 390 px, before → after; a family carer in large text reads the sam
 | Week | 10 → 4 | 10 | 65 | 1.5 → 1.4 | none |
 | About her | 9 → 8 | 1 | 39 | 1.4 → 1.3 | none |
 
-Today stays over on numbers (a list of entries, the accepted exception). What left: the old
+Today stays over on numbers (a list of entries, the accepted exception), and it sits at the
+word budget: each entry of the day is a row of about five words, so the count read in the
+afternoon (150, with 11 entries) is passed by the evening. What left: the old
 arrow-and-date pager, the five fold bars on Week, the yellow or lilac bar of the guide and the
 blue one of Suggested, and "What this age brings" as a block of its own.
 
@@ -667,6 +669,55 @@ five-month-old, before → after: 7 → 6 blocks, 6 → 10 numbers, 135 → 112 
 screens; a family carer with large text 1.5 → 1.3 screens. Phone checks pass. The bend is the
 one Feeds and Sleep made: the swipe.
 
+### Trends (`/baby/trends`, About her → Growing)
+
+How has she been doing, for us and for the doctor? One chart a screen (Mido's pick of three
+options, 25 November: "Charts you swipe"). The long page it replaces held the same charts
+under one another and was the screen furthest over every budget.
+
+- **The pager** names the chart and its place ("Sleep" over "3 of 11"); its arrows and a
+  swipe go to the one before and after. The screen opens on the first, the 14-day picture;
+  `?chart=sleep` names another, and anything else in the address is the first.
+- **The charts**, in the order the long page had them, each only when this child has it:
+  Patterns, Against her age, Sleep, Longest stretch, Feeds, Bottles, Diapers, Weight,
+  Length, Head, Firsts. A baby's kind is listed when it was logged at any time in the year
+  read, so the list does not change with the range; a range with none of it says so in one
+  line. From 12 months a kind is listed only while the range has it (what the family stopped
+  logging is left out, not said), except the chart the address names: the range switch
+  never pulls a chart out from under the person.
+- **The range** (2 weeks, 6 weeks, Since birth) is one segmented switch over the five
+  charts it drives, and is not drawn on the others. It changes at once and is written into
+  the address (`?range=6w`), so the next chart, a reload and the way back from "For the
+  doctor" all find the range last picked.
+- **One fold**, "All the charts", lists them by name with "here" on the one showing; a row
+  opens its chart and the fold shuts.
+- **Back** leaves Trends in one tap however many charts were paged through: a step replaces
+  the address instead of adding to the history. The same now holds on every pager (days on
+  Feeds, Sleep and the child's Today tab, stretches on Week by week), where Back used to
+  undo one step a tap.
+- The wet-diaper warning in "Against her age" is a line of its card, not a box in it. A
+  child with no birth date gets the plain weight line, with its axis words in the page at
+  13 px as on every other chart (they were 9 and 10 px in the drawing).
+- "For the doctor" stays the header's button on every chart.
+
+As an admin at 390 px, the long page → one chart of the new one:
+
+| Trends | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| Before, one page | 16 | 139 | 457 | 5.1 | card in card |
+| Sleep (a bar chart) | 5 | 15 | 46 | 1.0 | none |
+| Patterns | 4 | 22 | 71 | 1.1 | none |
+| Against her age | 4 | 23 | 125 | 1.3 | none |
+| Weight (the chart and six rows) | 5 | 33 | 111 | 1.3 | none |
+
+Every chart passes the phone checks at 390 and 320 px, as an admin, in large text and in
+the toddler homes; none is over on blocks, words or screens. Numbers stay over on most: a
+chart's own numbers are its axis and its dates, and Against her age and Weight are lists of
+figures. That is the same exception a list of entries has. What a chart says besides was
+trimmed: the fold carries no count, because the pager says it. What left: seeing two charts
+at once. Rules named as bent: "nothing scrolls sideways" (the swipe, with the arrows as the
+way around it).
+
 ### Sleep today (Home's day cards and the child's Today tab)
 
 First among Home's day cards and under the Today tab's day strip, a `SleepDay` card: "Woke up at 07:10 · awake 2 h 15 min" (after a nap,
@@ -757,7 +808,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` on the right, sized in rem so large text grows it; the row opens its sheet. Solid ▶ and the dark ■ (`.round-go-stop`) act at once; a soft ＋ (`.round-go-open`) opens the sheet. Tint = the feature. |
 | Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. There is one Sleep timer (`LanaNow`'s): Home draws it in the sheet, the Sleep section on the screen. |
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle); two sections that are one place (`SectionSwitch`: Feeds / Sleep) | Two or three words; the chosen one raised. Made of links when it changes the page. |
-| Pager | `Pager` (`DayPager` for days), `DaySwipe`, `lib/day-nav.ts`, `stretchNav` in `lib/leaps.ts` | One of a row of screens: the day a section shows, the stretch Week by week shows, the day on the child's Today tab | A name over a smaller line between two arrows; a swipe does the same; the arrow at either end is faint and does nothing (the child's Today tab has no first day). Which one is in the address (`?day=`, `?stretch=`, `?d=`); the one the screen opens on has none. |
+| Pager | `Pager` (`DayPager` for days), `DaySwipe`, `lib/day-nav.ts`, `stretchNav` in `lib/leaps.ts` | One of a row of screens: the day a section shows, the stretch Week by week shows, the day on the child's Today tab, the chart Trends shows | A name over a smaller line between two arrows; a swipe does the same; the arrow at either end is faint and does nothing (the child's Today tab has no first day). Which one is in the address (`?day=`, `?stretch=`, `?d=`, `?chart=`); the one the screen opens on has none. A step replaces the address, so the header's Back leaves the screen in one tap. |
 | Day bar | `DayBar` (draws with `SleepBar`) | One day from midnight to midnight on a section | Sleep and feeds on one bar; `lead` says which the screen is about and draws the other faint. No numbers on it: the times are in the list. Not on Home. |
 | Stop button | `.btn-stop` | Ending a timer from a wide button | The dark square's colours, the same on every screen; start wears the feature's own colour. |
 | Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. From 12 months only while a nap is expected (`topCard`). |

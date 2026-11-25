@@ -32,7 +32,7 @@ export function DaySwipe({ prev, next }: { prev: string | null; next: string | n
       const dy = t.clientY - y0;
       if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy) || Date.now() - t0 > 700) return;
       const to = dx > 0 ? prev : next;
-      if (to) router.push(to);
+      if (to) router.replace(to); // a step on the same screen: Back still leaves it in one tap (DayPager.tsx)
     };
     window.addEventListener("touchstart", start, { passive: true });
     window.addEventListener("touchend", end, { passive: true });

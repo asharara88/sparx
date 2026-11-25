@@ -28,6 +28,9 @@ const out = process.env.AUDIT_OUT ?? "/tmp/ui-audit";
 // With no routes given it sweeps every screen (the list below; add a screen here when it is built).
 const ALL = [
   "/", "/baby", "/baby?tab=week", "/baby?tab=about", "/baby/day", "/baby/milk", "/baby/sleep", "/baby/feed", "/baby/trends",
+  // Trends is one chart a screen: each chart is a screen to measure (one the child has none of opens the first).
+  "/baby/trends?chart=age", "/baby/trends?chart=sleep", "/baby/trends?chart=stretch", "/baby/trends?chart=feeds", "/baby/trends?chart=bottle",
+  "/baby/trends?chart=diapers", "/baby/trends?chart=weight", "/baby/trends?chart=length", "/baby/trends?chart=head", "/baby/trends?chart=firsts",
   "/baby/doctor", "/baby/emergency", "/baby/when-to-call", "/baby/vaccines", "/baby/medicine", "/baby/milestones",
   "/baby/weeks", "/baby/activities", "/baby/story", "/baby/handover", "/calendar", "/notes", "/chat", "/ask",
   "/ask/memory", "/ask/skills", "/achievements", "/members", "/members/home", "/members/roles", "/members/types",

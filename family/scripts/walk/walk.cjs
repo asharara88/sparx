@@ -20,6 +20,9 @@ const PEOPLE = {
 const who = process.argv.slice(3).length ? process.argv.slice(3) : Object.keys(PEOPLE).filter((k) => process.env.DAYS || !["noorcarer", "noorsimple"].includes(k));
 const ROUTES = (process.env.WALK_ROUTES ? process.env.WALK_ROUTES.split(",") : [
   "/", "/baby", "/baby?tab=week", "/baby?tab=about", "/baby/milk", "/baby/sleep", "/baby/feed", "/baby/trends",
+  // Trends is one chart a screen since 25 November: the four that carry the rules by age and by sex
+  // (a chart the child has none of opens the first one).
+  "/baby/trends?chart=age", "/baby/trends?chart=feeds", "/baby/trends?chart=diapers", "/baby/trends?chart=weight",
   "/baby/doctor", "/baby/emergency", "/baby/when-to-call", "/baby/vaccines", "/baby/medicine", "/baby/milestones",
   "/baby/weeks", "/baby/activities", "/baby/story", "/baby/handover", "/baby/export", "/baby/day", "/calendar", "/notes", "/chat",
   "/ask", "/ask/memory", "/ask/skills", "/achievements", "/members", "/members/home", "/members/roles",
