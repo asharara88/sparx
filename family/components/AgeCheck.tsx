@@ -68,7 +68,7 @@ export function AgeCheck({
       {(subtitle || bare) && <p className="muted text-sm">{[subtitle, bare ? age : null].filter(Boolean).join(" ")}</p>}
       {/* Inside a fold the red "short" pills on the rows say it; no box in a box. */}
       {short.length > 0 && !bare && (
-        <p className="notice notice-warn flex items-center gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold text-[var(--warn)]">
           <Icon name="bell" size={20} className="shrink-0" />
           <span>Short on {short.map((r) => r.label.toLowerCase()).join(", ")}. If the day was fully logged, keep an eye on it.</span>
         </p>

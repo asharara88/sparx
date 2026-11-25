@@ -12,7 +12,10 @@ import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
 
-export default async function LanaTrendsPage() {
+/** Trends, one chart a screen: `?chart=` names the chart and `?range=` the range last picked (components/Trends.tsx writes it at each pick). */
+export default async function LanaTrendsPage({ searchParams }: { searchParams: Promise<{ chart?: string | string[]; range?: string | string[] }> }) {
+  const sp = await searchParams;
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const supabase = await createClient();
   const { data: meData } = await meOnce();
   const me = meData as Me;
@@ -42,9 +45,8 @@ export default async function LanaTrendsPage() {
           </Link>
         }
       />
-      <PatternBars entries={entries} days={days} timezone={tz} today={today} />
       {stats.ok ? (
-        <Trends stats={stats} today={today} birthDate={summary.subject.birth_date} />
+        <Trends stats={stats} today={today} birthDate={summary.subject.birth_date} chart={one(sp.chart)} range={one(sp.range)} patterns={<PatternBars entries={entries} days={days} timezone={tz} today={today} />} />
       ) : (
         <p className="card">{"message" in stats ? stats.message : "Could not load."}</p>
       )}

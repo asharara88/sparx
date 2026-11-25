@@ -1,6 +1,8 @@
 "use client";
+import Link from "next/link";
 import { GrowthChart } from "@/components/GrowthChart";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { DailyStats, DayStats } from "@/lib/types";
 import { addDays, dateWords, fmtDuration } from "@/lib/time";
 import { useMe } from "@/lib/me-context";
@@ -9,12 +11,18 @@ import { ageDays, ageWords, averagesLine, dayAverages, type AverageKey } from "@
 import { isToddler } from "@/lib/stage";
 import { curveNote } from "@/lib/who";
 import { AgeCheck } from "./AgeCheck";
+import { Pager } from "./DayPager";
+import { Fold } from "./Fold";
 
 /**
- * The child's trends: sleep, nights, feeds, diapers and weight, one bar per day.
- * Plain SVG, no chart library. Nights belong to the day they start on. Each chart's title
- * says the answer; colours are the features' own, named in words, not in a key (DESIGN.md).
- * From 12 months a kind the family does not log has no chart and no row (R8).
+ * The child's trends, one chart a screen (Mido's pick, 25 November: "Charts you swipe"): a
+ * pager names the chart and its place, its arrows and a swipe go to the one before and after,
+ * and a fold lists them all. The long page it replaces held the same charts under one another:
+ * 16 blocks, 139 numbers, five screens. Sleep, nights, feeds, bottles and diapers are one bar
+ * per day over a range the person picks; plain SVG, no chart library. Nights belong to the day
+ * they start on. Each chart's title says the answer; colours are the features' own, named in
+ * words, not in a key (DESIGN.md). From 12 months a kind the family does not log has no chart
+ * and no row (R8).
  */
 const RANGES = [
   { key: "2w", label: "2 weeks", days: 14 },
@@ -30,9 +38,12 @@ const h = (min: number) => fmtDuration(Math.round(min));
 const n1 = (x: number) => (Number.isInteger(x) ? `${x}` : x.toFixed(1).replace(/\.0$/, ""));
 const mean = (days: DayStats[], k: keyof DayStats) => avg(days.map((d) => Number(d[k] ?? 0)));
 
-export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: string; birthDate: string | null }) {
+type RangeKey = (typeof RANGES)[number]["key"];
+
+export function Trends({ stats, today, birthDate, chart, range: asked, patterns }: { stats: DailyStats; today: string; birthDate: string | null; /** The chart the address names (?chart=sleep); the first when it names none. */ chart?: string; /** The range the address carried here (?range=6w), so it survives a step to the next chart. */ range?: string; /** The 14-day picture, drawn by the page from the entries it read. */ patterns: React.ReactNode }) {
   const me = useMe();
-  const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("2w");
+  const router = useRouter();
+  const [range, setRange] = useState<RangeKey>(RANGES.some((r) => r.key === asked) ? (asked as RangeKey) : "2w");
   const span = RANGES.find((r) => r.key === range)!.days;
   const all = stats.days;
   const days = useMemo(() => all.slice(-span), [all, span]);
@@ -64,9 +75,48 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
   const heads = all.filter((d) => d.head_cm != null);
   const milestones = all.filter((d) => d.milestones.length).flatMap((d) => d.milestones.map((m) => ({ day: d.day, what: m })));
 
-  return (
-    <div className="flex flex-col gap-4">
-      {thisWeek.length > 0 && (!toddler || week.logged.feed || week.logged.diaper || week.logged.sleep) && (
+  const their = childPronouns(me).their;
+  const nights = `${stats.night_from.slice(0, 5)} to ${stats.night_to.slice(0, 5)}`;
+  // A chart with nothing in the range chosen: its name and one line, not a row of empty bars.
+  const none = (title: string, line: string) => (
+    <section className="card">
+      <h2 className="font-semibold">{title}</h2>
+      <p className="muted text-sm">{line}</p>
+    </section>
+  );
+  const weightRows = (
+    <ul className="mt-2 flex flex-col">
+      {weights
+        .slice()
+        .reverse()
+        .slice(0, 6)
+        .map((w) => (
+          <li key={w.day} className="row">
+            <span className="min-w-0 flex-1">
+              <span className="block">{longDay(w.day)}</span>
+              {ageAt(w.day) != null && <span className="muted block text-sm">{ageAt(w.day)}</span>}
+            </span>
+            <span className="shrink-0 text-right">
+              <span className="block font-semibold tabular-nums">{w.weight_kg} kg</span>
+              {w.length_cm && <span className="muted block text-sm tabular-nums">{w.length_cm} cm</span>}
+            </span>
+          </li>
+        ))}
+    </ul>
+  );
+
+  // One chart a screen (DESIGN.md, "Trends"): the charts there are for this child, in the order
+  // the long page had them. A baby's kind is listed when it was ever logged in the year read, so
+  // the list does not change with the range; a range with none of it says so. From 12 months a
+  // kind is listed only while the range has it (R8: what the family stopped logging is left
+  // out, not said), except the one the address names: the range switch never pulls the chart
+  // out from under the person.
+  const pages: { key: string; name: string; ranged?: boolean; growth?: boolean; node: React.ReactNode }[] = [{ key: "patterns", name: "Patterns", node: patterns }];
+  if (thisWeek.length > 0 && (!toddler || week.logged.feed || week.logged.diaper || week.logged.sleep)) {
+    pages.push({
+      key: "age",
+      name: `Against ${their} age`,
+      node: (
         <AgeCheck
           totals={week.totals}
           logged={week.logged}
@@ -74,23 +124,21 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           day={thisWeek[thisWeek.length - 1].day}
           today={today}
           complete
-          title={`This week against ${childPronouns(me).their} age`}
+          title={`This week against ${their} age`}
           subtitle={averagesLine(week, "this week") ?? "Average per day over the last 7 full days."}
           name={childName(me)}
         />
-      )}
-
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Range">
-        {RANGES.map((r) => (
-          <button key={r.key} type="button" className="chip" aria-pressed={range === r.key} onClick={() => setRange(r.key)}>
-            {r.label}
-          </button>
-        ))}
-      </div>
-
+      ),
+    });
+  }
+  pages.push({
+    key: "sleep",
+    name: "Sleep",
+    ranged: true,
+    node: (
       <Chart
         title={sleepAvg == null ? "Sleep" : `Sleep: ${h(sleepAvg)} a day`}
-        subtitle={`The night (${stats.night_from.slice(0, 5)} to ${stats.night_to.slice(0, 5)}) darker, naps lighter.`}
+        subtitle={`The night (${nights}) darker, naps lighter.`}
         days={days}
         max={16 * 60}
         ticks={[4 * 60, 8 * 60, 12 * 60, 16 * 60]}
@@ -100,6 +148,13 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
           { key: "nap", color: "var(--sleep)", stroke: "var(--sleep-fg)", label: "naps", value: (d) => Math.max(0, d.sleep_min - d.night_sleep_min) },
         ]}
       />
+    ),
+  });
+  pages.push({
+    key: "stretch",
+    name: "Longest stretch",
+    ranged: true,
+    node: (
       <Chart
         title={stretchAvg == null ? "Longest stretch" : `Longest stretch: ${h(stretchAvg)} a night`}
         days={days}
@@ -108,90 +163,109 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
         fmt={(v) => `${v / 60} h`}
         series={[{ key: "longest_stretch_min", color: "var(--sleep-fg)", label: "longest stretch" }]}
       />
-      {fed && <Chart
-        title={`Feeds: ${n1(Math.round((per("breast_count") + per("bottle_count")) * 10) / 10)} a day`}
-        subtitle="Breastfeeds darker, bottles lighter."
-        days={days}
-        max={Math.max(12, ...days.map((d) => d.breast_count + d.bottle_count))}
-        ticks={[4, 8, 12, 16]}
-        fmt={(v) => `${v}`}
-        series={[
-          { key: "breast_count", color: "var(--feed-fg)", label: "breastfeeds" },
-          { key: "bottle_count", color: "var(--feed)", stroke: "var(--feed-fg)", label: "bottles" },
-        ]}
-      />}
-      {days.some((d) => d.bottle_ml > 0) && (
+    ),
+  });
+  if (!toddler || fed || (chart === "feeds" && all.some((d) => d.breast_count + d.bottle_count > 0))) {
+    pages.push({
+      key: "feeds",
+      name: "Feeds",
+      ranged: true,
+      node: fed ? (
         <Chart
-          title={`Bottle: ${Math.round(mean(done.filter((d) => d.bottle_ml > 0), "bottle_ml"))} ml on bottle days`}
-          subtitle={days.some((d) => d.pump_ml > 0) ? "The line is what was pumped." : null}
+          title={`Feeds: ${n1(Math.round((per("breast_count") + per("bottle_count")) * 10) / 10)} a day`}
+          subtitle="Breastfeeds darker, bottles lighter."
+          days={days}
+          max={Math.max(12, ...days.map((d) => d.breast_count + d.bottle_count))}
+          ticks={[4, 8, 12, 16]}
+          fmt={(v) => `${v}`}
+          series={[
+            { key: "breast_count", color: "var(--feed-fg)", label: "breastfeeds" },
+            { key: "bottle_count", color: "var(--feed)", stroke: "var(--feed-fg)", label: "bottles" },
+          ]}
+        />
+      ) : (
+        none("Feeds", "No feeds logged in these days.")
+      ),
+    });
+  }
+  if (all.some((d) => d.bottle_ml > 0) && (!toddler || chart === "bottle" || days.some((d) => d.bottle_ml > 0))) {
+    const pumped = days.some((d) => d.pump_ml > 0);
+    // The average is over whole days; when today holds the range's only bottles there is none to say yet.
+    const bottleDays = done.filter((d) => d.bottle_ml > 0);
+    pages.push({
+      key: "bottle",
+      name: "Bottles",
+      ranged: true,
+      node: days.some((d) => d.bottle_ml > 0) ? (
+        <Chart
+          title={bottleDays.length ? `Bottle: ${Math.round(mean(bottleDays, "bottle_ml"))} ml on bottle days` : "Bottles"}
+          subtitle={pumped ? "The line is what was pumped." : null}
           days={days}
           max={Math.max(300, ...days.map((d) => Math.max(d.bottle_ml, d.pump_ml)))}
           ticks={[100, 200, 300, 400, 500]}
           fmt={(v) => `${v}`}
           series={[{ key: "bottle_ml", color: "var(--milk-fg)", label: "ml" }]}
-          line={days.some((d) => d.pump_ml > 0) ? { key: "pump_ml", color: "var(--pump-fg)", label: "pumped" } : undefined}
+          line={pumped ? { key: "pump_ml", color: "var(--pump-fg)", label: "pumped" } : undefined}
         />
-      )}
-      {changed && <Chart
-        title={`Diapers: ${n1(Math.round(per("diapers") * 10) / 10)} a day`}
-        subtitle="Dirty darker, wet lighter."
-        days={days}
-        max={Math.max(8, ...days.map((d) => d.diapers_wet + d.diapers_dirty))}
-        ticks={[2, 4, 6, 8, 10]}
-        fmt={(v) => `${v}`}
-        series={[
-          { key: "diapers_dirty", color: "var(--diaper-fg)", label: "dirty" },
-          { key: "diapers_wet", color: "var(--diaper)", stroke: "var(--diaper-fg)", label: "wet" },
-        ]}
-      />}
-
-      {weights.length > 0 && (() => {
-        const rows = (
-          <ul className="mt-2 flex flex-col">
-            {weights
-              .slice()
-              .reverse()
-              .slice(0, 6)
-              .map((w) => (
-                <li key={w.day} className="row">
-                  <span className="min-w-0 flex-1">
-                    <span className="block">{longDay(w.day)}</span>
-                    {ageAt(w.day) != null && <span className="muted block text-sm">{ageAt(w.day)}</span>}
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block font-semibold tabular-nums">{w.weight_kg} kg</span>
-                    {w.length_cm && <span className="muted block text-sm tabular-nums">{w.length_cm} cm</span>}
-                  </span>
-                </li>
-              ))}
-          </ul>
-        );
-        // With a birth date the WHO chart is the weight card (its own title says the latest);
-        // without one, a plain line.
-        return birthDate ? (
-          <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate} sex={sex} today={today}>
-            {rows}
-          </GrowthChart>
-        ) : (
-          <section className="card">
-            <h2 className="font-semibold">Weight</h2>
-            <p className="muted text-sm">
-              {weights[weights.length - 1].weight_kg} kg on {longDay(weights[weights.length - 1].day)}
-              {weights.length > 1 ? `, up ${(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg)).toFixed(2)} kg since ${longDay(weights[0].day)}` : ""}.
-            </p>
-            <WeightChart points={weights} ageWeeks={ageWeeks} />
-            {rows}
-          </section>
-        );
-      })()}
-      {birthDate && lengths.length > 0 && <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} sex={sex} today={today} />}
-      {birthDate && heads.length > 0 && <GrowthChart kind="head_cm" points={heads.map((d) => ({ day: d.day, value: Number(d.head_cm) }))} birthDate={birthDate} sex={sex} today={today} />}
-      {/* The WHO curves are a girl's to 2 years (X4); for anyone else one line says why there is none. */}
-      {birthDate && (weights.length > 0 || lengths.length > 0 || heads.length > 0) && (
-        <p className="muted text-sm">{curveNote(sex, ageDays(birthDate, today)) ?? "Shaded: the 3rd to 97th percentile for girls (WHO Child Growth Standards, 2006); dashed: the median. The doctor's chart is the reference."}</p>
-      )}
-
-      {milestones.length > 0 && (
+      ) : (
+        none("Bottles", "No bottles logged in these days.")
+      ),
+    });
+  }
+  if (!toddler || changed || (chart === "diapers" && all.some((d) => d.diapers > 0))) {
+    pages.push({
+      key: "diapers",
+      name: "Diapers",
+      ranged: true,
+      node: changed ? (
+        <Chart
+          title={`Diapers: ${n1(Math.round(per("diapers") * 10) / 10)} a day`}
+          subtitle="Dirty darker, wet lighter."
+          days={days}
+          max={Math.max(8, ...days.map((d) => d.diapers_wet + d.diapers_dirty))}
+          ticks={[2, 4, 6, 8, 10]}
+          fmt={(v) => `${v}`}
+          series={[
+            { key: "diapers_dirty", color: "var(--diaper-fg)", label: "dirty" },
+            { key: "diapers_wet", color: "var(--diaper)", stroke: "var(--diaper-fg)", label: "wet" },
+          ]}
+        />
+      ) : (
+        none("Diapers", "No diapers logged in these days.")
+      ),
+    });
+  }
+  if (weights.length > 0) {
+    // With a birth date the WHO chart is the weight card (its own title says the latest);
+    // without one, a plain line.
+    pages.push({
+      key: "weight",
+      name: "Weight",
+      growth: !!birthDate,
+      node: birthDate ? (
+        <GrowthChart kind="weight_kg" points={weights.map((w) => ({ day: w.day, value: Number(w.weight_kg) }))} birthDate={birthDate} sex={sex} today={today}>
+          {weightRows}
+        </GrowthChart>
+      ) : (
+        <section className="card">
+          <h2 className="font-semibold">Weight</h2>
+          <p className="muted text-sm">
+            {weights[weights.length - 1].weight_kg} kg on {longDay(weights[weights.length - 1].day)}
+            {weights.length > 1 ? `, up ${(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg)).toFixed(2)} kg since ${longDay(weights[0].day)}` : ""}.
+          </p>
+          <WeightChart points={weights} />
+          {weightRows}
+        </section>
+      ),
+    });
+  }
+  if (birthDate && lengths.length > 0) pages.push({ key: "length", name: "Length", growth: true, node: <GrowthChart kind="length_cm" points={lengths.map((d) => ({ day: d.day, value: Number(d.length_cm) }))} birthDate={birthDate} sex={sex} today={today} /> });
+  if (birthDate && heads.length > 0) pages.push({ key: "head", name: "Head", growth: true, node: <GrowthChart kind="head_cm" points={heads.map((d) => ({ day: d.day, value: Number(d.head_cm) }))} birthDate={birthDate} sex={sex} today={today} /> });
+  if (milestones.length > 0) {
+    pages.push({
+      key: "firsts",
+      name: "Firsts",
+      node: (
         <section className="card">
           <h2 className="font-semibold">Firsts</h2>
           <ul className="mt-1 flex flex-col gap-1 text-sm">
@@ -205,7 +279,63 @@ export function Trends({ stats, today, birthDate }: { stats: DailyStats; today: 
               ))}
           </ul>
         </section>
+      ),
+    });
+  }
+
+  // The chart the address names; anything else (a word, a chart this child has none of) is the first.
+  const at = Math.max(0, pages.findIndex((p) => p.key === chart));
+  const page = pages[at];
+  // The first chart and the two-week range have no words of their own in the address.
+  const href = (key: string, r: RangeKey = range) => {
+    const q = new URLSearchParams();
+    if (key !== pages[0].key) q.set("chart", key);
+    if (r !== "2w") q.set("range", r);
+    const query = q.toString();
+    return query ? `/baby/trends?${query}` : "/baby/trends";
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Pager prev={at > 0 ? href(pages[at - 1].key) : null} next={at < pages.length - 1 ? href(pages[at + 1].key) : null} title={page.name} sub={`${at + 1} of ${pages.length}`} label="Charts" prevLabel="The chart before" nextLabel="The chart after" />
+      {/* The range belongs to the charts it drives; the others have none to choose. A tap changes
+          the chart at once and writes the range into the address, so coming back to the screen
+          (from "For the doctor", after a reload) finds the range it was left on. */}
+      {page.ranged && (
+        <div className="segmented" role="group" aria-label="Range">
+          {RANGES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              aria-pressed={range === r.key}
+              onClick={() => {
+                setRange(r.key);
+                router.replace(href(page.key, r.key), { scroll: false });
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       )}
+      {page.node}
+      {/* The WHO curves are a girl's to 2 years (X4); for anyone else one line says why there is none. */}
+      {page.growth && birthDate && (
+        <p className="muted text-sm">{curveNote(sex, ageDays(birthDate, today)) ?? "Shaded: the 3rd to 97th percentile for girls (WHO Child Growth Standards, 2006); dashed: the median. The doctor's chart is the reference."}</p>
+      )}
+      {/* No count beside the name: the pager above says "3 of 11". Keyed by the chart, so it is shut again after a jump. */}
+      <Fold key={page.key} title="All the charts" icon="trend">
+        <ul className="flex flex-col">
+          {pages.map((p, i) => (
+            <li key={p.key} className="row p-0">
+              <Link prefetch={false} replace href={href(p.key)} className="row-link flex min-h-[48px] w-full items-center gap-3 py-2" aria-current={i === at ? "page" : undefined}>
+                <span className="min-w-0 flex-1 font-semibold">{p.name}</span>
+                {i === at && <span className="muted shrink-0 font-semibold">here</span>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Fold>
     </div>
   );
 }
@@ -284,44 +414,52 @@ function Chart({
   );
 }
 
-export function WeightChart({ points, ageWeeks = () => null }: { points: { day: string; weight_kg: number | null }[]; ageWeeks?: (d: string) => number | null }) {
+export function WeightChart({ points }: { points: { day: string; weight_kg: number | null }[] }) {
   const W = 360;
   const H = 140;
-  const padL = 34;
-  const padB = 18;
+  const padL = 40;
+  const padB = 4;
   const t0 = Date.parse(points[0].day);
   const t1 = Math.max(Date.parse(points[points.length - 1].day), t0 + 7 * 86_400_000);
   const ws = points.map((p) => Number(p.weight_kg));
   const lo = Math.floor(Math.min(...ws) * 2) / 2 - 0.5;
   const hi = Math.ceil(Math.max(...ws) * 2) / 2 + 0.5;
   const x = (day: string) => padL + ((Date.parse(day) - t0) / (t1 - t0)) * (W - padL - 8);
-  const y = (kg: number) => H - padB - ((kg - lo) / (hi - lo)) * (H - padB - 6);
+  const y = (kg: number) => H - padB - ((kg - lo) / (hi - lo)) * (H - padB - 8);
   const ticks: number[] = [];
   for (let k = lo; k <= hi + 0.001; k += 0.5) ticks.push(Math.round(k * 2) / 2);
+  // The axis words sit in the page, not in the drawing, so they stay 13 px at any width (they
+  // were 9 and 10 px in the drawing until 25 November); every other one when there are many.
+  const named = ticks.filter((_, i) => ticks.length <= 6 || i % 2 === 0);
+  // The dates at the two ends of the scale, which is a week wide at least: weights a few days
+  // apart end part-way across, and the right-hand date is the scale's, not the last dot's.
+  const ends = points.length > 1 ? [points[0].day, new Date(t1).toISOString().slice(0, 10)] : [points[0].day];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label="Weight over time">
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
-          <text x={padL - 4} y={y(t) + 4} fontSize="10" textAnchor="end" fill="var(--muted)">
+    <>
+      <div className="relative mt-2">
+        <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Weight over time">
+          {ticks.map((t) => (
+            <line key={t} x1={padL} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
+          ))}
+          <polyline fill="none" stroke="var(--accent)" strokeWidth="2" points={points.map((p) => `${x(p.day)},${y(Number(p.weight_kg))}`).join(" ")} />
+          {points.map((p) => (
+            <g key={p.day}>
+              <circle cx={x(p.day)} cy={y(Number(p.weight_kg))} r="3.5" fill="var(--accent)" />
+              <title>{`${longDay(p.day)}: ${p.weight_kg} kg`}</title>
+            </g>
+          ))}
+        </svg>
+        {named.map((t) => (
+          <span key={t} className="muted absolute left-0 -translate-y-1/2 text-[13px] leading-none tabular-nums" style={{ top: `${(y(t) / H) * 100}%` }}>
             {t.toFixed(1)}
-          </text>
-        </g>
-      ))}
-      <polyline fill="none" stroke="var(--accent)" strokeWidth="2" points={points.map((p) => `${x(p.day)},${y(Number(p.weight_kg))}`).join(" ")} />
-      {points.map((p) => (
-        <g key={p.day}>
-          <circle cx={x(p.day)} cy={y(Number(p.weight_kg))} r="3.5" fill="var(--accent)" />
-          <title>{`${p.day}: ${p.weight_kg} kg${ageWeeks(p.day) != null ? ` at ${ageWeeks(p.day)} weeks` : ""}`}</title>
-        </g>
-      ))}
-      {points
-        .filter((_, i) => i % Math.ceil(points.length / 6) === 0 || i === points.length - 1)
-        .map((p) => (
-          <text key={p.day} x={x(p.day)} y={H - 4} fontSize="9" textAnchor="middle" fill="var(--muted)">
-            {ageWeeks(p.day) != null ? `${ageWeeks(p.day)} wk` : p.day.slice(5)}
-          </text>
+          </span>
         ))}
-    </svg>
+      </div>
+      <div className="muted mt-1 flex justify-between text-[13px]" style={{ paddingLeft: `${(padL / W) * 100}%` }}>
+        {ends.map((day) => (
+          <span key={day}>{shortDay(day)}</span>
+        ))}
+      </div>
+    </>
   );
 }

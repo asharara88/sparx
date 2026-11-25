@@ -94,7 +94,7 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
         <ul className="flex flex-col">
           {BANDS.map((b, i) => (
             <li key={b.fromWeek} className="row p-0">
-              <Link prefetch={false} href={stretchHref(i, nav.home)!} className="row-link flex min-h-[52px] w-full items-center gap-3 py-2" aria-current={i === nav.index ? "page" : undefined}>
+              <Link prefetch={false} replace href={stretchHref(i, nav.home)!} className="row-link flex min-h-[52px] w-full items-center gap-3 py-2" aria-current={i === nav.index ? "page" : undefined}>
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{b.title}</span>
                   <span className="muted block text-sm">
