@@ -1,0 +1,147 @@
+# Weekly speed check for the family app (family/), and on demand. Is it still fast and
+# responsive? It builds the app as Vercel does, serves it against a fresh Postgres holding the
+# demo home (screenshot mode: no Supabase, no secrets), and runs family/scripts/speed-check.mjs,
+# which reads ten everyday screens and four taps against the budgets written in that file:
+# database calls and JavaScript per screen (exact), time to paint, time blocked, layout shift
+# and time to answer a tap (on a page with the processor slowed four times).
+# When something is over, the job opens (or refreshes) the issue "Speed check: a screen is over
+# its budget" with the table, and closes it once the check is clean again. The issue is the
+# record that something is open; the fix is a pull request made by hand, or the budget raised
+# in that file with the reason. Every run's table is in the run's summary and its artifact.
+name: Speed check
+
+on:
+  schedule:
+    - cron: "47 10 * * 1"  # Mondays, 10:47 UTC (14:47 in Dubai: the demo day has a day in it)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: family
+    services:
+      postgres:
+        image: postgres:16  # as the CI job
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      # The two placeholders CLAUDE.md names for a local build; the build reads no secret.
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_localscreenshotsonly000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: family/package-lock.json
+      - run: npm ci
+      - name: The demo home on a fresh database
+        env:
+          PSQL: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -q
+        run: |
+          $PSQL -c "drop database if exists family_speed" -c "create database family_speed"
+          for f in supabase/tests/00_local_auth_stub.sql supabase/migrations/*.sql supabase/tests/01_test_household.sql supabase/tests/demo_data.sql; do
+            echo "== $f"
+            $PSQL -d family_speed -f "$f"
+          done
+      - name: Production build
+        run: npm run build
+      # Playwright is not a dependency of the app: it is added here, at the version the scripts
+      # were written against, with the one browser the check drives.
+      - name: The browser
+        run: |
+          npm i --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      # Screenshot mode reads the database by running psql as the system user "postgres"
+      # (lib/supabase/local.ts: su postgres -c psql), which only root may do, so the server runs
+      # under sudo. PGHOST and PGPASSWORD pass through su and send that psql to the service
+      # container above.
+      - name: Serve it in screenshot mode
+        run: |
+          id postgres >/dev/null 2>&1 || sudo useradd --system postgres
+          sudo env "PATH=$PATH" PGHOST=localhost PGPASSWORD=postgres FAMILY_LOCAL_DB=family_speed \
+            NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            nohup npx next start -p 3000 > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:3000/login; then break; fi
+            sleep 1
+          done
+          # The demo admin's Home must answer, or every figure below would be of an error page.
+          code=$(curl -s -o /dev/null -w "%{http_code}" -H "Cookie: shot_as=00000000-0000-4000-8000-000000000002" http://localhost:3000/)
+          echo "Home answered $code"
+          if [ "$code" != "200" ]; then tail -40 "$RUNNER_TEMP/server.log"; exit 1; fi
+      - name: Measure
+        id: check
+        continue-on-error: true
+        env:
+          SPEED_DB: family_speed
+          SPEED_OUT: ${{ runner.temp }}/speed
+        run: node scripts/speed-check.mjs
+      - name: The table, in the run's summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/speed/report.md" ]; then cat "$RUNNER_TEMP/speed/report.md" >> "$GITHUB_STEP_SUMMARY"; else echo "The speed check wrote no report." >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: speed-check
+          path: |
+            ${{ runner.temp }}/speed
+            ${{ runner.temp }}/server.log
+          if-no-files-found: ignore
+      - name: Open, refresh or close the tracking issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK: ${{ steps.check.outcome }}
+        run: |
+          set -euo pipefail
+          title="Speed check: a screen is over its budget"
+          report="$RUNNER_TEMP/speed/report.md"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh label create speed --repo "$GITHUB_REPOSITORY" --color 0E8A16 --description "The weekly speed check found a screen over its budget" --force >/dev/null 2>&1 || true
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ "$CHECK" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "The speed check of $(date -u +%Y-%m-%d) is inside every budget. Closing. Run: $run_url"
+              gh issue close "$existing" --repo "$GITHUB_REPOSITORY"
+            fi
+            echo "Inside every budget."
+            exit 0
+          fi
+          # No report means the check did not get as far as measuring (the build, the database or
+          # the server failed, or an earlier step did): that is a broken check, not a slow app.
+          if [ ! -f "$report" ]; then
+            echo "The speed check could not run; see the steps above. No issue is opened for that." >&2
+            exit 1
+          fi
+          {
+            echo "The weekly speed check found something over its budget on $(date -u +%Y-%m-%d). The budgets and what each column means are at the top of \`family/scripts/speed-check.mjs\`. Fix it in a pull request, or raise the budget there with the reason; this issue closes itself on the next clean run."
+            echo
+            cat "$report"
+            echo
+            echo "Run: $run_url"
+          } > "$RUNNER_TEMP/body.md"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label speed --body-file "$RUNNER_TEMP/body.md"
+          fi
+          echo "Over budget; the issue carries the table." >&2
+          exit 1
