@@ -56,7 +56,7 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
     const feeds = entries.filter((e) => e.type_id === "lana.feed").map((e) => Date.parse(e.occurred_at)).filter((t) => t >= start && t < end);
     return (
       <section className="card tint-sleep flex flex-col gap-1" aria-label={isToday ? "Sleep today" : "Sleep that day"}>
-        <p className="text-[1.25rem] font-bold leading-snug tabular-nums">{headline}</p>
+        <p className="card-head tabular-nums">{headline}</p>
         <SleepBar segments={s.segments} dayStartMs={start} clockIso={clockIso} live={isToday} label={`${label}. Feeds at: ${feeds.map(at).join(", ") || "none"}`} marks={feeds} />
         <div className="-mt-1 flex justify-between text-[13px] opacity-80">
           <span>midnight</span>
@@ -75,7 +75,7 @@ export function SleepDay({ entries, day, timezone, nowIso, night, usualNaps = nu
         <h2 id="sleep-day-h" className="section-title">Sleep today</h2>
         {since && showSince && <SleepSince sinceIso={since.iso} clockIso={clockIso} prefix={since.prefix} />}
       </div>
-      <p className="text-2xl font-bold tabular-nums">{headline}</p>
+      <p className="card-head tabular-nums">{headline}</p>
       <SleepBar segments={s.segments} dayStartMs={start} clockIso={clockIso} live={isToday} label={label} />
       <div className="muted -mt-1 flex justify-between text-[13px]">
         <span>midnight</span>

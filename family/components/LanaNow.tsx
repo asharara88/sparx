@@ -501,11 +501,12 @@ export function LanaNow({
         <div className={`grid ${breastfeeds ? "grid-cols-2" : "grid-cols-1"} gap-2`} role="group" aria-label="Log a feed">
           {breastfeeds && (
             <button type="button" className="btn btn-primary btn-lg" disabled={!canAdd} onClick={() => { setFeedTab("breast"); openSheet("feed"); }}>
-              Breastfeed
+              Breast
             </button>
           )}
+          {/* Side by side the two say one word each: "Log a bottle" broke in two at 320 px. Alone, the button says it in full. */}
           <button type="button" className={`btn btn-lg ${breastfeeds ? "" : "btn-primary"}`} disabled={!canAdd} onClick={() => { setFeedTab("bottle"); openSheet("feed"); }}>
-            Log a bottle
+            {breastfeeds ? "Bottle" : "Log a bottle"}
           </button>
         </div>
       )}

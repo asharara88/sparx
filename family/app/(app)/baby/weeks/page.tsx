@@ -68,7 +68,7 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
             <span className="nap-bar-fill" style={{ width: `${Math.round((hers.weekInBand / length) * 100)}%` }} />
           </div>
         )}
-        <h2 id="stretch-h" className="text-[1.25rem] font-bold leading-snug">
+        <h2 id="stretch-h" className="card-head">
           {band.title}
         </h2>
         {band.tough && <span className="pill self-start">often a harder stretch</span>}

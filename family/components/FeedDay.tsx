@@ -32,7 +32,7 @@ export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowI
     const line = section.count && todayFeeds.length && c.line ? `${feedCount(todayFeeds.length)} · ${c.line}` : c.line;
     return (
       <section className="card tint-feed flex flex-col gap-1" aria-label={name}>
-        <p className="text-[1.25rem] font-bold leading-snug">{c.headline}</p>
+        <p className="card-head">{c.headline}</p>
         {section.bar}
         {line && <p className="text-sm">{line}</p>}
         {section.night && <p className="text-sm opacity-80">{section.night}</p>}
@@ -42,7 +42,7 @@ export function FeedDay({ summary, entries, dayStartMs, dayEndMs, timezone, nowI
   return (
     <section className="card tint-feed flex flex-col gap-1" aria-labelledby="feed-day-h">
       <h2 id="feed-day-h" className="section-title">{name}</h2>
-      <p className="text-2xl font-bold">{c.headline}</p>
+      <p className="card-head">{c.headline}</p>
       {c.line && <p className="text-sm">{c.line}</p>}
       {showUsual && c.usual && <p className="muted text-sm">{c.usual}</p>}
       {href && (
@@ -71,7 +71,7 @@ export function FeedPastDay({ feeds, section }: { /** That day's feeds. */ feeds
   const sums = feedSums(feeds);
   return (
     <section className="card tint-feed flex flex-col gap-1" aria-label="Feeds that day">
-      <p className="text-[1.25rem] font-bold leading-snug">{feeds.length ? feedCount(feeds.length) : "No feed logged"}</p>
+      <p className="card-head">{feeds.length ? feedCount(feeds.length) : "No feed logged"}</p>
       {section.bar}
       {sums && <p className="text-sm">{sums}</p>}
       {section.night && <p className="text-sm opacity-80">{section.night}</p>}

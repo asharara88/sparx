@@ -25,7 +25,7 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
   const s: string[] = [];
   if (q && q.trim()) s.push(q.trim().slice(0, 200));
   if (can(me, "lana", "view")) s.push(`When did ${child} last feed?`, `How did ${child} sleep last night?`);
-  if (can(me, "calendar", "view")) s.push("Who's home on Thursday?", "What's on tomorrow?");
+  if (can(me, "calendar", "view")) s.push("Who's home Thursday?", "What's on tomorrow?");
   if (can(me, "assistant", "add") && can(me, "lana", "add")) s.push("Log a 120 ml bottle now");
   // Plain logs ("120 ml bottle", "wet nappy") are read on the phone and saved at once: it needs
   // the child, her entry types and any running sleep. One child only; with more, the helper asks whose.

@@ -24,11 +24,11 @@ export function PumpDashboard({ pumps, milk, target, days, today, hourOfDay }: {
       {milk && (
         <section className="grid grid-cols-2 gap-3" aria-label="Bottles at home">
           <div className="tile tint-milk">
-            <span className="block text-2xl font-bold">{milk.fridge_count} {milk.fridge_count === 1 ? "bottle" : "bottles"}</span>
+            <span className="card-head block">{milk.fridge_count} {milk.fridge_count === 1 ? "bottle" : "bottles"}</span>
             <span className="text-sm whitespace-nowrap">{milk.fridge_ml} ml · fridge</span>
           </div>
           <div className="tile tint-diaper">
-            <span className="block text-2xl font-bold">{milk.freezer_count} {milk.freezer_count === 1 ? "bottle" : "bottles"}</span>
+            <span className="card-head block">{milk.freezer_count} {milk.freezer_count === 1 ? "bottle" : "bottles"}</span>
             <span className="text-sm whitespace-nowrap">{milk.freezer_ml} ml · frozen</span>
           </div>
         </section>

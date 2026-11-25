@@ -14,7 +14,7 @@ export function HandoverSince({ entries, kinds, fromIso, toIso, label }: { entri
   const s = windowStats(entries, fromIso, toIso);
   const Stat = ({ n, l }: { n: string | number; l: string }) => (
     <div className="rounded-xl bg-[var(--card-2)] p-3 text-center">
-      <p className="text-2xl font-bold">{n}</p>
+      <p className="card-head">{n}</p>
       <p className="muted text-xs font-semibold">{l}</p>
     </div>
   );

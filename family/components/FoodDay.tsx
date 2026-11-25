@@ -15,7 +15,7 @@ export function FoodDay({ meals, dayStartMs, dayEndMs, stage, timezone }: { meal
   return (
     <section className="card tint-food flex flex-col gap-2" aria-labelledby="food-day-h">
       <h2 id="food-day-h" className="section-title">Food today</h2>
-      <p className="text-2xl font-bold">
+      <p className="card-head">
         {count}
         {usual && <span className="muted text-base font-normal"> · {usual}</span>}
       </p>
