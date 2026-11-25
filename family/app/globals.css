@@ -572,6 +572,15 @@ h2.section-title { letter-spacing: 0.06em; }
 .fold.fold-flat { border: none; border-radius: 0; background: transparent; box-shadow: none; }
 .fold.fold-flat > summary { font-family: inherit; font-weight: 600; font-size: 1rem; letter-spacing: 0; min-height: 48px; }
 .fold.fold-flat + .fold.fold-flat { border-top: 1px solid var(--line); }
+/* Its list clips to the card's corners, so the keyboard's ring is drawn inside the row. */
+.fold.fold-flat > summary:focus-visible { outline: 3px solid color-mix(in oklab, var(--accent) 55%, transparent); outline-offset: -3px; }
+/* Red is the one colour a flat fold keeps across its row (the guide when it says call the doctor). */
+.fold.fold-flat.tint-danger { background: var(--tint); }
+/* A row of a list of links that opens where it stands (the child's About tab). */
+.row-fold > summary { list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.row-fold > summary::-webkit-details-marker { display: none; }
+.row-fold + .row, .row + .row-fold { border-top: 1px solid var(--line); }
+.row-fold[open] > summary .fold-chev { transform: rotate(90deg); }
 
 /* ---- hero ------------------------------------------------------------------ */
 .hero {

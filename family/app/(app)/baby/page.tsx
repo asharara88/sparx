@@ -35,6 +35,7 @@ import type { CoachPlanData } from "@/lib/types";
 import { WORK_FROM, WORK_TO, hhmm } from "@/lib/household";
 import { checkEntries } from "@/lib/entry-checks";
 import { Fold } from "@/components/Fold";
+import { Pager, dayWords } from "@/components/DayPager";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,9 @@ export const dynamic = "force-dynamic";
 /**
  * The child's page (DESIGN.md, "The child's page"): Today / Week / About her. Today is the
  * day's totals and entries with "+ Log" at the bottom; Week is how the days go; About her
- * is everything else about the child, as one list.
+ * is everything else about the child, as one list. What opens in place on a tab is a row
+ * of one white list (Fold flat), not a stack of tinted bars; "To check" alone keeps its
+ * yellow bar (Mido, 25 November: it is the one thing on the tab that asks for action).
  */
 export default async function LanaPage({ searchParams }: { searchParams: Promise<{ d?: string; tab?: string }> }) {
   const supabase = await createClient();
@@ -56,7 +59,9 @@ export default async function LanaPage({ searchParams }: { searchParams: Promise
   if (sp.tab === "handover") redirect("/baby/handover");
   if (sp.tab === "ask") redirect("/ask?from=child");
   const tab: LanaTab = sp.tab === "patterns" ? "week" : sp.tab === "week" || sp.tab === "about" ? sp.tab : "today";
-  const day = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) && sp.d <= today ? sp.d : today;
+  // A real calendar day (addDays round-trips only those), as Feeds and Sleep ask of theirs: an
+  // impossible one in the address ("2025-13-45") is today, not a screen that cannot name it.
+  const day = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) && addDays(sp.d, 0) === sp.d && sp.d <= today ? sp.d : today;
 
   const { data: sumData } = await supabase.rpc("home_summary");
   const summary = sumData as HomeSummary | RpcError;
@@ -125,19 +130,15 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
   const entries = stripEntries.filter((e) => Date.parse(e.occurred_at) >= fromMs && Date.parse(e.occurred_at) < toMs).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
   const checks = isToday ? checkEntries(week, { ageDays: age }).length : 0;
   const suggestions = (((sugData as { suggestions?: Suggestion[] } | null)?.suggestions ?? []) as Suggestion[]).filter((s) => s.kind === "due" || s.kind === "plan");
-  // The date, not a second "Today" under the Today tab.
-  const label = day === addDays(today, -1) ? "Yesterday" : new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+  // The pager Feeds and Sleep use (the name over the date, two arrows, a swipe). Here it has no
+  // first day: this tab is the way to any day, so the arrow back always works, as the old one
+  // did. It says "Today" under the Today tab, as the picked drawing does: the tab is the tab's
+  // name (it stays lit on any day), the pager says which day, and a weekday there means a day past.
+  const words = dayWords(day, today);
+  const next = addDays(day, 1);
   return (
     <>
-      <div className="flex items-center justify-between">
-        <Link prefetch={false} href={`/baby?tab=today&d=${addDays(day, -1)}`} className="icon-btn" aria-label="Previous day">
-          <Icon name="back" size={22} />
-        </Link>
-        <p className="font-semibold">{label}</p>
-        <Link prefetch={false} href={`/baby?tab=today&d=${addDays(day, 1)}`} className="icon-btn" aria-label="Next day" aria-disabled={isToday} style={isToday ? { visibility: "hidden" } : undefined}>
-          <Icon name="forward" size={22} />
-        </Link>
-      </div>
+      <Pager prev={`/baby?tab=today&d=${addDays(day, -1)}`} next={isToday ? null : next === today ? "/baby" : `/baby?tab=today&d=${next}`} title={words.title} sub={words.sub} label="Days" prevLabel="The day before" nextLabel="The day after" />
       <DayStrip entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} list={false} tiles={plan.tiles} />
       <SleepDay entries={stripEntries} day={day} timezone={tz} nowIso={isToday ? new Date().toISOString() : undefined} night={nightWindow(summary.subject.settings)} usualNaps={plan.usualNaps ?? stage.naps} href="/baby/sleep" />
       {checks > 0 && can(me, "lana", "edit") && (
@@ -145,12 +146,18 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
           <EntryChecks entries={week} timezone={tz} ageDays={age} canDelete={can(me, "lana", "delete")} />
         </Fold>
       )}
-      {isToday && <LanaGuide entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />}
-      {/* What the data suggests doing (a dose due, a plan for the calendar): useful, not now, so a fold. */}
-      {isToday && suggestions.length > 0 && (
-        <Fold title="Suggested" icon="calendar" tint="cal" hint={`${suggestions.length}`}>
-          <SuggestionCards suggestions={suggestions} title={null} />
-        </Fold>
+      {/* What there is to read: the guide's tips and what the data suggests doing (a dose due, a
+          plan for the calendar). Useful, not now, so rows of one white list; the list is not drawn
+          while it has no row (the guide decides in the browser whether it has a tip). */}
+      {isToday && (
+        <div className="card flex flex-col overflow-hidden p-0 empty:hidden">
+          <LanaGuide flat entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />
+          {suggestions.length > 0 && (
+            <Fold flat title="Suggested" icon="calendar" tint="cal" hint={`${suggestions.length}`}>
+              <SuggestionCards suggestions={suggestions} title={null} />
+            </Fold>
+          )}
+        </div>
       )}
       {entries.length === 0 ? (
         <p className="muted px-1">Nothing logged on this day.</p>
@@ -206,8 +213,12 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   return (
     <>
       <WeekColumns entries={entries} days={days.slice(-7)} prevDays={days.slice(0, 7)} timezone={tz} today={today} />
+      <MoodPattern entries={entries} days={days} stats={all} timezone={tz} />
+      {/* What opens in place, as rows of one white list (25 November: five tinted bars in a stack
+          read 10 blocks; the words, the hints and what each opens are as they were). */}
+      <div className="card flex flex-col overflow-hidden p-0">
       {full.length > 0 && listed && (
-        <Fold title={`Against ${pr.their} age`} icon="trend" hint="a day this week">
+        <Fold flat title={`Against ${pr.their} age`} icon="trend" hint="a day this week">
           <AgeCheck
             bare
             totals={avg.totals}
@@ -224,24 +235,23 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
       {/* From 12 months milk has no clock (R2): no feed, diaper, nap or wake guesses, only the plan when there is one.
           A toddler whose day keeps the feed clock gets the feeds back, and only those. */}
       {kid.milkClock ? (
-        <Fold title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
+        <Fold flat title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
           <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} only={stage.toddler ? ["feed"] : undefined} />
           <PlanCard plan={plan} />
         </Fold>
       ) : (
         plan &&
         !plan.over && (
-          <Fold title="Coming up" icon="clock" tint="cal">
+          <Fold flat title="Coming up" icon="clock" tint="cal">
             <PlanCard plan={plan} />
           </Fold>
         )
       )}
-      <Fold title="Sleep rhythm" icon="moon" tint="sleep" hint="naps and bedtime">
+      <Fold flat title="Sleep rhythm" icon="moon" tint="sleep" hint="naps and bedtime">
         <SleepCoach bare entries={entries} ageDays={age ?? 120} sex={child(me)?.sex ?? null} napsPerDay={pattern.perDay} timezone={tz} />
       </Fold>
-      <MoodPattern entries={entries} days={days} stats={all} timezone={tz} />
       {all.length > 0 && (dayKinds.feed || dayKinds.diaper || dayKinds.sleep) && (
-        <Fold title="Day by day" icon="calendar" tint="cal" hint="last 7 days">
+        <Fold flat title="Day by day" icon="calendar" tint="cal" hint="last 7 days">
           <ul className="flex flex-col">
             {byDay.map((d) => (
               <li key={d.day} className="row">
@@ -255,11 +265,12 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
         </Fold>
       )}
       {can(me, "assistant", "view") && (
-        <Fold title="The helper" icon="sparkles" tint="guide" hint="brief and week">
+        <Fold flat title="The helper" icon="sparkles" tint="guide" hint="brief and week">
           <BriefCard hour={Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(new Date()))} />
           <WeekCard name={summary.subject.name} />
         </Fold>
       )}
+      </div>
     </>
   );
 }
@@ -308,15 +319,27 @@ function AboutTab({ me, summary, today }: { me: Me; summary: HomeSummary; today:
   ];
   return (
     <>
-      {phase && (
-        <Fold title="What this age brings" icon="star" tint="guide">
-          <PhaseCard card={phase} />
-        </Fold>
-      )}
       {groups.map((g) => (
         <section key={g.title} className="flex flex-col gap-2">
           <h2 className="section-title">{g.title}</h2>
           <nav aria-label={g.title} className="card flex flex-col p-0">
+            {/* What her age brings is a row of Growing that opens where it stands: it was a lilac
+                bar of its own above the lists, and the tab read 9 blocks. */}
+            {g.title === "Growing" && phase && (
+              <details className="row-fold">
+                <summary className="row row-link px-4">
+                  <span className="flex w-8 shrink-0 justify-center text-[var(--accent)]">
+                    <Icon name="baby" size={20} />
+                  </span>
+                  {/* A size down under 360 px, in px so large text does not undo it: the name stays on one line. */}
+                  <span className="flex-1 font-medium max-[360px]:text-[16px]">What this age brings</span>
+                  <Icon name="forward" size={18} className="fold-chev muted" />
+                </summary>
+                <div className="px-4 pb-4">
+                  <PhaseCard card={phase} />
+                </div>
+              </details>
+            )}
             {g.rows
               .filter((r) => r.show !== false)
               .map((r) => (

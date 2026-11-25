@@ -11,11 +11,11 @@ export type Tint = "feed" | "sleep" | "diaper" | "meds" | "milk" | "pump" | "foo
 const NARROW = "max-[360px]:gap-[6px] max-[360px]:px-[10px] max-[360px]:text-[17px]";
 
 /** What a fold's bar holds, shared by Fold and FoldLink so the two look the same. */
-function Bar({ title, hint, icon, wrap = false }: { title: string; hint?: string | null; icon?: IconName; wrap?: boolean }) {
+function Bar({ title, hint, icon, wrap = false, disc }: { title: string; hint?: string | null; icon?: IconName; wrap?: boolean; /** A flat fold's colour, worn by its disc. */ disc?: Tint }) {
   return (
     <>
       {icon && (
-        <span className="icon-disc size-[34px]">
+        <span className={`icon-disc size-[34px] ${disc ? `tint-${disc}` : ""}`}>
           <Icon name={icon} size={18} />
         </span>
       )}
@@ -32,11 +32,14 @@ function Bar({ title, hint, icon, wrap = false }: { title: string; hint?: string
  * without JavaScript). The title bar stays visible in its feature colour; the body
  * shows only when opened. Home keeps the one or two that matter now open.
  */
-export function Fold({ title, hint, icon, tint, open = false, wrap = false, children, className = "" }: { title: string; hint?: string | null; icon?: IconName; tint?: Tint; open?: boolean; /** A fold that is a row of a list with long titles (Week by week): the title may take two lines. */ wrap?: boolean; children: React.ReactNode; className?: string }) {
+export function Fold({ title, hint, icon, tint, open = false, wrap = false, flat = false, children, className = "" }: { title: string; hint?: string | null; icon?: IconName; tint?: Tint; open?: boolean; /** A fold that is a row of a list with long titles (Week by week): the title may take two lines. */ wrap?: boolean; /** A row of one white list (the child's page): no bar of its own; the colour is its disc's. Red stays a red row. */ flat?: boolean; children: React.ReactNode; className?: string }) {
+  const isFlat = flat || /\bfold-flat\b/.test(className);
+  // In a white list only danger keeps its colour across the row (DESIGN.md rule 7: red means act).
+  const bar = flat ? (tint === "danger" ? "fold-flat tint-danger" : "fold-flat") : tint ? `tint-${tint}` : "";
   return (
-    <details className={`fold ${tint ? `tint-${tint}` : ""} ${className}`} open={open}>
-      <summary className={/\bfold-flat\b/.test(className) ? undefined : NARROW}>
-        <Bar title={title} hint={hint} icon={icon} wrap={wrap} />
+    <details className={`fold ${bar} ${className}`} open={open}>
+      <summary className={isFlat ? undefined : NARROW}>
+        <Bar title={title} hint={hint} icon={icon} wrap={wrap} disc={flat && tint !== "danger" ? tint : undefined} />
       </summary>
       <div className="fold-body">{children}</div>
     </details>
