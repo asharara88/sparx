@@ -214,13 +214,17 @@ export function SimpleHome({ summary, recent, milk, plan = null }: { summary: Ho
       )}
       {panel === null && <ListenButton text={todayText} lang={lang} label={L("listen")} />}
       {panel === null && (
-        <div className="grid grid-cols-2 gap-3">
-          <Big icon="bottle" label={L("bottle")} tone="btn-primary" onClick={() => setPanel("bottle")} />
-          <Big icon="diaper" label={L("diaper")} onClick={() => setPanel("diaper")} />
-          {openSleep ? <Big icon="sun" label={L("wokeUp")} onClick={() => endSleep(openSleep)} /> : <Big icon="zzz" label={L("fellAsleep")} onClick={() => log(sleepType, {}, false)} />}
-          <Big icon="note" label={L("note")} onClick={() => setPanel("note")} />
+        // The four tiles are the log, one block to a person as Home's log card is (scripts/ui-audit.mjs, data-block).
+        // Ask logs nothing, so it stands outside the marked group, the same 12 px under it.
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3" data-block="log">
+            <Big icon="bottle" label={L("bottle")} tone="btn-primary" onClick={() => setPanel("bottle")} />
+            <Big icon="diaper" label={L("diaper")} onClick={() => setPanel("diaper")} />
+            {openSleep ? <Big icon="sun" label={L("wokeUp")} onClick={() => endSleep(openSleep)} /> : <Big icon="zzz" label={L("fellAsleep")} onClick={() => log(sleepType, {}, false)} />}
+            <Big icon="note" label={L("note")} onClick={() => setPanel("note")} />
+          </div>
           {can(me, "assistant", "view") && (
-            <Link prefetch={false} href="/ask" className="btn col-span-2 flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
+            <Link prefetch={false} href="/ask" className="btn flex-col gap-2" style={{ minHeight: 120, fontSize: "1.35rem" }}>
               <Icon name="mic" size={36} />
               {L("ask")}
             </Link>

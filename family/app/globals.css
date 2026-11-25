@@ -209,7 +209,8 @@ body::before {
   z-index: 35;
   pointer-events: none;
 }
-main { padding: 0 max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px) max(16px, env(safe-area-inset-left)); }
+/* 20 px side margins (DESIGN.md, "Colour, type and space"); 16 until 25 November. */
+main { padding: 0 max(20px, env(safe-area-inset-right)) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px) max(20px, env(safe-area-inset-left)); }
 
 /* A form group never pushes past the screen (a fieldset is as wide as its widest child by
    default), and iPhone's date and time boxes take the width given, with the value on the left
@@ -547,8 +548,8 @@ h2.section-title { letter-spacing: 0.06em; }
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 12px;
   min-height: 56px;
   font-weight: 700;
   font-size: 1.1rem;
@@ -828,7 +829,7 @@ a.day-cell:active { background: var(--card-2); }
   border-radius: 999px; border: none;
 }
 .say-heard {
-  position: fixed; inset-inline: 16px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  position: fixed; inset-inline: 20px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
   z-index: 40; margin: 0 auto; max-width: 24rem;
   padding: 12px 16px; border-radius: 16px;
   background: var(--fg); color: var(--bg); font-weight: 600; text-align: center;
@@ -860,13 +861,13 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 .tell-bar { display: flex; align-items: center; gap: 8px; }
 .tell-box {
   flex: 1 1 auto; min-width: 0; min-height: 48px;
-  padding: 0 16px; border-radius: 999px;
+  padding: 0 12px; border-radius: 999px;
   border: 1.5px solid var(--line); background: var(--bg); color: var(--muted);
   font: inherit; text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tell-bar .round-btn { width: 48px; height: 48px; }
 :root:has([data-size="large"]) .tell-box { min-height: 54px; }
-.log-row { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 0; }
+.log-row { display: flex; align-items: center; gap: 4px; padding: 0 12px 0 0; }
 .log-row-name { display: block; font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; line-height: 1.2; }
 .log-row-sub { display: block; font-size: 0.92rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log-row-live { font-weight: 700; }
@@ -874,7 +875,7 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 .log-row-body {
   flex: 1 1 auto; min-width: 0; min-height: 64px;
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 4px 10px 16px;
+  padding: 10px 4px 10px 12px;
   background: transparent; border: none; color: inherit; text-align: start; text-decoration: none; font: inherit;
 }
 .log-row-body:active { opacity: 0.7; }
@@ -906,6 +907,9 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 .stretch-path > i.here { background: var(--fg); }
 .stretch-path > i.view { outline: 2px solid var(--accent); outline-offset: 2px; }
 .stretch-pos > figcaption { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); }
+/* A card's headline (DESIGN.md, "Three text sizes per card"): 1.25 rem bold. One class, so no
+   card sets its own size; the day cards carried 1.5 rem until 25 November. */
+.card-head { font-size: 1.25rem; font-weight: 700; line-height: 1.25; }
 /* A plus opens the row's sheet, so it is drawn quiet. Solid rose is kept for what acts at once
    (the Sleep timer's start), the dark square for what stops it. */
 .round-go-open { background: var(--accent-soft); color: var(--accent); }
@@ -970,7 +974,7 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
 }
 /* The badge waits on one slim line over the tab bar until it is tapped (Celebration.tsx). */
 .celebrate-peek {
-  position: fixed; inset-inline: 16px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  position: fixed; inset-inline: 20px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
   z-index: 30; margin: 0 auto; max-width: 24rem;
   display: flex; align-items: center; gap: 4px; padding: 4px;
   border-radius: 999px; background: var(--card); border: 1px solid var(--line);
@@ -1086,7 +1090,7 @@ main:has(.bottom-action) > div > .flex-col:has(> .bottom-action) { flex: 1 0 aut
    leaves room under its last row for it. */
 .helper-fab {
   position: fixed; z-index: 25;
-  right: max(16px, env(safe-area-inset-right), calc((100vw - 42rem) / 2 + 16px));
+  right: max(20px, env(safe-area-inset-right), calc((100vw - 42rem) / 2 + 20px));
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 14px + var(--fab-lift, 0px));
   width: 56px; height: 56px; border-radius: 999px; border: none;
   display: inline-flex; align-items: center; justify-content: center;

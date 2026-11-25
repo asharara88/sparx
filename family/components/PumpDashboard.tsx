@@ -24,11 +24,11 @@ export function PumpDashboard({ pumps, milk, target, days, today, hourOfDay }: {
       {milk && (
         <section className="grid grid-cols-2 gap-3" aria-label="Bottles at home">
           <div className="tile tint-milk">
-            <span className="block text-2xl font-bold">{milk.fridge_count} {milk.fridge_count === 1 ? "bottle" : "bottles"}</span>
+            <span className="card-head block">{milk.fridge_count} {milk.fridge_count === 1 ? "bottle" : "bottles"}</span>
             <span className="text-sm whitespace-nowrap">{milk.fridge_ml} ml · fridge</span>
           </div>
           <div className="tile tint-diaper">
-            <span className="block text-2xl font-bold">{milk.freezer_count} {milk.freezer_count === 1 ? "bottle" : "bottles"}</span>
+            <span className="card-head block">{milk.freezer_count} {milk.freezer_count === 1 ? "bottle" : "bottles"}</span>
             <span className="text-sm whitespace-nowrap">{milk.freezer_ml} ml · frozen</span>
           </div>
         </section>
@@ -39,7 +39,7 @@ export function PumpDashboard({ pumps, milk, target, days, today, hourOfDay }: {
             <h2 id="usual-h" className="section-title">A usual day</h2>
             <span className="muted text-sm">last 7 days</span>
           </div>
-          <p className="text-3xl font-bold tabular-nums">
+          <p className="card-head tabular-nums">
             {s.averageMl} ml <span className="muted text-base font-semibold">{s.pumpingDays ? `on ${s.pumpingDays} pumping ${s.pumpingDays === 1 ? "day" : "days"}` : "no pumps yet"}</span>
           </p>
           <div className="flex items-end gap-1.5" style={{ height: 72 }} role="img" aria-label={`Pumped each day: ${bars.map((b) => `${label(b.day)} ${b.ml} ml`).join(", ")}`}>

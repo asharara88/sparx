@@ -133,7 +133,8 @@ export function Medicines({ subjectId, items, timezone, compact = false }: { sub
           const tooSoon = m.too_soon && m.next_at && Date.parse(m.next_at) > now;
           const mine = given?.medId === m.id;
           return (
-            <li key={m.id} className={`row ${compact ? "" : "px-4"} ${tooSoon ? "rounded-xl ring-2 ring-[var(--warn)]" : ""}`}>
+            // On a 320 px phone the name gets the whole line and Given sits under it: a medicine's name is never cut or broken in two.
+            <li key={m.id} className={`row max-[360px]:flex-col max-[360px]:items-stretch ${compact ? "" : "px-4"} ${tooSoon ? "rounded-xl ring-2 ring-[var(--warn)]" : ""}`}>
               <div className="min-w-0 grow">
                 {!compact && canEdit ? (
                   <button type="button" className="block text-left font-semibold" onClick={() => { setManage(manage === m.id ? null : m.id); setConfirmRemove(false); }} aria-expanded={manage === m.id}>

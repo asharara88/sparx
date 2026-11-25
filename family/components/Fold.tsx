@@ -8,7 +8,7 @@ export type Tint = "feed" | "sleep" | "diaper" | "meds" | "milk" | "pump" | "foo
  * ("Freezer · 2 bottles · 360 ml", "Fridge lasts · till Sun"). In px, so large text
  * does not undo it. A flat fold (a row of a list) keeps its own size.
  */
-const NARROW = "max-[360px]:gap-[8px] max-[360px]:px-[12px] max-[360px]:text-[17px]";
+const NARROW = "max-[360px]:gap-[6px] max-[360px]:px-[10px] max-[360px]:text-[17px]";
 
 /** What a fold's bar holds, shared by Fold and FoldLink so the two look the same. */
 function Bar({ title, hint, icon, wrap = false }: { title: string; hint?: string | null; icon?: IconName; wrap?: boolean }) {

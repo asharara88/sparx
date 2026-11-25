@@ -8,7 +8,11 @@
 // counts. Saves light and night screenshots to $AUDIT_OUT (default /tmp/ui-audit).
 // Env: AUDIT_AS (auth user id for the shot_as cookie), AUDIT_URL (default http://localhost:3000),
 // AUDIT_NOW (an ISO time: the browser's clock is held there, to match a server started with
-// scripts/fake-clock.cjs on a demo day shifted to that time).
+// scripts/fake-clock.cjs on a demo day shifted to that time), AUDIT_W (the phone's width in px,
+// default 390; 320 is the smallest the bible names: run the phone checks there too after a
+// change to margins or type).
+// A group that is one thing to a person but is built of several (the simple Home's four log
+// tiles, as Home's log card is) is marked data-block on its wrapper and counts as one.
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 
@@ -44,7 +48,7 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/opt/pw-browsers/chromium" });
 let over = 0;
 for (const theme of ["light", "night"]) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light" });
+  const ctx = await browser.newContext({ viewport: { width: Number(process.env.AUDIT_W) || 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light" });
   await ctx.addCookies([{ name: "shot_as", value: as, domain: new URL(base).hostname, path: "/" }]);
   const page = await ctx.newPage();
   if (process.env.AUDIT_NOW) await page.clock.install({ time: new Date(process.env.AUDIT_NOW) });
@@ -70,7 +74,7 @@ for (const theme of ["light", "night"]) {
       // flex column) to where the blocks start. A plain layout box (flex, grid, gap and no
       // card of its own) inside the column holds blocks too: its children count, not it.
       const SURFACE = /\b(card|notice|fold|tile|row|bottom-action|page-header|segmented|log-card)/;
-      const plain = (el) => (el.tagName === "DIV" || el.tagName === "SECTION") && !SURFACE.test(typeof el.className === "string" ? el.className : "");
+      const plain = (el) => (el.tagName === "DIV" || el.tagName === "SECTION") && !el.hasAttribute("data-block") && !SURFACE.test(typeof el.className === "string" ? el.className : "");
       let column = root ?? main;
       for (let kids = [...column.children].filter(shown); kids.length === 1 && plain(kids[0]); kids = [...column.children].filter(shown)) column = kids[0];
       const flatten = (el) => [...el.children].filter((c) => shown(c) && !c.classList.contains("grow-space")).flatMap((c) => (plain(c) && [...c.children].filter(shown).length > 1 ? flatten(c) : [c]));

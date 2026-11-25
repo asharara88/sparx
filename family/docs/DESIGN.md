@@ -151,6 +151,12 @@ mockup uses, mostly the tiles' "40 min ago".
 | Every other screen | 8 | 12 | 150 | 2.5 |
 | The child's day (`/baby/day`) | 5 | 4 | 100 | 1.5 |
 
+A group that is one thing to a person but is built of several counts as one block when its
+wrapper is marked `data-block`: the simple Home's four big tiles (bottle, diaper, sleep,
+note) are its log, as Home's log card is, and the screen read 8 blocks against a budget of 6
+until they were marked (25 November; it reads 5, with Ask outside the mark as a block of its
+own, and nothing on that screen changed). Mark sparingly, and say here what was marked.
+
 The phone checks must all read zero: *wide* (anything past the screen's edge), *sideways*
 (a strip that scrolls sideways), *tables*, *wrapped labels* (a chip, pill, tab, button or
 header of up to 24 characters breaking onto two lines), *card in card*, *small taps* (under
@@ -529,7 +535,9 @@ Feeds, top to bottom:
 
 1. **Feeds | Sleep**, a segmented control of two links: one tap across to the other section,
    on the day this one shows.
-2. **Now**, on today only: Breastfeed (for the parent who does) and Log a bottle. Both open
+2. **Now**, on today only: Breast and Bottle side by side for the parent who breastfeeds
+   (one word each: "Log a bottle" broke in two at 320 px), Log a bottle alone for everyone
+   else. Both open
    Home's feed sheet over this screen, already on the right half; nobody leaves the section to
    log (until now each button went to another page). While a feed runs they give way to a
    pink card: "Feeding, left", since when, the running time, and one dark **Done feeding**;
@@ -700,8 +708,23 @@ Use these; extend one before adding a new one, and add any new one here.
   pale text on a pale chip (a yellow banner, a green pill) disappears there. Contrast at
   least 4.5 : 1 in all three themes.
 - **Three text sizes per card**: the headline (1.25 rem bold), the body (1 rem), the small
-  muted line (0.85 rem). Screen titles use the display font; nothing else does.
+  muted line (0.85 rem). Screen titles use the display font; nothing else does. A card's
+  headline is `.card-head`, one class, so no card sets a size of its own (the day cards and
+  the fridge tiles carried 1.5 rem until 25 November, the pumping goal and "A usual day"
+  1.875 rem).
 - **Space, not boxes.** 20 px side margins, 16 px between blocks, a hairline between rows.
+  The margins are one rule on `main`, and were 16 px until 25 November. Eight pixels less
+  for every screen: at 390 px nothing changed in the phone checks, at 320 px five short
+  labels broke in two and were mended where they stood (Feeds' two buttons say "Breast" and
+  "Bottle"; a medicine's Given button sits under its name; "All 3 given" in the vaccine
+  book; "Who's home Thursday?" among the helper's suggestions). After a change to margins or
+  type, sweep at 320 px as well: `AUDIT_W=320 node scripts/ui-audit.mjs`.
+  The audit counts labels that break in two, not lines cut with "…", and the margins cut a
+  letter off a few of those at 360 and 375 px in large text ("Tell me what happene…"). So the
+  bars that hold one line gave the 8 px back inside: a log row's left padding and its gap, the
+  Tell me box, a fold's bar, and the gap in an entry's and a member's row. The four things
+  fixed over the page (the "heard" toast, the badge line, the helper's button, Home's "who
+  has her" menu) write the margin again, as 20 px: change them with it.
 - **Large text** (More → Display, on by default for everyone but admins) makes
   the root 19 px instead of 17, so every rem grows, sheets included. Until 13 November it only
   reached the shell's own text and left titles, folds, buttons and sheets at normal size.
