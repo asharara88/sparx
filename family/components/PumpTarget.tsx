@@ -16,7 +16,7 @@ export function PumpTarget({ pumps, milk, target, canLog }: { pumps: EntryRow[];
           Since 18:00 yesterday · <span className="whitespace-nowrap">goal {min}–{target} ml</span>
         </p>
       </div>
-      <p className="text-3xl font-bold tabular-nums">
+      <p className="card-head tabular-nums">
         {ml} ml <span className="muted text-base font-semibold">{done ? "✓ goal reached" : `${min - ml} ml to go`}</span>
       </p>
       <div className="relative h-2.5 overflow-hidden rounded-full bg-[var(--card-2)]">

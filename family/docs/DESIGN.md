@@ -152,9 +152,10 @@ mockup uses, mostly the tiles' "40 min ago".
 | The child's day (`/baby/day`) | 5 | 4 | 100 | 1.5 |
 
 A group that is one thing to a person but is built of several counts as one block when its
-wrapper is marked `data-block`: the simple Home's four big tiles are its log, as Home's log
-card is, and read 8 blocks against a budget of 6 until they were marked (25 November; nothing
-on that screen changed). Mark sparingly, and say here what was marked.
+wrapper is marked `data-block`: the simple Home's four big tiles (bottle, diaper, sleep,
+note) are its log, as Home's log card is, and the screen read 8 blocks against a budget of 6
+until they were marked (25 November; it reads 5, with Ask outside the mark as a block of its
+own, and nothing on that screen changed). Mark sparingly, and say here what was marked.
 
 The phone checks must all read zero: *wide* (anything past the screen's edge), *sideways*
 (a strip that scrolls sideways), *tables*, *wrapped labels* (a chip, pill, tab, button or
@@ -709,12 +710,13 @@ Use these; extend one before adding a new one, and add any new one here.
 - **Three text sizes per card**: the headline (1.25 rem bold), the body (1 rem), the small
   muted line (0.85 rem). Screen titles use the display font; nothing else does. A card's
   headline is `.card-head`, one class, so no card sets a size of its own (the day cards and
-  the fridge tiles carried 1.5 rem until 25 November).
+  the fridge tiles carried 1.5 rem until 25 November, the pumping goal and "A usual day"
+  1.875 rem).
 - **Space, not boxes.** 20 px side margins, 16 px between blocks, a hairline between rows.
   The margins are one rule on `main`, and were 16 px until 25 November. Eight pixels less
   for every screen: at 390 px nothing changed in the phone checks, at 320 px five short
   labels broke in two and were mended where they stood (Feeds' two buttons say "Breast" and
-  "Bottle"; a medicine's Given button sits under its name; "All 3 on one day" in the vaccine
+  "Bottle"; a medicine's Given button sits under its name; "All 3 given" in the vaccine
   book; "Who's home Thursday?" among the helper's suggestions). After a change to margins or
   type, sweep at 320 px as well: `AUDIT_W=320 node scripts/ui-audit.mjs`.
 - **Large text** (More → Display, on by default for everyone but admins) makes

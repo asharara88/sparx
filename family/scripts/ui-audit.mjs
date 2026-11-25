@@ -11,8 +11,8 @@
 // scripts/fake-clock.cjs on a demo day shifted to that time), AUDIT_W (the phone's width in px,
 // default 390; 320 is the smallest the bible names: run the phone checks there too after a
 // change to margins or type).
-// A group that is one thing to a person but is built of several (the simple Home's four big
-// tiles: the log, as Home's log card is) is marked data-block on its wrapper and counts as one.
+// A group that is one thing to a person but is built of several (the simple Home's four log
+// tiles, as Home's log card is) is marked data-block on its wrapper and counts as one.
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 

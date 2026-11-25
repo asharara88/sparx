@@ -39,7 +39,7 @@ export function PumpDashboard({ pumps, milk, target, days, today, hourOfDay }: {
             <h2 id="usual-h" className="section-title">A usual day</h2>
             <span className="muted text-sm">last 7 days</span>
           </div>
-          <p className="text-3xl font-bold tabular-nums">
+          <p className="card-head tabular-nums">
             {s.averageMl} ml <span className="muted text-base font-semibold">{s.pumpingDays ? `on ${s.pumpingDays} pumping ${s.pumpingDays === 1 ? "day" : "days"}` : "no pumps yet"}</span>
           </p>
           <div className="flex items-end gap-1.5" style={{ height: 72 }} role="img" aria-label={`Pumped each day: ${bars.map((b) => `${label(b.day)} ${b.ml} ml`).join(", ")}`}>

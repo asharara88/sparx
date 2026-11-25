@@ -195,7 +195,7 @@ export function VaccineBook({ subjectId, name, data, timezone, canAdd, canEdit }
                   </form>
                 ) : (
                   <button type="button" className={`btn w-full ${v.status === "earlier" ? "" : "btn-primary"}`} onClick={() => setOpen(key)}>
-                    <Icon name="check" size={18} /> All {outstanding.length} on one day
+                    <Icon name="check" size={18} /> All {outstanding.length} given
                   </button>
                 )}
               </div>
