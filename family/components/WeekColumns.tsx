@@ -37,14 +37,15 @@ export function WeekColumns({ entries, days, prevDays, timezone, today }: { entr
   });
 
   return (
-    <section className="flex flex-col gap-2" aria-labelledby="wk-h">
+    <section className="card flex flex-col gap-3" aria-labelledby="wk-h">
+      {/* The headline sits in the card it is about (25 November: above it, it and its line were two more blocks). */}
       <div>
-        <h2 id="wk-h" className="font-[family-name:var(--font-display)] text-xl font-semibold">
+        <h2 id="wk-h" className="card-head">
           {title}
         </h2>
         <p className="muted text-sm">Sleep and feeds, midnight at the top. Tap a day.</p>
       </div>
-      <div className="card flex gap-1.5 py-3 pl-1 pr-2">
+      <div className="-ml-3 -mr-2 flex gap-1.5">
         <div className="relative w-7 shrink-0 text-[0.8rem] tabular-nums text-[var(--muted)]" style={{ height: H }} aria-hidden>
           {["00", "06", "12", "18", "24"].map((t, i) => (
             <span key={t} className="absolute right-1" style={{ top: Math.min(H - 16, Math.max(0, (i * H) / 4 - 8)) }}>

@@ -435,8 +435,13 @@ row (the log rows say how long ago); the nap notice (the card at the top).
 The photo, name and age (tap the photo to change it), then a segmented control: Today /
 Week / About her.
 
-- **Today**: the date with arrows for the days before, the totals strip, *To check* and the
-  guide as folds when they have something, the day's entries as a timeline list (time,
+- **Today**: the pager Feeds and Sleep use ("Today" over "Wed 25 Nov", two arrows, a swipe).
+  It says "Today" under the Today tab: the tab is the tab's name and stays lit on any day, the
+  pager says which day, and a weekday there means a day past. Here the pager has no first
+  day: the arrow back always works, as the old one did. Then the totals strip, *To check* as a yellow fold
+  when it has something (the one bar on the tab that asks for action, so it keeps its
+  colour), then what there is to read as rows of one white list (the guide; *Suggested*),
+  the day's entries as a timeline list (time,
   icon, what and how long, who; a tap opens its edit sheet), and **Add to this day** as the
   bottom button on a past day (today, the bar's ＋ does it). The log sheet: how she is right
   now (one tap), every kind of entry as a row, and *From earlier* for something missed.
@@ -446,21 +451,43 @@ Week / About her.
   where no milk is stored, and *From earlier* leaves out what the family does not log.
 - **Week**: the last seven days as **24-hour columns** (Huckleberry's schedule view):
   midnight at the top, sleep as lilac blocks, feeds as ticks, a line for now, today outlined.
-  The title is the answer ("Longest sleep 6 h 40 min, up from 5 h"). A whole day's column is
+  The title is the answer ("Longest sleep 6 h 40 min, up from 5 h") and sits in the chart's
+  card. A whole day's column is
   the tap target and opens that day (feed ticks and short naps are far under 44 px, so they
-  are not taps of their own). Then folds: against her age (a day's average over the days
+  are not taps of their own). Mood, when it was tapped, is a card under the columns. Then one
+  white list whose rows open in place: against her age (a day's average over the days
   logged, each kind over the days it was logged: `dayAverages` in `lib/norms.ts`), coming up,
-  sleep rhythm, day by day, the helper. Mood sits under the pattern. From 12 months a kind
+  sleep rhythm, day by day, the helper. From 12 months a kind
   shows in "against her age" and "day by day" only when it was logged that week, and with
   nothing to list the fold is not drawn. "Coming up" lists no feed, diaper, nap or wake (milk
   has no clock): it holds the plan card only, and is not drawn without a plan.
-- **About her**: what this age brings (a fold), then three groups of rows: Health (doctor,
-  when to call, vaccines, medicine, emergency, for the doctor), Growing (growth and trends,
+- **About her**: three groups of rows: Health (doctor,
+  when to call, vaccines, medicine, emergency, for the doctor), Growing (what this age brings,
+  a row that opens where it stands; growth and trends,
   firsts, week by week, play, story), Care (handover, ask about her). The name, the birth date
   and girl or boy are changed on Doctor, in the health card's edit form, by an admin; a new
   birth date asks once before saving, since everything that goes by age changes with it.
   For a parent of a child of 12 months or more, Care begins with "{Name}'s day", with the
   plain pill "look" while Home offers it.
+
+
+"Quieter lists", 25 November 2026 (Mido's pick of three options; "To check" kept yellow at
+his word). Every tab was over on blocks: a stack of tinted bars is a block each. What opens
+in place is now a row of one white list (`Fold flat`): the row keeps its tinted disc, its
+words, its hint and what it opens, and loses the bar. Red is the one colour that still
+crosses a row (the guide when it says to call the doctor, which also opens by itself). As
+an admin at 390 px, before → after; a family carer in large text reads the same counts and
+2.2, 1.5 and 1.4 screens:
+
+| The child's page | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| Today | 9 → 8 | 41 | 149 → 150 | 2.0 | none |
+| Week | 10 → 4 | 10 | 65 | 1.5 → 1.4 | none |
+| About her | 9 → 8 | 1 | 39 | 1.4 → 1.3 | none |
+
+Today stays over on numbers (a list of entries, the accepted exception). What left: the old
+arrow-and-date pager, the five fold bars on Week, the yellow or lilac bar of the guide and the
+blue one of Suggested, and "What this age brings" as a block of its own.
 
 ### The child's day (`/baby/day`)
 
@@ -730,7 +757,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Log row | `.log-row` in `LanaNow` | The four things logged most | Icon, name, how long ago and one detail; a round `.round-go` on the right, sized in rem so large text grows it; the row opens its sheet. Solid ▶ and the dark ■ (`.round-go-stop`) act at once; a soft ＋ (`.round-go-open`) opens the sheet. Tint = the feature. |
 | Big timer | `.big-timer` | Start or end something now, in a timer sheet and the Sleep section | One per sheet, 188 px round, tinted; clock times for "it already happened" under a `.divider-label`. There is one Sleep timer (`LanaNow`'s): Home draws it in the sheet, the Sleep section on the screen. |
 | Segmented control | `.segmented` | Two ways of the same entry (Breast / Bottle); two sections that are one place (`SectionSwitch`: Feeds / Sleep) | Two or three words; the chosen one raised. Made of links when it changes the page. |
-| Pager | `Pager` (`DayPager` for days), `DaySwipe`, `lib/day-nav.ts`, `stretchNav` in `lib/leaps.ts` | One of a row of screens: the day a section shows, the stretch Week by week shows | A name over a smaller line between two arrows; a swipe does the same; the arrow at either end is faint and does nothing. Which one is in the address (`?day=`, `?stretch=`); the one the screen opens on has none. |
+| Pager | `Pager` (`DayPager` for days), `DaySwipe`, `lib/day-nav.ts`, `stretchNav` in `lib/leaps.ts` | One of a row of screens: the day a section shows, the stretch Week by week shows, the day on the child's Today tab | A name over a smaller line between two arrows; a swipe does the same; the arrow at either end is faint and does nothing (the child's Today tab has no first day). Which one is in the address (`?day=`, `?stretch=`, `?d=`); the one the screen opens on has none. |
 | Day bar | `DayBar` (draws with `SleepBar`) | One day from midnight to midnight on a section | Sleep and feeds on one bar; `lead` says which the screen is about and draws the other faint. No numbers on it: the times are in the list. Not on Home. |
 | Stop button | `.btn-stop` | Ending a timer from a wide button | The dark square's colours, the same on every screen; start wears the feature's own colour. |
 | Nap window | `HomeState`, `napWindow()` | The next nap while she is awake | A clock-time window, a bar, one line. Only on Home. From 12 months only while a nap is expected (`topCard`). |
@@ -740,7 +767,7 @@ Use these; extend one before adding a new one, and add any new one here.
 | Stat strip | `TodayStrip` (Home), `DayStrip` tiles (the child's page) | A day's sums | Four at most, a dash for none. Home's: naps, feeds and diapers as plain counts, the first two linking to their sections; from 12 months only the kinds the family logs. |
 | Sleep today | `SleepDay` | The day's sleep on the child's Today tab | Headline: what she is doing and since when (woke at 07:10, awake 2 h; nap since 13:00). One bar from midnight: the night she woke from, each nap, where now is. One line of sums. The naps' times stay in the list. |
 | Notice | `.notice`, `.notice-warn` | The one Now item | One sentence and at most one button. One on screen; the rest wait behind **More** (`NowMore`), a sheet that lists them. |
-| Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `className="fold-flat"` makes folds the rows of one white list; no screen uses it since 24 November (earlier days and stretches became pages of their own), and it is kept for the next list of folds. |
+| Fold | `Fold` | Something useful but not now, on a deeper screen | Closed by default. Never on Home. Whatever is inside sits flat: no card in it. The title keeps its words and the grey hint is cut first. `flat` makes folds the rows of one white list (the child's page, 25 November): the row wears its colour on its disc, not as a bar, and only red still crosses the row. A row among links that opens where it stands is `details.row-fold` (About her, "What this age brings"). |
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
 | When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. On a screen (`short`): one row of the three latest times and "Other". |
 | Pill | `.pill` | A state beside a headline | "use first", "short", "expired". One line. Not for numbers that are fine. |

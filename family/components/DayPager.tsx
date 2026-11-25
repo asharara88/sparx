@@ -36,17 +36,23 @@ export function Pager({ prev, next, title, sub = null, label, prevLabel, nextLab
   );
 }
 
+/** A day as the pager names it: "Today" over "Tue 24 Nov", or "Wednesday" over "18 Nov". */
+export function dayWords(day: string, today: string): { title: string; sub: string } {
+  // "Today" and "Yesterday" get the weekday under them; a day named by its weekday gets the date alone.
+  const title = dayLabel(day, today);
+  const named = title === "Today" || title === "Yesterday";
+  return { title, sub: dateWords(new Date(`${day}T12:00:00Z`), { ...(named ? { weekday: "short" as const } : {}), day: "numeric", month: "short", timeZone: "UTC" }) };
+}
+
 /** The day a section is showing: "Today" over "Tue 24 Nov" (or "Wednesday" over "18 Nov"). */
 export function DayPager({ base, nav, today }: { /** The section's address ("/baby/feed"). */ base: string; nav: DayNav; today: string }) {
-  // "Today" and "Yesterday" get the weekday under them; a day named by its weekday gets the date alone.
-  const name = dayLabel(nav.day, today);
-  const named = name === "Today" || name === "Yesterday";
+  const words = dayWords(nav.day, today);
   return (
     <Pager
       prev={dayHref(base, nav.prev, today)}
       next={dayHref(base, nav.next, today)}
-      title={name}
-      sub={dateWords(new Date(`${nav.day}T12:00:00Z`), { ...(named ? { weekday: "short" as const } : {}), day: "numeric", month: "short", timeZone: "UTC" })}
+      title={words.title}
+      sub={words.sub}
       label="Days"
       prevLabel="The day before"
       nextLabel="The day after"
