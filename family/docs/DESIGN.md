@@ -719,6 +719,12 @@ Use these; extend one before adding a new one, and add any new one here.
   "Bottle"; a medicine's Given button sits under its name; "All 3 given" in the vaccine
   book; "Who's home Thursday?" among the helper's suggestions). After a change to margins or
   type, sweep at 320 px as well: `AUDIT_W=320 node scripts/ui-audit.mjs`.
+  The audit counts labels that break in two, not lines cut with "…", and the margins cut a
+  letter off a few of those at 360 and 375 px in large text ("Tell me what happene…"). So the
+  bars that hold one line gave the 8 px back inside: a log row's left padding and its gap, the
+  Tell me box, a fold's bar, and the gap in an entry's and a member's row. The four things
+  fixed over the page (the "heard" toast, the badge line, the helper's button, Home's "who
+  has her" menu) write the margin again, as 20 px: change them with it.
 - **Large text** (More → Display, on by default for everyone but admins) makes
   the root 19 px instead of 17, so every rem grows, sheets included. Until 13 November it only
   reached the shell's own text and left titles, folds, buttons and sheets at normal size.

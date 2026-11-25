@@ -59,7 +59,7 @@ export function CustodyToggle({
         {shown} ▾
       </button>
       {open && (
-        <div className={`${inline ? "fixed inset-x-4 top-[calc(env(safe-area-inset-top)+5.5rem)] z-40" : "absolute right-0 z-10 mt-2 w-64"} rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg`}>
+        <div className={`${inline ? "fixed inset-x-5 top-[calc(env(safe-area-inset-top)+5.5rem)] z-40" : "absolute right-0 z-10 mt-2 w-64"} rounded-2xl border border-[var(--line)] bg-[var(--card)] p-2 shadow-lg`}>
           <p className="muted px-2 py-1 text-sm">Who has {name} now?</p>
           {msg && (
             <p role="alert" className="notice notice-danger my-1 text-sm">

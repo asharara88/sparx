@@ -53,7 +53,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           const state = accounts && m.id !== me.member.id ? accounts[m.id] : "signed_in";
           return (
             <li key={m.id} className="row p-0">
-              <Link prefetch={false} href={`/members/${m.id}`} className="row-link flex w-full min-w-0 items-center gap-3 px-4 py-3">
+              <Link prefetch={false} href={`/members/${m.id}`} className="row-link flex w-full min-w-0 items-center gap-2 px-4 py-3">
                 <Avatar name={m.name} path={photos.get(m.id)} size={40} className="shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2">

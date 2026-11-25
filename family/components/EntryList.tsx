@@ -31,7 +31,7 @@ export function EntryList({ entries, types, timezone, canEdit, canDelete, bare =
             <li key={e.id} className={bare ? "row" : "row px-4"}>
               {/* DESIGN.md, list rows: the time and what, the detail and who under it ("Left breast ·
                   Dana"), and the row's one number, how long, on the right. When it ended is in the sheet. */}
-              <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(e)}>
+              <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpen(e)}>
                 <span className="w-12 shrink-0 font-semibold tabular-nums">{fmtTime(e.occurred_at, timezone)}</span>
                 <span aria-hidden className={`icon-disc tint-${tintFor(key)} ${icon ? "" : "text-lg"}`} style={{ width: 32, height: 32 }}>
                   {icon ? <Icon name={icon} size={17} /> : e.icon}
