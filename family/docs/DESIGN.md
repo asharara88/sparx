@@ -163,6 +163,20 @@ header of up to 24 characters breaking onto two lines), *card in card*, *small t
 44 px), *tiny text* (under 13 px). A screen over budget or failing a check does not merge
 until it is fixed or the exception is argued for in the PR.
 
+How the audit reads three things (25 November; each was a screen flagged for what a person
+does not see):
+
+- **A closed menu is the one option it shows.** Create another home read 468 words: 419 of
+  them were time zones in a menu nobody had opened. It reads 50.
+- **A tick box or a radio is as tall as the label it sits in**, which is what the finger meets.
+  The label must still be 44 px (`min-h-[44px]`): on Display and Entry types it was 24.
+- **The wordmark is a picture of letters**: its small "el" (`.wordmark`, `.wordmark-ar`) is
+  not counted as tiny text. Nothing else is let off: a chart's labels still count.
+
+`AUDIT_CUT=1` also lists the one-line labels that end in "…". It is not a check (a list row's
+detail is cut on purpose); it is the list to compare before and after a change to margins or
+type, at 320, 360, 375 and 390 px.
+
 Where things stood on 29 October 2026, before the phone passes (every screen was swept):
 
 | Screen | Blocks | Numbers | Words | Screens tall | Phone checks failing |
@@ -656,6 +670,38 @@ The database awards them from the log (migration 5900); the client never writes 
   rule 3's order, so anything that matters more wins.
 - **The shelf**: one card per kind, every medal in a row (won in its metal, the rest a grey
   outline to aim for), what the next needs with a bar, and the latest won.
+
+### The small screens brought inside the budget (25 November)
+
+Seven screens were over a budget or failed a phone check after the three redrawn ones; each
+was mended to the rules above, with nothing new on any of them. As an admin at 390 px,
+before → after:
+
+| Screen | Blocks | Numbers | Words | Screens tall | Phone checks failing |
+|---|---|---|---|---|---|
+| More (`/me`) | 9 → 8 | 1 | 45 | 1.5 | tiny text → none |
+| Display (`/me/display`) | 2 | 2 | 58 | 1 | small taps → none |
+| Entry types (`/members/types`) | 3 | 3 | 152 → 105 | 2.5 → 1.6 | small taps → none |
+| Create another home (`/me/homes/new`) | 3 | 0 | 468 → 50 | 1.2 | none (the count was wrong, not the screen) |
+| Calendar (`/calendar`) | 13 → 4 | 16 | 68 | 1.1 → 1.2 | none |
+| Play (`/baby/activities`) | 4 | 4 | 406 → 126 | 2.8 → 2.1 | none |
+| Helper skills (`/ask/skills`) | 4 → 3 | 17 → 0 | 324 → 67 | 2.3 → 1.6 | none |
+
+- **More**: Sign out is the last row of "You", with its icon, not a button of its own under
+  the list.
+- **Entry types**: the list comes first. "New entry type" is a fold under it; Edit on a row
+  opens that type's form at the top. The open form for a type nobody asked to make was a
+  third of the screen.
+- **Calendar**: the fortnight is one white list. A day is a small label inside it over its
+  rows, with a hairline between days. Something due (a vaccine, a medicine) is a row with
+  its tinted disc and "Due" or "Overdue" under its name, not a yellow box between the
+  cards. Numbers stay over (a list: each row carries its time).
+- **Play**: the screen is every idea for the age, so a row is the idea's name with its tick;
+  a tap opens how to do it, why it helps and the source. (The three-a-day card on the
+  child's page left on 29 October; the code that drew it left now.)
+- **Helper skills**: a row is the topic's name (and "always on"). When it is used, the ages,
+  the version and who saved it are in the form the row opens. The guidance on what a skill
+  may hold sits beside the field it is about.
 
 ### The landing page (`/welcome`)
 

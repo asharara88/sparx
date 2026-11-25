@@ -35,14 +35,14 @@ export function PrefsForm({ lang, simple, large, children }: { lang: Lang; simpl
           ))}
         </div>
       </div>
-      <label className="flex items-center justify-between gap-3">
+      <label className="flex min-h-[44px] items-center justify-between gap-3">
         <span>
           <span className="block font-semibold">Simple screen</span>
           <span className="muted text-sm">Four big buttons instead of the full home screen.</span>
         </span>
         <input type="checkbox" checked={simple} disabled={busy} onChange={(e) => save({ p_simple_mode: e.target.checked })} />
       </label>
-      <label className="flex items-center justify-between gap-3">
+      <label className="flex min-h-[44px] items-center justify-between gap-3">
         <span>
           <span className="block font-semibold">Large text</span>
           <span className="muted text-sm">Bigger everywhere.</span>

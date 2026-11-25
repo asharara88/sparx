@@ -19,14 +19,13 @@ export default async function SkillsPage() {
   const skills = res && res.ok ? res.items : [];
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/me" title="Helper skills" subtitle="What the helper knows, one topic at a time. Trigger words call a skill into an answer; always-on skills are in every answer. Say where a fact comes from." />
+      <PageHeader back="/me" title="Helper skills" subtitle="What the helper knows, one topic at a time. Always-on topics are in every answer; trigger words call the others in." />
       {!me.platform && (
         <p className="notice notice-accent">
           This is shared by every home on elnunu, so only the first home&apos;s admins change it. What you see here is what applies to yours.
         </p>
       )}
       <SkillEditor skills={skills} />
-      <p className="muted text-xs">A skill is guidance, not a prescription: keep medicines and doses out, and keep red flags pointing to the doctor. Every save is versioned and audited.</p>
     </div>
   );
 }

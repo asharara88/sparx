@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { HomeListing, Me, Presence, PresenceState } from "@/lib/types";
 import { WEEKDAYS, can } from "@/lib/types";
-import { SignOutButton } from "@/components/SignOutButton";
+import { SignOutForm } from "@/components/SignOutForm";
 import { Icon, type IconName } from "@/components/Icon";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import type { Tint } from "@/components/Fold";
@@ -120,10 +120,18 @@ export default async function MePage() {
             <Icon name="forward" size={18} className="muted" />
           </Link>
         ))}
+        {/* Sign out is the last row of You, not a button of its own under the list (25 November: the screen read 9 blocks). */}
+        <SignOutForm className="row p-0">
+          <button type="submit" className="row-link flex min-h-[48px] w-full items-center gap-3 px-4 text-left">
+            <span className="flex w-8 shrink-0 justify-center text-[var(--accent)]">
+              <Icon name="logout" size={20} />
+            </span>
+            <span className="flex-1 whitespace-nowrap font-medium">Sign out</span>
+          </button>
+        </SignOutForm>
       </nav>
 
-      <SignOutButton />
-      <p className="muted flex items-center justify-between pt-2 text-xs">
+      <p className="muted flex items-center justify-between pt-2 text-[13px]">
         <Wordmark size={18} arabic />
         <span>{me.member.email}</span>
       </p>

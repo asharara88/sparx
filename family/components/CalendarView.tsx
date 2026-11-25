@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CalendarData, CalendarEvent, DueItem, EventKind } from "@/lib/types";
 import { EVENT_KINDS, can } from "@/lib/types";
@@ -109,26 +109,38 @@ export function CalendarView({
       )}
 
       {/* Only the days with something on (and today): two weeks of empty days said nothing.
-          Each day is a label over one white list of rows (DESIGN.md, "List rows"), as on More. */}
+          One white list for the fortnight, each day a small label inside it over its rows
+          (25 November: a label and a card per day read 13 blocks for five days, and a due
+          vaccine was a yellow box between them; it is a row with its tinted disc now). */}
       {shownDays.length === 0 && <p className="muted px-1">Nothing planned in these two weeks.</p>}
-      {shownDays.map((day) => {
-        const ymd = day.date.slice(0, 10);
-        const events = byDay.get(day.date) ?? [];
-        const dueToday = due.filter((d) => d.due_on === ymd);
-        return (
-          <section key={day.date} className="flex flex-col gap-2" aria-labelledby={`d-${ymd}`}>
-            <h2 id={`d-${ymd}`} className="section-title">
-              {dayLabel(day.date, today)}
-            </h2>
-            {dueToday.map((d) => (
-              <Link prefetch={false} key={d.label + d.due_at} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className={`notice ${d.overdue ? "notice-danger" : "notice-warn"} block text-sm font-semibold`}>
-                {d.subject}: {d.label} due{d.overdue ? " (overdue)" : ""}
-              </Link>
-            ))}
-            {events.length === 0 ? (
-              dueToday.length === 0 && <p className="muted px-1">Nothing planned.</p>
-            ) : (
-              <ul className="card flex flex-col p-0">
+      {shownDays.length > 0 && (
+        <ul className="card agenda flex flex-col p-0">
+          {shownDays.map((day) => {
+            const ymd = day.date.slice(0, 10);
+            const events = byDay.get(day.date) ?? [];
+            const dueToday = due.filter((d) => d.due_on === ymd);
+            return (
+              <Fragment key={day.date}>
+                <li className="agenda-day px-4">
+                  <h2 className="section-title p-0">{dayLabel(day.date, today)}</h2>
+                </li>
+                {dueToday.map((d) => (
+                  <li key={d.label + d.due_at} className="row px-4 py-0">
+                    <Link prefetch={false} href={d.kind === "vaccine" ? "/baby/vaccines" : "/baby"} className="row-link flex w-full items-center gap-3 py-3">
+                      <span className={`icon-disc size-8 ${d.overdue ? "tint-danger" : "tint-meds"}`}>
+                        <Icon name={d.kind === "vaccine" ? "syringe" : "clock"} size={17} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">
+                          {d.subject}: {d.label}
+                        </span>
+                        <span className={`block text-sm font-semibold ${d.overdue ? "text-[var(--danger)]" : "muted"}`}>{d.overdue ? "Overdue" : "Due"}</span>
+                      </span>
+                      <Icon name="forward" size={18} className="muted" />
+                    </Link>
+                  </li>
+                ))}
+                {events.length === 0 && dueToday.length === 0 && <li className="muted px-4 pb-3">Nothing planned.</li>}
                 {events.map((e) => {
                   const k = EVENT_KINDS.find((x) => x.id === e.kind);
                   const mine = e.created_by === me.member.id;
@@ -165,11 +177,11 @@ export function CalendarView({
                     </li>
                   );
                 })}
-              </ul>
-            )}
-          </section>
-        );
-      })}
+              </Fragment>
+            );
+          })}
+        </ul>
+      )}
       {footer}
       {canAdd && (
         <div className="bottom-action">
