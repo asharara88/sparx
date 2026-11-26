@@ -25,7 +25,13 @@ Vercel builds from `family/` (the project's root directory) and reads `family/ve
 CI (`.github/workflows/ci.yml`) runs the family job. A weekly audit workflow runs `npm audit`
 in `family/` and opens one issue when something is found; `docs/SECURITY_UPDATES.md` is the
 record of what was upgraded and when. Dependabot was added and removed on purpose: do not
-bring it back.
+bring it back. A weekly speed workflow (`speed-check.yml`, Mondays, free: no model calls)
+serves a production build with the demo home and runs `family/scripts/speed-check.mjs`: ten
+everyday screens and four taps against the budgets in that file (database calls and JavaScript
+per screen, time to paint, time blocked, layout shift, time to answer a tap). It opens one
+issue when something is over and closes it when the check is clean. A change that adds a
+database call or a dependency to an everyday screen should run it first (the file's header
+says how) and, if the budget must rise, raise it there with the reason.
 
 ## Branch and pull request rules
 

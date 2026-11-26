@@ -140,6 +140,16 @@ Done and live:
 - Dependencies: a weekly audit workflow at the repo root checks this app and opens
   an issue when something is found; what was upgraded and when is in
   `docs/SECURITY_UPDATES.md` (repo root).
+- Speed (25 November): a second weekly workflow (`speed-check.yml`, Mondays) serves a
+  production build with the demo home and runs `scripts/speed-check.mjs`. It reads ten
+  everyday screens and four taps against budgets written in that file: database calls and
+  JavaScript per screen (exact figures, so creep shows), time to paint, time blocked, layout
+  shift and time to answer a tap (on a page with the processor slowed four times). One issue
+  opens when something is over and closes itself on the next clean run; every run's table is
+  in the run's summary. On the day it was added: Home made 9 database calls and the Week tab
+  10, every screen loaded 816 to 893 kB of JavaScript, painted inside 1.1 s and answered a tap
+  inside 0.2 s. It does not see the live site: real phones on real networks would need
+  Vercel's Speed Insights, which the app does not include.
 - Joining by invite link (migration 5300, `docs/MULTI_HOME.md` → Joining): *Send an
   invite link* under a name on the Members screen; `/join/<token>` shows the home and
   the name, signs the person in with any e-mail, and makes their account that member
