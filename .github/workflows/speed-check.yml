@@ -8,12 +8,18 @@
 # its budget" with the table, and closes it once the check is clean again. The issue is the
 # record that something is open; the fix is a pull request made by hand, or the budget raised
 # in that file with the reason. Every run's table is in the run's summary and its artifact.
+# It also runs on a pull request that changes the check itself (this file or the script), so a
+# change to the check is tried before it lands; that run opens no issue, it only passes or fails.
 name: Speed check
 
 on:
   schedule:
     - cron: "47 10 * * 1"  # Mondays, 10:47 UTC (14:47 in Dubai: the demo day has a day in it)
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/speed-check.yml
+      - family/scripts/speed-check.mjs
 
 permissions:
   contents: read
@@ -106,7 +112,7 @@ jobs:
             ${{ runner.temp }}/server.log
           if-no-files-found: ignore
       - name: Open, refresh or close the tracking issue
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           CHECK: ${{ steps.check.outcome }}
@@ -144,4 +150,9 @@ jobs:
             gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label speed --body-file "$RUNNER_TEMP/body.md"
           fi
           echo "Over budget; the issue carries the table." >&2
+          exit 1
+      - name: On a pull request, the run itself says it
+        if: always() && github.event_name == 'pull_request' && steps.check.outcome != 'success'
+        run: |
+          echo "The speed check is over a budget or could not run; the summary has the table." >&2
           exit 1
