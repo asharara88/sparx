@@ -80,6 +80,7 @@ export default async function AchievementsPage() {
             ) : (
               <p className="text-sm font-semibold">Every medal won.</p>
             )}
+            {t.note && <p className="muted text-sm">{t.note}</p>}
             {latest && (
               <p className="muted text-sm">
                 Latest: {t.tiers.find((x) => x.tier === latest.tier)?.name}

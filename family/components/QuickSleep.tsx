@@ -7,6 +7,7 @@ import { endOrQueue, mergeOngoing, newClientId, onQueueChange, readQueueFor, sen
 import { fmtTime } from "@/lib/time";
 import { Icon } from "@/components/Icon";
 import { WhenChips } from "@/components/WhenChips";
+import { SavedTick } from "@/components/SavedTick";
 import { NOW, type When, whenToIso, isEarlier } from "@/lib/when";
 import { fromLocalInput } from "@/lib/time";
 
@@ -16,6 +17,8 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
   const [busy, setBusy] = useState(false);
   const [whenBad, setWhenBad] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Counts the saves that worked: the tick beside the words plays once for each (SavedTick).
+  const [tick, setTick] = useState(0);
   const [when, setWhen] = useState<When>(NOW);
   // A sleep started with no signal is still on this phone; it counts as asleep.
   const [queue, setQueue] = useState<QueuedOp[]>([]);
@@ -29,6 +32,7 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
 
   async function go() {
     setMsg(null);
+    setTick(0);
     const sb = supabaseBrowser();
     const at = whenToIso(when, Date.now(), (l) => fromLocalInput(l, timezone));
     if (asleep && Date.parse(at) < Date.parse(asleep.occurred_at)) {
@@ -42,6 +46,7 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
     if (r.status === "error") return setMsg(r.message);
     const base = `${asleep ? "Woke up, saved" : "Sleep started"}${isEarlier(when) ? ` as of ${fmtTime(at, timezone)}` : ""}.`;
     setMsg(r.status === "queued" ? `${base} Saved on this phone; it will send when back online.` : base);
+    setTick(Date.now());
     setWhen(NOW);
     router.refresh();
   }
@@ -57,8 +62,9 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
       </div>
       <WhenChips value={when} onChange={setWhen} onValid={(ok) => setWhenBad(!ok)} timezone={timezone} disabled={busy} label={asleep ? "Woke up" : "Fell asleep"} />
       {msg && (
-        <p role="status" className="notice notice-ok text-center font-semibold">
-          {msg}
+        <p role="status" className="notice notice-ok flex items-center justify-center gap-2 text-center font-semibold">
+          {tick > 0 && <SavedTick key={tick} />}
+          <span>{msg}</span>
         </p>
       )}
     </div>

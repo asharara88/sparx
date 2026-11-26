@@ -11,6 +11,7 @@ import { fmtTime, todayYmd } from "@/lib/time";
 import { dirOf, fmtAgo, optionLabel, speechLang, t, type Lang } from "@/lib/i18n";
 import { child, childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
+import { SavedTick } from "@/components/SavedTick";
 import { ListenButton } from "@/components/ListenButton";
 import { awakeWindow } from "@/lib/child-insights";
 import { ageInDays, isToddler, pumpingActive } from "@/lib/stage";
@@ -199,8 +200,9 @@ export function SimpleHome({ summary, recent, milk, plan = null }: { summary: Ho
         {milk && showMilk && <p className="muted">{milk.fridge_ml} ml {L("milkInFridge")}</p>}
       </header>
       {msg && (
-        <p role="status" className={`notice ${msg === L("saved") ? "notice-ok" : "notice-danger"} text-center text-lg font-semibold`}>
-          {msg}
+        <p role="status" className={`notice ${msg === L("saved") ? "notice-ok" : "notice-danger"} flex items-center justify-center gap-2 text-center text-lg font-semibold`}>
+          {msg === L("saved") && <SavedTick size={26} />}
+          <span>{msg}</span>
         </p>
       )}
       {panel === null && hints.length > 0 && (
