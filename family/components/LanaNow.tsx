@@ -254,6 +254,9 @@ export function LanaNow({
       setClash(null);
       startRefresh(() => router.refresh());
     } catch (e) {
+      // Two taps can overlap (the rows stay live while one saves): the one that worked may have set
+      // the tick after this one cleared it, and a refusal must never stand beside a tick.
+      setTick(null);
       setMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
       flight.current -= 1;

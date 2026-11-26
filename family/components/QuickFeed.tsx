@@ -129,6 +129,7 @@ export function QuickFeed({
       setSaved(Date.now());
       router.refresh();
     } catch (e) {
+      setSaved(0); // never a tick beside a refusal, whatever an earlier tap set
       setMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
       setBusy(false);

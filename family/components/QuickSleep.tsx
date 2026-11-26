@@ -43,7 +43,10 @@ export function QuickSleep({ subjectId, typeId, asleep: serverAsleep, timezone }
       ? await endOrQueue(sb, asleep.id, at)
       : await sendOrQueue(sb, { client_id: newClientId(), subject_id: subjectId, type_id: typeId, occurred_at: at, ended_at: null, payload: {}, note: null });
     setBusy(false);
-    if (r.status === "error") return setMsg(r.message);
+    if (r.status === "error") {
+      setTick(0); // never a tick beside a refusal, whatever an earlier tap set
+      return setMsg(r.message);
+    }
     const base = `${asleep ? "Woke up, saved" : "Sleep started"}${isEarlier(when) ? ` as of ${fmtTime(at, timezone)}` : ""}.`;
     setMsg(r.status === "queued" ? `${base} Saved on this phone; it will send when back online.` : base);
     setTick(Date.now());
