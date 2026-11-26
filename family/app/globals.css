@@ -307,6 +307,17 @@ h2.section-title { letter-spacing: 0.06em; }
   border: 1.5px solid var(--line); background: var(--card-2); color: transparent;
 }
 .tick[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: var(--card); }
+/* The tick that fills when something is saved (components/SavedTick.tsx): the ring closes, then
+   the check is drawn. Drawn once; still and full for someone who asked for less motion. */
+.saved-tick { flex: none; }
+.saved-tick circle { fill: var(--ok); transform-origin: center; animation: saved-ring 0.28s ease-out both; }
+.saved-tick path { fill: none; stroke: var(--card); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; stroke-dashoffset: 16; animation: saved-check 0.22s 0.16s ease-out forwards; }
+@keyframes saved-ring { from { transform: scale(0.3); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes saved-check { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .saved-tick circle { animation: none; }
+  .saved-tick path { animation: none; stroke-dashoffset: 0; }
+}
 
 .input {
   width: 100%;

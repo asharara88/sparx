@@ -12,6 +12,7 @@
  * was made in, so it is replayed into that home whatever the phone shows later.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
+import { buzz } from "./moment.ts";
 
 /** The request header naming the home (HOME_HEADER in lib/home-cookie.ts; repeated here so the node test runner can load this file). */
 const HOME_HEADER = "x-home";
@@ -277,8 +278,18 @@ function rpcEnd(supabase: SupabaseClient, e: QueuedEnd) {
 
 type RpcRes = { ok: boolean; id?: string; open?: boolean; error?: string; message?: string } | null;
 
+/** A save that worked, sent or kept on the phone, earns its small moment (lib/moment.ts). */
+function felt(r: SendResult): SendResult {
+  if (r.status !== "error") buzz();
+  return r;
+}
+
 /** Try to send a log entry now; when the network is the problem keep it for later. */
 export async function sendOrQueue(supabase: SupabaseClient, e: Omit<QueuedEntry, "queued_at" | "owner" | "op">): Promise<SendResult> {
+  return felt(await sendEntry(supabase, e));
+}
+
+async function sendEntry(supabase: SupabaseClient, e: Omit<QueuedEntry, "queued_at" | "owner" | "op">): Promise<SendResult> {
   const owner = await currentOwner(supabase);
   const queued: QueuedEntry = { ...e, op: "log", queued_at: new Date().toISOString(), owner, home: queueHome };
   if (typeof navigator !== "undefined" && !navigator.onLine) return keep(queued);
@@ -314,6 +325,10 @@ export async function sendOrQueue(supabase: SupabaseClient, e: Omit<QueuedEntry,
  * the start itself is given its end time and nothing extra is sent.
  */
 export async function endOrQueue(supabase: SupabaseClient, entryId: string, endedAt: string): Promise<SendResult> {
+  return felt(await endEntry(supabase, entryId, endedAt));
+}
+
+async function endEntry(supabase: SupabaseClient, entryId: string, endedAt: string): Promise<SendResult> {
   const owner = await currentOwner(supabase);
   if (entryId.startsWith(QUEUED_ID_PREFIX)) {
     const startId = entryId.slice(QUEUED_ID_PREFIX.length);

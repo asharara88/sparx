@@ -120,10 +120,12 @@ household*); nothing in the code is tied to these people.
   diaper") give one card each and a **Confirm all**. A correction ("no, 90 ml") replaces the
   earlier card instead of adding a second one.
 - **Achievements** (`/achievements`, More → Family; migration 5900): badges for the grown-ups,
-  never for the baby's numbers. Pumping on goal N days in a row (1, 3, 7, 14, 30), days well
-  over the goal (1, 5, 15), the freezer stash (500 ml, 1 l, 2 l). Awarded in the database
-  from the log (`achievements_check`, called by Home and the shelf); shown once per person
-  with confetti and a medal; a nudge on Home keeps a pumping run going. No model calls.
+  never for the baby's numbers. A run of N days on the pumping goal (1, 3, 7, 14, 30; one day
+  off a week does not break it, migration 6900), days well over the goal (1, 5, 15), the
+  freezer stash (500 ml, 1 l, 2 l). Awarded in the database from the log
+  (`achievements_check`, called by Home and the shelf); shown once per person with confetti
+  and a medal; a nudge on Home says what today would add to a run. Every saved log also gets
+  a small moment: a soft buzz and a tick that fills (`lib/moment.ts`). No model calls.
 - **Plain logs need no model call.** "120 ml bottle", "wet diaper", "fell asleep 10 min ago",
   "woke up at 6:40" and "slept 1 to 2:15" are read on the phone (`lib/assistant/quick-log.ts`)
   and saved at once, with **Undo** for a minute; "changed a diaper" asks Wet / Dirty / Both

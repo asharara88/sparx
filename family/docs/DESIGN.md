@@ -731,9 +731,26 @@ Dana taps is read back on both screens (Mido, 4 November).
 
 Badges for what the grown-ups do, never for the baby's own numbers (Mido, 9 November: "mainly
 designed to motivate Dana and the rest, not Lana"; how much she drinks or sleeps is hers to set).
-Pumping on goal for N days in a row (first, bronze 3, silver 7, gold 14, diamond 30), days well
+A run of N days on the pumping goal (first, bronze 3, silver 7, gold 14, diamond 30), days well
 over the goal (110% or more: 1, 5, 15), and the freezer stash (500 ml, 1 l, 2 l, the family's).
 The database awards them from the log (migration 5900); the client never writes one.
+
+Rewards lift, they do not add guilt (Mido, 26 November). Three rules follow, for every reward
+the app gives:
+
+- **A run forgives one day off a week** (migration 6900). A bad night, a low day or a day out
+  is stepped over: it adds nothing to the count and does not end it. A second day off in the
+  same week does end it. The shelf says so in one line under the track.
+- **The app never says a run was lost.** A run that ended is simply not spoken of, and the
+  medals already won stay. Home's nudge names what today would add ("makes it 5 days on
+  goal"), never what a short day would cost (it read "keeps your 4-day run" until then).
+- **The small moment on every save.** A medal is rare; a save is many times a day. Every log
+  that is saved, sent or kept on the phone, gives a soft buzz (`lib/moment.ts`, called where
+  every save passes, `lib/offline.ts`) and a tick that fills beside the words that say what
+  was saved (`SavedTick`: Home, Feeds, Sleep, the two quick screens, the simple screen).
+  About a third of a second, nothing to dismiss, nothing in the way at 3 am, and never beside
+  an error. No buzz and a still tick for someone who asked for less motion. The web cannot
+  buzz an iPhone: there the tick is the whole moment.
 
 - **The moment**: it never stands between a parent and the log (12 November: at 3 am the
   medal covered Home before a feed could be tapped). Home opens as usual with one slim line
@@ -744,7 +761,7 @@ The database awards them from the log (migration 5900); the client never writes 
   See the shelf opens the shelf. Once per person per badge, on every phone. No motion for
   someone who asked for less.
 - **Home** gains no block. While a pumping run is going and today is short of the goal, the
-  pumping parent's one notice slot may say "190 ml more today keeps your 4-day run", last in
+  pumping parent's one notice slot may say "190 ml more today makes it 5 days on goal", last in
   rule 3's order, so anything that matters more wins.
 - **The shelf**: one card per kind, every medal in a row (won in its metal, the rest a grey
   outline to aim for), what the next needs with a bar, and the latest won.

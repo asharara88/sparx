@@ -1819,6 +1819,43 @@ select pg_temp.assert((select count(*) from public.achievements where badge = 'p
 select pg_temp.assert(pg_temp.fails($q$insert into public.achievements (household_id, member_id, badge, tier) values (private.current_household_id(), public.current_member_id(), 'pump_goal', 5)$q$), 'nobody writes a badge for themselves');
 select pg_temp.assert(pg_temp.fails($q$update public.achievements set tier = 5$q$) or (select count(*) from public.achievements where tier = 5) = 0, 'nor raises one');
 reset role;
+-- A run forgives one day off a week (migration 6900). On goal 6 and 5 days ago, nothing 4 days
+-- ago, then the three days above: one run of five.
+insert into public.care_entries (subject_id, module_id, type_id, occurred_at, payload, household_id)
+select :lana, 'lana', 'lana.pump', ((now() at time zone h.timezone)::date - d)::timestamp at time zone h.timezone + interval '10 hours',
+       jsonb_build_object('amount_ml', h.milk_target_ml), h.id
+  from public.household h, unnest(array[5, 6]) d
+ where h.id = :'fam_home';
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert(((public.achievements_list())->'numbers'->>'current_run')::int = 5 and ((public.achievements_list())->'numbers'->>'best_run')::int = 5, 'one day off in the week does not break her run: five days on goal, the day off not counted');
+reset role;
+-- A second day off inside the same week is not stepped over: on goal 9 and 8 days ago makes
+-- the day 7 days ago the one forgiven, and the day 4 days ago ends that run.
+insert into public.care_entries (subject_id, module_id, type_id, occurred_at, payload, household_id)
+select :lana, 'lana', 'lana.pump', ((now() at time zone h.timezone)::date - d)::timestamp at time zone h.timezone + interval '10 hours',
+       jsonb_build_object('amount_ml', h.milk_target_ml), h.id
+  from public.household h, unnest(array[8, 9]) d
+ where h.id = :'fam_home';
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert(((public.achievements_list())->'numbers'->>'current_run')::int = 3 and ((public.achievements_list())->'numbers'->>'best_run')::int = 4, 'a second day off in the same week is not forgiven: the older run ends at four, the newer stands at three');
+select pg_temp.assert((select count(*) from public.achievements where badge = 'pump_goal' and tier = 2) = 1, 'and the medal she won is still hers');
+reset role;
+-- Yesterday missed: the run is still going today, because yesterday can be the day off.
+update public.care_entries e set deleted_at = now()
+  from public.household h
+ where h.id = :'fam_home' and e.household_id = h.id and e.type_id = 'lana.pump'
+   and (e.occurred_at at time zone h.timezone)::date = (now() at time zone h.timezone)::date - 1;
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert(((public.achievements_list())->'numbers'->>'current_run')::int = 2, 'a missed yesterday has not ended her run: it stands at two until today is over');
+reset role;
+-- And the day put back, for the checks below.
+update public.care_entries e set deleted_at = null
+  from public.household h
+ where h.id = :'fam_home' and e.household_id = h.id and e.type_id = 'lana.pump'
+   and (e.occurred_at at time zone h.timezone)::date = (now() at time zone h.timezone)::date - 1;
 select pg_temp.act_as(:mido);
 set role authenticated;
 select pg_temp.assert(not exists (select 1 from jsonb_array_elements((public.achievements_check())->'new') x where x->>'badge' like 'pump%'), 'Mido is not handed Dana''s pumping badges');

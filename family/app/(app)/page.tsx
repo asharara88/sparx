@@ -21,7 +21,7 @@ import { meOnce } from "@/lib/server/me";
 import { HomeHeader } from "@/components/HomeHeader";
 import { TellBar } from "@/components/TellBar";
 import { Celebration, type FreshBadge } from "@/components/Celebration";
-import { keepRun, type BadgeNumbers } from "@/lib/achievements";
+import { runNudge, type BadgeNumbers } from "@/lib/achievements";
 import { quickContextOf } from "@/lib/assistant/quick-context";
 import { HomeState } from "@/components/HomeState";
 import { DueNotice } from "@/components/DueNotice";
@@ -171,7 +171,7 @@ export default async function HomePage() {
   const { data: achData } = summary && summary.ok && can(me, "lana", "view") ? await supabase.rpc("achievements_check") : { data: null };
   const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers } | null;
   const fresh = ach?.ok ? (ach.new ?? []) : [];
-  const keep = me.member.breastfeeds && ach?.numbers && plan.milkNotices ? keepRun(ach.numbers) : null;
+  const keep = me.member.breastfeeds && ach?.numbers && plan.milkNotices ? runNudge(ach.numbers) : null;
   const pumpDays = (((statsData as { ok?: boolean; days?: PumpDay[] } | null)?.days ?? []) as PumpDay[]).map((d) => ({ day: d.day, pump_ml: Number(d.pump_ml) || 0 }));
   // Since yesterday evening, like the Milk screen's goal: a night pump counts for the day it feeds.
   const evening = new Date(Date.parse(dayRange(addDays(today, -1), tz).from) + 18 * 3_600_000).toISOString();

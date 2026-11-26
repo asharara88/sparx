@@ -11,6 +11,7 @@ import { fmtTime, todayYmd } from "@/lib/time";
 import { dirOf, fmtAgo, optionLabel, speechLang, t, type Lang } from "@/lib/i18n";
 import { child, childName } from "@/lib/names";
 import { Icon } from "@/components/Icon";
+import { SavedTick } from "@/components/SavedTick";
 import { ListenButton } from "@/components/ListenButton";
 import { awakeWindow } from "@/lib/child-insights";
 import { ageInDays, isToddler, pumpingActive } from "@/lib/stage";
@@ -183,7 +184,8 @@ export function SimpleHome({ summary, recent, milk, plan = null }: { summary: Ho
   );
 
   return (
-    <div className="flex flex-col gap-4" dir={dirOf(lang)} lang={lang}>
+    // data-screen: the speed check reads it to be sure this screen, not the full Home, is the one it timed.
+    <div className="flex flex-col gap-4" dir={dirOf(lang)} lang={lang} data-screen="simple">
       <header className="page-header page-header-large">
         {/* Emergency where the grandmother can find it, as on the full Home (HomeHeader). */}
         <div className="flex items-center gap-3">
@@ -199,8 +201,11 @@ export function SimpleHome({ summary, recent, milk, plan = null }: { summary: Ho
         {milk && showMilk && <p className="muted">{milk.fridge_ml} ml {L("milkInFridge")}</p>}
       </header>
       {msg && (
-        <p role="status" className={`notice ${msg === L("saved") ? "notice-ok" : "notice-danger"} text-center text-lg font-semibold`}>
-          {msg}
+        // Kept on the phone to send later is a save too (the buzz already says so): the same green
+        // and the same tick as one that was sent. Only what was refused is red.
+        <p role="status" className={`notice ${msg === L("saved") || msg === L("savedOffline") ? "notice-ok" : "notice-danger"} flex items-center justify-center gap-2 text-center text-lg font-semibold`}>
+          {(msg === L("saved") || msg === L("savedOffline")) && <SavedTick size={26} />}
+          <span>{msg}</span>
         </p>
       )}
       {panel === null && hints.length > 0 && (

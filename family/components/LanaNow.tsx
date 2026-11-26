@@ -13,6 +13,7 @@ import { EntrySheet } from "./EntrySheet";
 import { Boobs } from "./Boobs";
 import { Sheet as BaseSheet } from "./Sheet";
 import { Icon, type IconName } from "@/components/Icon";
+import { SavedTick } from "@/components/SavedTick";
 import { WhenChips } from "@/components/WhenChips";
 import { TimeBox } from "@/components/TimeBox";
 import { NOW, type When, whenToIso, isEarlier, recallWhen } from "@/lib/when";
@@ -77,6 +78,8 @@ export function LanaNow({
   const [inFlight, setInFlight] = useState(0);
   const busy = inFlight > 0;
   const [msg, setMsg] = useState<string | null>(null);
+  // The save that just worked, by its number: the tick beside its words plays once for each (SavedTick). Null beside an error.
+  const [tick, setTick] = useState<number | null>(null);
   // Undo for the last tap (Mido, 7 November: a bottle logged twice): what that tap logged,
   // for half a minute, once the server has it. A tap kept on the phone (no signal) has no
   // undo: it could be sent while Undo is pressed, so it is fixed from the Recent list once
@@ -226,6 +229,7 @@ export function LanaNow({
   async function run(label: string, fn: () => Promise<unknown>, sayTime = true, undoable = true) {
     setInFlight((n) => n + 1);
     setMsg(null);
+    setTick(null);
     setUndo(null);
     queuedRef.current = false;
     afterRef.current = null;
@@ -243,12 +247,16 @@ export function LanaNow({
       const base = isEarlier(when) && sayTime ? `${label.replace(/\.$/, "")}, as of ${fmtTime(whenIso, timezone)}.` : label;
       const said = afterRef.current ? `${base} ${afterRef.current}` : base;
       setMsg(queuedRef.current ? `${said} Saved on this phone; it will send when back online.` : said);
+      setTick(seq);
       if (isEarlier(when)) lastEarlier.current = { when: { kind: "at", local: toLocalInput(whenIso, timezone) }, at: Date.now() };
       setWhen(NOW);
       setSheet(null);
       setClash(null);
       startRefresh(() => router.refresh());
     } catch (e) {
+      // Two taps can overlap (the rows stay live while one saves): the one that worked may have set
+      // the tick after this one cleared it, and a refusal must never stand beside a tick.
+      setTick(null);
       setMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
       flight.current -= 1;
@@ -463,6 +471,7 @@ export function LanaNow({
     <section className="flex flex-col gap-3" aria-live="polite">
       {msg && (
         <div role="status" className="notice notice-ok flex items-center gap-3 text-sm">
+          {tick != null && <SavedTick key={tick} />}
           <span className="flex-1">{msg}</span>
           {undo && (
             <button type="button" className="btn" disabled={busy} onClick={() => undoLast(undo)}>

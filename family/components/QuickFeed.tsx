@@ -15,6 +15,7 @@ import {
 } from "@/lib/offline";
 import { fmtDuration, fmtTime, minutesBetween } from "@/lib/time";
 import { Boobs } from "@/components/Boobs";
+import { SavedTick } from "@/components/SavedTick";
 
 type Side = "Left" | "Right";
 const sideOf = (p: Record<string, unknown>): Side | null =>
@@ -48,6 +49,8 @@ export function QuickFeed({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Counts the saves that worked: the tick beside the words plays once for each (SavedTick).
+  const [saved, setSaved] = useState(0);
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
@@ -114,6 +117,7 @@ export function QuickFeed({
   async function act(label: string, fn: () => Promise<void>) {
     setBusy(true);
     setMsg(null);
+    setSaved(0);
     queued = false;
     try {
       await fn();
@@ -122,8 +126,10 @@ export function QuickFeed({
           ? `${label} Saved on this phone; it will send when back online.`
           : label,
       );
+      setSaved(Date.now());
       router.refresh();
     } catch (e) {
+      setSaved(0); // never a tick beside a refusal, whatever an earlier tap set
       setMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
       setBusy(false);
@@ -171,8 +177,9 @@ export function QuickFeed({
         </p>
       )}
       {msg && (
-        <p role="status" className="notice notice-ok text-center font-semibold">
-          {msg}
+        <p role="status" className="notice notice-ok flex items-center justify-center gap-2 text-center font-semibold">
+          {saved > 0 && <SavedTick key={saved} />}
+          <span>{msg}</span>
         </p>
       )}
     </div>

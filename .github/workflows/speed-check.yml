@@ -66,6 +66,9 @@ jobs:
             echo "== $f"
             $PSQL -d family_speed -f "$f"
           done
+          # Nobody in the demo home is on the simple screen; the check times it as the family carer
+          # (family/scripts/speed-check.mjs says why).
+          $PSQL -d family_speed -c "update public.members set simple_mode = true where id = '00000000-0000-4000-8000-000000000003'"
       - name: Production build
         run: npm run build
       # Playwright is not a dependency of the app: it is added here, at the version the scripts

@@ -28,6 +28,8 @@ export interface Track {
   says: (need: number) => string;
   /** The unit of progress, for "2 more days". */
   unit: (n: number) => string;
+  /** One line under the track on the shelf, when its rule needs saying. */
+  note?: string;
 }
 
 export const TRACKS: Track[] = [
@@ -43,8 +45,10 @@ export const TRACKS: Track[] = [
       { tier: 4, need: 14, metal: "gold", name: "Gold" },
       { tier: 5, need: 30, metal: "diamond", name: "Diamond" },
     ],
-    says: (n) => (n === 1 ? "A day on the pumping goal" : `${n} days on goal in a row`),
-    unit: (n) => `${n} more ${n === 1 ? "day" : "days"} in a row`,
+    // Not "in a row": a run forgives one day off a week (migration 6900), and says so on the shelf.
+    says: (n) => (n === 1 ? "A day on the pumping goal" : `A run of ${n} days on goal`),
+    unit: (n) => `${n} more ${n === 1 ? "day" : "days"} on goal`,
+    note: "One day off a week does not break a run.",
   },
   {
     id: "pump_beat",
@@ -88,7 +92,7 @@ export interface BadgeNumbers {
   freezer_ml: number;
 }
 
-/** The celebration's headline: "Gold!" and its line: "14 days on goal in a row". */
+/** The celebration's headline: "Gold!" and its line: "A run of 14 days on goal". */
 export function headline(id: string, tier: number): { title: string; line: string } {
   const t = track(id);
   const x = tierOf(id, tier);
@@ -98,7 +102,7 @@ export function headline(id: string, tier: number): { title: string; line: strin
 
 /**
  * The next tier of a track and how far there is to go, or null when every tier is won.
- * Pumping runs count from the run still going, so "2 more days" means two more days in a row.
+ * Pumping runs count from the run still going, so "2 more days on goal" adds to that run.
  */
 export function nextUp(id: BadgeId, n: BadgeNumbers, won: number[]): { tier: Tier; have: number; left: number } | null {
   const t = track(id);
@@ -111,9 +115,11 @@ export function nextUp(id: BadgeId, n: BadgeNumbers, won: number[]): { tier: Tie
 
 /**
  * Home's nudge for the pumping parent while a run is going and today is not on goal yet:
- * "190 ml more today keeps your 4-day run". Null when there is nothing to keep.
+ * "190 ml more today makes it 5 days on goal". It names what today would add, never what a
+ * short day would cost: until 26 November it read "keeps your 4-day run", which made a low
+ * day a loss. Null when no run is going, today is on goal already, or no goal is set.
  */
-export function keepRun(n: BadgeNumbers): string | null {
+export function runNudge(n: BadgeNumbers): string | null {
   if (!n.target || n.current_run < 1 || n.today_ml >= n.goal_from) return null;
-  return `${n.goal_from - n.today_ml} ml more today keeps your ${n.current_run}-day run`;
+  return `${n.goal_from - n.today_ml} ml more today makes it ${n.current_run + 1} days on goal`;
 }
