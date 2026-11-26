@@ -5,6 +5,7 @@ import { can } from "@/lib/types";
 import { meOnce } from "@/lib/server/me";
 import { PageHeader } from "@/components/PageHeader";
 import { Medal } from "@/components/Medal";
+import { CheerButton } from "@/components/CheerButton";
 import { nextUp, TRACKS, type BadgeNumbers } from "@/lib/achievements";
 import { fmtDate } from "@/lib/time";
 
@@ -14,6 +15,7 @@ interface Earned {
   id: string;
   badge: string;
   tier: number;
+  member_id: string | null;
   member_name: string | null;
   earned_at: string;
 }
@@ -81,12 +83,19 @@ export default async function AchievementsPage() {
               <p className="text-sm font-semibold">Every medal won.</p>
             )}
             {t.note && <p className="muted text-sm">{t.note}</p>}
-            {latest && (
-              <p className="muted text-sm">
-                Latest: {t.tiers.find((x) => x.tier === latest.tier)?.name}
-                {latest.member_name ? ` · ${latest.member_name}` : ""} · {fmtDate(latest.earned_at, tz, { day: "numeric", month: "short" })}
-              </p>
-            )}
+            {/* A medal that is someone else's can be cheered: the line itself is the door (migration 7000). */}
+            {latest &&
+              (() => {
+                const name = t.tiers.find((x) => x.tier === latest.tier)?.name;
+                const words = `Latest: ${name}${latest.member_name ? ` · ${latest.member_name}` : ""} · ${fmtDate(latest.earned_at, tz, { day: "numeric", month: "short" })}`;
+                return latest.member_id && latest.member_name && latest.member_id !== me.member.id && !me.preview ? (
+                  <CheerButton target={{ to: { id: latest.member_id, name: latest.member_name }, about: "medal", refId: latest.id, forWords: `the ${name} medal` }} className="muted -my-2 flex min-h-[44px] items-center gap-1 text-left text-sm">
+                    <span>{words} ·</span> <span className="font-semibold text-[var(--tint-fg)]">Cheer ›</span>
+                  </CheerButton>
+                ) : (
+                  <p className="muted text-sm">{words}</p>
+                );
+              })()}
           </section>
         );
       })}

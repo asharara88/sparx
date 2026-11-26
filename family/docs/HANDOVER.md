@@ -140,6 +140,16 @@ Done and live:
 - Dependencies: a weekly audit workflow at the repo root checks this app and opens
   an issue when something is found; what was upgraded and when is in
   `docs/SECURITY_UPDATES.md` (repo root).
+- Rewards (26 November). Step 1 (`…6900`): every save gives a soft buzz and a tick, and a
+  pumping run forgives one day off a week; the app never says a run was lost. Step 2
+  (`…7000`): a cheer from one member to another (`cheers`, `cheer_send`, `cheers_seen`),
+  shown once on Home on the medal's slim line, and a night a parent may choose to share
+  (`members.night_share`, `me_night_share_set`): the other parent's Home says "… was up
+  twice in the night" until noon, with one tap to take the child and one to cheer. Off until
+  she says yes on her own phone; both admins start unasked. Nothing was added to Home's
+  database calls: both ride in `achievements_check()`. The rule and its hours are constants
+  in `lib/nights.ts`; the whole of it is in DESIGN.md, "Cheers and shared nights". Still to
+  come: ticks for looking after herself, a weekly recap and surprises.
 - Speed (25 November): a second weekly workflow (`speed-check.yml`, Mondays) serves a
   production build with the demo home and runs `scripts/speed-check.mjs`. It reads ten
   everyday screens and four taps against budgets written in that file: database calls and

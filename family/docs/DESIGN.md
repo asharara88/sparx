@@ -325,6 +325,10 @@ bottom bar as a grid of tiles.
    without them: an overdue vaccine first, then the plan or the handover, entries to check and
    a vaccine that is due; the thaw reminder and "Fridge is low" only where milk is kept. A dose
    from before the home began (the vaccine book's grey "not recorded") is never a notice.
+   Two candidates come from "Cheers and shared nights" (below), both for a parent only: the
+   other parent's night ("Sara was up twice in the night", lilac, a moon), from the night's end
+   until noon, after entries to check and ahead of whatever can wait all day; and her own
+   question ("Tell Omar how your nights go?"), asked until answered, last but the pumping nudge.
    The day's line ("Lana is one. Look at her day", or "Set up Noor's day" for a family that
    joined later; `dayOffer` in `lib/day.ts`) is one more candidate, for a parent only, plain
    with no tint. For its first 7 days it sits after entries to check and before a vaccine that
@@ -755,7 +759,8 @@ the app gives:
 - **The moment**: it never stands between a parent and the log (12 November: at 3 am the
   medal covered Home before a feed could be tapped). Home opens as usual with one slim line
   over the tab bar, "You won Bronze ›", and × for not now; left alone it slips away after 12
-  seconds and comes back on the next open until seen. Tapping it plays the moment: the screen dims,
+  seconds, and either way it comes back on the next open until seen (until 26 November the ×
+  marked it seen for good, against its own label). Tapping it plays the moment: the screen dims,
   confetti bursts, the medal spins in, the phone buzzes; the title says the tier ("Silver!"),
   one line says what it took, "and 3 more on your shelf" counts the rest. Lovely closes it;
   See the shelf opens the shelf. Once per person per badge, on every phone. No motion for
@@ -765,6 +770,94 @@ the app gives:
   rule 3's order, so anything that matters more wins.
 - **The shelf**: one card per kind, every medal in a row (won in its metal, the rest a grey
   outline to aim for), what the next needs with a bar, and the latest won.
+
+### Cheers and shared nights (26 November)
+
+Rewards, step 2. A medal is the app speaking; a cheer is a person. And the heaviest thing a
+mother carries is the night, which nobody sees. So: one member can send another a short line
+about something they did, and a parent who chooses to can let the other parent see, the next
+morning, how her night went, with one tap to take the child and one to send a cheer.
+
+**A cheer** (migration 7000: `cheers`, `cheer_send`, `cheers_seen`; `lib/cheers.ts`)
+
+- From anyone who can see the child's log, to anyone else in the home who can. About one of
+  four things, each of which must be real and theirs: an entry they saved, a medal that is
+  theirs, their night (see below), or a day they saved something on (the database takes it;
+  its door comes with the weekly recap).
+- **Sending** (`CheerSheet`): "A cheer for Sara", one muted line saying what for, then three
+  set lines, one tap each: "Thank you", "Proud of you", "You are doing so much". Or the
+  sender's own words, 80 characters. Then a tick and "Sent to Sara." The words thank and
+  notice; none measures, compares or asks for more (a unit test holds them to it).
+- One cheer from a person about a thing: again says "You cheered this already." A dozen a
+  day from one person is the most ("That is plenty for today. They all arrived."): a cheer
+  is worth something because it is not a stream.
+- **The doors**, each a few words on a line that already names what was done: the night sheet;
+  the shelf's "Latest: Bronze · Sara · 24 Nov · Cheer ›", when the medal is someone else's;
+  the entry sheet's "Logged by Sara" with "Cheer" at its right, when that is not me.
+- **Receiving**: the medal's slim line over the tab bar, on Home: "Omar sent you a cheer ›".
+  Cheers come before medals, oldest first, and there is never more than one line. Tapping it
+  shows the words on the medal's card, with a heart where the medal would be (the medal
+  itself for a medal cheer), who sent it, what for, and "and 2 more". No confetti: it is a
+  person speaking, not a prize. "Lovely" brings the next. Opening is reading, so it is
+  marked seen, on every phone; × is "not now" and marks nothing, so a cheer is never lost
+  unread. Only the two of them ever read it: the table has no direct read for anyone, and an
+  admin viewing as her is not handed it.
+- Someone on the simple screen cannot be cheered yet: that screen has no place for the line
+  and one spare database call, and the sender is told so in plain words.
+
+**A night that may be shared** (`members.night_share`, `me_night_share_set`; `lib/nights.ts`)
+
+- **Off until she says yes.** Nothing is worked out for anyone before that. She is asked
+  once, on her own Home, in the Now slot (`NightAsk`): "Tell Omar how your nights go?", only
+  where there is another parent to tell, in the daytime, and only once a real night of hers
+  would give a line. The sheet shows her the very words he would read, made from that night,
+  and says what it is: a guess from what she saved, seen by him and nobody else, until noon,
+  after a night with two wakings or more. It also says what the switch does not hide: the
+  log still shows who saved each entry, as it always has. "Yes, tell Omar" or "No thanks";
+  either ends the asking, closing the sheet does not.
+- **Hers to change**: More, Display, "Tell Omar about my nights". Nobody can turn it on or off
+  for her, and not while viewing as her.
+- **The rule**, each figure a constant at the top of `lib/nights.ts`: the night runs from
+  23:00 to 06:00 at home (or to the child's morning when that is earlier); only what she
+  saved herself counts, never what was saved in her name; a timed entry (a breastfeed) is
+  time awake from start to end, at most 90 minutes, and a sleep or a timer the app closed
+  is one moment; saves within 30 minutes are one time up; under two times up, nothing is
+  said at all.
+- **The morning line** (`NightNotice`): on the other parent's Home, from the night's end
+  until noon: "Sara was up twice in the night" (twice has no digit; from three, one number,
+  as rule 4 asks). It is a Now-slot candidate, after entries to check and ahead of what can
+  wait all day, because it ends at noon. Only parents see it, never in "view as", never on
+  the simple screen, and she is never shown it about herself.
+- **The sheet behind it**: "Up 3 times." and "Longest quiet stretch: about 2 h." (rounded
+  down to the half hour: an estimate should not look exact), then "Sara chose to share this.
+  It is a guess from what was saved." Two things to do: **I have Mia now** (the header's
+  "with ..." switch, in one tap) and **Send a cheer**. Taking the child keeps the sheet open
+  so a cheer can follow, and only then is "Rest, I have the morning" offered, because only
+  then is it true. Once he has cheered that night or taken the child, the line has done its
+  work and is gone.
+- It never judges: no "only", no "bad night", no comparison with other nights or other
+  people, and no number is ever shown to her about her own night.
+
+**What it costs the screens.** Home gains no block and no database call: the cheers and who
+shares ride in `achievements_check()`, which Home already calls, her own switch in `me()`,
+and the night is read from the week of entries Home already holds. Measured as an admin at
+390 px on a morning with a broken night, before → after:
+
+| Screen | Blocks | Numbers | Words | Screens tall |
+|---|---|---|---|---|
+| Home, first screen, his (the line waiting behind More) | 6 → 6 | 14 → 14 | 65 → 65 | 0.9 → 0.9 |
+| Home, first screen, hers (the question waiting behind More) | 6 → 6 | 14 → 14 | 65 → 65 | 0.9 → 0.9 |
+| Display, hers | 2 → 2 | 2 → 2 | 58 → 75 | 1 → 1 |
+| Achievements, his | 4 → 4 | 10 → 10 | 95 → 98 | 1.2 → 1.2 |
+
+In the demo home three notices outrank the line, so it waits behind More and the first screen
+reads the same. When it wins the slot it takes the place of the notice that would have
+shown: eight words and at most one number on the one line. Phone checks pass on all four.
+Display makes one more call for a parent (to name the other one); it is not an everyday screen.
+
+**Left out on purpose**: a push (the line is there when he opens the app, and a buzz at 6 am
+is nobody's gift); a list of past cheers (the moment is the point); the simple screen;
+any promise about tonight.
 
 ### The small screens brought inside the budget (25 November)
 
@@ -839,6 +932,8 @@ Use these; extend one before adding a new one, and add any new one here.
 | Chip | `.chip` | A choice among a few | 44 px tall, one line, a word or two. |
 | When | `WhenChips` | The time of anything logged | One line until tapped; clock times on a ten-minute grid, then the picker. On a screen (`short`): one row of the three latest times and "Other". |
 | Pill | `.pill` | A state beside a headline | "use first", "short", "expired". One line. Not for numbers that are fine. |
+| Cheer sheet | `CheerSheet`, opened by `CheerButton` or the night sheet | Sending a cheer | Three set lines, one tap each, or 80 characters of the sender's own. A door is a few words on a line that already names what was done, 44 px tall, never a block of its own. |
+| Slim line over the tab bar | `Celebration` (`.celebrate-peek`) | Something given to this person: a cheer, a medal | One line whatever waits, cheers before medals; × is "not now" and marks nothing; it steps aside for a sheet or the keyboard. Outside the page's flow, so it is not a block. |
 | Tick | `.tick` | Marking a thing done (Activities, the bag list) | 44 px round; an empty ring until done, then a filled disc with a tick. |
 
 ## Colour, type and space

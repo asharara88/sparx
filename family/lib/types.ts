@@ -24,6 +24,8 @@ export interface Member {
   work_to?: string | null;
   /** Bigger text; null means "the role decides" (carers and staff get it). */
   large_text?: boolean | null;
+  /** "Tell the other parent how my nights go" (migration 7000): null never asked, then her yes or no. Only she sets it. */
+  night_share?: boolean | null;
 }
 
 export interface Role {

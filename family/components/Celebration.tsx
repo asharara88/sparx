@@ -1,9 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { headline, tierOf, track } from "@/lib/achievements";
+import { cheerFor, type Cheer } from "@/lib/cheers";
+import { buzz } from "@/lib/moment";
+import { Icon } from "./Icon";
 import { Medal } from "./Medal";
 
 export interface FreshBadge {
@@ -26,7 +29,103 @@ const COLOURS = ["#c2476a", "#f6b8c9", "#ffd37a", "#9fd8b8", "#9ec9f0", "#c9b6f2
  * "You won Bronze ›"; tapping it plays the moment. Left alone it slips away after a while
  * and comes back on the next open, until it has been seen.
  */
-export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
+export function Celebration({ fresh, cheers = [], today, timezone }: { fresh: FreshBadge[]; /** Cheers the member has not opened, oldest first (achievements_check). */ cheers?: Cheer[]; today: string; timezone: string }) {
+  // Cheers come first: a person said something, and that outranks a medal. One line at a
+  // time on the same spot, so a cheer and a medal new together are never two lines.
+  const [at, setAt] = useState(0);
+  const [opened, setOpened] = useState(false);
+  const [later, setLater] = useState(false);
+  const notNow = useCallback(() => setLater(true), []);
+  const cheer = cheers[at];
+  if (cheer) {
+    // "Not now", or left alone: every line steps aside for this visit. Nothing is marked, so it is all there next time.
+    if (later) return null;
+    return <CheerMoment key={cheer.id} cheer={cheer} more={cheers.length - at - 1} startOpen={opened} today={today} timezone={timezone} onOpen={() => setOpened(true)} onNext={() => setAt((n) => n + 1)} onLater={notNow} />;
+  }
+  return <MedalMoment fresh={fresh} />;
+}
+
+/**
+ * A cheer from someone in the home (migration 7000): the same slim line over the tab bar,
+ * "Omar sent you a cheer", and behind it the words. No confetti: it is a person speaking, not
+ * a prize. Opening it is reading it, so that marks it seen, on every phone; the x is "not
+ * now" and marks nothing, so a cheer is never lost unread. "Lovely" brings the next one.
+ */
+function CheerMoment({ cheer, more, startOpen, today, timezone, onOpen, onNext, onLater }: { cheer: Cheer; more: number; startOpen: boolean; today: string; timezone: string; onOpen: () => void; onNext: () => void; onLater: () => void }) {
+  const [open, setOpen] = useState(startOpen);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
+  useEffect(() => {
+    if (open) return;
+    const t = setTimeout(onLater, 12_000);
+    return () => clearTimeout(t);
+  }, [open, onLater]);
+  useEffect(() => {
+    if (!open) return;
+    buzz([18, 40, 18]);
+    // A Supabase query only runs once it is awaited or then-ed.
+    supabaseBrowser()
+      .rpc("cheers_seen", { p_ids: [cheer.id] })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }, [open, cheer.id]);
+  if (!host) return null;
+  const medal = cheer.about === "medal" && cheer.badge && cheer.tier != null ? { t: track(cheer.badge), x: tierOf(cheer.badge, cheer.tier) } : null;
+
+  if (!open)
+    return createPortal(
+      <div className="celebrate-peek">
+        <button
+          type="button"
+          className="celebrate-peek-open"
+          onClick={() => {
+            setOpen(true);
+            onOpen();
+          }}
+        >
+          <span className="cheer-heart" aria-hidden="true">
+            <Icon name="heart" size={18} />
+          </span>
+          <span className="truncate">{cheer.from_name} sent you a cheer</span>
+          <span aria-hidden="true">›</span>
+        </button>
+        <button type="button" className="celebrate-peek-close" aria-label="Not now" onClick={onLater}>
+          ×
+        </button>
+      </div>,
+      host,
+    );
+
+  return createPortal(
+    <div className="celebrate" role="dialog" aria-modal="true" aria-labelledby="cheer-words" onClick={onNext}>
+      <div className="celebrate-card" onClick={(e) => e.stopPropagation()}>
+        {medal?.t && medal.x ? (
+          <span className="celebrate-medal">
+            <Medal metal={medal.x.metal} icon={medal.t.icon} size={96} label={`${medal.x.name} medal`} />
+          </span>
+        ) : (
+          <span className="cheer-heart cheer-heart-big" aria-hidden="true">
+            <Icon name="heart" size={34} />
+          </span>
+        )}
+        <p className="muted text-sm font-semibold uppercase tracking-wider">A cheer from {cheer.from_name}</p>
+        <h2 id="cheer-words" className="cheer-words">
+          {cheer.words}
+        </h2>
+        <p className="muted">for {cheerFor(cheer, today, timezone)}</p>
+        {more > 0 && <p className="muted text-sm">and {more} more</p>}
+        <button type="button" className="btn btn-primary mt-2 w-full" onClick={onNext} autoFocus>
+          Lovely
+        </button>
+      </div>
+    </div>,
+    host,
+  );
+}
+
+function MedalMoment({ fresh }: { fresh: FreshBadge[] }) {
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState(fresh.length > 0);
   const [host, setHost] = useState<HTMLElement | null>(null);
@@ -114,7 +213,9 @@ export function Celebration({ fresh }: { fresh: FreshBadge[] }) {
           <span className="truncate">{t.family ? "The family won" : "You won"} {title.replace(/!$/, "")}</span>
           <span aria-hidden="true">›</span>
         </button>
-        <button type="button" className="celebrate-peek-close" aria-label="Not now" onClick={close}>
+        {/* "Not now" is not "never": the line steps aside for this visit and nothing is marked seen,
+            as a cheer's x does (until 26 November this x marked every new medal seen for good). */}
+        <button type="button" className="celebrate-peek-close" aria-label="Not now" onClick={() => setPeek(false)}>
           ×
         </button>
       </div>,

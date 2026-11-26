@@ -21,6 +21,10 @@ import { meOnce } from "@/lib/server/me";
 import { HomeHeader } from "@/components/HomeHeader";
 import { TellBar } from "@/components/TellBar";
 import { Celebration, type FreshBadge } from "@/components/Celebration";
+import type { Cheer } from "@/lib/cheers";
+import { andList, latestNight, memberNight, nightName, nightOf } from "@/lib/nights";
+import { NightAsk } from "@/components/NightAsk";
+import { NightNotice } from "@/components/NightNotice";
 import { runNudge, type BadgeNumbers } from "@/lib/achievements";
 import { quickContextOf } from "@/lib/assistant/quick-context";
 import { HomeState } from "@/components/HomeState";
@@ -169,8 +173,37 @@ export default async function HomePage() {
   // a nudge to keep a run going when nothing more pressing is waiting. The nudge is a
   // stored-milk notice: a run needs a pump today or yesterday, so with no day it shows as before.
   const { data: achData } = summary && summary.ok && can(me, "lana", "view") ? await supabase.rpc("achievements_check") : { data: null };
-  const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers } | null;
+  const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers; cheers?: Cheer[]; nights?: { member_id: string; cheered: boolean }[] } | null;
   const fresh = ach?.ok ? (ach.new ?? []) : [];
+  // Cheers and shared nights (migration 7000; DESIGN.md, "Cheers and shared nights"). Both ride
+  // in the call above, and the night itself is read from the week Home already holds.
+  const cheers = ach?.ok ? (ach.cheers ?? []) : [];
+  const parent = me.role.id === "admin" && !me.preview;
+  const childMorning = summary && summary.ok ? nightWindow(summary.subject.settings).to : null;
+  const lastNight = nightOf(today, tz, childMorning);
+  // The morning line, for the other parent: a member who shares her nights was up twice or
+  // more. From the night's end until noon; gone once he has cheered it or taken the child.
+  let morning: { sharer: { id: string; name: string }; times: number; longestMin: number } | null = null;
+  if (parent && ach?.ok && household.ok && summary && summary.ok && now.getTime() >= lastNight.to && hour < 12 && !(summary.custody?.member_id === me.member.id && Date.parse(summary.custody.since) >= lastNight.to)) {
+    const open = (ach.nights ?? []).filter((n) => !n.cheered).map((n) => n.member_id);
+    // Never two lines: whoever breastfeeds first, then the home's own order.
+    const sharers = household.members.filter((m) => open.includes(m.id)).sort((a, b) => Number(!!b.breastfeeds) - Number(!!a.breastfeeds));
+    for (const m of sharers) {
+      const night = memberNight(week, m.id, lastNight);
+      if (night) {
+        morning = { sharer: { id: m.id, name: m.name }, ...night };
+        break;
+      }
+    }
+  }
+  // The question, on her own Home, until she answers it: only where there is another parent to
+  // tell, in the daytime, and only once a real night of hers would give a line to show her.
+  let ask: { names: string; sample: { name: string; times: number; longestMin: number } } | null = null;
+  if (parent && me.member.night_share == null && household.ok && summary && summary.ok && hour >= 8 && hour < 20) {
+    const others = household.members.filter((m) => m.id !== me.member.id && m.role_id === "admin");
+    const got = others.length ? latestNight(week, me.member.id, today, tz, now.getTime(), childMorning) : null;
+    if (got) ask = { names: andList(others.map((m) => m.name)), sample: { name: nightName(got.win.day, today), ...got.night } };
+  }
   const keep = me.member.breastfeeds && ach?.numbers && plan.milkNotices ? runNudge(ach.numbers) : null;
   const pumpDays = (((statsData as { ok?: boolean; days?: PumpDay[] } | null)?.days ?? []) as PumpDay[]).map((d) => ({ day: d.day, pump_ml: Number(d.pump_ml) || 0 }));
   // Since yesterday evening, like the Milk screen's goal: a night pump counts for the day it feeds.
@@ -238,7 +271,7 @@ export default async function HomePage() {
       <span className="flex-1 font-semibold">{offer.words}</span> <Icon name="forward" size={18} />
     </Link>
   ) : null;
-  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, !!keep].filter(Boolean).length;
+  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, !!keep, !!morning, !!ask].filter(Boolean).length;
 
   // The Now slot's candidates, in rule 3's order. The slot shows the first that renders
   // anything (.now-queue); "More" beside it lists them all in a sheet (NowMore).
@@ -274,6 +307,13 @@ export default async function HomePage() {
         </Link>
       )}
     </div>,
+    // The other parent's night: after anything to check, ahead of what can wait all day, because
+    // this line ends at noon (as the early offer below argues for itself).
+    morning ? (
+      <div key="night">
+        <NightNotice sharer={morning.sharer} times={morning.times} longestMin={morning.longestMin} nightDay={lastNight.day} subjectId={summary.subject.id} child={summary.subject.name} meId={me.member.id} canTake={can(me, "lana", "add")} holding={summary.custody?.member_id === me.member.id} />
+      </div>
+    ) : null,
     // The day's offer makes its own place only while it is there, so a home with none has the queue as it was.
     offer?.early ? <div key="offer-early">{offerNotice}</div> : null,
     <div key="n9">
@@ -298,6 +338,12 @@ export default async function HomePage() {
         </Link>
       )}
     </div>,
+    // Her own question, asked once: a setting, so it waits behind everything but the nudge.
+    ask ? (
+      <div key="night-ask">
+        <NightAsk names={ask.names} me={me.member.display_name} sample={ask.sample} />
+      </div>
+    ) : null,
     <div key="n12">
       {keep && (
         <Link prefetch={false} href="/achievements" className="notice tint-pump flex items-center gap-2 no-underline">
@@ -311,7 +357,7 @@ export default async function HomePage() {
     <div className="flex flex-col gap-4">
     <div className="screen-fill">
       {/* Keyed by what is new: a badge won while Home is open (a pump logged, the page refreshed) pops too. */}
-      <Celebration key={fresh.map((f) => f.id).join(",")} fresh={fresh} />
+      <Celebration key={[...cheers.map((c) => c.id), ...fresh.map((f) => f.id)].join(",")} fresh={fresh} cheers={cheers} today={today} timezone={tz} />
       <HomeHeader summary={summary} />
       <HomeState summary={summary} stage={{ toddler: isToddler(age), limits: limitsFor(age) }} timezone={tz} clockIso={now.toISOString()} nap={napWatch && nap?.at != null ? { at: nap.at, isBedtime: !!nap.isBedtime } : null} />
       <TodayStrip summary={summary} entries={week} day={today} timezone={tz} nowIso={now.toISOString()} napExpected={pattern.expected} plan={plan} />

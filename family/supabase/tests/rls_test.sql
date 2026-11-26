@@ -1879,6 +1879,163 @@ set role anon;
 select pg_temp.assert(pg_temp.fails('select public.achievements_check()'), 'signed out, no badges');
 reset role;
 
+-- Cheers and shared nights (migration 7000). By role: an admin cheers the other admin (the one
+-- who pumps); a family carer and a home carer for the refusals; the other home for the walls.
+\set an_admin :mido
+\set the_pumper :dana
+\set a_carer :wafa
+\set a_home_carer :lilly
+select display_name as admin_name from public.members where id = :an_admin \gset
+select timezone as fam_tz from public.household where id = :'fam_home' \gset
+with i as (insert into public.care_entries (subject_id, module_id, type_id, occurred_at, payload, household_id, logged_by, note)
+           values (:lana, 'lana', 'lana.diaper', now() - interval '3 hours', '{"kind":"Wet"}', :'fam_home', :the_pumper, 'cheer test') returning id)
+select id as c_hers from i \gset
+with i as (insert into public.care_entries (subject_id, module_id, type_id, occurred_at, payload, household_id, logged_by, note)
+           values (:lana, 'lana', 'lana.diaper', now() - interval '4 hours', '{"kind":"Wet"}', :'fam_home', :an_admin, 'cheer test') returning id)
+select id as c_his from i \gset
+select id as c_medal from public.achievements where badge = 'pump_goal' and tier = 2 and member_id = :the_pumper \gset
+-- Earlier checks leave the home carer able to see the child's log; here she is as the seed makes her.
+create temp table perm7000 as select role_id, module_id, action, allowed from public.permissions where role_id = 'home_carer' and module_id = 'lana';
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana';
+select pg_temp.assert((select count(*) from public.care_entries e where e.deleted_at is null and (e.logged_by = :the_pumper or e.attributed_to = :the_pumper)
+  and (e.occurred_at at time zone :'fam_tz')::date = (now() at time zone :'fam_tz')::date - 3) = 0, 'the pumping parent saved nothing three days ago (the check below leans on it)');
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers', null, '  Thank you  '))->>'id' is not null, 'an admin cheers an entry the other parent saved');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers', null, 'Proud of you'))->>'already' = 'true', 'the same cheer again says it is already sent');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'day', null, (now() at time zone :'fam_tz')::date, 'Proud of you'))->>'id' is not null, 'and cheers her day');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'medal', :'c_medal', null, 'You are doing so much'))->>'id' is not null, 'and a medal that is hers');
+-- The refusals.
+select pg_temp.assert((public.cheer_send(:an_admin, 'log', :'c_his', null, 'Thank you'))->>'ok' = 'false', 'nobody cheers themselves');
+select pg_temp.assert((public.cheer_send(null, 'log', :'c_hers', null, 'Thank you'))->>'ok' = 'false', 'nor nobody');
+select pg_temp.assert((public.cheer_send(:a_home_carer, 'day', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'a member who cannot see the child''s log cannot be cheered: it would never show');
+select pg_temp.assert((public.cheer_send(:haitham, 'day', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'nor a member of another home');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_his', null, 'Thank you'))->>'ok' = 'false', 'an entry she did not save is not hers to be cheered for');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', gen_random_uuid(), null, 'Thank you'))->>'ok' = 'false', 'nor an entry that does not exist');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'medal', gen_random_uuid(), null, 'Thank you'))->>'ok' = 'false', 'nor a medal that does not exist');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'medal', :'c_hers', null, 'Thank you'))->>'ok' = 'false', 'an entry is not a medal');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'day', null, (now() at time zone :'fam_tz')::date + 1, 'Thank you'))->>'ok' = 'false', 'a day that has not come is refused');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'day', null, (now() at time zone :'fam_tz')::date - 7, 'Thank you'))->>'ok' = 'false', 'and a day more than a week back');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'day', null, (now() at time zone :'fam_tz')::date - 3, 'Thank you'))->>'ok' = 'false', 'and a day she saved nothing on');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'day', :'c_hers', (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'a day cheer names a day, not an entry');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'week', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'a kind that does not exist is refused');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers', null, '   '))->>'error' = 'bad_words', 'a cheer needs words');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers', null, repeat('a', 81)))->>'error' = 'bad_words', 'and no more than one short line');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date - 1, 'Thank you'))->>'ok' = 'false', 'a night she has not said yes to sharing cannot be cheered');
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'and the other admin is told nothing about it');
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'cheers') = 0, 'the sender is not handed the cheers he sent');
+select pg_temp.assert(pg_temp.fails('select * from public.cheers') and pg_temp.fails($q$insert into public.cheers (household_id, from_member, to_member, about, ref_day, words) values (private.current_household_id(), public.current_member_id(), '00000000-0000-4000-8000-000000000002', 'day', current_date, 'x')$q$)
+  and pg_temp.fails($q$update public.cheers set words = 'x'$q$) and pg_temp.fails('delete from public.cheers'), 'nobody reads or writes the table itself');
+reset role;
+select pg_temp.assert((select count(*) from public.cheers where from_member = :an_admin and to_member = :the_pumper) = 3 and (select words from public.cheers where about = 'log') = 'Thank you',
+  'three cheers stored, once each, the words trimmed');
+-- A receiver on the simple screen: there is no place to show it yet, so the sender is told.
+update public.members set simple_mode = true where id = :the_pumper;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers', null, 'Thank you'))->>'error' = 'simple_screen', 'a cheer to someone on the simple screen is refused in plain words');
+reset role;
+update public.members set simple_mode = false where id = :the_pumper;
+-- A dozen in a day is plenty.
+insert into public.cheers (household_id, from_member, to_member, about, ref_day, words)
+select :'fam_home', :an_admin, :a_carer, 'day', date '2000-01-01' + g, 'plenty test' from generate_series(1, 12) g;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers', null, 'Thank you'))->>'already' = 'true', 'past the day''s dozen, one already sent still says so');
+select pg_temp.assert((public.cheer_send(:a_carer, 'medal', gen_random_uuid(), null, 'Thank you'))->>'ok' = 'false', 'and one that was never allowed is still refused');
+reset role;
+with i as (insert into public.care_entries (subject_id, module_id, type_id, occurred_at, payload, household_id, logged_by, note)
+           values (:lana, 'lana', 'lana.diaper', now() - interval '5 hours', '{"kind":"Wet"}', :'fam_home', :the_pumper, 'cheer test') returning id)
+select id as c_hers2 from i \gset
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.cheer_send(:the_pumper, 'log', :'c_hers2', null, 'Thank you'))->>'error' = 'plenty', 'a thirteenth cheer in a day is refused, kindly');
+reset role;
+delete from public.cheers where words = 'plenty test';
+-- Her switch: hers alone.
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.me())->'member' ? 'night_share' and (public.me())->'member'->>'night_share' is null, 'me() carries her switch, and she has not been asked yet');
+select pg_temp.assert((public.me_night_share_set(null))->>'ok' = 'false', 'her switch takes yes or no, not nothing');
+select pg_temp.assert((public.me_night_share_set(false))->>'ok' = 'true', 'she says no');
+reset role;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date - 1, 'Thank you'))->>'ok' = 'false' and jsonb_array_length((public.achievements_check())->'nights') = 0, 'after a no, still nothing for the other admin');
+reset role;
+select pg_temp.preview_as(:an_admin, :the_pumper);
+set role authenticated;
+select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'false', 'an admin viewing as her cannot say yes for her');
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'cheers') = 0, 'nor read the cheers that wait for her');
+select pg_temp.assert((public.cheers_seen(array[(select gen_random_uuid())]))->>'ok' = 'false' and (public.cheer_send(:a_carer, 'day', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'nor mark them seen, nor send one in her name');
+reset role;
+select pg_temp.assert((select night_share from public.members where id = :the_pumper) = false and (select count(*) from public.cheers where to_member = :the_pumper and seen_at is not null) = 0, 'her no stands and her cheers still wait');
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'true', 'she says yes');
+reset role;
+select pg_temp.assert((select night_share from public.members where id = :the_pumper) and (select count(*) from public.members where night_share is not null) = 1, 'her row changed and nobody else''s');
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.achievements_check())->'nights' = jsonb_build_array(jsonb_build_object('member_id', :the_pumper::uuid, 'cheered', false)), 'now the other admin is told she shares, and that he has not cheered last night');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'a night cheer is for last night only');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'night', :'c_hers', (now() at time zone :'fam_tz')::date - 1, 'Thank you'))->>'ok' = 'false', 'and names a night, not an entry');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date - 1, 'Rest, I have the morning'))->>'id' is not null, 'he cheers her night');
+select pg_temp.assert((public.achievements_check())->'nights'->0->>'cheered' = 'true', 'and Home knows he has');
+reset role;
+select pg_temp.act_as(:a_carer);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'a family carer is told nothing about anyone''s night');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date - 1, 'Thank you'))->>'ok' = 'false', 'and cannot cheer one');
+select pg_temp.assert((public.cheer_send(:the_pumper, 'day', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'id' is not null, 'but can cheer her day');
+reset role;
+select pg_temp.act_as(:a_home_carer);
+set role authenticated;
+select pg_temp.assert(not ((public.achievements_check()) ? 'nights') and not ((public.achievements_check()) ? 'cheers') and (public.cheer_send(:the_pumper, 'day', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false',
+  'a home carer, who has no child''s log, gets neither key and sends no cheer');
+reset role;
+-- Receiving: hers alone, oldest first, with what each is about; gone once opened.
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'cheers') = 5, 'five cheers wait for her');
+select pg_temp.assert((public.achievements_check())->'cheers'->0->>'about' = 'log' and (public.achievements_check())->'cheers'->0->>'from_name' = :'admin_name' and (public.achievements_check())->'cheers'->0->>'words' = 'Thank you'
+  and (public.achievements_check())->'cheers'->0->>'type_label' is not null and (public.achievements_check())->'cheers'->0->>'occurred_at' is not null, 'the oldest first: who sent it, the words, and the entry it is about');
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_check())->'cheers') x where x->>'about' = 'medal' and x->>'badge' = 'pump_goal' and x->>'tier' = '2'), 'the medal cheer says which medal');
+select pg_temp.assert(exists (select 1 from jsonb_array_elements((public.achievements_check())->'cheers') x where x->>'about' = 'night' and (x->>'ref_day')::date = (now() at time zone :'fam_tz')::date - 1), 'the night cheer says which night');
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'she is told nothing about her own night');
+select (public.achievements_check())->'cheers'->0->>'id' as c_first \gset
+reset role;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(((public.cheers_seen(array[:'c_first'::uuid]))->>'seen')::int = 0, 'the sender cannot mark it seen for her');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert(((public.cheers_seen(array[:'c_first'::uuid]))->>'seen')::int = 0 and jsonb_array_length(coalesce((public.achievements_check())->'cheers', '[]'::jsonb)) = 0
+  and (public.cheer_send(:the_pumper, 'log', :'c_hers', null, 'Thank you'))->>'ok' = 'false', 'another home sees none of it, marks none of it and cannot cheer into this one');
+reset role;
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert(((public.cheers_seen(array[:'c_first'::uuid]))->>'seen')::int = 1 and jsonb_array_length((public.achievements_check())->'cheers') = 4, 'she opens the first and four wait');
+select pg_temp.assert(((public.cheers_seen(array[:'c_first'::uuid]))->>'seen')::int = 0, 'opening it again marks nothing twice');
+select pg_temp.assert(((public.cheers_seen((select array_agg((x->>'id')::uuid) from jsonb_array_elements((public.achievements_check())->'cheers') x)))->>'seen')::int = 4 and jsonb_array_length((public.achievements_check())->'cheers') = 0, 'and once all are opened none comes back');
+select pg_temp.assert((public.me_night_share_set(false))->>'ok' = 'true', 'she turns sharing off');
+reset role;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'and the other admin is told nothing from then on');
+reset role;
+set role anon;
+select pg_temp.assert(pg_temp.fails($q$select public.cheer_send('00000000-0000-4000-8000-000000000002', 'day', null, current_date, 'x')$q$) and pg_temp.fails('select public.cheers_seen(array[gen_random_uuid()])')
+  and pg_temp.fails('select public.me_night_share_set(true)'), 'signed out: no cheers, no switch');
+reset role;
+select pg_temp.assert((select count(*) from public.audit_log where target_table = 'members' and detail ? 'night_share') = 3, 'each change of her switch is in the audit log');
+-- Put back: the entries made for these checks, her switch, and the cheers.
+update public.care_entries set deleted_at = now() where note = 'cheer test';
+update public.members set night_share = null where id = :the_pumper;
+delete from public.cheers;
+update public.permissions p set allowed = f.allowed from perm7000 f where p.role_id = f.role_id and p.module_id = f.module_id and p.action = f.action;
+
 -- Migration 6100: the feed gap counts her age on the home's calendar, not the server's (UTC).
 -- At UTC+14 the home's date is ahead of UTC for most of the day, so a check on the home's
 -- date tells the two apart: 183 days at home is past 6 months (4 h), 182 is not (3 h).

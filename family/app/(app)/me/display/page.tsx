@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Me } from "@/lib/types";
+import type { HouseholdToday, Me, RpcError } from "@/lib/types";
 import { PrefsForm } from "@/components/PrefsForm";
 import { NightPref } from "@/components/NightPref";
 import { PageHeader } from "@/components/PageHeader";
 import { nightWindow } from "@/lib/night";
+import { andList } from "@/lib/nights";
 import { meOnce } from "@/lib/server/me";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,19 @@ export default async function DisplayPage() {
   const me = meData as Me | null;
   if (!me?.ok) redirect("/");
   const night = nightWindow(me.subjects?.[0] ?? null);
+  // "Tell ... about my nights": for a parent with another parent in the home, or whenever she
+  // has answered already. One call, to name them; nobody else's screen makes it.
+  let nights: { on: boolean; names: string } | null = null;
+  if (me.role.id === "admin") {
+    const { data } = await supabase.rpc("household_today");
+    const home = data as HouseholdToday | RpcError | null;
+    const others = home && home.ok ? home.members.filter((m) => m.id !== me.member.id && m.role_id === "admin").map((m) => m.name) : [];
+    if (others.length > 0 || me.member.night_share != null) nights = { on: me.member.night_share === true, names: andList(others) || "the other parent" };
+  }
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/me" title="Display" />
-      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"}>
+      <PrefsForm lang={me.member.lang ?? "en"} simple={!!me.member.simple_mode} large={me.member.large_text ?? me.role.id !== "admin"} nights={nights}>
         <NightPref from={night.from} to={night.to} />
       </PrefsForm>
     </div>
