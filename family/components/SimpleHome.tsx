@@ -200,8 +200,10 @@ export function SimpleHome({ summary, recent, milk, plan = null }: { summary: Ho
         {milk && showMilk && <p className="muted">{milk.fridge_ml} ml {L("milkInFridge")}</p>}
       </header>
       {msg && (
-        <p role="status" className={`notice ${msg === L("saved") ? "notice-ok" : "notice-danger"} flex items-center justify-center gap-2 text-center text-lg font-semibold`}>
-          {msg === L("saved") && <SavedTick size={26} />}
+        // Kept on the phone to send later is a save too (the buzz already says so): the same green
+        // and the same tick as one that was sent. Only what was refused is red.
+        <p role="status" className={`notice ${msg === L("saved") || msg === L("savedOffline") ? "notice-ok" : "notice-danger"} flex items-center justify-center gap-2 text-center text-lg font-semibold`}>
+          {(msg === L("saved") || msg === L("savedOffline")) && <SavedTick size={26} />}
           <span>{msg}</span>
         </p>
       )}
