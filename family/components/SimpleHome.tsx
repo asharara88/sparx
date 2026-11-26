@@ -184,7 +184,8 @@ export function SimpleHome({ summary, recent, milk, plan = null }: { summary: Ho
   );
 
   return (
-    <div className="flex flex-col gap-4" dir={dirOf(lang)} lang={lang}>
+    // data-screen: the speed check reads it to be sure this screen, not the full Home, is the one it timed.
+    <div className="flex flex-col gap-4" dir={dirOf(lang)} lang={lang} data-screen="simple">
       <header className="page-header page-header-large">
         {/* Emergency where the grandmother can find it, as on the full Home (HomeHeader). */}
         <div className="flex items-center gap-3">

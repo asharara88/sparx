@@ -25,10 +25,16 @@
 // test's own hand reaching the screen). The server's own answer time is printed but has no
 // budget: in screenshot mode it is mostly psql starting.
 //
+// The demo home has nobody on the simple screen, so the database needs one line after
+// demo_data.sql, or the "Home, simple screen" row would time the full Home a second time
+// (it did until 26 November; the row now fails when the simple screen is not what it got):
+//   update public.members set simple_mode = true where id = '00000000-0000-4000-8000-000000000003';
+//
 // Env: SPEED_URL (default http://localhost:3000), SPEED_DB (the database the server reads;
-// without it the db column is left out), PSQL and PGPASSWORD as for `npm run db:test`
-// (default "psql -h localhost -U postgres" and "postgres"; it must not connect to SPEED_DB
-// itself, or it would count its own visits), SPEED_RUNS (default 3; timings are the median),
+// without it the db column is left out; with it, a count that cannot be read fails the row,
+// since a check that counts nothing would pass forever), PSQL and PGPASSWORD as for
+// `npm run db:test` (default "psql -h localhost -U postgres" and "postgres"; it must not connect
+// to SPEED_DB itself, or it would count its own visits), SPEED_RUNS (default 3; timings are the median),
 // SPEED_CPU (default 4), SPEED_OUT (default /tmp/speed-check: report.md and report.json),
 // CHROMIUM (the browser to launch; the cloud sessions' own is found by itself).
 import { execFileSync } from "node:child_process";
@@ -49,13 +55,15 @@ const SIMPLE = "00000000-0000-4000-8000-000000000003"; // the family carer on th
 
 // Every screen (see the top of the file for where each line comes from).
 const EVERY = { lcp: 2500, blocked: 400, shift: 0.1 };
-// Per screen: database calls (one more than the build of 25 November 2026 made: Home 9, the
-// simple Home 6, Today 5, Week 10, Feeds 5, Sleep 4, Milk 5, Trends 4, Calendar 5, More 4) and
+// Per screen: database calls (one more than the build of 25 November 2026 made: Home 9,
+// Today 5, Week 10, Feeds 5, Sleep 4, Milk 5, Trends 4, Calendar 5, More 4; the simple Home
+// 6 on 26 November, the first day it was really the simple screen) and
 // kB of JavaScript (5% over what it loaded, to the next ten). Raise one only with the reason
 // in the pull request that needs it; lower it when a screen gets lighter.
+// `must` is something only that screen has: without it on the page, the row fails.
 const SCREENS = [
   { name: "Home", route: "/", db: 10, js: 940 },
-  { name: "Home, simple screen", route: "/", as: SIMPLE, db: 7, js: 940 },
+  { name: "Home, simple screen", route: "/", as: SIMPLE, must: '[data-screen="simple"]', db: 7, js: 940 },
   { name: "Child, Today", route: "/baby", db: 6, js: 920 },
   { name: "Child, Week", route: "/baby?tab=week", db: 11, js: 920 },
   { name: "Feeds", route: "/baby/feed", db: 6, js: 900 },
@@ -130,10 +138,11 @@ async function visit(screen) {
     const nav = performance.getEntriesByType("navigation")[0];
     return { server: nav ? nav.responseStart - nav.requestStart : 0, lcp: window.__speed.lcp, shift: window.__speed.shift, blocked: window.__speed.blocked };
   });
+  const right = screen.must ? (await page.locator(screen.must).count()) > 0 : true;
   const after = sessions();
   const js = (await Promise.all(scripts)).reduce((a, b) => a + b, 0);
   await ctx.close();
-  return { status: res?.status() ?? 0, db: before == null || after == null ? null : after - before, js: Math.round(js / 1024), ...m };
+  return { status: res?.status() ?? 0, right, db: before == null || after == null ? null : after - before, js: Math.round(js / 1024), ...m };
 }
 
 async function tap(t) {
@@ -169,6 +178,8 @@ for (const screen of SCREENS) {
   };
   const broke = [];
   if (r.status !== 200) broke.push(`answered ${r.status}`);
+  if (!got.every((g) => g.right)) broke.push(`is not the screen it should be: nothing on it matches ${screen.must} (see the top of the script)`);
+  if (db && r.db == null) broke.push("database calls could not be counted (SPEED_DB is set: is PSQL right?)");
   if (r.db != null && r.db > screen.db) broke.push(`database calls ${r.db} > ${screen.db}`);
   if (r.js > screen.js) broke.push(`JavaScript ${r.js} kB > ${screen.js} kB`);
   if (r.lcp > EVERY.lcp) broke.push(`painted in ${r.lcp} ms > ${EVERY.lcp} ms`);
