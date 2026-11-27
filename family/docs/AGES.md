@@ -77,7 +77,8 @@ screen and the helper's voice), achievements for families that do not pump.
    count shows only once that kind was logged in the last 7 days; nothing new goes into the milk
    stash while the day says no milk is stored. Until a parent saves, every home is as step 1
    left it. *Second half, next:* Potty, Cup and Cow's milk, which meal and how much, the vaccine
-   question, Story from the month a family joined.
+   question, Story from the month a family joined. The reviewed spec for both halves and what the
+   first half built where it differs: `docs/ages-step2/`.
 3. **Everyone reads the same day.** The simple screen, Handover, the Week tab, Trends, Story and the
    doctor's printout count meals, snacks and potty (the daily numbers gain them). Typed and spoken
    meal, cup and potty lines save on the phone at no cost. The helper's prompt and briefs are built
