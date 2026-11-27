@@ -35,3 +35,11 @@ test("what the helper says after a tap exists in every language", () => {
   }
   assert.equal(t("ru", "ended"), "Завершено.");
 });
+
+test("a started plan is said to be where it is: the child's page, never Home", () => {
+  // Mido, 27 November: the helper said Home, which has not shown a plan since October.
+  assert.equal(t("en", "planStarted", { child: "Lana" }), "Plan started. Today's step is on Lana's page.");
+  assert.match(t("ar", "planStarted", { child: "لانا" }), /صفحة لانا/);
+  assert.match(t("ru", "planStarted", { child: "Лана" }), /на странице/);
+  for (const l of ["en", "ar", "ru"] as const) assert.doesNotMatch(t(l, "planStarted", { child: "Lana" }), /Home|الرئيسية|главном/);
+});

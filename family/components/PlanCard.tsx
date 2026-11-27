@@ -7,8 +7,19 @@ import { can } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { Fold } from "@/components/Fold";
 
-/** The active coach plan: today's step, a "Done today" tap, and the way back to the coach. */
+/**
+ * The active coach plan (the helper's plan card, started with one tap) as a row of the child's
+ * Today list: "Coach plan" with "day 3 of 7" on its bar ("day 3 of 7 · done" once marked);
+ * opened, today's step, a "Done today" tap, and the way back to the coach. Closed like the
+ * rows around it: the screen budget counts what shows before a row is opened, and the Today
+ * tab is at its budget (an open row added 48 words and 0.4 of a screen).
+ *
+ * Mido, 27 November: a plan started from the helper was nowhere to be found. It sat in Week's
+ * closed "Coming up" row, and the helper said "Today's step is on Home", which it had not been
+ * since October. It is a row, not a card of its own: the Today tab is at its block budget.
+ */
 export function PlanCard({ plan }: { plan: CoachPlan | null }) {
   const me = useMe();
   const router = useRouter();
@@ -25,17 +36,9 @@ export function PlanCard({ plan }: { plan: CoachPlan | null }) {
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
     router.refresh();
   }
-  const done = plan.checkins.filter((c) => c.done).length;
+  const day = `day ${Math.max(1, plan.day)} of ${plan.days}`;
   return (
-    <section className="card flex flex-col gap-2 bg-[var(--info-soft)]" aria-labelledby="plan-h">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 id="plan-h" className="font-semibold">
-          Coach plan · day {Math.max(1, plan.day)} of {plan.days}
-        </h2>
-        <span className="muted text-sm">
-          {done}/{plan.days} done
-        </span>
-      </div>
+    <Fold flat title="Coach plan" icon="star" tint="guide" hint={plan.done_today ? `${day} · done` : day}>
       <p className="muted text-sm">{plan.goal}</p>
       <p className="text-lg font-semibold">{plan.today_step ?? "Keep going."}</p>
       <div className="flex flex-wrap gap-2">
@@ -66,6 +69,6 @@ export function PlanCard({ plan }: { plan: CoachPlan | null }) {
           {msg}
         </p>
       )}
-    </section>
+    </Fold>
   );
 }
