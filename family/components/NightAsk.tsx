@@ -7,13 +7,17 @@ import { Icon } from "./Icon";
 import { Sheet } from "./Sheet";
 
 /**
- * The question, asked once, on her own Home (DESIGN.md, "Cheers and shared nights"): may the
- * other parent be told how her nights go. Nothing about her night is shown to anyone until
- * she says yes here, and before she answers she reads the very words they would read, made
- * from a real night of hers. Either answer ends the asking; closing the sheet does not. The
- * switch stays hers afterwards, in More, Display.
+ * The question, on her own Home until she answers it (DESIGN.md, "Cheers and shared nights"):
+ * may the other parent be told how her nights go. Nothing about her night is shown to anyone
+ * until she says yes here, and before she answers she reads the very words they would read,
+ * made from a real night of hers. Either answer ends the asking; closing the sheet does not.
+ * The switch stays hers afterwards, in More, Display.
+ *
+ * A yes is to the parents this screen names: their ids go with it, and the database keeps
+ * only those. If another parent joined while the screen was open, the yes does not count yet
+ * and she is asked again with both names; the same happens later whenever a parent joins.
  */
-export function NightAsk({ names, me, sample }: { /** The other parent, or parents, by name: "Omar", "Omar and Sam". */ names: string; me: string; /** A real night of hers that would give a line. */ sample: { name: string; times: number; longestMin: number } }) {
+export function NightAsk({ names, ids, me, sample }: { /** The other parent, or parents, by name: "Omar", "Omar and Sam". */ names: string; /** The same parents, by member id: what her yes is a yes to. */ ids: string[]; me: string; /** A real night of hers that would give a line. */ sample: { name: string; times: number; longestMin: number } }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -22,10 +26,16 @@ export function NightAsk({ names, me, sample }: { /** The other parent, or paren
   async function answer(on: boolean) {
     setBusy(true);
     setMsg(null);
-    const { data, error } = await supabaseBrowser().rpc("me_night_share_set", { p_on: on });
+    const { data, error } = await supabaseBrowser().rpc("me_night_share_set", { p_on: on, p_seen: ids });
     setBusy(false);
-    const res = data as { ok: boolean; message?: string } | null;
+    const res = data as { ok: boolean; night_share?: boolean | null; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save that. Try again.");
+    // A yes that did not take: someone became a parent here after this screen was drawn. Nobody
+    // has been told anything; the names are read again and she answers with all of them in view.
+    if (on && res.night_share !== true) {
+      setMsg("Someone else is a parent here now. Look at the names again, then answer.");
+      return router.refresh();
+    }
     setOpen(false);
     router.refresh();
   }

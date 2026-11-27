@@ -1958,7 +1958,8 @@ set role authenticated;
 select pg_temp.assert((public.achievements_check()) ? 'night_share' and (public.achievements_check())->>'night_share' is null and (public.me_night_share())->>'night_share' is null,
   'she has not been asked yet, and her Home and her Display are told so');
 select pg_temp.assert(not ((public.me())->'member' ? 'night_share'), 'her row in members carries nothing about it: every admin may edit that row and every carer may read it');
-select pg_temp.assert((public.me_night_share())->'parents' = jsonb_build_array(:'admin_name'), 'her Display is told the other parent by name');
+select pg_temp.assert(jsonb_array_length((public.me_night_share())->'parents') = 1 and (public.me_night_share())->'parents'->0->>'name' = :'admin_name' and (public.me_night_share())->'parents'->0->>'id' = :an_admin::text,
+  'her Display is told the other parent, by name and id');
 select pg_temp.assert((public.me_night_share_set(null))->>'ok' = 'false', 'her switch takes yes or no, not nothing');
 select pg_temp.assert((public.me_night_share_set(false))->>'ok' = 'true', 'she says no');
 reset role;
@@ -1976,7 +1977,7 @@ reset role;
 select pg_temp.assert((select share from public.night_shares where member_id = :the_pumper) = false and (select count(*) from public.cheers where to_member = :the_pumper and seen_at is not null) = 0, 'her no stands and her cheers still wait');
 select pg_temp.act_as(:the_pumper);
 set role authenticated;
-select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'true', 'she says yes');
+select pg_temp.assert((public.me_night_share_set(true, array[:an_admin::uuid]))->>'night_share' = 'true', 'she says yes to the parent her screen named');
 reset role;
 select pg_temp.assert((select share and told = array[:an_admin::uuid] from public.night_shares where member_id = :the_pumper) and (select count(*) from public.night_shares) = 1, 'her answer is stored with the parent she said yes to, and nobody else has one');
 -- The other parent cannot reach her answer any other way: not by reading it, not by writing it.
@@ -2053,10 +2054,33 @@ set role authenticated;
 select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0 and (public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date - 1, 'Thank you'))->>'ok' = 'false',
   'and the parent she did say yes to hears nothing either until she has answered again');
 reset role;
+select pg_temp.assert((select count(*) from public.night_shares where member_id = :the_pumper and share) = 1, 'her stored yes is still there: nobody but her touches it');
+-- Her screen was open before the new parent joined: it still names one. A yes from it names
+-- one, so it is not a yes to both, and nobody is told.
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.me_night_share_set(true, array[:an_admin::uuid]))->>'night_share' is null, 'a yes from a screen that named only the first parent does not reach the second: it waits');
+reset role;
+select pg_temp.act_as(:a_carer);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'so the new parent is still told nothing');
+reset role;
+-- She opens her Home: it asks her again, and the waiting yes is ended there and then, so
+-- that it cannot come back by itself.
 select pg_temp.act_as(:the_pumper);
 set role authenticated;
 select pg_temp.assert((public.achievements_check())->>'night_share' is null and jsonb_array_length((public.me_night_share())->'parents') = 2, 'her Home asks her again, and her Display names both');
-select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'true', 'she says yes to both');
+reset role;
+select pg_temp.assert((select count(*) from public.night_shares where member_id = :the_pumper) = 0, 'the waiting yes is gone from the moment her own screen showed it as off');
+update public.members set role_id = 'family_carer' where id = :a_carer;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'the new parent leaves again: her old yes does not come back by itself');
+reset role;
+update public.members set role_id = 'admin' where id = :a_carer;
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.me_night_share_set(true, array[:an_admin::uuid, :a_carer::uuid]))->>'night_share' = 'true', 'she says yes to both');
 reset role;
 select pg_temp.act_as(:a_carer);
 set role authenticated;
@@ -2066,15 +2090,28 @@ select pg_temp.act_as(:an_admin);
 set role authenticated;
 select pg_temp.assert((public.achievements_check())->'nights'->0->>'cheered' = 'true', 'and the first one again, with the cheer he already sent');
 reset role;
--- A parent leaving changes nothing for those who stay. And a no is a no whoever joins.
+-- A parent leaving changes nothing for those who stay.
 update public.members set role_id = 'family_carer' where id = :a_carer;
 select pg_temp.act_as(:an_admin);
 set role authenticated;
 select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 1, 'one parent fewer: her yes still holds for the one who stays');
 reset role;
+-- Sharing is between parents: a yes she gave as one ends when she opens Home as a carer.
+update public.members set role_id = 'family_carer' where id = :the_pumper;
 select pg_temp.act_as(:the_pumper);
 set role authenticated;
-select pg_temp.assert((public.me_night_share_set(false))->>'ok' = 'true', 'she turns sharing off');
+select pg_temp.assert((public.achievements_check())->>'night_share' is null, 'no longer a parent: her Home is told nothing about a switch');
+reset role;
+update public.members set role_id = 'admin' where id = :the_pumper;
+select pg_temp.assert((select count(*) from public.night_shares where member_id = :the_pumper) = 0, 'and the yes she gave as a parent is gone');
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'a parent again: nothing is told until she says yes again');
+reset role;
+-- And a no is a no whoever joins.
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.me_night_share_set(false))->>'night_share' = 'false', 'she says no');
 reset role;
 update public.members set role_id = 'admin' where id = :a_carer;
 select pg_temp.act_as(:the_pumper);
@@ -2082,6 +2119,20 @@ set role authenticated;
 select pg_temp.assert((public.achievements_check())->>'night_share' = 'false', 'a no stays a no when a parent joins: she is not asked again');
 reset role;
 update public.members set role_id = 'family_carer' where id = :a_carer;
+-- "Her" must mean her: an admin cannot point her member row at another account and sign in
+-- as her. The same write as the database owner goes through, so it is the role that is refused.
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(pg_temp.fails($q$update public.members set user_id = '00000000-0000-4000-8000-00000000c004' where id = '00000000-0000-4000-8000-000000000002'$q$)
+  and pg_temp.fails($q$update public.members set user_id = null where id = '00000000-0000-4000-8000-000000000002'$q$),
+  'an admin cannot re-point or clear the account a member row is linked to');
+select pg_temp.assert(not pg_temp.fails($q$update public.members set relationship = relationship where id = '00000000-0000-4000-8000-000000000002'$q$), 'while the rest of her row is his to edit as before');
+reset role;
+begin;
+update public.members set user_id = '00000000-0000-4000-8000-00000000c004' where id = :the_pumper;
+select pg_temp.assert((select user_id = '00000000-0000-4000-8000-00000000c004' from public.members where id = :the_pumper), 'the same write by the database owner goes through: only the signed-in role is refused');
+rollback;
+select pg_temp.assert((select user_id from public.members where id = :the_pumper) = '00000000-0000-4000-8000-000000000002', 'and her row still carries her own account');
 select pg_temp.act_as(:an_admin);
 set role authenticated;
 select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'and the other admin is told nothing from then on');

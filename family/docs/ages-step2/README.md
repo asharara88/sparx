@@ -15,7 +15,14 @@ and Story from the month a family joined.
 ## Read these first (27 November 2026)
 
 - **Migration number.** The spec names PR B's migration 6900; #168 took that number
-  (`kinder_runs`). PR B's is `20261010007000_new_entries.sql`.
+  (`kinder_runs`), and #169 took 7000 (`cheers_and_nights`). PR B's is
+  `20261010007100_new_entries.sql`.
+- **The suite and Home moved again in #169.** `rls_test.sql` gained a block "Cheers and shared
+  nights" after the medals' checks; it sets the home carer's permissions itself and puts them
+  back, so it does not lean on the state `BUILT.md` warns about. Home's notice slot gained two
+  candidates for parents (the other parent's night, after "entries to check"; her own
+  question, last but the pumping nudge): `DESIGN.md`, "Cheers and shared nights". A member
+  row's account link can no longer be changed by a signed-in role (`members_keep_account`).
 - **The screens moved on.** The spec was written against main 201d654. #159 to #168 redrew Home
   (the strip holds three counts, a More sheet), Feeds and Sleep (one day at a time), Week, Trends
   and the child's page, set new budgets in `DESIGN.md` and added the weekly speed check. The

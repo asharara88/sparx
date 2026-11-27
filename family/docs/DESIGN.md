@@ -808,8 +808,8 @@ morning, how her night went, with one tap to take the child and one to send a ch
 
 **A night that may be shared** (`night_shares`, `me_night_share_set`, `me_night_share`; `lib/nights.ts`)
 
-- **Off until she says yes.** Nothing is worked out for anyone before that. She is asked
-  once, on her own Home, in the Now slot (`NightAsk`): "Tell Omar how your nights go?", only
+- **Off until she says yes.** Nothing is worked out for anyone before that. She is asked on
+  her own Home, in the Now slot (`NightAsk`), until she answers: "Tell Omar how your nights go?", only
   where there is another parent to tell, in the daytime, and only once a real night of hers
   would give a line. The sheet shows her the very words he would read, made from that night,
   and says what it is: a guess from what she saved, seen by him and nobody else, until noon,
@@ -823,8 +823,15 @@ morning, how her night went, with one tap to take the child and one to send a ch
   answer only her. A no is told to no one, and neither answer leaves a line in the audit log,
   which every admin reads. (The first draft kept it on the member row; a review caught that
   the other parent could have switched it on himself.)
-- **A yes is to the names she saw.** When another parent joins the home her yes waits, for
-  everyone, until she has been asked again with the new name in front of her. A no stays a no.
+- **A yes is to the names she saw.** The parents her screen named go with her yes, and only
+  they are told. When another parent joins the home her yes waits, for everyone; the next
+  time she opens her Home or her Display that waiting yes is ended for good, so it cannot
+  come back by itself if the newcomer leaves, and she is asked again with both names. A yes
+  she gave as a parent also ends if she stops being one. A no stays a no.
+- **"Her" has to mean her.** An admin could once re-point a member row's account with one
+  direct write and then sign in as that member. A member row now keeps the account it is
+  linked to (`members_keep_account`), which protects her answer, her cheers and everything
+  else that is hers alone.
 - **The rule**, each figure a constant at the top of `lib/nights.ts`: the night runs from
   23:00 to 06:00 at home (or to the child's morning when that is earlier); only what she
   saved herself counts, never what was saved in her name; a timed entry (a breastfeed) is
@@ -845,9 +852,9 @@ morning, how her night went, with one tap to take the child and one to send a ch
   then is it true. Once he has cheered that night or taken the child, the line has done its
   work and is gone.
 - It never judges: no "only", no "bad night", no comparison with other nights or other
-  people. She sees her own night's two lines once, in the question, so that she knows exactly
-  what she is saying yes to; after she has answered, no number about her night is ever shown
-  to her.
+  people. She sees her own night's two lines only inside the question, each time she is
+  asked, so that she knows exactly what she is saying yes to; nowhere else is a number about
+  her night ever shown to her.
 
 **What it costs the screens.** Home gains no block and no database call: the cheers and who
 shares ride in `achievements_check()`, which Home already calls, as does her own answer,

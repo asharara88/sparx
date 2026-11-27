@@ -2,7 +2,8 @@
  * A member's night, read from what that member saved (DESIGN.md, "Cheers and shared nights").
  * It is a guess, and says so wherever it is shown: the app knows when someone saved a feed
  * at 3 am, not when they slept. It is worked out only for a member who said yes to sharing
- * (members.night_share), and shown only to the other parent, the next morning.
+ * (night_shares, read through achievements_check(); migration 7000), and shown only to the
+ * other parent, the next morning.
  *
  * The rule, each figure one constant here:
  *   - the night runs from 23:00 to 06:00 at home (or to the child's morning when that is

@@ -10,7 +10,7 @@ import { LANGS, type Lang } from "@/lib/i18n";
  * the account) sits with the other two. A parent in a home with another parent also gets
  * "Tell ... about my nights" (DESIGN.md, "Cheers and shared nights"): hers to turn on and off.
  */
-export function PrefsForm({ lang, simple, large, nights = null, children }: { lang: Lang; simple: boolean; large: boolean; /** Her own switch for sharing her nights (migration 7000), where there is another parent to tell; null hides the row. */ nights?: { on: boolean; names: string } | null; children?: React.ReactNode }) {
+export function PrefsForm({ lang, simple, large, nights = null, children }: { lang: Lang; simple: boolean; large: boolean; /** Her own switch for sharing her nights (migration 7000), where there is another parent to tell; null hides the row. */ nights?: { on: boolean; names: string; ids: string[] } | null; children?: React.ReactNode }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -75,10 +75,13 @@ export function PrefsForm({ lang, simple, large, nights = null, children }: { la
             onChange={async (e) => {
               setBusy(true);
               setMsg(null);
-              const { data, error } = await supabaseBrowser().rpc("me_night_share_set", { p_on: e.target.checked });
+              const on = e.target.checked;
+              // A yes is to the parents named on this row: their ids go with it (migration 7000).
+              const { data, error } = await supabaseBrowser().rpc("me_night_share_set", { p_on: on, p_seen: nights.ids });
               setBusy(false);
-              const res = data as { ok: boolean; message?: string } | null;
+              const res = data as { ok: boolean; night_share?: boolean | null; message?: string } | null;
               if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not save.");
+              if (on && res.night_share !== true) setMsg("Someone else is a parent here now. Look at the names again, then turn it on.");
               router.refresh();
             }}
           />

@@ -10,8 +10,8 @@
 --      table has no direct read for anyone, and an admin viewing as her is not handed it.
 --
 --   2. A night that may be shared: a member can say yes to "tell the other parent how my
---      nights go". Until she does, nothing is worked out for anyone; she is asked once, on her
---      own Home, and can change her mind in More, Display. With a yes, the other admin's Home
+--      nights go". Until she does, nothing is worked out for anyone; she is asked on her own
+--      Home until she answers, and can change her mind in More, Display. With a yes, the other admin's Home
 --      shows one line the next morning, with one tap to take the child and one to send a cheer.
 --      The line itself is worked out in the app from the week of entries Home already holds
 --      (lib/nights.ts); the database only says who has said yes, and whether the caller has
@@ -20,13 +20,35 @@
 --      Her answer is hers. It lives in its own table that no signed-in role can read or
 --      write: not a column on members, which every admin may edit and every carer may read.
 --      Nobody but her can set it, nobody but her can read it (a no is told to no one, and
---      leaves no line in the audit log), and a yes is a yes to the parents named when she
---      gave it: when another parent joins the home her yes waits until she has been asked
---      again with the new name in front of her.
+--      leaves no line in the audit log), and a yes is a yes to the parents her screen named
+--      when she gave it: when another parent joins the home her yes waits, and the next time
+--      she opens her Home or her Display it is ended, so that it can never come back by
+--      itself; she is asked again with the new name in front of her.
+--
+--      "Her" has to mean her. A member row's account link (members.user_id) could be changed
+--      by any admin with one direct write, which would let him sign in as her row and so set
+--      or read all of the above (and her cheers, her chats, her notes). That write is refused
+--      from now on: an account is linked to a row that has none, by the app's own functions,
+--      and never re-pointed.
 --
 -- Nothing here adds a call to Home: the new facts ride in achievements_check(), which Home
 -- already calls. No names: everything is by member id and role.
 -- ============================================================================
+
+-- A member row keeps the account it is linked to. Linking is done to a row that has no
+-- account yet (member_save by e-mail, the sign-up trigger, an invite link); nothing in the app
+-- re-points or clears one, and a signed-in role doing so directly could make itself that member.
+create or replace function private.members_keep_account() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if old.user_id is not null and new.user_id is distinct from old.user_id and current_user in ('authenticated', 'anon') then
+    raise exception 'A member''s account cannot be changed.' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+drop trigger if exists members_keep_account on public.members;
+create trigger members_keep_account before update of user_id on public.members
+  for each row execute function private.members_keep_account();
 
 -- Her answer. No row: never asked. share false: said no. share true: said yes, to the other
 -- parents in `told` (the admins of her home on the day she answered).
@@ -104,9 +126,11 @@ create policy cheers_home on public.cheers as restrictive for all to authenticat
 grant select, insert, update, delete on public.cheers to app_rls;
 
 -- Her own switch. No member id: nobody can turn it on or off for someone else, and not while
--- viewing as her. A yes names the other parents of her home as they are now. No audit line:
--- the audit log is read by every admin, and her answer, a no above all, is not theirs to read.
-create or replace function public.me_night_share_set(p_on boolean) returns jsonb
+-- viewing as her. A yes is to the parents her screen named (p_seen), and only to those of
+-- them who are parents of her home now: if another joined while the screen was open, that one
+-- is not in the list, so her yes waits and she is asked again. No audit line: the audit log
+-- is read by every admin, and her answer, a no above all, is not theirs to read.
+create or replace function public.me_night_share_set(p_on boolean, p_seen uuid[] default null) returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
 declare
   v_id uuid := public.current_member_id();
@@ -119,21 +143,41 @@ begin
   if p_on then
     select coalesce(array_agg(o.id), '{}') into v_told
       from public.members o
-     where o.household_id = v_home and o.id <> v_id and coalesce(o.is_active, true) and o.role_id = 'admin';
+     where o.household_id = v_home and o.id <> v_id and coalesce(o.is_active, true) and o.role_id = 'admin'
+       and o.id = any (coalesce(p_seen, '{}'));
   end if;
   insert into public.night_shares (member_id, household_id, share, told, answered_at)
   values (v_id, v_home, p_on, v_told, now())
   on conflict (member_id) do update set share = excluded.share, told = excluded.told, answered_at = excluded.answered_at;
-  return jsonb_build_object('ok', true, 'night_share', p_on);
+  -- What is in force may differ from what she tapped: a yes that named too few reads null.
+  return jsonb_build_object('ok', true, 'night_share', private.night_share_of(v_id));
 end $$;
-alter function public.me_night_share_set(boolean) owner to app_rls;
-revoke execute on function public.me_night_share_set(boolean) from public, anon;
-grant execute on function public.me_night_share_set(boolean) to authenticated, service_role;
+alter function public.me_night_share_set(boolean, uuid[]) owner to app_rls;
+revoke execute on function public.me_night_share_set(boolean, uuid[]) from public, anon;
+grant execute on function public.me_night_share_set(boolean, uuid[]) to authenticated, service_role;
 
--- Her own answer, for her own Display screen, with the names of the parents it is about.
--- While an admin views as her it says nothing: he is not the one to read it.
+-- A yes that is waiting (a parent joined whom she was not asked about) is ended the moment she
+-- sees a screen of hers that shows it as off: the stored yes is removed, so it cannot come
+-- back by itself when that parent leaves again. Called by the two functions her own Home and
+-- Display read, never in "view as". Returns her answer as it is afterwards.
+create or replace function private.night_share_settle(p_member uuid) returns boolean
+language plpgsql volatile set search_path = public as $$
+declare v_share boolean := private.night_share_of(p_member);
+begin
+  if v_share is null then
+    delete from public.night_shares where member_id = p_member and share;
+  end if;
+  return v_share;
+end $$;
+alter function private.night_share_settle(uuid) owner to app_rls;
+revoke execute on function private.night_share_settle(uuid) from public, anon, authenticated;
+grant execute on function private.night_share_settle(uuid) to app_rls;
+
+-- Her own answer, for her own Display screen, with the parents it is about (the ids go back
+-- with her yes, so that it names exactly those she saw). While an admin views as her it says
+-- nothing and settles nothing: he is not the one to read it.
 create or replace function public.me_night_share() returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql volatile security definer set search_path = public as $$
 declare
   v_id uuid := public.current_member_id();
   v_home uuid := private.current_household_id();
@@ -141,9 +185,9 @@ begin
   if v_id is null or v_home is null then return private.denied(); end if;
   return jsonb_build_object(
     'ok', true,
-    'night_share', case when private.read_only_preview() then null else private.night_share_of(v_id) end,
+    'night_share', case when private.read_only_preview() then null else private.night_share_settle(v_id) end,
     'parents', coalesce((
-      select jsonb_agg(o.display_name order by o.display_name)
+      select jsonb_agg(jsonb_build_object('id', o.id, 'name', o.display_name) order by o.display_name, o.id)
         from public.members o
        where o.household_id = v_home and o.id <> v_id and coalesce(o.is_active, true) and o.role_id = 'admin'), '[]'::jsonb));
 end $$;
@@ -264,7 +308,8 @@ grant execute on function public.cheers_seen(uuid[]) to authenticated, service_r
 --                the caller has already cheered each for last night. Empty for anyone else
 --                and in "view as". The night itself is worked out in the app (lib/nights.ts).
 --   night_share  the caller's own answer (null: not asked yet, or to be asked again), so her
---                Home knows whether to ask. Null in "view as".
+--                Home knows whether to ask. Null in "view as". Reading it here settles a yes
+--                that was waiting, and ends one left over from when she was a parent.
 -- Everything about medals is unchanged, line for line.
 create or replace function public.achievements_check() returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
@@ -337,7 +382,12 @@ begin
        where m.household_id = v_home and m.id <> v_me and coalesce(m.is_active, true) and m.role_id = 'admin'
          and private.night_share_of(m.id) is true;
     end if;
-    v_share := private.night_share_of(v_me);
+    if exists (select 1 from public.members m where m.id = v_me and m.role_id = 'admin') then
+      v_share := private.night_share_settle(v_me);
+    else
+      -- Sharing is between parents: a yes she gave as one does not wait for her to be one again.
+      delete from public.night_shares where member_id = v_me and share;
+    end if;
   end if;
   return jsonb_build_object('ok', true, 'new', v_new, 'numbers', v_n, 'cheers', v_cheers, 'nights', v_nights, 'night_share', v_share);
 end $$;

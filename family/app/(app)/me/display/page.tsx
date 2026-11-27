@@ -18,14 +18,16 @@ export default async function DisplayPage() {
   if (!me?.ok) redirect("/");
   const night = nightWindow(me.subjects?.[0] ?? null);
   // "Tell ... about my nights": for a parent with another parent in the home, or whenever she
-  // has answered already. One call, for her own answer and their names; only she is told it
-  // (migration 7000: it is not on her member row, which others may read).
-  let nights: { on: boolean; names: string } | null = null;
+  // has answered already. One call, for her own answer and the parents it is about; only she is
+  // told it (migration 7000: it is not on her member row, which others may read). Reading it
+  // here also ends a yes that was waiting for a parent who joined, so what the row shows as
+  // off is off.
+  let nights: { on: boolean; names: string; ids: string[] } | null = null;
   if (me.role.id === "admin") {
     const { data } = await supabase.rpc("me_night_share");
-    const mine = data as { ok?: boolean; night_share?: boolean | null; parents?: string[] } | null;
+    const mine = data as { ok?: boolean; night_share?: boolean | null; parents?: { id: string; name: string }[] } | null;
     const others = mine?.ok ? (mine.parents ?? []) : [];
-    if (mine?.ok && (others.length > 0 || mine.night_share != null)) nights = { on: mine.night_share === true, names: andList(others) || "the other parent" };
+    if (mine?.ok && (others.length > 0 || mine.night_share != null)) nights = { on: mine.night_share === true, names: andList(others.map((o) => o.name)) || "the other parent", ids: others.map((o) => o.id) };
   }
   return (
     <div className="flex flex-col gap-4">

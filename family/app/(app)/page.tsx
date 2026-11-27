@@ -199,11 +199,11 @@ export default async function HomePage() {
   // The question, on her own Home, until she answers it: only where there is another parent to
   // tell, in the daytime, and only once a real night of hers would give a line to show her.
   // Her answer comes back null again when a new parent joins: a yes was to the names she saw.
-  let ask: { names: string; sample: { name: string; times: number; longestMin: number } } | null = null;
+  let ask: { names: string; ids: string[]; sample: { name: string; times: number; longestMin: number } } | null = null;
   if (parent && ach?.ok && "night_share" in ach && ach.night_share == null && household.ok && summary && summary.ok && hour >= 8 && hour < 20) {
     const others = household.members.filter((m) => m.id !== me.member.id && m.role_id === "admin");
     const got = others.length ? latestNight(week, me.member.id, today, tz, now.getTime(), childMorning) : null;
-    if (got) ask = { names: andList(others.map((m) => m.name)), sample: { name: nightName(got.win.day, today), ...got.night } };
+    if (got) ask = { names: andList(others.map((m) => m.name)), ids: others.map((m) => m.id), sample: { name: nightName(got.win.day, today), ...got.night } };
   }
   const keep = me.member.breastfeeds && ach?.numbers && plan.milkNotices ? runNudge(ach.numbers) : null;
   const pumpDays = (((statsData as { ok?: boolean; days?: PumpDay[] } | null)?.days ?? []) as PumpDay[]).map((d) => ({ day: d.day, pump_ml: Number(d.pump_ml) || 0 }));
@@ -339,10 +339,10 @@ export default async function HomePage() {
         </Link>
       )}
     </div>,
-    // Her own question, asked once: a setting, so it waits behind everything but the nudge.
+    // Her own question, until she answers (and again when a parent joins): a setting, so it waits behind everything but the nudge.
     ask ? (
       <div key="night-ask">
-        <NightAsk names={ask.names} me={me.member.display_name} sample={ask.sample} />
+        <NightAsk names={ask.names} ids={ask.ids} me={me.member.display_name} sample={ask.sample} />
       </div>
     ) : null,
     <div key="n12">

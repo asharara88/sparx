@@ -17,8 +17,8 @@ import { Sheet } from "./Sheet";
  * in one tap) and send a cheer. Taking the child keeps the sheet open, so a cheer can follow
  * it ("Rest, I have the morning" is offered only once it is true).
  *
- * After the question she answered (NightAsk), she is never shown any of this about herself,
- * and nothing here measures her: it says how the night went, and what he can do.
+ * Outside her own question (NightAsk), she is never shown any of this about herself, and
+ * nothing here measures her: it says how the night went, and what he can do.
  */
 export function NightNotice({ sharer, times, longestMin, nightDay, subjectId, child, meId, canTake, holding }: { sharer: { id: string; name: string }; times: number; longestMin: number; /** The home date the night started on. */ nightDay: string; subjectId: string; child: string; meId: string; /** May the viewer say who has the child. */ canTake: boolean; /** The viewer has the child already. */ holding: boolean }) {
   const router = useRouter();

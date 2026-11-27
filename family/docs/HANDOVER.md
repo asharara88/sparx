@@ -148,7 +148,9 @@ Done and live:
   the night" until noon, with one tap to take the child and one to cheer. Off until she says
   yes on her own phone; both admins start unasked. Her answer is hers alone to set and to
   read (its own table, no direct access, no audit line), and a yes holds only for the parents
-  named when she gave it. Nothing was added to Home's
+  her screen named when she gave it. The same migration stops a signed-in role from
+  re-pointing a member row's account (`members_keep_account`): until then an admin could
+  have signed in as any member of the home. Nothing was added to Home's
   database calls: both ride in `achievements_check()`. The rule and its hours are constants
   in `lib/nights.ts`; the whole of it is in DESIGN.md, "Cheers and shared nights". Still to
   come: ticks for looking after herself, a weekly recap and surprises.
