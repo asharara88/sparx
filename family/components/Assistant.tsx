@@ -662,7 +662,8 @@ export function Assistant({ suggestions, chats = [], initial = null, autoAsk = n
         const { data, error } = await supabase.rpc("coach_plan_start", { p_subject_id: p.plan.subject_id, p_goal: p.plan.goal, p_steps: p.plan.steps });
         const res = data as { ok: boolean; message?: string } | null;
         if (error || !res?.ok) throw new Error(res?.message ?? error?.message ?? "Could not start the plan.");
-        saved("/", t(lang, "planStarted"));
+        // Today's step is a row of the child's Today tab (Home has not shown a plan since October).
+        saved("/baby", t(lang, "planStarted", { child: p.plan.subject_name }));
       } else if (p.kind === "forget" && p.forget) {
         const { data, error } = await supabase.rpc("memory_remove", { p_id: p.forget.id });
         const res = data as { ok: boolean; message?: string } | null;

@@ -114,13 +114,16 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
   // "{Name}'s day", when a parent has saved one and it counts at this age (lib/day.ts); null
   // for a baby and for a home that has not saved one, and then the tab is as it was.
   const saved = readDay(summary.subject.settings, age, summary.subject.birth_date);
-  const [{ data: stripData }, { data: weekData }, { data: sugData }] = await Promise.all([
+  const [{ data: stripData }, { data: weekData }, { data: sugData }, { data: coachData }] = await Promise.all([
     // From 12 hours before the day, so a sleep that began last night counts towards it.
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(new Date(from).getTime() - 12 * 3600 * 1000).toISOString(), p_to: to }),
     // The week is today's; with a saved day a past day reads it too, for the totals the family logs lately.
     isToday || saved ? supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: new Date(Date.now() - 7 * 86_400_000).toISOString(), p_to: new Date(Date.now() + 3_600_000).toISOString() }) : Promise.resolve({ data: null }),
     isToday ? supabase.rpc("suggestions_refresh") : Promise.resolve({ data: null }),
+    // The coach plan the helper started, on today only (27 November: it was on Week, in a closed row).
+    isToday ? supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }) : Promise.resolve({ data: null }),
   ]);
+  const coach = (coachData as CoachPlanData | null)?.ok ? (coachData as CoachPlanData).plan : null;
   const week = ((weekData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
   const feedInterval = feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
@@ -146,12 +149,13 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
           <EntryChecks entries={week} timezone={tz} ageDays={age} canDelete={can(me, "lana", "delete")} />
         </Fold>
       )}
-      {/* What there is to read: the guide's tips and what the data suggests doing (a dose due, a
-          plan for the calendar). Useful, not now, so rows of one white list; the list is not drawn
-          while it has no row (the guide decides in the browser whether it has a tip). */}
+      {/* What there is to read: the guide's tips, the coach plan the family started (today's step)
+          and what the data suggests doing (a dose due, a plan for the calendar). Rows of one white list; the list is not drawn while it has no row (the guide
+          decides in the browser whether it has a tip). */}
       {isToday && (
         <div className="card flex flex-col overflow-hidden p-0 empty:hidden">
           <LanaGuide flat entries={week} birthDate={summary.subject.birth_date} timezone={tz} feedGapMin={feedInterval} />
+          <PlanCard plan={coach} />
           {suggestions.length > 0 && (
             <Fold flat title="Suggested" icon="calendar" tint="cal" hint={`${suggestions.length}`}>
               <SuggestionCards suggestions={suggestions} title={null} />
@@ -171,12 +175,11 @@ async function TodayTab({ supabase, me, summary, day, today, tz }: { supabase: S
 
 async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB; me: Me; summary: HomeSummary; today: string; tz: string; pr: Pronouns }) {
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
-  const [{ data: listData }, { data: statsData }, { data: hhData }, { data: planData }] = await Promise.all([
+  const [{ data: listData }, { data: statsData }, { data: hhData }] = await Promise.all([
     supabase.rpc("care_entries_list", { p_subject_id: summary.subject.id, p_from: dayRange(days[0], tz).from, p_to: new Date(Date.now() + 3_600_000).toISOString() }),
     // One day more than the week: a toddler's first night counts only beside the night before it (X8).
     supabase.rpc("care_daily_stats", { p_subject_id: summary.subject.id, p_from: addDays(today, -8), p_to: today }),
     supabase.rpc("household_today"),
-    supabase.rpc("coach_plan_active", { p_subject_id: summary.subject.id }),
   ]);
   const entries = ((listData as { entries?: EntryRow[] } | null)?.entries ?? []) as EntryRow[];
   const stats = statsData as DailyStats | RpcError | null;
@@ -185,7 +188,6 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
   const full = all.filter((d) => d.day < today);
   const weekAgo = Date.now() - 7 * 86_400_000;
   const lastWeek = entries.filter((e) => Date.parse(e.occurred_at) >= weekAgo);
-  const plan = (planData as CoachPlanData | null)?.ok ? (planData as CoachPlanData).plan : null;
   const stage = stageFor(summary.subject.birth_date, Date.now(), tz);
   const feedInterval = feedGapFor(stage, summary.types.find((t) => t.id === "lana.feed")?.due_after_min);
   const age = summary.subject.birth_date ? ageDays(summary.subject.birth_date, today) : null;
@@ -232,20 +234,13 @@ async function WeekTab({ supabase, me, summary, today, tz, pr }: { supabase: SB;
           />
         </Fold>
       )}
-      {/* From 12 months milk has no clock (R2): no feed, diaper, nap or wake guesses, only the plan when there is one.
-          A toddler whose day keeps the feed clock gets the feeds back, and only those. */}
-      {kid.milkClock ? (
+      {/* From 12 months milk has no clock (R2): no feed, diaper, nap or wake guesses, so no row.
+          A toddler whose day keeps the feed clock gets the feeds back, and only those. The coach
+          plan is on the Today tab (27 November). */}
+      {kid.milkClock && (
         <Fold flat title="Coming up" icon="clock" tint="cal" hint="next 12 hours">
           <LanaForecast bare entries={lastWeek} timezone={tz} away={away} feedIntervalMin={feedInterval} hours={12} only={stage.toddler ? ["feed"] : undefined} />
-          <PlanCard plan={plan} />
         </Fold>
-      ) : (
-        plan &&
-        !plan.over && (
-          <Fold flat title="Coming up" icon="clock" tint="cal">
-            <PlanCard plan={plan} />
-          </Fold>
-        )
       )}
       <Fold flat title="Sleep rhythm" icon="moon" tint="sleep" hint="naps and bedtime">
         <SleepCoach bare entries={entries} ageDays={age ?? 120} sex={child(me)?.sex ?? null} napsPerDay={pattern.perDay} timezone={tz} />

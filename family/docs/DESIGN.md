@@ -444,8 +444,8 @@ Week / About her.
   pager says which day, and a weekday there means a day past. Here the pager has no first
   day: the arrow back always works, as the old one did. Then the totals strip, *To check* as a yellow fold
   when it has something (the one bar on the tab that asks for action, so it keeps its
-  colour), then what there is to read as rows of one white list (the guide; *Suggested*),
-  the day's entries as a timeline list (time,
+  colour), then what there is to read as rows of one white list (the guide; the coach plan
+  while one runs; *Suggested*), the day's entries as a timeline list (time,
   icon, what and how long, who; a tap opens its edit sheet), and **Add to this day** as the
   bottom button on a past day (today, the bar's ＋ does it). The log sheet: how she is right
   now (one tap), every kind of entry as a row, and *From earlier* for something missed.
@@ -464,7 +464,8 @@ Week / About her.
   sleep rhythm, day by day, the helper. From 12 months a kind
   shows in "against her age" and "day by day" only when it was logged that week, and with
   nothing to list the fold is not drawn. "Coming up" lists no feed, diaper, nap or wake (milk
-  has no clock): it holds the plan card only, and is not drawn without a plan.
+  has no clock), so from 12 months it is not drawn, unless the family keeps the feed clock:
+  then it holds the feeds only.
 - **About her**: three groups of rows: Health (doctor,
   when to call, vaccines, medicine, emergency, for the doctor), Growing (what this age brings,
   a row that opens where it stands; growth and trends,
@@ -473,6 +474,18 @@ Week / About her.
   birth date asks once before saving, since everything that goes by age changes with it.
   For a parent of a child of 12 months or more, Care begins with "{Name}'s day", with the
   plain pill "look" while Home offers it.
+
+**The coach plan** (27 November). A plan the helper offers and the family starts with one tap
+(a few days, one small step a day) is a row of the Today tab's white list, after the guide:
+"Coach plan" with "day 3 of 7" as its hint, "day 3 of 7 · done" once today is marked. Opened,
+it holds the goal, today's step, *Done today*, *Ask the coach* and *Stop*. It is closed like
+the rows around it (open by default it added 48 words and 0.4 of a screen to a tab already at
+its budget). It is shown on today only, and nowhere else: until 27 November it sat in
+Week's closed "Coming up" row and the helper said "Today's step is on Home", where no plan had
+shown since October, so a plan Mido started could not be found. The helper now says "Today's
+step is on Lana's page" and links there. A row, not a card: the Today tab is at its block
+budget, and the plan left Week for it. On Week the plan card had sat inside the list's card,
+which failed the "card in card" check whenever a plan ran.
 
 
 "Quieter lists", 25 November 2026 (Mido's pick of three options; "To check" kept yellow at
