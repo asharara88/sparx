@@ -11,6 +11,9 @@
  *   - a timed entry (a breastfeed) is time awake from its start to its end, at most 90
  *     minutes; a sleep, or a timer the app closed by itself, is one moment;
  *   - saves within 30 minutes of each other are one time up;
+ *   - what is saved in the first hour, before midnight, is the end of the evening and not a
+ *     time up (a last feed at 23:05 and the child's sleep at 23:40 are bedtime, not a broken
+ *     night); it still ends the quiet stretch before it;
  *   - under two times up, nothing is said at all.
  *
  * Pure: no "@/" imports, so the unit tests run it as it is.
@@ -23,6 +26,8 @@ export const NIGHT_ENDS = "06:00";
 export const JOIN_MIN = 30;
 /** A timer left running does not make a night of it. */
 export const BUSY_CAP_MIN = 90;
+/** Saves this soon after the night starts are the evening's tail: she had not gone to bed yet. */
+export const SETTLE_MIN = 60;
 /** Under this many times up there is no line. */
 export const LEAST_TIMES = 2;
 
@@ -69,11 +74,12 @@ export function memberNight(rows: NightRow[], memberId: string, win: NightWindow
     if (last && b.start <= last.end + JOIN_MIN * 60_000) last.end = Math.max(last.end, b.end);
     else groups.push({ ...b });
   }
-  if (groups.length < LEAST_TIMES) return null;
+  const times = groups.filter((g) => g.start >= win.from + SETTLE_MIN * 60_000).length;
+  if (times < LEAST_TIMES) return null;
   let longest = groups[0].start - win.from;
   for (let i = 1; i < groups.length; i++) longest = Math.max(longest, groups[i].start - groups[i - 1].end);
   longest = Math.max(longest, win.to - groups[groups.length - 1].end);
-  return { times: groups.length, longestMin: Math.round(longest / 60_000) };
+  return { times, longestMin: Math.round(longest / 60_000) };
 }
 
 /**

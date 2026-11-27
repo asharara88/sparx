@@ -17,13 +17,55 @@
 --      (lib/nights.ts); the database only says who has said yes, and whether the caller has
 --      already cheered that night.
 --
--- Nothing here adds a call to Home: the two new facts ride in achievements_check(), which
--- Home already calls, and her own switch reaches her in me(), which returns her row.
--- No names: everything is by member id and role.
+--      Her answer is hers. It lives in its own table that no signed-in role can read or
+--      write: not a column on members, which every admin may edit and every carer may read.
+--      Nobody but her can set it, nobody but her can read it (a no is told to no one, and
+--      leaves no line in the audit log), and a yes is a yes to the parents named when she
+--      gave it: when another parent joins the home her yes waits until she has been asked
+--      again with the new name in front of her.
+--
+-- Nothing here adds a call to Home: the new facts ride in achievements_check(), which Home
+-- already calls. No names: everything is by member id and role.
 -- ============================================================================
 
--- null: never asked. true: shared. false: said no. Only she can set it (me_night_share_set).
-alter table public.members add column if not exists night_share boolean;
+-- Her answer. No row: never asked. share false: said no. share true: said yes, to the other
+-- parents in `told` (the admins of her home on the day she answered).
+create table if not exists public.night_shares (
+  member_id uuid primary key,
+  household_id uuid not null references public.household (id) on delete cascade,
+  share boolean not null,
+  told uuid[] not null default '{}',
+  answered_at timestamptz not null default now(),
+  constraint night_shares_member_home_fkey foreign key (household_id, member_id) references public.members (household_id, id) on delete cascade
+);
+create index if not exists night_shares_household_idx on public.night_shares (household_id);
+alter table public.night_shares enable row level security;
+revoke all on public.night_shares from anon, authenticated;
+drop policy if exists night_shares_app on public.night_shares;
+create policy night_shares_app on public.night_shares for all to app_rls using (true) with check (true);
+drop policy if exists night_shares_home on public.night_shares;
+create policy night_shares_home on public.night_shares as restrictive for all to authenticated, app_rls
+  using (household_id = private.current_household_id()) with check (household_id = private.current_household_id());
+grant select, insert, update, delete on public.night_shares to app_rls;
+
+-- Whether a member's nights are shared right now: null when she was never asked, false after
+-- a no, true after a yes. A yes counts only while every other parent in her home is one she
+-- was asked about: when a new one appears it reads null again, so she is asked again and
+-- until then nobody is told anything.
+create or replace function private.night_share_of(p_member uuid) returns boolean
+language sql stable set search_path = public as $$
+  select case
+    when not s.share then false
+    when exists (
+      select 1 from public.members o
+       where o.household_id = s.household_id and o.id <> s.member_id and coalesce(o.is_active, true)
+         and o.role_id = 'admin' and not (o.id = any (s.told))) then null
+    else true end
+  from public.night_shares s where s.member_id = p_member
+$$;
+alter function private.night_share_of(uuid) owner to app_rls;
+revoke execute on function private.night_share_of(uuid) from public, anon, authenticated;
+grant execute on function private.night_share_of(uuid) to app_rls;
 
 create table if not exists public.cheers (
   id uuid primary key default gen_random_uuid(),
@@ -62,21 +104,52 @@ create policy cheers_home on public.cheers as restrictive for all to authenticat
 grant select, insert, update, delete on public.cheers to app_rls;
 
 -- Her own switch. No member id: nobody can turn it on or off for someone else, and not while
--- viewing as her.
+-- viewing as her. A yes names the other parents of her home as they are now. No audit line:
+-- the audit log is read by every admin, and her answer, a no above all, is not theirs to read.
 create or replace function public.me_night_share_set(p_on boolean) returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
-declare v_id uuid := public.current_member_id();
+declare
+  v_id uuid := public.current_member_id();
+  v_home uuid := private.current_household_id();
+  v_told uuid[] := '{}';
 begin
-  if v_id is null then return private.denied(); end if;
+  if v_id is null or v_home is null then return private.denied(); end if;
   if private.read_only_preview() then return private.denied('Read only while viewing as someone else.'); end if;
   if p_on is null then return jsonb_build_object('ok', false, 'error', 'bad_value', 'message', 'Say yes or no.'); end if;
-  update public.members set night_share = p_on, updated_at = now() where id = v_id;
-  perform private.audit_write('members', 'edit', true, 'members', v_id::text, jsonb_build_object('night_share', p_on));
+  if p_on then
+    select coalesce(array_agg(o.id), '{}') into v_told
+      from public.members o
+     where o.household_id = v_home and o.id <> v_id and coalesce(o.is_active, true) and o.role_id = 'admin';
+  end if;
+  insert into public.night_shares (member_id, household_id, share, told, answered_at)
+  values (v_id, v_home, p_on, v_told, now())
+  on conflict (member_id) do update set share = excluded.share, told = excluded.told, answered_at = excluded.answered_at;
   return jsonb_build_object('ok', true, 'night_share', p_on);
 end $$;
 alter function public.me_night_share_set(boolean) owner to app_rls;
 revoke execute on function public.me_night_share_set(boolean) from public, anon;
 grant execute on function public.me_night_share_set(boolean) to authenticated, service_role;
+
+-- Her own answer, for her own Display screen, with the names of the parents it is about.
+-- While an admin views as her it says nothing: he is not the one to read it.
+create or replace function public.me_night_share() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_id uuid := public.current_member_id();
+  v_home uuid := private.current_household_id();
+begin
+  if v_id is null or v_home is null then return private.denied(); end if;
+  return jsonb_build_object(
+    'ok', true,
+    'night_share', case when private.read_only_preview() then null else private.night_share_of(v_id) end,
+    'parents', coalesce((
+      select jsonb_agg(o.display_name order by o.display_name)
+        from public.members o
+       where o.household_id = v_home and o.id <> v_id and coalesce(o.is_active, true) and o.role_id = 'admin'), '[]'::jsonb));
+end $$;
+alter function public.me_night_share() owner to app_rls;
+revoke execute on function public.me_night_share() from public, anon;
+grant execute on function public.me_night_share() to authenticated, service_role;
 
 -- Send a cheer. The receiver must be someone else in the home who can see the child's log
 -- (the moment shows on Home), and not on the simple screen, which has no place for it yet.
@@ -127,7 +200,7 @@ begin
       return private.denied();
     end if;
   elsif p_about = 'night' then
-    if p_ref_id is not null or p_ref_day is distinct from v_today - 1 or v_to.role_id <> 'admin' or v_to.night_share is not true
+    if p_ref_id is not null or p_ref_day is distinct from v_today - 1 or v_to.role_id <> 'admin' or private.night_share_of(p_to) is not true
        or not exists (select 1 from public.members m where m.id = v_me and m.role_id = 'admin') then
       return private.denied();
     end if;
@@ -184,12 +257,14 @@ alter function public.cheers_seen(uuid[]) owner to app_rls;
 revoke execute on function public.cheers_seen(uuid[]) from public, anon;
 grant execute on function public.cheers_seen(uuid[]) to authenticated, service_role;
 
--- achievements_check(), as migration 5900 wrote it, with two more keys in what it returns:
---   cheers  up to five cheers the caller has not opened, oldest first. Empty while an admin
---           views as someone else: the words are for the receiver alone.
---   nights  for an admin: the other active admins who share their nights, and whether the
---           caller has already cheered each for last night. Empty for anyone else and in
---           "view as". The night itself is worked out in the app (lib/nights.ts).
+-- achievements_check(), as migration 5900 wrote it, with three more keys in what it returns:
+--   cheers       up to five cheers the caller has not opened, oldest first. Empty while an
+--                admin views as someone else: the words are for the receiver alone.
+--   nights       for an admin: the other active admins who share their nights, and whether
+--                the caller has already cheered each for last night. Empty for anyone else
+--                and in "view as". The night itself is worked out in the app (lib/nights.ts).
+--   night_share  the caller's own answer (null: not asked yet, or to be asked again), so her
+--                Home knows whether to ask. Null in "view as".
 -- Everything about medals is unchanged, line for line.
 create or replace function public.achievements_check() returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
@@ -201,6 +276,7 @@ declare
   v_new jsonb;
   v_cheers jsonb := '[]'::jsonb;
   v_nights jsonb := '[]'::jsonb;
+  v_share boolean;
   v_tz text;
   v_today date;
 begin
@@ -258,10 +334,12 @@ begin
                order by m.created_at, m.id), '[]'::jsonb)
         into v_nights
         from public.members m
-       where m.household_id = v_home and m.id <> v_me and coalesce(m.is_active, true) and m.role_id = 'admin' and m.night_share is true;
+       where m.household_id = v_home and m.id <> v_me and coalesce(m.is_active, true) and m.role_id = 'admin'
+         and private.night_share_of(m.id) is true;
     end if;
+    v_share := private.night_share_of(v_me);
   end if;
-  return jsonb_build_object('ok', true, 'new', v_new, 'numbers', v_n, 'cheers', v_cheers, 'nights', v_nights);
+  return jsonb_build_object('ok', true, 'new', v_new, 'numbers', v_n, 'cheers', v_cheers, 'nights', v_nights, 'night_share', v_share);
 end $$;
 alter function public.achievements_check() owner to app_rls;
 revoke execute on function public.achievements_check() from public, anon;

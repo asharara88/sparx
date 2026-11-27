@@ -16,6 +16,9 @@ export interface FreshBadge {
   mine: boolean;
 }
 
+/** A cheer stays up at least this long: taps that land sooner are the tail of the tap that opened it. */
+const CHEER_HOLD_MS = 600;
+
 const COLOURS = ["#c2476a", "#f6b8c9", "#ffd37a", "#9fd8b8", "#9ec9f0", "#c9b6f2", "#ffb38a"];
 
 /**
@@ -54,6 +57,9 @@ export function Celebration({ fresh, cheers = [], today, timezone }: { fresh: Fr
 function CheerMoment({ cheer, more, startOpen, today, timezone, onOpen, onNext, onLater }: { cheer: Cheer; more: number; startOpen: boolean; today: string; timezone: string; onOpen: () => void; onNext: () => void; onLater: () => void }) {
   const [open, setOpen] = useState(startOpen);
   const [host, setHost] = useState<HTMLElement | null>(null);
+  // When the words came up. Opening marks a cheer read for good, so a second quick tap (a
+  // double tap on the line, or on "Lovely" as the next one arrives) must not close it unread.
+  const shownAt = useRef(0);
   useEffect(() => setHost(document.body), []);
   useEffect(() => {
     if (open) return;
@@ -62,6 +68,7 @@ function CheerMoment({ cheer, more, startOpen, today, timezone, onOpen, onNext, 
   }, [open, onLater]);
   useEffect(() => {
     if (!open) return;
+    shownAt.current = Date.now();
     buzz([18, 40, 18]);
     // A Supabase query only runs once it is awaited or then-ed.
     supabaseBrowser()
@@ -99,8 +106,9 @@ function CheerMoment({ cheer, more, startOpen, today, timezone, onOpen, onNext, 
     );
 
   return createPortal(
-    <div className="celebrate" role="dialog" aria-modal="true" aria-labelledby="cheer-words" onClick={onNext}>
-      <div className="celebrate-card" onClick={(e) => e.stopPropagation()}>
+    // Only "Lovely" closes it: a tap beside the card is too easy to make by accident, and there is no list to find the words in again.
+    <div className="celebrate" role="dialog" aria-modal="true" aria-labelledby="cheer-words">
+      <div className="celebrate-card">
         {medal?.t && medal.x ? (
           <span className="celebrate-medal">
             <Medal metal={medal.x.metal} icon={medal.t.icon} size={96} label={`${medal.x.name} medal`} />
@@ -116,7 +124,14 @@ function CheerMoment({ cheer, more, startOpen, today, timezone, onOpen, onNext, 
         </h2>
         <p className="muted">for {cheerFor(cheer, today, timezone)}</p>
         {more > 0 && <p className="muted text-sm">and {more} more</p>}
-        <button type="button" className="btn btn-primary mt-2 w-full" onClick={onNext} autoFocus>
+        <button
+          type="button"
+          className="btn btn-primary mt-2 w-full"
+          onClick={() => {
+            if (Date.now() - shownAt.current >= CHEER_HOLD_MS) onNext();
+          }}
+          autoFocus
+        >
           Lovely
         </button>
       </div>

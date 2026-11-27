@@ -17,15 +17,16 @@ import { Sheet } from "./Sheet";
  * in one tap) and send a cheer. Taking the child keeps the sheet open, so a cheer can follow
  * it ("Rest, I have the morning" is offered only once it is true).
  *
- * She is never shown any of this about herself, and nothing here measures her: it says how
- * the night went, and what he can do.
+ * After the question she answered (NightAsk), she is never shown any of this about herself,
+ * and nothing here measures her: it says how the night went, and what he can do.
  */
 export function NightNotice({ sharer, times, longestMin, nightDay, subjectId, child, meId, canTake, holding }: { sharer: { id: string; name: string }; times: number; longestMin: number; /** The home date the night started on. */ nightDay: string; subjectId: string; child: string; meId: string; /** May the viewer say who has the child. */ canTake: boolean; /** The viewer has the child already. */ holding: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [cheer, setCheer] = useState(false);
-  const [have, setHave] = useState(holding);
   const [took, setTook] = useState(false);
+  // Derived, not kept: Home may learn after a refresh that someone else has the child now.
+  const have = holding || took;
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
@@ -37,7 +38,6 @@ export function NightNotice({ sharer, times, longestMin, nightDay, subjectId, ch
     setBusy(false);
     const res = data as { ok: boolean; message?: string } | null;
     if (error || !res?.ok) return setMsg(res?.message ?? error?.message ?? "Could not change that. Try again.");
-    setHave(true);
     setTook(true);
     setChanged(true);
   }
@@ -45,6 +45,7 @@ export function NightNotice({ sharer, times, longestMin, nightDay, subjectId, ch
     setOpen(false);
     // Home catches up once the sheet is closed: the header's "with ...", and this line, which has done its work.
     if (changed) router.refresh();
+    setTook(false);
   }
 
   return (

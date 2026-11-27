@@ -57,7 +57,7 @@ test("three times up, and the longest quiet stretch with both edges of the night
   // The stretch before the first time up can be the longest.
   assert.deepEqual(memberNight([row("04:00"), row("05:00")], HER, w), { times: 2, longestMin: 300 });
   // And the one after the last.
-  assert.deepEqual(memberNight([row("23:10"), row("00:10")], HER, w), { times: 2, longestMin: 350 });
+  assert.deepEqual(memberNight([row("00:05"), row("01:10")], HER, w), { times: 2, longestMin: 290 });
 });
 
 test("a 40 minute breastfeed is 40 minutes awake; a save half an hour after it ends joins it", async () => {
@@ -79,9 +79,23 @@ test("a timer left running is capped at 90 minutes, and at the end of the night"
 test("a sleep, and a timer the app closed by itself, are one moment each", async () => {
   const { memberNight, nightOf } = await import("./nights.ts");
   const w = nightOf("2026-11-25", TZ);
-  // The sleep 23:30 to 03:00 is the child's, not time she was awake: 02:00 is a separate time up.
-  assert.deepEqual(memberNight([row("23:30", { type_id: "lana.sleep", ended: "03:00" }), row("02:00")], HER, w), { times: 2, longestMin: 240 });
+  // The sleep 00:30 to 03:00 is the child's, not time she was awake: 02:00 is a separate time up.
+  assert.deepEqual(memberNight([row("00:30", { type_id: "lana.sleep", ended: "03:00" }), row("02:00")], HER, w), { times: 2, longestMin: 240 });
   assert.deepEqual(memberNight([row("00:00", { ended: "01:30", payload: { auto_end: true } }), row("01:00")], HER, w), { times: 2, longestMin: 300 });
+});
+
+test("what is saved before midnight is the evening, not a time up", async () => {
+  const { memberNight, nightOf } = await import("./nights.ts");
+  const w = nightOf("2026-11-25", TZ);
+  // A last feed and the child's sleep, then she slept through: bedtime, not a broken night.
+  assert.equal(memberNight([row("23:05"), row("23:40", { type_id: "lana.sleep" })], HER, w), null);
+  // The evening's tail and one waking is still one waking.
+  assert.equal(memberNight([row("23:25", { type_id: "lana.diaper" }), row("03:00")], HER, w), null);
+  assert.equal(memberNight([row("23:10"), row("23:55"), row("03:00")], HER, w), null);
+  // Two wakings after it: twice. The quiet stretch runs from the last evening save, not from 23:00.
+  assert.deepEqual(memberNight([row("23:05"), row("23:40"), row("03:00"), row("05:00")], HER, w), { times: 2, longestMin: 200 });
+  // Midnight itself is the night.
+  assert.deepEqual(memberNight([row("00:00"), row("02:00")], HER, w), { times: 2, longestMin: 240 });
 });
 
 test("22:50 and 06:10 are outside the night", async () => {

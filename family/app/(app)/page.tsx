@@ -173,7 +173,7 @@ export default async function HomePage() {
   // a nudge to keep a run going when nothing more pressing is waiting. The nudge is a
   // stored-milk notice: a run needs a pump today or yesterday, so with no day it shows as before.
   const { data: achData } = summary && summary.ok && can(me, "lana", "view") ? await supabase.rpc("achievements_check") : { data: null };
-  const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers; cheers?: Cheer[]; nights?: { member_id: string; cheered: boolean }[] } | null;
+  const ach = achData as { ok?: boolean; new?: FreshBadge[]; numbers?: BadgeNumbers; cheers?: Cheer[]; nights?: { member_id: string; cheered: boolean }[]; night_share?: boolean | null } | null;
   const fresh = ach?.ok ? (ach.new ?? []) : [];
   // Cheers and shared nights (migration 7000; DESIGN.md, "Cheers and shared nights"). Both ride
   // in the call above, and the night itself is read from the week Home already holds.
@@ -198,8 +198,9 @@ export default async function HomePage() {
   }
   // The question, on her own Home, until she answers it: only where there is another parent to
   // tell, in the daytime, and only once a real night of hers would give a line to show her.
+  // Her answer comes back null again when a new parent joins: a yes was to the names she saw.
   let ask: { names: string; sample: { name: string; times: number; longestMin: number } } | null = null;
-  if (parent && me.member.night_share == null && household.ok && summary && summary.ok && hour >= 8 && hour < 20) {
+  if (parent && ach?.ok && "night_share" in ach && ach.night_share == null && household.ok && summary && summary.ok && hour >= 8 && hour < 20) {
     const others = household.members.filter((m) => m.id !== me.member.id && m.role_id === "admin");
     const got = others.length ? latestNight(week, me.member.id, today, tz, now.getTime(), childMorning) : null;
     if (got) ask = { names: andList(others.map((m) => m.name)), sample: { name: nightName(got.win.day, today), ...got.night } };

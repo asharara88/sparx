@@ -798,14 +798,15 @@ morning, how her night went, with one tap to take the child and one to send a ch
   Cheers come before medals, oldest first, and there is never more than one line. Tapping it
   shows the words on the medal's card, with a heart where the medal would be (the medal
   itself for a medal cheer), who sent it, what for, and "and 2 more". No confetti: it is a
-  person speaking, not a prize. "Lovely" brings the next. Opening is reading, so it is
-  marked seen, on every phone; × is "not now" and marks nothing, so a cheer is never lost
-  unread. Only the two of them ever read it: the table has no direct read for anyone, and an
+  person speaking, not a prize. "Lovely" brings the next, and only "Lovely" closes it: a
+  tap beside the card does nothing, and the card holds for a moment after it opens, because
+  there is no list to find the words in again. Opening is reading, so it is marked seen, on
+  every phone; × is "not now" and marks nothing, so a cheer is never lost unread. Only the two of them ever read it: the table has no direct read for anyone, and an
   admin viewing as her is not handed it.
 - Someone on the simple screen cannot be cheered yet: that screen has no place for the line
   and one spare database call, and the sender is told so in plain words.
 
-**A night that may be shared** (`members.night_share`, `me_night_share_set`; `lib/nights.ts`)
+**A night that may be shared** (`night_shares`, `me_night_share_set`, `me_night_share`; `lib/nights.ts`)
 
 - **Off until she says yes.** Nothing is worked out for anyone before that. She is asked
   once, on her own Home, in the Now slot (`NightAsk`): "Tell Omar how your nights go?", only
@@ -817,12 +818,20 @@ morning, how her night went, with one tap to take the child and one to send a ch
   either ends the asking, closing the sheet does not.
 - **Hers to change**: More, Display, "Tell Omar about my nights". Nobody can turn it on or off
   for her, and not while viewing as her.
+- **Hers to read.** Her answer is not on her member row, which every admin may edit and
+  every carer may read: it is in a table no signed-in role can touch, behind functions that
+  answer only her. A no is told to no one, and neither answer leaves a line in the audit log,
+  which every admin reads. (The first draft kept it on the member row; a review caught that
+  the other parent could have switched it on himself.)
+- **A yes is to the names she saw.** When another parent joins the home her yes waits, for
+  everyone, until she has been asked again with the new name in front of her. A no stays a no.
 - **The rule**, each figure a constant at the top of `lib/nights.ts`: the night runs from
   23:00 to 06:00 at home (or to the child's morning when that is earlier); only what she
   saved herself counts, never what was saved in her name; a timed entry (a breastfeed) is
   time awake from start to end, at most 90 minutes, and a sleep or a timer the app closed
-  is one moment; saves within 30 minutes are one time up; under two times up, nothing is
-  said at all.
+  is one moment; saves within 30 minutes are one time up; what is saved in the first hour,
+  before midnight, is the end of the evening and not a time up (a last feed at 23:05 and the
+  child's sleep at 23:40 are bedtime); under two times up, nothing is said at all.
 - **The morning line** (`NightNotice`): on the other parent's Home, from the night's end
   until noon: "Sara was up twice in the night" (twice has no digit; from three, one number,
   as rule 4 asks). It is a Now-slot candidate, after entries to check and ahead of what can
@@ -836,10 +845,12 @@ morning, how her night went, with one tap to take the child and one to send a ch
   then is it true. Once he has cheered that night or taken the child, the line has done its
   work and is gone.
 - It never judges: no "only", no "bad night", no comparison with other nights or other
-  people, and no number is ever shown to her about her own night.
+  people. She sees her own night's two lines once, in the question, so that she knows exactly
+  what she is saying yes to; after she has answered, no number about her night is ever shown
+  to her.
 
 **What it costs the screens.** Home gains no block and no database call: the cheers and who
-shares ride in `achievements_check()`, which Home already calls, her own switch in `me()`,
+shares ride in `achievements_check()`, which Home already calls, as does her own answer,
 and the night is read from the week of entries Home already holds. Measured as an admin at
 390 px on a morning with a broken night, before → after:
 
@@ -853,7 +864,8 @@ and the night is read from the week of entries Home already holds. Measured as a
 In the demo home three notices outrank the line, so it waits behind More and the first screen
 reads the same. When it wins the slot it takes the place of the notice that would have
 shown: eight words and at most one number on the one line. Phone checks pass on all four.
-Display makes one more call for a parent (to name the other one); it is not an everyday screen.
+Display makes one more call for a parent (her own answer and the other parent's name); it is
+not an everyday screen.
 
 **Left out on purpose**: a push (the line is there when he opens the app, and a buzz at 6 am
 is nobody's gift); a list of past cheers (the moment is the point); the simple screen;

@@ -1955,7 +1955,10 @@ delete from public.cheers where words = 'plenty test';
 -- Her switch: hers alone.
 select pg_temp.act_as(:the_pumper);
 set role authenticated;
-select pg_temp.assert((public.me())->'member' ? 'night_share' and (public.me())->'member'->>'night_share' is null, 'me() carries her switch, and she has not been asked yet');
+select pg_temp.assert((public.achievements_check()) ? 'night_share' and (public.achievements_check())->>'night_share' is null and (public.me_night_share())->>'night_share' is null,
+  'she has not been asked yet, and her Home and her Display are told so');
+select pg_temp.assert(not ((public.me())->'member' ? 'night_share'), 'her row in members carries nothing about it: every admin may edit that row and every carer may read it');
+select pg_temp.assert((public.me_night_share())->'parents' = jsonb_build_array(:'admin_name'), 'her Display is told the other parent by name');
 select pg_temp.assert((public.me_night_share_set(null))->>'ok' = 'false', 'her switch takes yes or no, not nothing');
 select pg_temp.assert((public.me_night_share_set(false))->>'ok' = 'true', 'she says no');
 reset role;
@@ -1966,15 +1969,33 @@ reset role;
 select pg_temp.preview_as(:an_admin, :the_pumper);
 set role authenticated;
 select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'false', 'an admin viewing as her cannot say yes for her');
+select pg_temp.assert((public.me_night_share())->>'night_share' is null and (public.achievements_check())->>'night_share' is null, 'nor read that she said no');
 select pg_temp.assert(jsonb_array_length((public.achievements_check())->'cheers') = 0, 'nor read the cheers that wait for her');
 select pg_temp.assert((public.cheers_seen(array[(select gen_random_uuid())]))->>'ok' = 'false' and (public.cheer_send(:a_carer, 'day', null, (now() at time zone :'fam_tz')::date, 'Thank you'))->>'ok' = 'false', 'nor mark them seen, nor send one in her name');
 reset role;
-select pg_temp.assert((select night_share from public.members where id = :the_pumper) = false and (select count(*) from public.cheers where to_member = :the_pumper and seen_at is not null) = 0, 'her no stands and her cheers still wait');
+select pg_temp.assert((select share from public.night_shares where member_id = :the_pumper) = false and (select count(*) from public.cheers where to_member = :the_pumper and seen_at is not null) = 0, 'her no stands and her cheers still wait');
 select pg_temp.act_as(:the_pumper);
 set role authenticated;
 select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'true', 'she says yes');
 reset role;
-select pg_temp.assert((select night_share from public.members where id = :the_pumper) and (select count(*) from public.members where night_share is not null) = 1, 'her row changed and nobody else''s');
+select pg_temp.assert((select share and told = array[:an_admin::uuid] from public.night_shares where member_id = :the_pumper) and (select count(*) from public.night_shares) = 1, 'her answer is stored with the parent she said yes to, and nobody else has one');
+-- The other parent cannot reach her answer any other way: not by reading it, not by writing it.
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(pg_temp.fails('select * from public.night_shares') and pg_temp.fails($q$update public.night_shares set share = false$q$) and pg_temp.fails('delete from public.night_shares')
+  and pg_temp.fails($q$insert into public.night_shares (member_id, household_id, share) values ('00000000-0000-4000-8000-000000000003', private.current_household_id(), true)$q$),
+  'an admin can neither read nor write anyone''s answer directly');
+select pg_temp.assert(pg_temp.fails('select private.night_share_of(public.current_member_id())'), 'nor ask the helper that reads it');
+select pg_temp.assert((public.achievements_check())->>'night_share' is null and (public.me_night_share())->>'night_share' is null, 'his own Home and Display are told only about himself: not asked yet');
+reset role;
+select pg_temp.act_as(:a_carer);
+set role authenticated;
+select pg_temp.assert(pg_temp.fails('select * from public.night_shares'), 'a family carer cannot read it either');
+reset role;
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.achievements_check())->>'night_share' = 'true' and (public.me_night_share())->>'night_share' = 'true', 'her own Home and Display know her yes');
+reset role;
 select pg_temp.act_as(:an_admin);
 set role authenticated;
 select pg_temp.assert((public.achievements_check())->'nights' = jsonb_build_array(jsonb_build_object('member_id', :the_pumper::uuid, 'cheered', false)), 'now the other admin is told she shares, and that he has not cheered last night');
@@ -2019,20 +2040,60 @@ set role authenticated;
 select pg_temp.assert(((public.cheers_seen(array[:'c_first'::uuid]))->>'seen')::int = 1 and jsonb_array_length((public.achievements_check())->'cheers') = 4, 'she opens the first and four wait');
 select pg_temp.assert(((public.cheers_seen(array[:'c_first'::uuid]))->>'seen')::int = 0, 'opening it again marks nothing twice');
 select pg_temp.assert(((public.cheers_seen((select array_agg((x->>'id')::uuid) from jsonb_array_elements((public.achievements_check())->'cheers') x)))->>'seen')::int = 4 and jsonb_array_length((public.achievements_check())->'cheers') = 0, 'and once all are opened none comes back');
+reset role;
+-- Her yes was to the parent named when she gave it. Another parent joins the home: her yes
+-- waits, for everyone, until she has been asked again with the new name in front of her.
+update public.members set role_id = 'admin' where id = :a_carer;
+select pg_temp.act_as(:a_carer);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'a parent who joined after her yes is told nothing');
+reset role;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0 and (public.cheer_send(:the_pumper, 'night', null, (now() at time zone :'fam_tz')::date - 1, 'Thank you'))->>'ok' = 'false',
+  'and the parent she did say yes to hears nothing either until she has answered again');
+reset role;
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.achievements_check())->>'night_share' is null and jsonb_array_length((public.me_night_share())->'parents') = 2, 'her Home asks her again, and her Display names both');
+select pg_temp.assert((public.me_night_share_set(true))->>'ok' = 'true', 'she says yes to both');
+reset role;
+select pg_temp.act_as(:a_carer);
+set role authenticated;
+select pg_temp.assert((public.achievements_check())->'nights'->0->>'member_id' = :the_pumper::text, 'now the new parent is told');
+reset role;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert((public.achievements_check())->'nights'->0->>'cheered' = 'true', 'and the first one again, with the cheer he already sent');
+reset role;
+-- A parent leaving changes nothing for those who stay. And a no is a no whoever joins.
+update public.members set role_id = 'family_carer' where id = :a_carer;
+select pg_temp.act_as(:an_admin);
+set role authenticated;
+select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 1, 'one parent fewer: her yes still holds for the one who stays');
+reset role;
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
 select pg_temp.assert((public.me_night_share_set(false))->>'ok' = 'true', 'she turns sharing off');
 reset role;
+update public.members set role_id = 'admin' where id = :a_carer;
+select pg_temp.act_as(:the_pumper);
+set role authenticated;
+select pg_temp.assert((public.achievements_check())->>'night_share' = 'false', 'a no stays a no when a parent joins: she is not asked again');
+reset role;
+update public.members set role_id = 'family_carer' where id = :a_carer;
 select pg_temp.act_as(:an_admin);
 set role authenticated;
 select pg_temp.assert(jsonb_array_length((public.achievements_check())->'nights') = 0, 'and the other admin is told nothing from then on');
 reset role;
 set role anon;
 select pg_temp.assert(pg_temp.fails($q$select public.cheer_send('00000000-0000-4000-8000-000000000002', 'day', null, current_date, 'x')$q$) and pg_temp.fails('select public.cheers_seen(array[gen_random_uuid()])')
-  and pg_temp.fails('select public.me_night_share_set(true)'), 'signed out: no cheers, no switch');
+  and pg_temp.fails('select public.me_night_share_set(true)') and pg_temp.fails('select public.me_night_share()'), 'signed out: no cheers, no switch');
 reset role;
-select pg_temp.assert((select count(*) from public.audit_log where target_table = 'members' and detail ? 'night_share') = 3, 'each change of her switch is in the audit log');
+select pg_temp.assert((select count(*) from public.audit_log where detail::text like '%night%' or target_table = 'night_shares') = 0, 'her answer leaves no line in the audit log, which every admin can read');
 -- Put back: the entries made for these checks, her switch, and the cheers.
 update public.care_entries set deleted_at = now() where note = 'cheer test';
-update public.members set night_share = null where id = :the_pumper;
+delete from public.night_shares;
 delete from public.cheers;
 update public.permissions p set allowed = f.allowed from perm7000 f where p.role_id = f.role_id and p.module_id = f.module_id and p.action = f.action;
 
