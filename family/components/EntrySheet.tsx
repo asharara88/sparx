@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import type { EntryRow, EntryType, FieldDef } from "@/lib/types";
 import { useMe } from "@/lib/me-context";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { fmtDuration, fromLocalInput, toLocalInput } from "@/lib/time";
+import { fmtDuration, fmtTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { NAP_LENGTHS } from "@/lib/backlog";
+import { CheerButton } from "./CheerButton";
 import { Sheet } from "./Sheet";
 import { TimeBox } from "./TimeBox";
 
@@ -84,7 +85,19 @@ export function EntrySheet({ entry, type, timezone, canEdit, canDelete, onClose 
 
   return (
     <Sheet title={`${entry.type_label}${timed && lastedMin && lastedMin > 0 ? ` · ${fmtDuration(lastedMin)}` : ""}`} onClose={onClose}>
-      <p className="muted -mt-2 text-sm">Logged by {entry.attributed_name ?? entry.logged_by_name ?? "someone"}</p>
+      {/* Whoever the line names can be cheered for this entry (migration 7000), unless that is me. */}
+      {(() => {
+        const who = entry.attributed_name ? { id: entry.attributed_to, name: entry.attributed_name } : { id: entry.logged_by, name: entry.logged_by_name };
+        const line = <p className="muted text-sm">Logged by {who.name ?? "someone"}</p>;
+        return who.id && who.name && who.id !== me.member.id && !me.preview ? (
+          <div className="-my-2 flex min-h-[44px] items-center justify-between gap-2">
+            {line}
+            <CheerButton target={{ to: { id: who.id, name: who.name }, about: "log", refId: entry.id, forWords: `the ${entry.type_label.toLowerCase()} at ${fmtTime(entry.occurred_at, timezone)}` }} />
+          </div>
+        ) : (
+          <div className="-mt-2">{line}</div>
+        );
+      })()}
       <div className="card flex flex-col p-0">
         {/* Typed (Mido, 7 November): on the entry's own day; "Yesterday" moves it a day back. */}
         <div className="row px-4">
