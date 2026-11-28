@@ -1,0 +1,404 @@
+{
+  "bible_version": "1.0.0",
+  "policy_version": "ecms-policy/1.0.0",
+  "characters": [
+    {
+      "id": "CHR-LUMA-001",
+      "name": "Luma",
+      "role": "sleep_guardian",
+      "species_or_form": "A soft, plush-like luna moth with a dim warm lantern glow, wings that rise and fall like slow breathing",
+      "age_band_suitability": {
+        "audio": ["prenatal_t3", "m0_3", "m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "static_visual": ["m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "micro_visual": ["m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "video": []
+      },
+      "personality": {
+        "traits": ["hushed", "patient", "reassuring", "unhurried", "constant"],
+        "energy": "hushed",
+        "speech_habits": ["speaks little, hums much", "long soft pauses", "repeats comfort words"],
+        "catchphrases": ["The moon is soft, and so are you.", "breathe in deep, breathe out slow"]
+      },
+      "forbidden_traits": ["loud", "startling", "sarcastic", "hyperactive", "spooky", "commanding", "theatrical"],
+      "voice_identity": {
+        "provider": "elevenlabs",
+        "voice_ref": "voice_luma_v1",
+        "provenance": "Designed voice, ElevenLabs voice design; consent record VC-2026-014; no real-person clone",
+        "language_variants": { "en": "voice_luma_v1", "ar": "voice_luma_ar_v1" },
+        "delivery_defaults": {
+          "pitch_center_hz": 190,
+          "pitch_range_semitones": 7,
+          "spoken_wpm_max": 95,
+          "character_notes": "Warm low-mid female timbre; breathy-soft but never ASMR-whisper; legato hum-forward singing"
+        },
+        "age_variants": {
+          "infant": { "spoken_wpm_max": 85, "pitch_range_semitones": 5, "energy": "minimum" },
+          "preschool": { "spoken_wpm_max": 100 }
+        },
+        "fallback_chain": ["internal:tts_warm_female_low", "suno:persona_luma_hum"]
+      },
+      "music_signature": {
+        "keys": ["F major", "D minor"],
+        "tempo_bpm_range": [54, 68],
+        "meters": ["6/8", "3/4"],
+        "instrument_palette": ["hummed voice", "felt piano", "harp", "warm pad", "soft strings"],
+        "motif": "Descending three-note 'loo-loo-loo' (sol–mi–do), always resolving down to the tonic",
+        "sound_design_rules": ["no percussion transients", "everything crossfades", "final note always the tonic, faded >= 15 s"]
+      },
+      "visual_identity": {
+        "description": "Dusty-lavender and cream moth with rounded matte wings, half-closed sleepy eyes, faint warm glow at the lantern belly (never bright)",
+        "palette": ["#B9A7D0", "#F2E9DC", "#7E6BA8", "#F5D9A8"],
+        "texture": "matte, felted, no specular highlights",
+        "reference_assets": ["assets/luma/turnaround_v3.png", "assets/luma/still_night_v2.png"]
+      },
+      "motion_rules": {
+        "max_motion": "Wing 'breathing' at ~0.2 Hz (about 12 cycles/minute — a settled resting breath rate); never flies within child-facing frames",
+        "transitions": "Fades in/out over >= 2 s; never pops in; glow changes are gradual only",
+        "forbidden_motion": ["fast flight", "sudden turns", "camera approach", "wing flutter"]
+      },
+      "tool_stack_compatibility": {
+        "music": ["suno", "udio", "internal"],
+        "voice": ["elevenlabs", "internal"],
+        "video": ["runway"],
+        "notes": "Runway used only for near-static micro-visual loops (m18_23+) from approved stills; Luma never appears in HeyGen content"
+      },
+      "safety_boundaries": [
+        "Never appears in content above 70 BPM",
+        "Never in any video-lane content (sleep is audio-only at all ages)",
+        "Never shares a bedtime scene with Pip (Play Companion)",
+        "Never tells the child to sleep alone or references the caregiver leaving",
+        "Glow never exceeds micro-visual luminance caps"
+      ],
+      "usage_restrictions_by_age": {
+        "prenatal_t3": "Audio only, addressed to the parent; moderate volume on external speaker",
+        "m0_3": "Audio only",
+        "m4_6": "Audio; parent-facing static art only",
+        "m7_11": "Audio; parent-facing static art only",
+        "m12_17": "Audio; parent-facing static art only",
+        "m18_23": "Audio; parent-controlled micro-visual (breathing wings) <= 90 s, wind-down only, never at lights-out",
+        "m24_35": "Audio-first; micro-visual permitted pre-bed, never as the sleep aid itself",
+        "y3": "Audio and stills; wind-down micro-visual; no video",
+        "y4": "Same as y3",
+        "y5_6": "Same as y3; may narrate calm-down breathing breaks in daytime content"
+      },
+      "status": "approved",
+      "approved_by": ["child-dev-board/dr-amal", "safety/lead"]
+    },
+    {
+      "id": "CHR-PIP-002",
+      "name": "Pip",
+      "role": "play_companion",
+      "species_or_form": "A round, soft-edged red panda with a small felt hand-drum worn like a satchel",
+      "age_band_suitability": {
+        "audio": ["m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "static_visual": ["m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "micro_visual": ["m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "video": ["m24_35", "y3", "y4", "y5_6"]
+      },
+      "personality": {
+        "traits": ["playful", "encouraging", "steady", "giggly-soft", "turn-taking"],
+        "energy": "bright_capped",
+        "speech_habits": ["announces before acting ('Pip pats the drum!')", "leaves real gaps for the child's turn", "soft chuckle, never a squeal"],
+        "catchphrases": ["Pip pats — your turn!", "Steady, steady, ready?"]
+      },
+      "forbidden_traits": ["frenetic", "competitive", "loud", "mocking", "impatient", "chaotic"],
+      "voice_identity": {
+        "provider": "elevenlabs",
+        "voice_ref": "voice_pip_v1",
+        "provenance": "Consented adult VA clone, consent record VC-2026-021",
+        "language_variants": { "en": "voice_pip_v1" },
+        "delivery_defaults": {
+          "pitch_center_hz": 230,
+          "pitch_range_semitones": 9,
+          "spoken_wpm_max": 115,
+          "character_notes": "Bright-warm mid voice with capped energy; smiles audibly; never shouts"
+        },
+        "age_variants": {
+          "infant": { "spoken_wpm_max": 95, "energy": "gentle bounce only" },
+          "toddler": { "spoken_wpm_max": 105 },
+          "preschool": { "spoken_wpm_max": 115 }
+        },
+        "fallback_chain": ["internal:tts_bright_warm_mid"]
+      },
+      "music_signature": {
+        "keys": ["C major", "G major"],
+        "tempo_bpm_range": [88, 116],
+        "meters": ["4/4", "2/4"],
+        "instrument_palette": ["hand drum (soft mallet)", "marimba", "ukulele", "claps (soft)", "voice"],
+        "motif": "Heartbeat pat-pat rhythm (two soft drum taps) that opens every Pip song and cues the child's response turn",
+        "sound_design_rules": ["steady beat, no drops or risers", "call-and-response gaps sized to age band", "wind-down last 8+ seconds to a calm close"]
+      },
+      "visual_identity": {
+        "description": "Rust-orange and cream red panda, big soft eyes, sits at child eye level; drum is felt-covered",
+        "palette": ["#C96F4A", "#F4E3D3", "#7A4E33", "#9BB8A0"],
+        "texture": "soft plush, matte",
+        "reference_assets": ["assets/pip/turnaround_v2.png"]
+      },
+      "motion_rules": {
+        "max_motion": "Seated or gentle sway; pat-the-drum gestures telegraphed one beat ahead; no jumping toward camera",
+        "transitions": "Walks in from frame edge over >= 2 s or fades in; never pops in",
+        "forbidden_motion": ["running", "spinning", "camera rush", "rapid arm waving"]
+      },
+      "tool_stack_compatibility": {
+        "music": ["suno", "udio"],
+        "voice": ["elevenlabs"],
+        "video": ["runway"],
+        "notes": "Video from approved stills via image-to-video; motion prompts constrained by motion_rules"
+      },
+      "safety_boundaries": [
+        "Never appears in sleep-lane or bedtime-adjacent content",
+        "Tempo capped by age band even when 'excited'",
+        "Never demands repetition ('again! again!') — invites once, then accepts",
+        "No competitive framing ('who's faster') at any age"
+      ],
+      "usage_restrictions_by_age": {
+        "m4_6": "Audio only: gentle lap-bounce songs addressed via the caregiver",
+        "m7_11": "Audio: clap/peekaboo call-and-response with 2+ second response gaps",
+        "m12_17": "Audio: clap, wave, bounce cues",
+        "m18_23": "Audio-first; parent-controlled micro-visual stills",
+        "m24_35": "Micro-video <= 5 min, co-viewed, seated play only",
+        "y3": "Short video <= 8 min; simple stand-up movement",
+        "y4": "Rhythm and movement-along videos <= 12 min",
+        "y5_6": "Fuller rhythm games <= 20 min, still low-stimulation"
+      },
+      "status": "approved",
+      "approved_by": ["child-dev-board/dr-amal", "safety/lead"]
+    },
+    {
+      "id": "CHR-LILA-003",
+      "name": "Lila",
+      "role": "language_friend",
+      "species_or_form": "A gentle lyrebird whose tail feathers curl like question marks; she echoes words back like a friendly mirror",
+      "age_band_suitability": {
+        "audio": ["m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "static_visual": ["m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "micro_visual": ["m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "video": ["y3", "y4", "y5_6"]
+      },
+      "personality": {
+        "traits": ["curious", "attentive", "gentle", "celebratory-soft", "patient"],
+        "energy": "warm",
+        "speech_habits": ["says the word, sings the word, waits", "echoes with the same melody", "names things slowly with clear vowels"],
+        "catchphrases": ["Lila hears it — can you say it?", "One more time, nice and slow."]
+      },
+      "forbidden_traits": ["corrective", "impatient", "quizzing", "sarcastic", "loud", "fast-talking"],
+      "voice_identity": {
+        "provider": "elevenlabs",
+        "voice_ref": "voice_lila_v1",
+        "provenance": "Designed voice; consent record VC-2026-030; bilingual variants recorded per language, not auto-translated",
+        "language_variants": { "en": "voice_lila_v1", "ar": "voice_lila_ar_v1", "es": "voice_lila_es_v1" },
+        "delivery_defaults": {
+          "pitch_center_hz": 215,
+          "pitch_range_semitones": 8,
+          "spoken_wpm_max": 100,
+          "character_notes": "Clear, warm, unhurried; exaggeratedly clear vowels without theatricality; identical melodic contour across languages"
+        },
+        "age_variants": {
+          "infant": { "spoken_wpm_max": 85, "vowel_elongation": true },
+          "toddler": { "spoken_wpm_max": 95 },
+          "preschool": { "spoken_wpm_max": 105 }
+        },
+        "fallback_chain": ["internal:tts_clear_warm_mid"]
+      },
+      "music_signature": {
+        "keys": ["G major", "E minor"],
+        "tempo_bpm_range": [72, 96],
+        "meters": ["4/4", "3/4"],
+        "instrument_palette": ["kalimba", "acoustic guitar (fingerpicked)", "voice", "soft shaker"],
+        "motif": "Echo phrase: a rising two-note 'lee-la' answered by its own soft echo one bar later",
+        "sound_design_rules": ["model-gap-repeat structure", "target word carried on the melodic peak", "one target word per 4-bar unit, repeated >= 4x per song"]
+      },
+      "visual_identity": {
+        "description": "Soft grey-blue lyrebird with cream chest and curling tail; perches, tilts head to listen",
+        "palette": ["#8FA8BC", "#F1EDE3", "#5D7285", "#D9B98C"],
+        "texture": "soft painted feathers, matte",
+        "reference_assets": ["assets/lila/turnaround_v1.png"]
+      },
+      "motion_rules": {
+        "max_motion": "Head tilts, slow tail curl, small perch hop telegraphed by a look; wings never flap fast",
+        "transitions": "Fades or glides in slowly from frame edge over >= 2 s",
+        "forbidden_motion": ["fast flight", "sudden pecking", "startle spread of tail"]
+      },
+      "tool_stack_compatibility": {
+        "music": ["suno", "udio"],
+        "voice": ["elevenlabs"],
+        "video": ["runway"],
+        "notes": "Bilingual songs render each language with its own recorded variant; no on-the-fly accent synthesis"
+      },
+      "safety_boundaries": [
+        "Never corrects the child or labels an attempt wrong",
+        "Never tests ('what's this called?') below y3 — only models and invites",
+        "Claims about language outcomes never appear in content; language framing is 'exposure', not 'fluency'",
+        "Echo gaps are real silences — never filled with sound effects"
+      ],
+      "usage_restrictions_by_age": {
+        "m7_11": "Audio: vowel-forward sound play, caregiver-addressed prompts",
+        "m12_17": "Audio: single first words (body, family, routine words)",
+        "m18_23": "Audio-first; parent-controlled micro-visual of Lila listening",
+        "m24_35": "Audio; may appear inside Routine Buddy micro-videos as a still",
+        "y3": "Short echo-song videos <= 8 min, co-viewed",
+        "y4": "Rhyme and word-play videos <= 12 min",
+        "y5_6": "Two-language echo songs <= 20 min"
+      },
+      "status": "approved",
+      "approved_by": ["child-dev-board/dr-amal", "safety/lead"]
+    },
+    {
+      "id": "CHR-TOCK-004",
+      "name": "Tock",
+      "role": "routine_buddy",
+      "species_or_form": "A calm tortoise with a smooth round shell that taps a soft woodblock 'tock' on every step",
+      "age_band_suitability": {
+        "audio": ["m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "static_visual": ["m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "micro_visual": ["m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "video": ["m24_35", "y3", "y4", "y5_6"]
+      },
+      "personality": {
+        "traits": ["steady", "methodical", "kind", "predictable", "quietly proud"],
+        "energy": "gentle",
+        "speech_habits": ["counts steps out loud, always in the same order", "announces what comes next", "closes every routine with the same completion line"],
+        "catchphrases": ["Step by step, tock by tock.", "All done — well done."]
+      },
+      "forbidden_traits": ["rushing", "scolding", "impatient", "chaotic", "surprising", "guilt-tripping"],
+      "voice_identity": {
+        "provider": "elevenlabs",
+        "voice_ref": "voice_tock_v1",
+        "provenance": "Designed voice; consent record VC-2026-035",
+        "language_variants": { "en": "voice_tock_v1" },
+        "delivery_defaults": {
+          "pitch_center_hz": 130,
+          "pitch_range_semitones": 6,
+          "spoken_wpm_max": 100,
+          "character_notes": "Low, round, grandfatherly-warm; rhythmic speech that lands on the beat"
+        },
+        "age_variants": {
+          "toddler": { "spoken_wpm_max": 90 },
+          "preschool": { "spoken_wpm_max": 105 }
+        },
+        "fallback_chain": ["internal:tts_low_warm_male"]
+      },
+      "music_signature": {
+        "keys": ["D major", "A major"],
+        "tempo_bpm_range": [84, 104],
+        "meters": ["4/4"],
+        "instrument_palette": ["woodblock (soft)", "upright bass (plucked, soft)", "glockenspiel (mp)", "voice"],
+        "motif": "Walking 'tock' pulse on beats 1 and 3; the same melody is reused for the same routine every time",
+        "sound_design_rules": ["verse order mirrors task steps exactly", "one routine per song", "ends with the completion line and a calm two-bar close"]
+      },
+      "visual_identity": {
+        "description": "Sage-green tortoise with a smooth honey-brown shell, round glasses resting on his beak, moves like a slow metronome",
+        "palette": ["#9CAF88", "#B98A4E", "#6E7F5E", "#F0E7D8"],
+        "texture": "matte, softly rounded, no shine",
+        "reference_assets": ["assets/tock/turnaround_v2.png", "assets/tock/tidyup_still_v1.png"]
+      },
+      "motion_rules": {
+        "max_motion": "One slow step per musical bar; head nods on the beat; objects are placed, never thrown",
+        "transitions": "Enters walking slowly from frame edge; scene changes only between routine steps, on phrase boundaries",
+        "forbidden_motion": ["running", "shell-spinning", "sudden retraction into shell", "camera zooms"]
+      },
+      "tool_stack_compatibility": {
+        "music": ["suno", "udio"],
+        "voice": ["elevenlabs"],
+        "video": ["runway"],
+        "notes": "Routine videos are image-to-video shots from an approved still per routine step"
+      },
+      "safety_boundaries": [
+        "Never shames or hurries ('quick quick' is forbidden)",
+        "Food routines frame gently — never commands to finish food",
+        "Bedtime routine content hands off to Luma and ends before lights-out",
+        "The same routine always uses the same melody and step order (predictability contract)"
+      ],
+      "usage_restrictions_by_age": {
+        "m12_17": "Audio: caregiver-led routine songs (tidy-up, bath); child is a listener",
+        "m18_23": "Audio-first; parent-controlled micro-visual still of the routine",
+        "m24_35": "Micro-video <= 5 min, co-viewed, one routine per video",
+        "y3": "Short routine videos <= 8 min",
+        "y4": "Routine videos <= 12 min; child performs steps along",
+        "y5_6": "Routine + responsibility songs <= 20 min"
+      },
+      "status": "approved",
+      "approved_by": ["child-dev-board/dr-amal", "safety/lead"]
+    },
+    {
+      "id": "CHR-WREN-005",
+      "name": "Wren",
+      "role": "parent_guide",
+      "species_or_form": "A small, wise wren in a cardigan — adult-facing guide persona; may also appear as a human presenter avatar in parent videos",
+      "age_band_suitability": {
+        "audio": ["prenatal_t3", "m0_3", "m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "static_visual": ["prenatal_t3", "m0_3", "m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"],
+        "micro_visual": [],
+        "video": ["prenatal_t3", "m0_3", "m4_6", "m7_11", "m12_17", "m18_23", "m24_35", "y3", "y4", "y5_6"]
+      },
+      "personality": {
+        "traits": ["warm", "evidence-literate", "practical", "non-judgmental", "encouraging"],
+        "energy": "warm",
+        "speech_habits": ["says what we know and what we don't", "gives one actionable tip at a time", "always normalizes hard days"],
+        "catchphrases": ["You are the magic ingredient — we're just the backing band.", "Small, steady, repeatable."]
+      },
+      "forbidden_traits": ["judgmental", "alarmist", "overpromising", "clinical-cold", "guilt-inducing", "salesy"],
+      "voice_identity": {
+        "provider": "elevenlabs",
+        "voice_ref": "voice_wren_v1",
+        "provenance": "Consented adult VA clone, consent record VC-2026-008",
+        "language_variants": { "en": "voice_wren_v1", "ar": "voice_wren_ar_v1" },
+        "delivery_defaults": {
+          "pitch_center_hz": 200,
+          "pitch_range_semitones": 10,
+          "spoken_wpm_max": 150,
+          "character_notes": "Adult conversational warmth; normal adult pacing — this voice never addresses children"
+        },
+        "age_variants": {
+          "adult_parent": { "spoken_wpm_max": 150 }
+        },
+        "fallback_chain": ["internal:tts_adult_warm_female"]
+      },
+      "music_signature": {
+        "keys": ["C major"],
+        "tempo_bpm_range": [70, 100],
+        "meters": ["4/4"],
+        "instrument_palette": ["soft piano bed", "light strings"],
+        "motif": "A brief two-bar piano ident before guidance segments; music is a bed, never the focus",
+        "sound_design_rules": ["speech-first mix", "music bed ducked -18 dB under voice"]
+      },
+      "visual_identity": {
+        "description": "Small brown wren with a mustard cardigan and reading glasses; in avatar form, a warm adult presenter in soft daylight",
+        "palette": ["#8A6F4D", "#E9C46A", "#F4F1EA", "#5B6C5D"],
+        "texture": "storybook matte for the wren; natural soft light for avatar segments",
+        "reference_assets": ["assets/wren/turnaround_v1.png"]
+      },
+      "motion_rules": {
+        "max_motion": "Normal adult-video norms (parent-facing only); wren form uses gentle perch movements",
+        "transitions": "Standard soft cuts allowed (adult audience)",
+        "forbidden_motion": ["n/a for child thresholds — never child-facing"]
+      },
+      "tool_stack_compatibility": {
+        "music": ["suno"],
+        "voice": ["elevenlabs"],
+        "video": ["heygen", "runway"],
+        "notes": "HeyGen avatar permitted because content is parent-facing only; every claim in scripts passes the claim gate"
+      },
+      "safety_boundaries": [
+        "Never addresses the child; never appears inside child-facing content",
+        "Every benefit statement uses allowlisted claims verbatim (CLM-A01..A05)",
+        "Always reinforces: the caregiver's own voice and presence come first (never implies replacement of caregiver singing)",
+        "Medical questions are deflected to healthcare providers, never answered"
+      ],
+      "usage_restrictions_by_age": {
+        "prenatal_t3": "Parent-facing guidance on prenatal audio use (external speaker, moderate volume, no belly headphones)",
+        "m0_3": "Parent-facing only",
+        "m4_6": "Parent-facing only",
+        "m7_11": "Parent-facing only",
+        "m12_17": "Parent-facing only",
+        "m18_23": "Parent-facing only; explains micro-visual controls",
+        "m24_35": "Parent-facing only; co-viewing coaching",
+        "y3": "Parent-facing only",
+        "y4": "Parent-facing only",
+        "y5_6": "Parent-facing only"
+      },
+      "status": "approved",
+      "approved_by": ["child-dev-board/dr-amal", "safety/lead", "legal/claims"]
+    }
+  ]
+}
