@@ -5,9 +5,10 @@ const none = { days: 0, first_day: null, feeds: 0, breast_min: 0, pumps: 0, pump
 
 test("rows: one number each, in a fixed order, and nothing saved is left out, not shown as zero", async () => {
   const { effortRows } = await import("./effort.ts");
-  assert.deepEqual(effortRows(none), []);
+  assert.deepEqual(effortRows(none, "all"), []);
+  assert.deepEqual(effortRows(none, "you"), []);
   assert.deepEqual(
-    effortRows({ days: 173, first_day: "2026-06-05", feeds: 1240, breast_min: 8890, pumps: 412, pump_ml: 61350, diapers: 1904, sleeps: 380, meals: 0 }),
+    effortRows({ days: 173, first_day: "2026-06-05", feeds: 1240, breast_min: 8890, pumps: 412, pump_ml: 61350, diapers: 1904, sleeps: 380, meals: 0 }, "all"),
     [
       { label: "Days of care", value: "173" },
       { label: "Feeds", value: "1,240" },
@@ -18,12 +19,21 @@ test("rows: one number each, in a fixed order, and nothing saved is left out, no
     ],
   );
   // Someone who neither breastfeeds nor pumps is not shown "0 hours" or "0 litres".
-  assert.deepEqual(effortRows({ ...none, days: 40, feeds: 62, diapers: 88, meals: 3 }).map((r) => r.label), ["Days of care", "Feeds", "Diapers", "Meals"]);
+  assert.deepEqual(effortRows({ ...none, days: 40, feeds: 62, diapers: 88, meals: 3 }, "all").map((r) => r.label), ["Days of care", "Feeds", "Diapers", "Meals"]);
+});
+
+test("days are the home's row only: on one person's list a count with a ceiling would read as a score", async () => {
+  const { effortRows } = await import("./effort.ts");
+  const sum = { ...none, days: 9, feeds: 14, diapers: 30 };
+  assert.deepEqual(effortRows(sum, "you").map((r) => r.label), ["Feeds", "Diapers"]);
+  assert.deepEqual(effortRows(sum, "all").map((r) => r.label), ["Days of care", "Feeds", "Diapers"]);
+  // Someone credited with days and nothing else has no list of their own.
+  assert.deepEqual(effortRows({ ...none, days: 3 }, "you"), []);
 });
 
 test("hours and litres: whole hours rounded down, litres to a tenth under ten", async () => {
   const { effortRows } = await import("./effort.ts");
-  const val = (s: object, label: string) => effortRows({ ...none, ...s }).find((r) => r.label === label)?.value;
+  const val = (s: object, label: string) => effortRows({ ...none, ...s }, "you").find((r) => r.label === label)?.value;
   assert.equal(val({ breast_min: 59 }, "Hours at the breast"), undefined);
   assert.equal(val({ breast_min: 60 }, "Hours at the breast"), "1");
   assert.equal(val({ breast_min: 119 }, "Hours at the breast"), "1");
@@ -36,7 +46,7 @@ test("hours and litres: whole hours rounded down, litres to a tenth under ten", 
 
 test("no row carries more than one number, a target or a judgement", async () => {
   const { effortRows, effortLine } = await import("./effort.ts");
-  const rows = effortRows({ days: 173, first_day: "2026-06-05", feeds: 1240, breast_min: 8890, pumps: 412, pump_ml: 61350, diapers: 1904, sleeps: 380, meals: 12 });
+  const rows = effortRows({ days: 173, first_day: "2026-06-05", feeds: 1240, breast_min: 8890, pumps: 412, pump_ml: 61350, diapers: 1904, sleeps: 380, meals: 12 }, "all");
   for (const r of rows) {
     assert.doesNotMatch(r.label, /\d/);
     assert.doesNotMatch(`${r.label} ${r.value}`, /only|just|goal|target|left|more|missed|low|%|\//i);

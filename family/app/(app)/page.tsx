@@ -276,7 +276,7 @@ export default async function HomePage() {
       <span className="flex-1 font-semibold">{offer.words}</span> <Icon name="forward" size={18} />
     </Link>
   ) : null;
-  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, !!keep, !!morning, !!ask, effortMonths != null].filter(Boolean).length;
+  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, sitter, !!keep, !!morning, !!ask, effortMonths != null].filter(Boolean).length;
 
   // The Now slot's candidates, in rule 3's order. The slot shows the first that renders
   // anything (.now-queue); "More" beside it lists them all in a sheet (NowMore).

@@ -35,10 +35,14 @@ const litres = (ml: number) => (ml < 10_000 ? (Math.round(ml / 100) / 10).toFixe
  * nothing saved is left out, never shown as a zero: a home that does not pump is not told
  * "0 litres", and a father is not shown "0 hours at the breast". Hours and litres appear
  * once there is a whole hour and a tenth of a litre to show.
+ *
+ * "Days of care" is the home's row only. Every other row is an open count; days have a
+ * ceiling (the child's age), so on one person's list "9" would read as nine out of a hundred
+ * and fifty, a score. On the home's list it is simply how long this has been going on.
  */
-export function effortRows(s: EffortSum): EffortRow[] {
+export function effortRows(s: EffortSum, whose: "you" | "all"): EffortRow[] {
   const rows: EffortRow[] = [];
-  if (s.days > 0) rows.push({ label: "Days of care", value: whole(s.days) });
+  if (whose === "all" && s.days > 0) rows.push({ label: "Days of care", value: whole(s.days) });
   if (s.feeds > 0) rows.push({ label: "Feeds", value: whole(s.feeds) });
   if (s.breast_min >= 60) rows.push({ label: "Hours at the breast", value: whole(Math.floor(s.breast_min / 60)) });
   if (s.pump_ml >= 100) rows.push({ label: "Litres pumped", value: litres(s.pump_ml) });

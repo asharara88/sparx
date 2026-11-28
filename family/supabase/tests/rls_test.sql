@@ -2935,28 +2935,66 @@ insert into public.care_entries (subject_id, module_id, type_id, occurred_at, en
   (:lana, 'lana', 'lana.sleep',  now() - interval '8 hours',  now() - interval '7 hours', '{}', :'fam_home', :mido, null, null, 'effort test'),
   (:lana, 'lana', 'lana.feed',   now() - interval '6 hours',  null, '{"method":"Bottle"}', :'fam_home', :dana, null, now(), 'effort test'),
   (:lana, 'lana', 'lana.feed',   now() + interval '2 hours',  null, '{"method":"Bottle"}', :'fam_home', :dana, null, null, 'effort test'),
-  (:lana, 'lana', 'lana.feed',   (:'eff_birth'::date - 2)::timestamp at time zone :'home_tz', null, '{"method":"Bottle"}', :'fam_home', :dana, null, null, 'effort test');
+  (:lana, 'lana', 'lana.feed',   (:'eff_birth'::date - 2)::timestamp at time zone :'home_tz', null, '{"method":"Bottle"}', :'fam_home', :dana, null, null, 'effort test'),
+  -- What only she can do stays hers even when the entry carries the other parent as having the child.
+  (:lana, 'lana', 'lana.feed',   now() - interval '5 hours',  now() - interval '5 hours' + interval '20 minutes', '{"method":"Breast","side":"Left"}', :'fam_home', :dana, :mido, null, 'effort test'),
+  (:lana, 'lana', 'lana.pump',   now() - interval '4 hours',  null, '{"amount_ml":30}', :'fam_home', :dana, :mido, null, 'effort test'),
+  -- One hour into the day of the birth at home: the evening before on the server's calendar.
+  (:lana, 'lana', 'lana.diaper', (:'eff_birth'::date + interval '1 hour') at time zone :'home_tz', null, '{"kind":"Wet"}', :'fam_home', :dana, null, null, 'effort test');
 select pg_temp.act_as(:dana);
 set role authenticated;
 create temp table eff_a1 as select public.effort_totals(:lana) as r;
-select pg_temp.assert((select (a1.r->'mine'->>'feeds')::int - (a0.r->'mine'->>'feeds')::int = 3 and (a1.r->'all'->>'feeds')::int - (a0.r->'all'->>'feeds')::int = 3 from eff_a0 a0, eff_a1 a1),
-  'her feeds grow by three: two of her own and one saved in her name; a deleted one, one not yet happened and one from before the birth are not counted');
-select pg_temp.assert((select (a1.r->'mine'->>'breast_min')::int - (a0.r->'mine'->>'breast_min')::int = 130 from eff_a0 a0, eff_a1 a1), 'a breastfeed counts for as long as it ran, and a timer left running for at most 90 minutes');
-select pg_temp.assert((select (a1.r->'mine'->>'pumps')::int - (a0.r->'mine'->>'pumps')::int = 2 and (a1.r->'mine'->>'pump_ml')::int - (a0.r->'mine'->>'pump_ml')::int = 120 from eff_a0 a0, eff_a1 a1),
-  'two pumps, and an amount that is not a number counts as nothing rather than failing');
-select pg_temp.assert((select (a1.r->'mine'->>'diapers')::int = (a0.r->'mine'->>'diapers')::int and (a1.r->'all'->>'diapers')::int - (a0.r->'all'->>'diapers')::int = 1
+select pg_temp.assert((select (a1.r->'mine'->>'feeds')::int - (a0.r->'mine'->>'feeds')::int = 4 and (a1.r->'all'->>'feeds')::int - (a0.r->'all'->>'feeds')::int = 4 from eff_a0 a0, eff_a1 a1),
+  'her feeds grow by four: three breastfeeds she saved and a bottle saved in her name; a deleted one, one not yet happened and one from before the birth are not counted');
+select pg_temp.assert((select (a1.r->'mine'->>'breast_min')::int - (a0.r->'mine'->>'breast_min')::int = 150 from eff_a0 a0, eff_a1 a1),
+  'a breastfeed counts for as long as it ran, a timer left running for at most 90 minutes, and one saved while the other parent had the child is still hers');
+select pg_temp.assert((select (a1.r->'mine'->>'pumps')::int - (a0.r->'mine'->>'pumps')::int = 3 and (a1.r->'mine'->>'pump_ml')::int - (a0.r->'mine'->>'pump_ml')::int = 150 from eff_a0 a0, eff_a1 a1),
+  'three pumps, the one carrying the other parent''s name among them; an amount that is not a number counts as nothing rather than failing');
+select pg_temp.assert((select (a1.r->'mine'->>'diapers')::int - (a0.r->'mine'->>'diapers')::int = 1 and (a1.r->'all'->>'diapers')::int - (a0.r->'all'->>'diapers')::int = 2
   and (a1.r->'mine'->>'sleeps')::int = (a0.r->'mine'->>'sleeps')::int and (a1.r->'all'->>'sleeps')::int - (a0.r->'all'->>'sleeps')::int = 1 from eff_a0 a0, eff_a1 a1),
-  'a diaper she saved in the other parent''s name and a sleep he saved are the home''s, not hers');
+  'a diaper she saved while the other parent had the child and a sleep he saved are the home''s, not hers');
 select pg_temp.assert((select (r->'mine'->>'days')::int between 1 and (r->'all'->>'days')::int and (r->'all'->>'first_day')::date <= (r->'mine'->>'first_day')::date
-  and (r->'all'->>'first_day')::date >= :'eff_birth'::date and r->>'birth_date' = :'eff_birth' from eff_a1), 'days are counted on the home''s calendar, never from before the birth, and hers are among the home''s');
+  and (r->'all'->>'first_day')::date = :'eff_birth'::date and r->>'birth_date' = :'eff_birth' from eff_a1),
+  'days are counted on the home''s calendar: an entry one hour into the day of the birth at home is the first day, and nothing before the birth is');
 select pg_temp.assert((select not (r ? 'members') and (select count(*) from jsonb_object_keys(r)) = 4 from eff_a1), 'the answer holds her sums and the home''s and nobody else''s');
 reset role;
 select pg_temp.act_as(:mido);
 set role authenticated;
 create temp table eff_b1 as select public.effort_totals(:lana) as r;
 select pg_temp.assert((select (b1.r->'mine'->>'diapers')::int - (b0.r->'mine'->>'diapers')::int = 1 and (b1.r->'mine'->>'sleeps')::int - (b0.r->'mine'->>'sleeps')::int = 1
-  and (b1.r->'mine'->>'feeds')::int = (b0.r->'mine'->>'feeds')::int and (b1.r->'all'->>'feeds')::int - (b0.r->'all'->>'feeds')::int = 3 from eff_b0 b0, eff_b1 b1),
-  'the other parent is credited the diaper saved in his name and his sleep, not the bottle he saved in hers');
+  and (b1.r->'mine'->>'feeds')::int = (b0.r->'mine'->>'feeds')::int and (b1.r->'mine'->>'pumps')::int = (b0.r->'mine'->>'pumps')::int
+  and (b1.r->'mine'->>'breast_min')::int = (b0.r->'mine'->>'breast_min')::int and (b1.r->'all'->>'feeds')::int - (b0.r->'all'->>'feeds')::int = 4 from eff_b0 b0, eff_b1 b1),
+  'the other parent is credited the diaper saved while he had the child and his own sleep; not the bottle he saved in her name, nor her breastfeed, nor her pump');
+-- The app's own path: he takes the child with the "with ..." switch, she saves a pump, a
+-- breastfeed and a diaper from her phone. care_entry_log marks all three as his (he has the
+-- child); the pump and the breastfeed are still counted as hers.
+select pg_temp.assert((public.custody_set(:lana, :mido))->>'ok' = 'true', 'he says he has the child');
+reset role;
+select pg_temp.act_as(:dana);
+set role authenticated;
+select pg_temp.assert((public.care_entry_log(:lana, 'lana.pump', now() - interval '40 minutes', null, '{"amount_ml":150}', 'effort test', null))->>'ok' = 'true'
+  and (public.care_entry_log(:lana, 'lana.feed', now() - interval '30 minutes', now() - interval '5 minutes', '{"method":"Breast","side":"Left"}', 'effort test', null))->>'ok' = 'true'
+  and (public.care_entry_log(:lana, 'lana.diaper', now() - interval '3 minutes', null, '{"kind":"Wet"}', 'effort test', null))->>'ok' = 'true', 'she saves a pump, a breastfeed and a diaper while he has the child');
+create temp table eff_a2 as select public.effort_totals(:lana) as r;
+select pg_temp.assert((select (a2.r->'mine'->>'pumps')::int - (a1.r->'mine'->>'pumps')::int = 1 and (a2.r->'mine'->>'pump_ml')::int - (a1.r->'mine'->>'pump_ml')::int = 150
+  and (a2.r->'mine'->>'feeds')::int - (a1.r->'mine'->>'feeds')::int = 1 and (a2.r->'mine'->>'breast_min')::int - (a1.r->'mine'->>'breast_min')::int = 25
+  and (a2.r->'mine'->>'diapers')::int = (a1.r->'mine'->>'diapers')::int from eff_a1 a1, eff_a2 a2),
+  'saved through the app while he has the child: her pump and her breastfeed are hers, the diaper is not');
+reset role;
+select pg_temp.assert((select count(*) from public.care_entries where note = 'effort test' and logged_by = :dana and attributed_to = :mido and occurred_at > now() - interval '45 minutes') = 3,
+  'all three carry him as having the child, as the app saves them: the count above did not pass for want of that');
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table eff_b2 as select public.effort_totals(:lana) as r;
+select pg_temp.assert((select (b2.r->'mine'->>'diapers')::int - (b1.r->'mine'->>'diapers')::int = 1 and (b2.r->'mine'->>'pumps')::int = (b1.r->'mine'->>'pumps')::int
+  and (b2.r->'mine'->>'feeds')::int = (b1.r->'mine'->>'feeds')::int and (b2.r->'mine'->>'breast_min')::int = (b1.r->'mine'->>'breast_min')::int from eff_b1 b1, eff_b2 b2),
+  'and he is shown the diaper, never her litres or her hours at the breast');
+reset role;
+delete from public.care_custody where subject_id = :lana and set_by = :mido and since > now() - interval '1 minute';
+-- "View as": the admin is answered the home's sums alone, never the viewed member's own.
+select pg_temp.preview_as(:mido, :dana);
+set role authenticated;
+select pg_temp.assert((public.effort_totals(:lana))->'mine' = 'null'::jsonb and ((public.effort_totals(:lana))->'all'->>'feeds')::int > 0, 'viewing as her, he is not handed her own sums; the home''s are there');
 reset role;
 select pg_temp.act_as(:haitham);
 set role authenticated;

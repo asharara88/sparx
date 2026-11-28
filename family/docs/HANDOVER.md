@@ -156,7 +156,8 @@ Done and live:
   counted (28 November, `…7050`): "Since {Name} was born" under Achievements, plain totals of
   the care that was saved, the viewer's own and the home's and never another member's
   (`effort_totals`, `lib/effort.ts`), with a line on Home for three days at each monthly
-  birthday. Still to come: ticks for looking after herself, a weekly recap and surprises.
+  birthday. A breastfeed and a pump count for whoever saved them, everything else for whoever
+  had the child (`attributed_to`, which `care_entry_log` sets from the "with ..." switch). Still to come: ticks for looking after herself, a weekly recap and surprises.
 - Speed (25 November): a second weekly workflow (`speed-check.yml`, Mondays) serves a
   production build with the demo home and runs `scripts/speed-check.mjs`. It reads ten
   everyday screens and four taps against budgets written in that file: database calls and

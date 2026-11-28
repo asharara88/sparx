@@ -16,6 +16,11 @@ export const dynamic = "force-dynamic";
  * sees their own sums and the whole home's, one at a time, and never another member's. One
  * number a row; a kind with nothing saved is left out. No target, no bar, no comparison:
  * the screen has nothing to reach and nothing to fall short of.
+ *
+ * It opens on the viewer's own list when there is one. Someone with nothing saved under
+ * their name (a grandmother who looks but does not log) gets the home's list and no switch:
+ * the code never shows a single zero row, and a whole empty list is the same thing. In "view
+ * as" the database answers the home's sums alone, so the same holds there.
  */
 export default async function EffortPage({ searchParams }: { searchParams: Promise<{ who?: string }> }) {
   const sp = await searchParams;
@@ -26,25 +31,30 @@ export default async function EffortPage({ searchParams }: { searchParams: Promi
   const kid = child(me);
   if (!kid || !can(me, "lana", "view")) redirect("/me");
   const { data } = await supabase.rpc("effort_totals", { p_subject_id: kid.id });
-  const res = data as { ok?: boolean; all?: EffortSum; mine?: EffortSum } | null;
-  const everyone = sp.who === "all";
-  const sum = res?.ok ? (everyone ? res.all : res.mine) : null;
-  const rows = sum ? effortRows(sum) : [];
-  // The first day anything was saved, for the line under the list (a calendar day, shown as written).
-  const first = res?.ok ? (res.all?.first_day ?? null) : null;
+  const res = data as { ok?: boolean; all?: EffortSum; mine?: EffortSum | null } | null;
+  const mine = res?.ok ? (res.mine ?? null) : null;
+  const own = mine ? effortRows(mine, "you") : [];
+  const everyone = sp.who === "all" || own.length === 0;
+  const sum = res?.ok ? (everyone ? (res.all ?? null) : mine) : null;
+  const rows = sum ? effortRows(sum, everyone ? "all" : "you") : [];
+  // The first day of the list that is showing (a calendar day, shown as written): each list is
+  // dated from its own start, so someone who joined last week is not dated from the birth.
+  const first = sum?.first_day ?? null;
   const since = first ? dateWords(new Date(`${first}T12:00:00Z`), { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : null;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/achievements" title={`Since ${kid.name} was born`} subtitle="What was given, counted. Nothing here is a goal." />
-      <nav className="segmented" aria-label="Whose">
-        <Link prefetch={false} replace href="/achievements/effort" aria-current={everyone ? undefined : "page"}>
-          You
-        </Link>
-        <Link prefetch={false} replace href="/achievements/effort?who=all" aria-current={everyone ? "page" : undefined}>
-          Everyone
-        </Link>
-      </nav>
+      {own.length > 0 && (
+        <nav className="segmented" aria-label="Whose">
+          <Link prefetch={false} replace href="/achievements/effort" aria-current={everyone ? undefined : "page"}>
+            You
+          </Link>
+          <Link prefetch={false} replace href="/achievements/effort?who=all" aria-current={everyone ? "page" : undefined}>
+            Everyone
+          </Link>
+        </nav>
+      )}
       {rows.length > 0 ? (
         <ul className="card flex flex-col p-0">
           {rows.map((r) => (
@@ -55,7 +65,7 @@ export default async function EffortPage({ searchParams }: { searchParams: Promi
           ))}
         </ul>
       ) : (
-        <p className="card muted">{res?.ok ? (everyone ? "Nothing is saved yet." : "Nothing is saved under your name yet.") : "Could not read the totals. Pull down to try again."}</p>
+        <p className="card muted">{res?.ok ? "Nothing is saved yet." : "Could not read the totals. Try again in a moment."}</p>
       )}
       {rows.length > 0 && <p className="muted text-sm">Counted from what was saved{since ? `, since ${since}` : ""}. What was not saved was still done.</p>}
     </div>

@@ -8,9 +8,15 @@
 -- It answers two sums and no more: the caller's own, and the whole home's. It never
 -- answers another member's, so no screen can set one person's numbers beside another's:
 -- rewards lift, they do not compare (DESIGN.md, "Effort, counted"). Nothing here is a goal.
+-- While an admin views the app as someone else it answers the home's alone: that member's
+-- own sums are hers to see, not his.
 --
--- An entry is credited as the app shows it everywhere else ("Logged by ..."): to the member
--- it was saved for when there is one, else to whoever saved it.
+-- Whose an entry is. The app saves every entry with two members: who saved it (logged_by)
+-- and who had the child then (attributed_to, the "with ..." switch of the last 12 hours,
+-- else the saver). A nappy, a bottle, a sleep or a meal belongs to whoever had the child:
+-- that is the name the entry's own sheet shows. A breastfeed and a pump are the one kind of
+-- care nobody can do for someone else, so they belong to whoever saved them: a mother who
+-- pumps at work while the sitter has the child keeps her own litres.
 --
 -- Reads only. Invoker, as care_daily_stats is, so row security decides what is seen: a
 -- member who may not view the child gets a refusal, another home's child is not found.
@@ -38,7 +44,9 @@ begin
   -- stored text is never cast on trust.
   with e as (
     select x.type_id, x.payload, x.occurred_at, x.ended_at,
-           coalesce(x.attributed_to, x.logged_by) as who,
+           case when x.type_id = v_module || '.pump' or (x.type_id = v_module || '.feed' and x.payload->>'method' = 'Breast')
+                then coalesce(x.logged_by, x.attributed_to)
+                else coalesce(x.attributed_to, x.logged_by) end as who,
            (x.occurred_at at time zone v_tz)::date as d
       from public.care_entries x
      where x.subject_id = p_subject_id and x.deleted_at is null and x.occurred_at <= now()
@@ -68,7 +76,7 @@ begin
     'ok', true,
     'birth_date', v_birth,
     'all', coalesce(v_all, private.effort_none()),
-    'mine', coalesce(v_mine, private.effort_none()));
+    'mine', case when private.read_only_preview() then null else coalesce(v_mine, private.effort_none()) end);
 end $$;
 
 -- What a sum is when nothing was saved: every count zero, no first day.
