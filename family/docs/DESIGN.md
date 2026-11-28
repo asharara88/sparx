@@ -891,6 +891,46 @@ not an everyday screen.
 is nobody's gift); a list of past cheers (the moment is the point); the simple screen;
 any promise about tonight.
 
+### Effort, counted (`/achievements/effort`, 28 November)
+
+A medal is rare and a cheer needs someone to send it. This is what the log itself can say,
+any day, to whoever did the work: how much was given. "Since Mia was born", reached from the
+first line of Achievements and from Home at each monthly birthday.
+
+- **What it shows**: one white list, one number a row (rule 4): Feeds, Hours at the breast,
+  Litres pumped, Diapers, Times settled to sleep, Meals, and on the home's list Days of care.
+  A kind with nothing saved is left out, never a zero: a home that does not pump is not told
+  "0 litres". Days are the home's row only: every other row is an open count, and days have a
+  ceiling (the child's age), so "9" on one person's list would read as a score.
+- **Whose**: a two-way switch, **You** and **Everyone**. A person sees their own sums and the
+  whole home's, and never another member's: the database function answers those two and no
+  more (`effort_totals`, migration 7050), so no screen can set one person's numbers beside
+  another's. Rewards lift; they do not compare. It opens on the viewer's own list; someone
+  with nothing saved under their name gets the home's list and no switch, because a whole
+  empty list is a zero too. In "view as" the function answers the home's sums alone.
+- **Nothing to reach.** No target, no bar, no "this month against last", no streak. The
+  numbers only ever grow. Under the list, one line: "Counted from what was saved, since
+  6 July 2026. What was not saved was still done." Each list is dated from its own first day.
+- **Whose an entry is.** The app saves every entry with who saved it and who had the child
+  then (the "with ..." switch of the last 12 hours). A nappy, a bottle, a sleep or a meal
+  counts for whoever had the child, the name the entry's own sheet shows. A breastfeed and a
+  pump are the one kind of care nobody can do for someone else, so they count for whoever
+  saved them: a mother who pumps at work while the sitter has the child keeps her litres, and
+  a father is never shown hours at the breast. A breastfeed counts for as long as it ran, at
+  most 90 minutes. (The first draft credited everything to whoever had the child; a review
+  caught it before it was pushed further.)
+- **On Home**: for three days from each monthly birthday, one line in the Now slot, "5 months
+  with Mia, counted", last but her own question and the pumping nudge, so anything that asks
+  for something comes first. It needs no database call: the birth date and today. No push.
+  A sitter's standing line ("The handover") is now counted like any other notice, so what
+  waits behind it has a More to be found under.
+- Measured as an admin at 390 px: the new screen 4 blocks, 7 numbers, 49 words, 1 screen.
+  Achievements gains its first line: blocks 4 → 5, numbers 9 → 9, words 88 → 92, screens
+  1.1 → 1.2. Home's first screen is unchanged in the demo home (the line waits behind More).
+  Phone checks pass on all three.
+- **Left out on purpose**: the other parent's sums (her effort is hers to show; a cheer is how
+  he answers it), nights (a count of broken nights is not a gift), and anything by month.
+
 ### The small screens brought inside the budget (25 November)
 
 Seven screens were over a budget or failed a phone check after the three redrawn ones; each

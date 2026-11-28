@@ -16,7 +16,7 @@ and Story from the month a family joined.
 
 - **Migration number.** The spec names PR B's migration 6900; #168 took that number
   (`kinder_runs`), and #169 took 7000 (`cheers_and_nights`). PR B's is
-  `20261010007100_new_entries.sql`.
+  `20261010007100_new_entries.sql`; 7050 (`effort_totals`, a read-only function) sits before it.
 - **The suite and Home moved again in #169.** `rls_test.sql` gained a block "Cheers and shared
   nights" after the medals' checks; it sets the home carer's permissions itself and puts them
   back, so it does not lean on the state `BUILT.md` warns about. Home's notice slot gained two

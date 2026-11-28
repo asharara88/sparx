@@ -23,6 +23,7 @@ import { TellBar } from "@/components/TellBar";
 import { Celebration, type FreshBadge } from "@/components/Celebration";
 import type { Cheer } from "@/lib/cheers";
 import { andList, latestNight, memberNight, nightName, nightOf } from "@/lib/nights";
+import { effortLine, effortMonth } from "@/lib/effort";
 import { NightAsk } from "@/components/NightAsk";
 import { NightNotice } from "@/components/NightNotice";
 import { runNudge, type BadgeNumbers } from "@/lib/achievements";
@@ -196,6 +197,9 @@ export default async function HomePage() {
       }
     }
   }
+  // Effort, counted (DESIGN.md): on a monthly birthday and the two days after, one line that
+  // leads to "Since {Name} was born". It reads nothing new: the birth date and today.
+  const effortMonths = summary && summary.ok && !me.preview ? effortMonth(summary.subject.birth_date, today) : null;
   // The question, on her own Home, until she answers it: only where there is another parent to
   // tell, in the daytime, and only once a real night of hers would give a line to show her.
   // Her answer comes back null again when a new parent joins: a yes was to the names she saw.
@@ -272,7 +276,7 @@ export default async function HomePage() {
       <span className="flex-1 font-semibold">{offer.words}</span> <Icon name="forward" size={18} />
     </Link>
   ) : null;
-  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, !!keep, !!morning, !!ask].filter(Boolean).length;
+  const known = [vaccine?.overdue, !!tip, mamaAway && !!milkOk && plan.milkNotices, feedIsDue, checks > 0, !!offer, vaccine && !vaccine.overdue, fridgeLow, sitter, !!keep, !!morning, !!ask, effortMonths != null].filter(Boolean).length;
 
   // The Now slot's candidates, in rule 3's order. The slot shows the first that renders
   // anything (.now-queue); "More" beside it lists them all in a sheet (NowMore).
@@ -339,6 +343,14 @@ export default async function HomePage() {
         </Link>
       )}
     </div>,
+    // What was given, counted: for three days a month, behind everything that asks for something.
+    effortMonths != null ? (
+      <div key="effort">
+        <Link prefetch={false} href="/achievements/effort" className="notice flex items-center gap-2 no-underline">
+          <Icon name="heart" size={20} /> <span className="flex-1 font-semibold">{effortLine(effortMonths, summary.subject.name)}</span> <Icon name="forward" size={18} />
+        </Link>
+      </div>
+    ) : null,
     // Her own question, until she answers (and again when a parent joins): a setting, so it waits behind everything but the nudge.
     ask ? (
       <div key="night-ask">

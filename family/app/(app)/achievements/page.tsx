@@ -6,6 +6,8 @@ import { meOnce } from "@/lib/server/me";
 import { PageHeader } from "@/components/PageHeader";
 import { Medal } from "@/components/Medal";
 import { CheerButton } from "@/components/CheerButton";
+import { FoldLink } from "@/components/Fold";
+import { child } from "@/lib/names";
 import { nextUp, TRACKS, type BadgeNumbers } from "@/lib/achievements";
 import { fmtDate } from "@/lib/time";
 
@@ -42,6 +44,8 @@ export default async function AchievementsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader back="/me" title="Achievements" subtitle="For the grown-ups: goals met, goals beaten, milk saved." />
+      {/* Medals are what was won; this is what was given (DESIGN.md, "Effort, counted"). */}
+      {child(me) && <FoldLink href="/achievements/effort" title={`Since ${child(me)!.name} was born`} icon="heart" />}
       {TRACKS.map((t) => {
         const won = earned.filter((e) => e.badge === t.id);
         const tiers = won.map((e) => e.tier);
