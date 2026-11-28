@@ -2912,5 +2912,67 @@ select pg_temp.assert((select (s.name, s.birth_date, s.profile, s.settings, s.cr
   and not exists (select 1 from public.permissions p join perm6800 f using (role_id, module_id, action) where p.allowed is distinct from f.allowed),
   'her row, the log and the permissions are put back');
 
+-- Effort, counted (migration 7050): the caller's own sums and the home's, never another member's.
+-- Read before and after a known handful of entries, so the checks do not lean on what the log holds.
+select not prosecdef as effort_invoker from pg_proc where proname = 'effort_totals' and pronamespace = 'public'::regnamespace \gset
+select pg_temp.assert(:'effort_invoker'::boolean, 'effort_totals runs as the caller, so row security decides what it may read');
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table eff_a0 as select public.effort_totals(:lana) as r;
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table eff_b0 as select public.effort_totals(:lana) as r;
+reset role;
+select birth_date as eff_birth from public.care_subjects where id = :lana \gset
+insert into public.care_entries (subject_id, module_id, type_id, occurred_at, ended_at, payload, household_id, logged_by, attributed_to, deleted_at, note) values
+  (:lana, 'lana', 'lana.feed',   now() - interval '26 hours', now() - interval '26 hours' + interval '40 minutes', '{"method":"Breast","side":"Left"}', :'fam_home', :dana, null, null, 'effort test'),
+  (:lana, 'lana', 'lana.feed',   now() - interval '20 hours', now() - interval '15 hours', '{"method":"Breast","side":"Right"}', :'fam_home', :dana, null, null, 'effort test'),
+  (:lana, 'lana', 'lana.feed',   now() - interval '12 hours', null, '{"method":"Bottle","amount_ml":120}', :'fam_home', :mido, :dana, null, 'effort test'),
+  (:lana, 'lana', 'lana.pump',   now() - interval '11 hours', null, '{"amount_ml":120}', :'fam_home', :dana, null, null, 'effort test'),
+  (:lana, 'lana', 'lana.pump',   now() - interval '10 hours', null, '{"amount_ml":"lots"}', :'fam_home', :dana, null, null, 'effort test'),
+  (:lana, 'lana', 'lana.diaper', now() - interval '9 hours',  null, '{"kind":"Wet"}', :'fam_home', :dana, :mido, null, 'effort test'),
+  (:lana, 'lana', 'lana.sleep',  now() - interval '8 hours',  now() - interval '7 hours', '{}', :'fam_home', :mido, null, null, 'effort test'),
+  (:lana, 'lana', 'lana.feed',   now() - interval '6 hours',  null, '{"method":"Bottle"}', :'fam_home', :dana, null, now(), 'effort test'),
+  (:lana, 'lana', 'lana.feed',   now() + interval '2 hours',  null, '{"method":"Bottle"}', :'fam_home', :dana, null, null, 'effort test'),
+  (:lana, 'lana', 'lana.feed',   (:'eff_birth'::date - 2)::timestamp at time zone :'home_tz', null, '{"method":"Bottle"}', :'fam_home', :dana, null, null, 'effort test');
+select pg_temp.act_as(:dana);
+set role authenticated;
+create temp table eff_a1 as select public.effort_totals(:lana) as r;
+select pg_temp.assert((select (a1.r->'mine'->>'feeds')::int - (a0.r->'mine'->>'feeds')::int = 3 and (a1.r->'all'->>'feeds')::int - (a0.r->'all'->>'feeds')::int = 3 from eff_a0 a0, eff_a1 a1),
+  'her feeds grow by three: two of her own and one saved in her name; a deleted one, one not yet happened and one from before the birth are not counted');
+select pg_temp.assert((select (a1.r->'mine'->>'breast_min')::int - (a0.r->'mine'->>'breast_min')::int = 130 from eff_a0 a0, eff_a1 a1), 'a breastfeed counts for as long as it ran, and a timer left running for at most 90 minutes');
+select pg_temp.assert((select (a1.r->'mine'->>'pumps')::int - (a0.r->'mine'->>'pumps')::int = 2 and (a1.r->'mine'->>'pump_ml')::int - (a0.r->'mine'->>'pump_ml')::int = 120 from eff_a0 a0, eff_a1 a1),
+  'two pumps, and an amount that is not a number counts as nothing rather than failing');
+select pg_temp.assert((select (a1.r->'mine'->>'diapers')::int = (a0.r->'mine'->>'diapers')::int and (a1.r->'all'->>'diapers')::int - (a0.r->'all'->>'diapers')::int = 1
+  and (a1.r->'mine'->>'sleeps')::int = (a0.r->'mine'->>'sleeps')::int and (a1.r->'all'->>'sleeps')::int - (a0.r->'all'->>'sleeps')::int = 1 from eff_a0 a0, eff_a1 a1),
+  'a diaper she saved in the other parent''s name and a sleep he saved are the home''s, not hers');
+select pg_temp.assert((select (r->'mine'->>'days')::int between 1 and (r->'all'->>'days')::int and (r->'all'->>'first_day')::date <= (r->'mine'->>'first_day')::date
+  and (r->'all'->>'first_day')::date >= :'eff_birth'::date and r->>'birth_date' = :'eff_birth' from eff_a1), 'days are counted on the home''s calendar, never from before the birth, and hers are among the home''s');
+select pg_temp.assert((select not (r ? 'members') and (select count(*) from jsonb_object_keys(r)) = 4 from eff_a1), 'the answer holds her sums and the home''s and nobody else''s');
+reset role;
+select pg_temp.act_as(:mido);
+set role authenticated;
+create temp table eff_b1 as select public.effort_totals(:lana) as r;
+select pg_temp.assert((select (b1.r->'mine'->>'diapers')::int - (b0.r->'mine'->>'diapers')::int = 1 and (b1.r->'mine'->>'sleeps')::int - (b0.r->'mine'->>'sleeps')::int = 1
+  and (b1.r->'mine'->>'feeds')::int = (b0.r->'mine'->>'feeds')::int and (b1.r->'all'->>'feeds')::int - (b0.r->'all'->>'feeds')::int = 3 from eff_b0 b0, eff_b1 b1),
+  'the other parent is credited the diaper saved in his name and his sleep, not the bottle he saved in hers');
+reset role;
+select pg_temp.act_as(:haitham);
+set role authenticated;
+select pg_temp.assert((public.effort_totals(:lana))->>'error' = 'not_found', 'another home''s child is not found');
+reset role;
+create temp table perm7050 as select role_id, module_id, action, allowed from public.permissions where role_id = 'home_carer' and module_id = 'lana';
+update public.permissions set allowed = false where role_id = 'home_carer' and module_id = 'lana';
+select pg_temp.act_as(:lilly);
+set role authenticated;
+select pg_temp.assert((public.effort_totals(:lana))->>'ok' = 'false', 'a member who may not view the child is refused');
+reset role;
+update public.permissions p set allowed = f.allowed from perm7050 f where p.role_id = f.role_id and p.module_id = f.module_id and p.action = f.action;
+set role anon;
+select pg_temp.assert(pg_temp.fails($q$select public.effort_totals('00000000-0000-4000-8000-00000000a001')$q$), 'signed out, no sums');
+reset role;
+update public.care_entries set deleted_at = now() where note = 'effort test' and deleted_at is null;
+
 \echo 'All Step 1 to 6 database checks passed (view-as, adoptions, finishing, perf, chat, vaccines, end_if, milk, parity, smart care, coach, skills, week, helper skills, entry checks, memory, sprouty, timers, preview guards, signed out, end once, many homes, definer scope, home ops, homes per account, home on screen, invite links, helper cards, diaper, family words, milk past its time, after the first birthday, the child''s facts, the answer follows the member, the family''s day).'
 select count(*) as audit_rows, sum(case when allowed then 0 else 1 end) as denied from public.audit_log;

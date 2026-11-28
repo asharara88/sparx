@@ -152,8 +152,11 @@ Done and live:
   re-pointing a member row's account (`members_keep_account`): until then an admin could
   have signed in as any member of the home. Nothing was added to Home's
   database calls: both ride in `achievements_check()`. The rule and its hours are constants
-  in `lib/nights.ts`; the whole of it is in DESIGN.md, "Cheers and shared nights". Still to
-  come: ticks for looking after herself, a weekly recap and surprises.
+  in `lib/nights.ts`; the whole of it is in DESIGN.md, "Cheers and shared nights". Effort,
+  counted (28 November, `…7050`): "Since {Name} was born" under Achievements, plain totals of
+  the care that was saved, the viewer's own and the home's and never another member's
+  (`effort_totals`, `lib/effort.ts`), with a line on Home for three days at each monthly
+  birthday. Still to come: ticks for looking after herself, a weekly recap and surprises.
 - Speed (25 November): a second weekly workflow (`speed-check.yml`, Mondays) serves a
   production build with the demo home and runs `scripts/speed-check.mjs`. It reads ten
   everyday screens and four taps against budgets written in that file: database calls and
